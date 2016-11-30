@@ -1,0 +1,19 @@
+# uhura 
+
+-W2
+-es0
+-st
+#-static
+#-gc3
+#-strip
+-b
+-mt
+
+hbunix.hbc{unix}
+-DDEBUG=1
+
+-gtxwc{unix}
+-lXpm{unix}
+-gtwvt{!unix}
+hbwin.hbc{!unix}
+uhura.prg

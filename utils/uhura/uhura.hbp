@@ -1,0 +1,19 @@
+# uhura 
+
+-o../../bin/uhura
+-W3
+-es0
+-st
+{!win}-static
+{win}-fullstatic
+-gc3
+-strip
+-mt
+#-p+
+
+hbunix.hbc{unix}
+
+-gtxwc{unix}
+-gtwvt{!unix}
+hbwin.hbc{!unix}
+uhura.prg

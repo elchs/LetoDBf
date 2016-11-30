@@ -1,0 +1,19 @@
+-inc
+-o../../bin/${hb_plat}/${hb_comp}/manage
+-i../../include;${hwgui_dir}include
+-n -w -q0 -es2
+#-warn=max
+-gui
+-mt
+
+{bcc}-l../../lib/${hb_plat}/${hb_comp}/rddleto
+{bcc}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/hwgui
+{bcc}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/procmisc
+{bcc}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/hbxml
+
+{mingw|mingw64}-l../../lib/${hb_plat}/${hb_comp}/librddleto.a
+{mingw|mingw64}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/libhwgui.a
+{mingw|mingw64}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/libprocmisc.a
+{mingw|mingw64}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/libhbxml.a
+
+manage.prg

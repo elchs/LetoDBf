@@ -1,0 +1,73 @@
+--- lz4.c	2016-06-05 15:56:53.020773446 +0200
++++ lz4.c.org	2016-04-08 12:31:10.000000000 +0200
+@@ -102,15 +102,9 @@
+ /**************************************
+ *  Memory routines
+ **************************************/
+-#ifdef __HARBOUR__  /* still unused, prbly later for streaming functions */
+-   #include "hbapi.h"
+-   #define ALLOCATOR(n,s) hb_xgrabz( n * s )
+-   #define FREEMEM        hb_xfree
+-#else
+-   #include <stdlib.h>   /* malloc, calloc, free */
+-   #define ALLOCATOR(n,s) calloc(n,s)
+-   #define FREEMEM        free
+-#endif
++#include <stdlib.h>   /* malloc, calloc, free */
++#define ALLOCATOR(n,s) calloc(n,s)
++#define FREEMEM        free
+ #include <string.h>   /* memset, memcpy */
+ #define MEM_INIT       memset
+ 
+@@ -207,16 +201,14 @@
+ 
+ static void LZ4_copy4(void* dstPtr, const void* srcPtr) { memcpy(dstPtr, srcPtr, 4); }
+ 
+-/* static void LZ4_copy8(void* dstPtr, const void* srcPtr) { memcpy(dstPtr, srcPtr, 8); } */
+-#define LZ4_copy8(dstPtr, srcPtr) memcpy(dstPtr, srcPtr, 8)
+-
++static void LZ4_copy8(void* dstPtr, const void* srcPtr) { memcpy(dstPtr, srcPtr, 8); }
+ 
+ /* customized version of memcpy, which may overwrite up to 7 bytes beyond dstEnd */
+ static void LZ4_wildCopy(void* dstPtr, const void* srcPtr, void* dstEnd)
+ {
+     BYTE* d = (BYTE*)dstPtr;
+     const BYTE* s = (const BYTE*)srcPtr;
+-    const BYTE* e = (const BYTE*)dstEnd;
++    BYTE* e = (BYTE*)dstEnd;
+     do { LZ4_copy8(d,s); d+=8; s+=8; } while (d<e);
+ }
+ 
+@@ -406,7 +398,7 @@
+ {
+     if (LZ4_64bits())
+         return LZ4_hashSequence64(sequence, tableType);
+-    return  (U32) LZ4_hashSequence((U32)sequence, tableType);
++    return LZ4_hashSequence((U32)sequence, tableType);
+ }
+ 
+ static U32 LZ4_hashPosition(const void* p, tableType_t tableType) { return LZ4_hashSequenceT(LZ4_read_ARCH(p), tableType); }
+@@ -476,6 +468,11 @@
+     if ((U32)inputSize > (U32)LZ4_MAX_INPUT_SIZE) return 0;   /* Unsupported input size, too large (or negative) */
+     switch(dict)
+     {
++    case noDict:
++    default:
++        base = (const BYTE*)source;
++        lowLimit = (const BYTE*)source;
++        break;
+     case withPrefix64k:
+         base = (const BYTE*)source - dictPtr->currentOffset;
+         lowLimit = (const BYTE*)source - dictPtr->dictSize;
+@@ -484,11 +481,6 @@
+         base = (const BYTE*)source - dictPtr->currentOffset;
+         lowLimit = (const BYTE*)source;
+         break;
+-    /* case noDict: */
+-    default:
+-        base = (const BYTE*)source;
+-        lowLimit = (const BYTE*)source;
+-        break;
+     }
+     if ((tableType == byU16) && (inputSize>=LZ4_64Klimit)) return 0;   /* Size too large (not within 64K limit) */
+     if (inputSize<LZ4_minLength) goto _last_literals;                  /* Input too small, no compression (all literals) */

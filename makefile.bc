@@ -1,0 +1,250 @@
+#  $Id: makefile.bc,v 1.15.2.6 2013/12/13 16:40:26 alkresin Exp $
+# makefile for Borland C/C++ 32 bits
+# Building of Leto binaries
+
+.AUTODEPEND
+
+# uncomment this line if you want to build letodb with xharbour
+# XHARBOUR = yes
+
+# uncomment this line if you want to build letodb with BMDBF* support
+# __BM = yes
+
+#SRV_MODE = __WIN_SERVICE__
+# SRV_MODE = __WIN_DAEMON__
+SRV_MODE = __CONSOLE__
+
+!if !$d(ECHO)
+   ECHO = echo.
+!endif
+!if !$d(DEL)
+   DEL = del
+!endif
+
+HRB_DIR = $(HB_PATH)
+INCLUDE_DIR = include;$(HRB_DIR)\include
+HARBOUR_EXE = $(HRB_DIR)\bin\harbour.exe
+!if $(SRV_MODE) == __CONSOLE__
+HB_GT_LIB = gtwin.lib
+!else
+HB_GT_LIB = gtgui.lib
+!endif
+!if $d(XHARBOUR)
+HARBOUR_LIBS = debug.lib vm.lib rtl.lib $(HB_GT_LIB) lang.lib rdd.lib macro.lib pp.lib dbfntx.lib dbfcdx.lib dbffpt.lib hbsix.lib common.lib codepage.lib pcrepos.lib
+!else
+HARBOUR_LIBS = hbdebug.lib hbvmmt.lib hbrtl.lib $(HB_GT_LIB) hblang.lib hbrdd.lib hbmacro.lib hbpp.lib rddntx.lib rddcdx.lib rddfpt.lib hbsix.lib hbcommon.lib hbcpage.lib hbpcre.lib hbzlib.lib rddnsx.lib hbmemio.lib hbextern.lib hbhsx.lib
+!endif
+WINDOWS_LIBS = cw32mt.lib import32.lib ws2_32.lib PSDK\iphlpapi.lib
+
+CC = bcc32
+LINKER = TLIB
+
+BIN_DIR  = $(HRB_DIR)\bin
+LETO_BIN_DIR  = bin
+LETO_LIB_DIR  = lib
+
+# This is needed, otherwise the libs may overflow when
+# debug info is requested with -v -y
+# if debug info is requested, set ARFLAGS to /P64 in your environment
+!if !$d(ARFLAGS)
+    ARFLAGS = /0
+!endif
+
+#!if !$d(BCC_NOOPTIM)
+#    CFLAGS = -O2 $(CFLAGS)
+#!endif
+
+#
+# Directory macros. These should never have to change.
+#
+SERVER_DIR = source\server
+CLIENT_DIR = source\client
+COMMON_DIR = source\common
+
+#
+# C compiler definition and C flags. These should never have to change.
+#
+
+CFLAGS               = -I$(INCLUDE_DIR) -d $(C_USR) $(CFLAGS) -tWM -D__WIN32__ -D$(SRV_MODE)
+CLIBFLAGS            = -c $(CFLAGS) $(CLIBFLAGS)
+CEXEFLAGS            = -L$(HRB_DIR)\lib\win\bcc -lGn -lTpe -laa $(CFLAGS)
+CLIBFLAGSDEBUG       = -v $(CLIBFLAGS)
+HARBOURFLAGS         = -i$(INCLUDE_DIR) -n -q0 -w -es2 -gc0 -d$(SRV_MODE) $(PRG_USR) $(HARBOURFLAGS)
+LDFLAGS              = $(LDFLAGS)
+
+!if $d(__BM)
+CLIBFLAGS = $(CLIBFLAGS) -D__BM
+HARBOURFLAGS = $(HARBOURFLAGS) -D__BM
+!endif
+
+CLIBFLAGS = $(CLIBFLAGS) -DUSE_PMURHASH=1
+
+CC_CMD = $(CC) $(CLIBFLAGS) -o$@ $**
+HB_CMD = $(HARBOUR_EXE) $(HARBOURFLAGS) $** -o$@
+
+#
+# Macros to access our library names
+#
+
+CLIENT_RDD_LIB   =   $(LETO_LIB_DIR)\rddleto.lib
+CLIENT_LIB   =   $(LETO_LIB_DIR)\leto.lib
+SERVER_EXE   =   $(LETO_BIN_DIR)\letodb.exe
+
+#
+# Rules
+#
+
+#
+# RDDLETO.LIB rules
+#
+
+CLIENT_RDD_LIB_OBJS = \
+   $(OBJ_DIR)\letocl.obj \
+   $(OBJ_DIR)\leto1.obj \
+   $(OBJ_DIR)\letomgmn.obj \
+   $(OBJ_DIR)\common_c.obj \
+   $(OBJ_DIR)\blowfish.obj \
+   $(OBJ_DIR)\PMurHash.obj \
+   $(OBJ_DIR)\rddsys.obj
+
+!if $d(XHARBOUR)
+CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
+   $(OBJ_DIR)\itemseri.obj
+!endif
+
+!if $d(__BM)
+CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
+   $(OBJ_DIR)\letoserv.obj \
+   $(OBJ_DIR)\letobmcl.obj
+!endif
+
+#
+# LETO.LIB rules
+#
+
+CLIENT_LIB_OBJS = \
+   $(OBJ_DIR)\letocl.obj \
+   $(OBJ_DIR)\common_c.obj \
+   $(OBJ_DIR)\blowfish.obj \
+   $(OBJ_DIR)\PMurHash.obj
+
+!if $d(XHARBOUR)
+CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
+   $(OBJ_DIR)\itemseri.obj
+!endif
+
+#
+# LETO.EXE rules
+#
+
+SERVER_EXE_OBJS = \
+   $(OBJ_DIR)\server.obj \
+   $(OBJ_DIR)\common.obj \
+   $(OBJ_DIR)\common_c.obj \
+   $(OBJ_DIR)\blowfish.obj \
+   $(OBJ_DIR)\PMurHash.obj \
+   $(OBJ_DIR)\letofunc.obj \
+   $(OBJ_DIR)\letolist.obj \
+   $(OBJ_DIR)\leto_2.obj \
+   $(OBJ_DIR)\letoacc.obj \
+   $(OBJ_DIR)\letovars.obj \
+   $(OBJ_DIR)\leto_win.obj \
+   $(OBJ_DIR)\errint.obj \
+   $(OBJ_DIR)\errorsys.obj
+
+#
+# Our default target
+#
+
+!if $d(XHARBOUR)
+PROJECT = \
+   $(CLIENT_RDD_LIB) \
+   $(CLIENT_LIB)
+!else
+PROJECT = \
+   $(CLIENT_RDD_LIB) \
+   $(CLIENT_LIB) \
+   $(SERVER_EXE)
+!endif
+
+ALL: $(PROJECT)
+
+#
+# Library dependencies and build rules
+#
+
+$(CLIENT_RDD_LIB) : $(CLIENT_RDD_LIB_OBJS)
+    IF EXIST "$(CLIENT_RDD_LIB)" $(DEL) "$(CLIENT_RDD_LIB)" > NUL
+    $(LINKER) "$(CLIENT_RDD_LIB)" $(ARFLAGS) @&&!
++$(**: = &^
++)
+
+!
+
+$(CLIENT_LIB) : $(CLIENT_LIB_OBJS)
+    IF EXIST "$(CLIENT_LIB)" $(DEL) "$(CLIENT_LIB)" > NUL
+    $(LINKER) "$(CLIENT_LIB)" $(ARFLAGS) @&&!
++$(**: = &^
++)
+
+!
+
+$(SERVER_EXE) : $(SERVER_EXE_OBJS)
+    IF EXIST "$(SERVER_EXE)" $(DEL) "$(SERVER_EXE)" > NUL
+    $(CC) @&&!
+$(CEXEFLAGS)
+-e$(SERVER_EXE)
+$(**: = ^
+)
+$(HARBOUR_LIBS)
+$(WINDOWS_LIBS)
+!
+
+# ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+# ³ CLIENT_RDD.LIB Dependencies³Û
+# ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙÛ
+#  ßßßßßßßßßßßßßßßßßßßßßßßßßß
+
+{$(CLIENT_DIR)}.prg{$(OBJ_DIR)}.c:
+    $(HB_CMD)
+
+.c.obj:
+    $(CC_CMD)
+
+{$(CLIENT_DIR)}.c{$(OBJ_DIR)}.obj:
+    $(CC_CMD)
+
+{$(COMMON_DIR)}.c{$(OBJ_DIR)}.obj:
+    $(CC_CMD)
+
+
+# ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+# ³ CLIENT.LIB Dependencies³Û
+# ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙÛ
+#  ßßßßßßßßßßßßßßßßßßßßßßßßßß
+
+.c.obj:
+    $(CC_CMD)
+
+{$(CLIENT_DIR)}.c{$(OBJ_DIR)}.obj:
+    $(CC_CMD)
+
+{$(COMMON_DIR)}.c{$(OBJ_DIR)}.obj:
+    $(CC_CMD)
+
+#
+# SERVER.EXE dependencies
+#
+
+{$(SERVER_DIR)}.prg{$(OBJ_DIR)}.c:
+    $(HB_CMD)
+
+{$(COMMON_DIR)}.prg{$(OBJ_DIR)}.c:
+    $(HB_CMD)
+
+{$(SERVER_DIR)}.c{$(OBJ_DIR)}.obj:
+   $(CC_CMD)
+
+{$(COMMON_DIR)}.c{$(OBJ_DIR)}.obj:
+    $(CC_CMD)
+

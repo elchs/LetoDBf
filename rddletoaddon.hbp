@@ -1,0 +1,76 @@
+#-env:__BM=yes
+{!bcc}-env:__LZ4=yes
+-env:__PMURHASH=yes
+
+-olib/rddleto
+
+# static lib
+-hblib
+
+# shared lib, dll or so
+#-hbdynvm
+#-shared
+
+#-debug
+#-b
+
+-n
+-w
+-q0
+-es2
+-gc3
+-strip
+-hbx=letodb.hbx
+
+-iinclude
+{__LZ4}-isource/3rd/lz4/lib
+
+#-cflag=-D__HARBOUR30__=1
+
+-cflag={allmsvc}-D_CRT_SECURE_NO_DEPRECATE
+-cflag={clang}-W
+-cflag={clang}-Wall
+-cflag={clang}-pedantic
+# to avoid spin locks
+#-cflag={win}-DHB_HELGRIND_FRIENDLY=1
+{__PMURHASH}-cflag=-DUSE_PMURHASH=1
+{__BM}-cflag=-D__BM=1
+{__LZ4}-cflag=-DUSE_LZ4=1
+
+source/client/letocl.c
+source/client/leto1.c
+source/client/letomgmn.c
+source/client/rddsys.prg
+{__BM}source/client/letobmcl.prg
+
+source/common/blowfish.c
+source/common/common_c.c
+{__BM}source/common/letoserv.prg
+{__LZ4}source/3rd/lz4/lib/lz4.c
+{__LZ4}source/common/lz4net.c
+{__PMURHASH}source/common/PMurHash.c
+
+
+# install files and paths
+-instfile=misc:*.hb
+-instfile=misc:*.hbc
+-instfile=misc:*.hbx
+-instfile=misc:*.md
+-instfile=misc:*.txt
+-instfile=inc:*.ch
+-instfile=inc_sub:include/*.ch
+-instfile=inc_sub:include/funcleto.h
+-instfile=tests:tests/*.*
+
+# static library & dynamic library on *nix
+{hblib}-instpath=${hb_lib}/
+# dynamic library on non-*nix
+{hbdyn&!unix}-instpath=${hb_bin}/
+{hbdyn&unix}-instpath=${hb_lib}/
+
+# misc files, public headers, tests
+-instpath=misc:${hb_addons}/letodb/
+-instpath=inc:${hb_addons}/letodb/
+-instpath=inc_sub:${hb_addons}/letodb/include/
+-instpath=tests:${hb_addons}/letodb/tests/
+

@@ -1,0 +1,7 @@
+incpaths=include
+libpaths=lib
+
+headers=include/rddleto.ch
+libs=rddleto
+
+mt=yes

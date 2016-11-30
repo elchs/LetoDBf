@@ -1,0 +1,10 @@
+-hbdynvm
+-w
+
+{bcc}-l..\..\lib\mingw\rddleto.lib
+{mingw}-l..\..\lib\mingw\librddleto.a
+
+# copy hbolesrv.hbc and. *.def file from /harbour/contrib/hbwin folder
+hbolesrv.hbc
+
+letosrv.prg

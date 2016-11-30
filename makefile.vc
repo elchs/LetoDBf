@@ -1,0 +1,172 @@
+# $Id: makefile.vc,v 1.5.2.4 2013/12/13 16:40:26 alkresin Exp $
+# makefile for Visual C++ 32 bits
+# Building of Leto binaries
+
+#.SUFFIXESS: .prg .lib .c .obj
+
+# uncomment this line if you want to build letodb with xharbour
+# XHARBOUR = yes
+
+!ifndef HRB_DIR
+HRB_DIR = $(HB_PATH)
+!endif
+INC_DIR = include
+LZ4_DIR = source\3rd\lz4\lib
+OBJ_DIR = obj/vc
+LIB_DIR = lib
+BIN_DIR = bin
+
+SERVER_DIR = source\server
+CLIENT_DIR = source\client
+COMMON_DIR = source\common
+
+CFLAGS = -Ot2b1 -EHs-c- -FD -Gs -W3 -nologo -D__WINDOWS__ -DWIN32 -D__WIN32__ -D_CRT_SECURE_NO_DEPRECATE -DUSE_PMURHASH=1 -DUSE_LZ4=1
+
+#!if $d(XHARBOUR)
+#HARBOUR_LIBS = debug.lib vm.lib rtl.lib gtgui.lib lang.lib rdd.lib macro.lib pp.lib dbfntx.lib dbfcdx.lib dbffpt.lib hbsix.lib common.lib codepage.lib pcrepos.lib
+#!else
+HARBOUR_LIBS = hbdebug.lib hbvmmt.lib hbrtl.lib gtgui.lib hblang.lib hbrdd.lib hbmacro.lib hbpp.lib rddntx.lib rddcdx.lib rddfpt.lib hbsix.lib hbcommon.lib hbcpage.lib hbpcre.lib hbzlib.lib rddnsx.lib hbmemio.lib hbextern.lib hbhsx.lib
+#!endif
+
+WINDOWS_LIBS = user32.lib winspool.lib WSock32.lib WinMM.lib AdvApi32.lib IPHlpApi.lib Ws2_32.lib
+
+#!if $d(XHARBOUR)
+#all: \
+#   $(LIB_DIR)\rddleto.lib \
+#   $(LIB_DIR)\leto.lib
+#!else
+all: \
+   $(BIN_DIR)\letodb.exe \
+   $(LIB_DIR)\rddleto.lib \
+   $(LIB_DIR)\leto.lib
+#!endif
+
+$(BIN_DIR)\letodb.exe :  \
+   $(OBJ_DIR)\server.obj \
+   $(OBJ_DIR)\common.obj \
+   $(OBJ_DIR)\common_c.obj \
+   $(OBJ_DIR)\blowfish.obj \
+   $(OBJ_DIR)\lz4.obj \
+   $(OBJ_DIR)\lz4net.obj \
+   $(OBJ_DIR)\PMurHash.obj \
+   $(OBJ_DIR)\leto_2.obj \
+   $(OBJ_DIR)\letofunc.obj \
+   $(OBJ_DIR)\letolist.obj \
+   $(OBJ_DIR)\letoacc.obj \
+   $(OBJ_DIR)\letovars.obj \
+   $(OBJ_DIR)\leto_win.obj \
+   $(OBJ_DIR)\errint.obj \
+   $(OBJ_DIR)\errorsys.obj
+    link /OUT:bin\letodb.exe -SUBSYSTEM:WINDOWS /NODEFAULTLIB:LIBC /NODEFAULTLIB:LIBCP -LIBPATH:$(HRB_DIR)\lib\win\msvc $(HARBOUR_LIBS) $(WINDOWS_LIBS) $**
+#-LIBPATH:$(LIBPATH)
+
+$(OBJ_DIR)\server.obj  : $(OBJ_DIR)\server.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\common.obj  : $(OBJ_DIR)\common.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\errorsys.obj  : $(OBJ_DIR)\errorsys.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\common_c.obj  : $(COMMON_DIR)\common_c.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\blowfish.obj  : $(COMMON_DIR)\blowfish.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\PMurHash.obj  : $(COMMON_DIR)\PMurHash.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\lz4.obj  : $(LZ4_DIR)\lz4.c
+  cl $(CFLAGS) /c /I$(LZ4_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+  
+$(OBJ_DIR)\lz4net.obj  : $(COMMON_DIR)\lz4net.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(LZ4_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\leto_2.obj  : $(SERVER_DIR)\leto_2.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\letofunc.obj  : $(SERVER_DIR)\letofunc.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(LZ4_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\letolist.obj  : $(SERVER_DIR)\letolist.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\letoacc.obj  : $(SERVER_DIR)\letoacc.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\letovars.obj  : $(SERVER_DIR)\letovars.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\leto_win.obj  : $(SERVER_DIR)\leto_win.c
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(OBJ_DIR)\server.c   : $(SERVER_DIR)\server.prg
+  $(HRB_DIR)\bin\harbour.exe $** -n -w -i$(HRB_DIR)\include -i$(INC_DIR) -d__WIN_DAEMON__ -o$@
+
+$(OBJ_DIR)\common.c   : $(COMMON_DIR)\common.prg
+  $(HRB_DIR)\bin\harbour.exe $** -n -w -i$(HRB_DIR)\include -i$(INC_DIR) -d__WIN_DAEMON__ -o$@
+
+$(OBJ_DIR)\errorsys.c   : $(SERVER_DIR)\errorsys.prg
+  $(HRB_DIR)\bin\harbour.exe $** -n -w -i$(HRB_DIR)\include -i$(INC_DIR) -o$@
+
+
+$(LIB_DIR)\rddleto.lib : \
+   $(OBJ_DIR)\letocl.obj \
+   $(OBJ_DIR)\leto1.obj \
+   $(OBJ_DIR)\letomgmn.obj \
+   $(OBJ_DIR)\common_c.obj \
+   $(OBJ_DIR)\lz4.obj \
+   $(OBJ_DIR)\lz4net.obj \
+   $(OBJ_DIR)\PMurHash.obj \
+   $(OBJ_DIR)\blowfish.obj
+  lib /out:$@ $**
+
+
+{$(SERVER_DIR)}.prg{$(OBJ_DIR)}.c:
+  $(HRB_DIR)\bin\harbour.exe $** -n -w -i$(HRB_DIR)\include -i$(INC_DIR) -d__WIN_DAEMON__ -o$@
+
+{$(COMMON_DIR)}.prg{$(OBJ_DIR)}.c:
+  $(HRB_DIR)\bin\harbour.exe $** -n -w -i$(HRB_DIR)\include -i$(INC_DIR) -d__WIN_DAEMON__ -o$@
+
+{$(SERVER_DIR)}.c{$(OBJ_DIR)}.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+{$(COMMON_DIR)}.c{$(OBJ_DIR)}.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+{$(CLIENT_DIR)}.c{$(OBJ_DIR)}.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(LZ4_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+{$(OBJ_DIR)}.c{$(OBJ_DIR)}.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+.c.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+$(LIB_DIR)\leto.lib : \
+   $(OBJ_DIR)\letocl.obj \
+   $(OBJ_DIR)\common_c.obj \
+   $(OBJ_DIR)\lz4.obj \
+   $(OBJ_DIR)\lz4net.obj \
+   $(OBJ_DIR)\PMurHash.obj \
+   $(OBJ_DIR)\blowfish.obj
+  lib /out:$@ $**
+
+
+
+{$(SERVER_DIR)}.c{$(OBJ_DIR)}.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+{$(COMMON_DIR)}.c{$(OBJ_DIR)}.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+{$(CLIENT_DIR)}.c{$(OBJ_DIR)}.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(LZ4_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+{$(OBJ_DIR)}.c{$(OBJ_DIR)}.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**
+
+.c.obj:
+  cl $(CFLAGS) /c /I$(INC_DIR) /I$(HRB_DIR)\include /Fo$@ $**

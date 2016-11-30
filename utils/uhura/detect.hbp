@@ -1,0 +1,10 @@
+detect.prg
+
+../letodb.hbc
+-W3
+-es0
+-n
+-mt
+-gtxwc{unix}
+-gtwvt{win}
+#-strip

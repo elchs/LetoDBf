@@ -1,0 +1,10 @@
+
+# output path does not work with .hrb ?
+-o../bin
+
+-W3
+-es0
+-n
+-gh
+
+letoudf.prg

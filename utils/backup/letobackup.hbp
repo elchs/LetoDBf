@@ -1,0 +1,12 @@
+
+-inc
+
+-lrddleto
+-i../../include
+-o../../bin/letobackup
+-w2
+-gtxwc
+#-b
+
+letobackup.prg
+../../source/common/common.prg
