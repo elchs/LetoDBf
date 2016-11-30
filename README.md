@@ -14,7 +14,7 @@
 
  LetoDBf is like the origin a multiplatform, high performance database server with data stored in DBF
  tables. It is programmed mostly in pure 'Ansi-C' by extensively using the underlaying Harbour database
- engine ( http://harbour-project.org )
+ engine ( https://harbour.github.io )
 
  The cause of this fork was to get the freedom of removing over many years accumulated legacy technics,
  and to continue, to improve and to enhance based on latest development status, without the strain to
