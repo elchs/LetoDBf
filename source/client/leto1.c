@@ -695,9 +695,15 @@ static HB_ERRCODE letoSkipFilter( LETOAREAP pArea, HB_LONG lUpDown )
 
 static HB_ERRCODE letoSkipRaw( LETOAREAP pArea, HB_LONG lToSkip )
 {
-   HB_TRACE( HB_TR_DEBUG, ( "letoSkip(%p, %ld)", pArea, lToSkip ) );
+   LETOTABLE * pTable = pArea->pTable;
 
-   if( LetoDbSkip( pArea->pTable, lToSkip ) == HB_SUCCESS )
+   HB_TRACE( HB_TR_DEBUG, ( "letoSkipRaw(%p, %ld)", pArea, lToSkip ) );
+
+   pArea->lpdbPendingRel = NULL;
+   if( pTable->uiUpdated )
+      leto_PutRec( pArea, HB_FALSE );
+
+   if( LetoDbSkip( pTable, lToSkip ) == HB_SUCCESS )
       leto_SetAreaFlags( pArea );
    else
    {
@@ -705,7 +711,7 @@ static HB_ERRCODE letoSkipRaw( LETOAREAP pArea, HB_LONG lToSkip )
 
       if( LetoGetError() != 1000 )
       {
-         LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
+         LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
          const char * ptr = leto_firstchar( pConnection );
 
          iErr = atoi( ptr );
@@ -776,7 +782,6 @@ static HB_ERRCODE letoAppend( LETOAREAP pArea, HB_BOOL fUnLockAll )
 
    if( LetoDbAppend( pTable, fUnLockAll ) )
       return HB_FAILURE;
-   /* after removing ugly fFastAppend hack, RecNo is available */
    if( ! pConnection->fTransActive )
    {
       if( fUnLockAll )
@@ -5875,15 +5880,10 @@ HB_FUNC( LETO_ISFLTOPTIM )
       hb_retl( HB_FALSE );
 }
 
+/* deprecated */
 HB_FUNC( LETO_SETFASTAPPEND )
 {
-#if 0
-   int i = ( HB_ISLOG( 1 ) ) ? ( int ) hb_parl( 1 ) : -1;
-
-   hb_retl( LetoSetFastAppend( i ) );
-#else
    hb_retl( HB_FALSE );
-#endif
 }
 
 LETOCONNECTION * leto_getConnection( int iParam )

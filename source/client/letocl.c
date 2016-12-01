@@ -455,27 +455,6 @@ HB_EXPORT int LetoGetError( void )
    return pCurrentConn->iError;
 }
 
-#if 0
-HB_EXPORT HB_BOOL LetoSetFastAppend( int uiFApp )
-{
-   LETOCONNECTION * pCurrentConn = letoGetCurrConn();
-   HB_BOOL          fPrev;
-
-   if( pCurrentConn )
-   {
-      fPrev = pCurrentConn->fFastAppend;
-      if( uiFApp == 0 )
-         pCurrentConn->fFastAppend = HB_FALSE;
-      else if( uiFApp == 1 )
-         pCurrentConn->fFastAppend = HB_TRUE;
-   }
-   else
-      fPrev = HB_FALSE;
-
-   return fPrev;
-}
-#endif
-
 HB_EXPORT const char * LetoGetServerVer( LETOCONNECTION * pConnection )
 {
    return pConnection->szVersion;
@@ -2218,7 +2197,7 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
                               ptrPar += uiLen;
                               break;
 
-                           /* elch : were memos etc missing in transaction ? -- added */
+#if 0  /* ToDo memo fields are not in LETOCMD_upd, but in LETOCMD_memo */
                            case HB_FT_MEMO:
                            case HB_FT_BLOB:
                            case HB_FT_PICTURE:
@@ -2235,6 +2214,7 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
                                     ptrRec[ pField->uiLen - 1 ] = '1';
                               }
                               break;
+#endif
 
                            case HB_FT_INTEGER:
                            case HB_FT_CURRENCY:
@@ -2248,6 +2228,42 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
                            case HB_FT_ROWVER:
                               memcpy( ptrRec, ptrPar, pField->uiLen );
                               ptrPar += pField->uiLen;
+                              break;
+
+                           case HB_FT_ANY:
+                              if( pField->uiLen == 3 || pField->uiLen == 4 )
+                              {
+                                 memcpy( ptrRec, ptrPar, pField->uiLen );
+                                 ptrPar += pField->uiLen;
+                              }
+                              else
+                              {
+                                 *ptrRec++ = *ptrPar;
+                                 switch( *ptrPar++ )
+                                 {
+                                    case 'D':
+                                       memcpy( ptrRec, ptrPar, 8 );
+                                       ptrPar += 8;
+                                       break;
+
+                                    case 'L':
+                                       *ptrRec++ = *ptrPar++;
+                                       break;
+
+                                    case 'N':
+                                       uiLen = ( ( HB_UCHAR ) *ptr ) & 0xFF;
+                                       memset( ptrRec, ' ', pField->uiLen - uiLen );
+                                       memcpy( ptrRec + ( pField->uiLen - uiLen ), ptrPar, uiLen );
+                                       ptrPar += uiLen + 1;
+                                       break;
+
+                                    case 'C':
+                                       uiLen = leto_b2n( ptr, 2 );
+                                       memcpy( ptrRec, ptrPar, uiLen + 2 );
+                                       ptrPar += uiLen + 2;
+                                       break;
+                                 }
+                              }
                               break;
                         }
                      }
@@ -3601,12 +3617,6 @@ HB_EXPORT HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, co
    LETOFIELD *      pField = pTable->pFields + uiIndex;
    HB_BOOL          fAppend = ( pTable->uiUpdated & LETO_FLAG_UPD_APPEND );
 
-#if 0
-   /* we need a recno, so append the record before */
-   if( pConnection->fFastAppend && ! pConnection->fTransActive && pTable->uiUpdated && ! pTable->ulRecNo )
-      LetoDbPutRecord( pTable, HB_FALSE );
-#endif
-
    if( pField->uiLen == 4 )
       HB_PUT_LE_UINT32( &pTable->pRecord[ pTable->pFieldOffset[ uiIndex ] ], ( ulLenMemo ) ? 1 : 0 );
    else
@@ -3833,12 +3843,6 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
    HB_ULONG         ulDataLen;
    const char *     ptr;
    char             sData[ 42 ];
-
-   if( pTable->uiUpdated && LetoDbPutRecord( pTable, HB_FALSE ) )
-   {
-      pConnection->iError = 1020;
-      return 1;
-   }
 
    /* pTable->ptrBuf == NULL force to fetch fresh data */
    if( pTable->ptrBuf && leto_HotBuffer( pTable, &pTable->Buffer, pConnection->iBufRefreshTime ) )
@@ -4321,10 +4325,6 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
 
 HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
 {
-#if 0
-   LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-#endif
-
    if( pTable->fReadonly )
       return 1;  /* was 10; */
 
@@ -4332,14 +4332,10 @@ HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
    pTable->fBof = pTable->fEof = pTable->fFound = pTable->fDeleted = HB_FALSE;
    pTable->ptrBuf = NULL;
    pTable->ulRecCount++;
-   /* if fHaveAutoinc, autoincrement-values will be received in LetoDbPutRecord() */
+   /* if pTable->fHaveAutoinc, autoincrement-values will be received in LetoDbPutRecord() */
    leto_SetBlankRecord( pTable, 1 );
 
-#if 0
-   if( ( pConnection->fFastAppend && ! pTable->fHaveAutoinc ) || ! LetoDbPutRecord( pTable, HB_FALSE ) )
-#else
    if( ! LetoDbPutRecord( pTable, HB_FALSE ) )
-#endif
       pTable->fRecLocked = HB_TRUE;
    else
       return 1;

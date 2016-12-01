@@ -198,9 +198,6 @@ typedef struct _LETOCONNECTION_
    unsigned int      iConnection;       /* ID of connection */
    int               iConnectRes;       /* error state of connection -- just after connect */
    int               iError;            /* formerly static s_iError */
-#if 0
-   unsigned int      fFastAppend;       /* fast append mode */
-#endif
    HB_SOCKET         hSocket;
    HB_SOCKET         hSocketErr;
    PHB_ZNETSTREAM    zstream;
