@@ -1,0 +1,20 @@
+/* Encoding: UTF-8 (No BOM)  Notation (in 5th position):
+     * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
+*/
+
+2016-12-01 11:45 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * include/letocl.h
+  * source/client/client1.c
+  * source/client/clientcl.c
+    * move changed-record update call [ --> leto_PutRec() ] into letoSkipRaw(),
+      so all these calls are in client1.c, only except for record appending;
+      added reset of pending relations
+    - remove relicts of ugly FastAppend hack, it led to serious problems in
+      multiple areas ( memo update, locks tracking, autoincrement fields, .. );
+      a transaction can be used instead for a similar effect
+    + added field type HB_FT_ANY for transactions ( untested );
+    ; ToDo ?: updated memo fields in transaction buffer, difficult :-(
+
+2016-11-30
+  * .
+    initial upload after huge changes in all areas
