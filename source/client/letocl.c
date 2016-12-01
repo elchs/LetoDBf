@@ -1636,25 +1636,12 @@ static void leto_setSkipBuf( LETOCONNECTION * pConnection, LETOTABLE * pTable, c
    pTable->uiRecInBuf = 0;
 }
 
-static void leto_ClearAllSeekBuf( LETOTABLE * pTable )
-{
-   LETOTAGINFO * pTagInfo = pTable->pTagInfo;
-
-   while( pTagInfo )
-   {
-      pTagInfo->Buffer.ulBufDataLen = 0;
-      pTagInfo->uiRecInBuf = 0;
-      pTagInfo = pTagInfo->pNext;
-   }
-}
-
 void leto_ClearBuffers( LETOTABLE * pTable )
 {
    if( ! pTable->ptrBuf )
       pTable->Buffer.ulBufDataLen = 0;
    else
       pTable->ptrBuf = NULL;
-   leto_ClearAllSeekBuf( pTable );
 }
 
 static HB_ULONG leto_TransBlockLen( LETOCONNECTION * pConnection, HB_ULONG ulLen )
@@ -1690,8 +1677,8 @@ static HB_BOOL leto_SearchTransList( LETOCONNECTION * pConnection, HB_ULONG hTab
 
    while( ul < pConnection->ulRecsInList )
    {
-      if( pConnection->pTransList[ ul ].hTable == hTable &&
-          pConnection->pTransList[ ul ].ulRecNo == ulRecNo )
+      if( pConnection->pTransList[ ul ].ulRecNo == ulRecNo && 
+          pConnection->pTransList[ ul ].hTable == hTable )
          return HB_TRUE;
       ul++;
    }
@@ -1707,12 +1694,12 @@ static void leto_AddTransList( LETOCONNECTION * pConnection, HB_ULONG hTable, HB
 
       if( ! pConnection->pTransList )
       {
-         pConnection->pTransList = ( TRANSACTLIST * ) hb_xgrab( sizeof( TRANSACTLIST ) * 16 );
-         pConnection->ulTransListLen = 16;
+         pConnection->pTransList = ( TRANSACTLIST * ) hb_xgrab( sizeof( TRANSACTLIST ) * 32 );
+         pConnection->ulTransListLen = 32;
       }
       else if( ulRecsInList >= pConnection->ulTransListLen )
       {
-         pConnection->ulTransListLen += 16;
+         pConnection->ulTransListLen += 32;
          pConnection->pTransList = ( TRANSACTLIST * ) hb_xrealloc( pConnection->pTransList,
                                                                    sizeof( TRANSACTLIST ) * pConnection->ulTransListLen );
       }
@@ -1736,8 +1723,6 @@ HB_EXPORT void LetoDbFreeTag( LETOTAGINFO * pTagInfo )
       hb_xfree( pTagInfo->pTopScopeAsString );
    if( pTagInfo->pBottomScopeAsString )
       hb_xfree( pTagInfo->pBottomScopeAsString );
-   if( pTagInfo->Buffer.pBuffer )
-      hb_xfree( pTagInfo->Buffer.pBuffer );
 
    hb_xfree( pTagInfo );
 }
@@ -3915,15 +3900,12 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
    return 0;
 }
 
-/* we get to here only with a valid pTagCurrent, so transfer no TagName */
 HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHORT uiKeyLen, HB_BOOL fSoftSeek, HB_BOOL fFindLast )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-   LETOTAGINFO *    pTagInfo = pTable->pTagCurrent;
-   HB_BOOL          fSeekBuf = HB_FALSE, fSeekLeto = HB_TRUE;
    const char *     pData = NULL;
 
-   if( ! szKey )  /* want search wrong cKeytype, ? then goto EOF !? */
+   if( ! szKey )  /* want search wrong cKeytype, then goto EOF */
    {
       char          szData[ 32 ];
       unsigned long ulLen;
@@ -3935,96 +3917,28 @@ HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHO
          pConnection->iError = 1021;
          return 1;
       }
+      LetoDbGotoEof( pTable );
    }
    else
    {
-      fSeekBuf = pTagInfo->uiBufSize && ! fSoftSeek && ! fFindLast &&
-                 ( pTagInfo->cKeyType != 'C' || uiKeyLen == pTagInfo->uiKeySize );
+      char          szData[ LETO_MAX_KEY + LETO_MAX_TAGNAME + 56 ];
+      unsigned long ulLen;
 
-      if( fSeekBuf && pTagInfo->Buffer.ulBufDataLen &&
-          leto_HotBuffer( pTable, &pTagInfo->Buffer, pConnection->iBufRefreshTime ) )
+      ulLen = eprintf( szData, "%c;%lu;%c;", LETOCMD_seek, pTable->hTable,
+                       ( char ) ( ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 )
+                                  | ( fSoftSeek ? 0x10 : 0 )
+                                  | ( fFindLast ? 0x20 : 0 ) ) );
+      leto_AddKeyToBuf( szData, szKey, uiKeyLen, &ulLen );  /* trailing */
+      if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) || *( pConnection->szBuffer ) == '-' )
       {
-         char *    ptr = ( char * ) pTagInfo->Buffer.pBuffer;
-         HB_USHORT uiKeyLenBuf;
-
-         for( ;; )
-         {
-            uiKeyLenBuf = ( ( HB_UCHAR ) *ptr++ ) & 0xFF;
-
-            if( ( uiKeyLen == uiKeyLenBuf ) && ! memcmp( szKey, ptr, uiKeyLen ) )
-            {
-               ptr += uiKeyLenBuf;
-               if( HB_GET_LE_UINT24( ptr ) != 0 )
-                  leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
-               else
-                  LetoDbGotoEof( pTable );
-               fSeekBuf = fSeekLeto = HB_FALSE;
-               pTagInfo->Buffer.uiShoots++;
-               break;
-            }
-            else
-            {
-               ptr += uiKeyLenBuf;
-               ptr += HB_GET_LE_UINT24( ptr ) + 3;
-               if( leto_OutBuffer( &pTagInfo->Buffer, ptr ) )
-                  break;
-            }
-         }
+         pConnection->iError = 1021;
+         return 1;
       }
-
-      if( fSeekLeto )
-      {
-         char          szData[ LETO_MAX_KEY + LETO_MAX_TAGNAME + 56 ];
-         unsigned long ulLen;
-
-         ulLen = eprintf( szData, "%c;%lu;%c;", LETOCMD_seek, pTable->hTable,
-                          ( char ) ( ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 )
-                                     | ( fSoftSeek ? 0x10 : 0 )
-                                     | ( fFindLast ? 0x20 : 0 ) ) );
-         leto_AddKeyToBuf( szData, szKey, uiKeyLen, &ulLen );  /* trailing */
-         if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) || *( pConnection->szBuffer ) == '-' )
-         {
-            pConnection->iError = 1021;
-            return 1;
-         }
-      }
-   }
-
-   if( fSeekLeto )
-   {
       pData = leto_firstchar( pConnection );
       leto_ParseRecord( pConnection, pTable, pData, HB_TRUE );
       if( ! pTable->fEof )
          leto_setSkipBuf( pConnection, pTable, pData, 0 );
-   }
-   pTable->ptrBuf = NULL;
-
-   if( fSeekBuf && pData && ( ! pTable->fEof || ( ! pConnection->fRefreshCount && pTable->ulRecCount ) ) )
-   {
-      unsigned long   ulRecLen = ( ! pTable->fEof ? HB_GET_LE_UINT24( pData ) : 0 ) + 3;
-      unsigned long   ulDataLen = ulRecLen + uiKeyLen + 1;
-      unsigned char * ptr;
-
-      if( ! leto_HotBuffer( pTable, &pTagInfo->Buffer, pConnection->iBufRefreshTime ) ||
-          ( pTagInfo->uiRecInBuf >= pTagInfo->uiBufSize ) )
-      {
-         /* leto_ClearSeekBuf() */
-         pTagInfo->Buffer.ulBufDataLen = 0;
-         pTagInfo->uiRecInBuf = 0;
-      }
-
-      leto_AllocBuf( &pTagInfo->Buffer, pTagInfo->Buffer.ulBufDataLen + ulDataLen, ulDataLen * 5 );
-
-      ptr = pTagInfo->Buffer.pBuffer + pTagInfo->Buffer.ulBufDataLen - ulDataLen;
-      *ptr = ( HB_BYTE ) uiKeyLen & 0xFF;
-
-      memcpy( ptr + 1, szKey, uiKeyLen );
-      if( ! pTable->fEof )
-         memcpy( ptr + 1 + uiKeyLen, pData, ulRecLen );
-      else
-         HB_PUT_LE_UINT24( ptr + 1 + uiKeyLen, 0 );
-
-      pTagInfo->uiRecInBuf++;
+      pTable->ptrBuf = NULL;
    }
 
    return 0;
@@ -4108,7 +4022,6 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
    unsigned long ulLen;
    int           iRet = 0;
 
-   leto_ClearAllSeekBuf( pTable );
    if( ! pTable->ptrBuf )
       pTable->Buffer.ulBufDataLen = 0;
 

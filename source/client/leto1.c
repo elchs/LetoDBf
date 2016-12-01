@@ -3860,9 +3860,6 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
                      }
                   }
                }
-               /* leto_ClearSeekBuf() */
-               pTagInfo->Buffer.ulBufDataLen = 0;
-               pTagInfo->uiRecInBuf = 0;
                pTable->ptrBuf = NULL;
             }
          }
@@ -6203,29 +6200,10 @@ HB_FUNC( LETO_SETSKIPBUFFER )
       hb_retni( 0 );
 }
 
+/* deprecated */
 HB_FUNC( LETO_SETSEEKBUFFER )
 {
-   LETOAREAP     pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-   LETOTAGINFO * pTagInfo;
-
-   if( leto_CheckArea( pArea ) && ( pTagInfo = pArea->pTable->pTagCurrent ) != NULL )
-   {
-      if( HB_ISNUM( 1 ) )
-      {
-         HB_USHORT uiNum = ( HB_USHORT ) hb_parni( 1 );
-
-         hb_retni( pTagInfo->uiBufSize );
-         if( pArea->pTable->uiRecordLen * uiNum > LETO_MAX_RECV_BLOCK )
-            uiNum = ( HB_USHORT ) ( LETO_MAX_RECV_BLOCK / pArea->pTable->uiRecordLen );
-         pTagInfo->uiBufSize = uiNum;
-         if( uiNum == 0 )
-            pTagInfo->Buffer.ulBufDataLen = 0;
-      }
-      else
-         hb_retni( pTagInfo->Buffer.uiShoots );
-   }
-   else
-      hb_retni( 0 );
+   hb_retni( 0 );
 }
 
 #ifdef __BM

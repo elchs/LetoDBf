@@ -130,9 +130,6 @@ typedef struct _LETOTAGINFO
    HB_BOOL           fCustom;         /* user settable custom order flag */
    unsigned long     ulKeyNo;         /* value for ordKeyNo(), if buffering */
    unsigned long     ulKeyCount;      /* value for ordKeyCount(), if buffering */
-   LETOBUFFER        Buffer;          /* seek buffer */
-   unsigned int      uiBufSize;       /* records count in buffer */
-   unsigned int      uiRecInBuf;      /* current records in buffer*/
    void *            pExtra;
    struct _LETOTAGINFO * pNext;
 } LETOTAGINFO;                        /* 160 */

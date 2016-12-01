@@ -681,14 +681,8 @@ A. Internals
  If parameter <nSkip> is absent, function returns buffer statistic ( number of buffer hits )
  with given numeric value effective set size or 0 if no workarea was selected.
 
-      LETO_SETSEEKBUFFER( nRecsInBuf )                     ==> nCount (buffer statistic using)
- This buffer is intended for optimization of multiple calls of seek.
- This function set size in records of seek buffer for current index order.
- If record is found in seek buffer on dbSeek(), it's not loaded from server.
- Like skip buffer, seek buffer is refreshed after BUFF_REFRESH_TIME (1 sec)
- If parameter <nRecsInBuf> is absent, function returns buffer statistic (number of buffer hits),
- else size of buffer is returned.
- By default, seek buffer is turned off.
+      LETO_SETSEEKBUFFER( nRecsInBuf )                     ==> 0
+ ! DEPRECATED !
 
       LETO_SETFASTAPPEND( lFastAppend )                    ==> .F.
  ! DEPRECATED !
@@ -702,7 +696,7 @@ A. Internals
       RddInfo( RDDI_REFRESHCOUNT, <lSet>,, [nConnection] )
  By default, the RDDI_REFRESHCOUNT flag is set to true.  If this flag is set, function: RecCount() retrieve
  amount of records from server.
- If not set, with common record data transmitted values are used and slightly out-timed.
+ If not set, with common record data transmitted values are used and are maybe slightly out-timed.
  If other applications are appending records to the table, new value of records count won't be immediately received.
  If RDDI_REFRESHCOUNT flag is cleared, dbGoto(0) clears record buffer and set EOF and other flags instead of sending a
  server request.

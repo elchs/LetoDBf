@@ -2,6 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-01 19:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * README.md
+    * typo
+
+  * Readme.txt
+    - mark LETO_SETSEEKBUFFER as deprecated
+
+  * include/letocl.h
+  * source/client/client1.c
+  * source/client/clientcl.c
+    % minor performance arrangement for transactions
+    - remove of seek buffers aka LETO_SETSEEKBUFFER,
+      was off by default and the logig behind meanwhile got invalid,
+      leading to a nice clean LetoDbSeek()
+
 2016-12-01 11:45 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * include/letocl.h
   * source/client/client1.c
