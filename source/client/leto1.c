@@ -5039,80 +5039,6 @@ static const RDDFUNCS s_letoTable = { ( DBENTRYP_BP ) letoBof,
                                       ( DBENTRYP_SP ) letoFieldCount,
                                       ( DBENTRYP_VF ) letoFieldDisplay,
                                       ( DBENTRYP_SSI ) letoFieldInfo,
-#if defined( __OLDRDD__ )
-                                      ( DBENTRYP_SVP ) letoFieldName,
-                                      ( DBENTRYP_V ) letoFlush,
-                                      ( DBENTRYP_PP ) letoGetRec,
-                                      ( DBENTRYP_SI ) letoGetValue,
-                                      ( DBENTRYP_SVL ) letoGetVarLen,
-                                      ( DBENTRYP_V ) letoGoCold,
-                                      ( DBENTRYP_V ) letoGoHot,
-                                      ( DBENTRYP_P ) letoPutRec,
-                                      ( DBENTRYP_SI ) letoPutValue,
-                                      ( DBENTRYP_V ) letoRecall,
-                                      ( DBENTRYP_ULP ) letoRecCount,
-                                      ( DBENTRYP_ISI ) letoRecInfo,
-                                      ( DBENTRYP_ULP ) letoRecNo,
-                                      ( DBENTRYP_I ) letoRecId,
-                                      ( DBENTRYP_S ) letoSetFieldExtent,
-                                      ( DBENTRYP_P ) letoAlias,  /* diff CP */
-                                      ( DBENTRYP_V ) letoClose,
-                                      ( DBENTRYP_VP ) letoCreate,  /* diff  VO */
-                                      ( DBENTRYP_SI ) letoInfo,
-                                      ( DBENTRYP_V ) letoNewArea,
-                                      ( DBENTRYP_VP ) letoOpen,  /* diff VO */
-                                      ( DBENTRYP_V ) letoRelease,
-                                      ( DBENTRYP_SP ) letoStructSize,
-                                      ( DBENTRYP_P ) letoSysName,  /* diff CP */
-                                      ( DBENTRYP_VEI ) letoEval,
-                                      ( DBENTRYP_V ) letoPack,
-                                      ( DBENTRYP_LSP ) letoPackRec,
-                                      ( DBENTRYP_VS ) letoSort,
-                                      ( DBENTRYP_VT ) letoTrans,
-                                      ( DBENTRYP_VT ) letoTransRec,
-                                      ( DBENTRYP_V ) letoZap,
-                                      ( DBENTRYP_VR ) letoChildEnd,
-                                      ( DBENTRYP_VR ) letoChildStart,
-                                      ( DBENTRYP_VR ) letoChildSync,
-                                      ( DBENTRYP_V ) letoSyncChildren,
-                                      ( DBENTRYP_V ) letoClearRel,
-                                      ( DBENTRYP_V ) letoForceRel,
-                                      ( DBENTRYP_SVP ) letoRelArea,  /* diff SSP */
-                                      ( DBENTRYP_VR ) letoRelEval,
-                                      ( DBENTRYP_SI ) letoRelText,
-                                      ( DBENTRYP_VR ) letoSetRel,
-                                      ( DBENTRYP_OI ) letoOrderListAdd,  /* diff VOI */
-                                      ( DBENTRYP_V ) letoOrderListClear,
-                                      ( DBENTRYP_OI ) letoOrderListDelete,  /* diff VOI */
-                                      ( DBENTRYP_OI ) letoOrderListFocus,  /* diff VOI */
-                                      ( DBENTRYP_V ) letoOrderListRebuild,
-                                      ( DBENTRYP_VOI ) letoOrderCondition,  /* diff VOO */
-                                      ( DBENTRYP_VOC ) letoOrderCreate,
-                                      ( DBENTRYP_OI ) letoOrderDestroy,  /* diff VOI */
-                                      ( DBENTRYP_OII ) letoOrderInfo,  /* diff SVOI */
-                                      ( DBENTRYP_V ) letoClearFilter,
-                                      ( DBENTRYP_V ) letoClearLocate,
-                                      ( DBENTRYP_V ) letoClearScope,
-                                      ( DBENTRYP_VPLP ) letoCountScope,
-                                      ( DBENTRYP_I ) letoFilterText,
-                                      ( DBENTRYP_SI ) letoScopeInfo,
-                                      ( DBENTRYP_VFI ) letoSetFilter,
-                                      ( DBENTRYP_VLO ) letoSetLocate,
-                                      ( DBENTRYP_VOS ) letoSetScope,
-                                      ( DBENTRYP_VPL ) letoSkipScope,
-                                      ( DBENTRYP_B ) letoLocate,
-                                      ( DBENTRYP_P ) letoCompile,  /* diff CC */
-                                      ( DBENTRYP_I ) letoError,
-                                      ( DBENTRYP_I ) letoEvalBlock,
-                                      ( DBENTRYP_VSP ) letoRawLock,
-                                      ( DBENTRYP_VL ) letoLock,
-                                      ( DBENTRYP_I ) letoUnLock,
-                                      ( DBENTRYP_V ) letoCloseMemFile,
-                                      ( DBENTRYP_VP ) letoCreateMemFile,  /* diff VO */
-                                      ( DBENTRYP_SVPB ) letoGetValueFile,  /* diff SCCS */
-                                      ( DBENTRYP_VP ) letoOpenMemFile,  /* diff VO */
-                                      ( DBENTRYP_SVPB ) letoPutValueFile,  /* diff SCCS */
-#else
                                       ( DBENTRYP_SCP ) letoFieldName,
                                       ( DBENTRYP_V ) letoFlush,
                                       ( DBENTRYP_PP ) letoGetRec,
@@ -5185,7 +5111,6 @@ static const RDDFUNCS s_letoTable = { ( DBENTRYP_BP ) letoBof,
                                       ( DBENTRYP_SCCS ) letoGetValueFile,
                                       ( DBENTRYP_VO ) letoOpenMemFile,
                                       ( DBENTRYP_SCCS ) letoPutValueFile,
-#endif
                                       ( DBENTRYP_V ) letoReadDBHeader,
                                       ( DBENTRYP_V ) letoWriteDBHeader,
                                       ( DBENTRYP_R ) letoInit,

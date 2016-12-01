@@ -111,10 +111,6 @@
 #define DBI_DBS_STEP            1004
 
 #if defined( __XHARBOUR__ )
-   #if ! defined( HB_VER_CVSID ) || ( HB_VER_CVSID < 6606 )
-      #define __OLDRDD__
-   #endif
-
    typedef unsigned char HB_BYTE;
    typedef int HB_BOOL;
    typedef unsigned short HB_USHORT;

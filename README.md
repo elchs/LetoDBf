@@ -7,7 +7,7 @@
                           /_____/\___/\__/\____/_____/_____/ |_|
 
 
- # Welcome to LetoDBf
+### Welcome to LetoDBf
  please note the trailing *f*, this is the *elch fork* of the famous LetoDB Database Server,
  for the origin see: https://sourceforge.net/p/letodb/code/ci/master/tree/
  or visit the original inventor: http://kresin.ru/en/letodb.html
@@ -23,7 +23,7 @@
 
  Aside a sligthly, but overall rework of the internal communication between Client and Server,
  a bunch of new features and capabilties is added, to let Harbour DBF engine show its' muscles.
- Expect extendend locking schemes, share-and-lockable DBF tables in RAM ( HbMemIO ), all DBF on demand
+ Expect extended locking schemes, share- and lock-able DBF tables in RAM ( HbMemIO ), all DBF on demand
  combine-able with 3 memofield types, new extended field attributes like autoincrement, etc ...
 
  The LetoDBf server file open mode: No_Save_WA is fully reworked: now the workareas are opened in exact
@@ -44,7 +44,7 @@
  As the internal communication had changed, this LetoDBf server will only 'understand' client
  applications linked with this LetoDBf client library.
 
- ! Most important: NO WARRANTY from me on nothing -- decide yourself if LetoDBf fulfills your needs !
+ ! Most important: NO WARRANTY from me on nothing -- decide yourself if LetoDBf fulfills your needs !.
  For the case you wish ( reliable quick ) personal! support from me, we should talk about 'donation' :-)
  So far YOU are the only responsible one for all what happens with and around LetoDBf at your places.
 
