@@ -2,6 +2,24 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-02 16:20 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/client/letocl.c
+    ; correcting old comment, description was wrong
+    * fix!, that a record length of 43 is treated as no new record data,
+      >= 0x2B0000 is secure never to happen
+
+  * source/server/letofunc.c
+    * fix a crash during try to close not found WA ( empty pAStru )
+    * typo
+
+2016-12-01 20:12 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  ; README.md
+    ; typo - file missing in last commit
+
+  * include/letocl.h
+  * source/client/leto1.c
+    - removal of older xHarbour RDDFUNCS table version ( __OLDRDD__ )
+
 2016-12-01 19:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * README.md
     * typo

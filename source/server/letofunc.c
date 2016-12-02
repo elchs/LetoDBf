@@ -9177,8 +9177,7 @@ static void leto_CloseT( PUSERSTRU pUStru, const char * szData )  //mt
       else
       {
          pData = szErr4;
-         leto_wUsLog( pUStru, -1, "DEBUG! leto_CloseT area (%lu) %s not found, developer error",
-                      pAStru->ulAreaID, pAStru->szAlias );
+         leto_wUsLog( pUStru, -1, "DEBUG! leto_CloseT workarea (%lu) not found (not opened ?), developer error", ulAreaID );
       }
    }
 
@@ -11968,7 +11967,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             ptr += eprintf( ptr, "%s;%s;%u;%u;", hb_itemGetCPtr( pFldName ), hb_itemGetCPtr( pFldType ),
                                                  hb_itemGetNI( pFldLen ), hb_itemGetNI( pFldDec ) );
             hb_itemClear( pFldName );
-            hb_itemClear( pFldName );
+            hb_itemClear( pFldType );
          }
          hb_itemRelease( pFldName );
          hb_itemRelease( pFldType );

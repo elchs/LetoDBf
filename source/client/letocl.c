@@ -4400,7 +4400,7 @@ HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
       return 1;
 
    ptr = leto_firstchar( pConnection );
-   if( *ptr != '+' )  /* OLD: 'memcmp( ptr, "+++;", 4 )' --> NEW: '-' at second pos => updated record to re-read */
+   if( *( ptr + 2 ) != '+' )  /* "+++" as ACK indicates no new record data to read, else it is a LE_UINT24 */
       leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
 
    if( ulRecNo == pTable->ulRecNo )
@@ -4452,7 +4452,7 @@ HB_EXPORT HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable )
       return 1;
 
    ptr = leto_firstchar( pConnection );
-   if( *ptr != '+' )  /* OLD: 'memcmp( ptr, "+++;", 4 )' --> NEW: '-' at second pos => updated record to re-read */
+   if( *( ptr + 2 ) != '+' )  /* "+++" as ACK indicates no new record data to read, else it is a LE_UINT24 */
       leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
    pTable->fFLocked = HB_TRUE;
 
