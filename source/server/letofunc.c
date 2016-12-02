@@ -5794,8 +5794,11 @@ static char * leto_recWithAlloc( AREAP pArea, PUSERSTRU pUStru, PAREASTRU pAStru
       {
          hb_xfree( szData );
          szData = NULL;
+         *pulLen = 0;
       }
    }
+   else
+      *pulLen = 0;
    return szData;
 }
 
@@ -7192,7 +7195,10 @@ static void leto_Goto( PUSERSTRU pUStru, const char * szData )
          if( szData1 )
             pData = szData1;
          else
+         {
+            ulLen = 4;
             pData = szErr2;
+         }
       }
    }
 
@@ -10909,15 +10915,22 @@ static void leto_Trans( PUSERSTRU pUStru, const char * szData, HB_BOOL bSort )
          else if( ! bSort )  // v2.16
          {
             PAREASTRU pAStruDst = leto_FindArea( pUStru, ulAreaDst );
-            HB_ULONG  ulLen = leto_recLen( pAStruDst->pTStru );
-            char *    szData1 = ( char * ) hb_xgrab( ulLen + 6 );
+            HB_ULONG  ulLen;
+            char *    szData1;
 
-            memcpy( szData1, szOk, 4 );
-            szData1[ 4 ] = ';';
-            ulLen = leto_rec( pUStru, pAStruDst, pAreaDst, szData1 + 5, ulLen, HB_TRUE ) + 5;
+            if( pAStruDst )
+            {
+               ulLen = leto_recLen( pAStruDst->pTStru );
+               szData1 = ( char * ) hb_xgrab( ulLen + 6 );
+               memcpy( szData1, szOk, 4 );
+               szData1[ 4 ] = ';';
+               ulLen = leto_rec( pUStru, pAStruDst, pAreaDst, szData1 + 5, ulLen, HB_TRUE ) + 5;
 
-            leto_SendAnswer( pUStru, szData1, ulLen );
-            hb_xfree( szData1 );
+               leto_SendAnswer( pUStru, szData1, ulLen );
+               hb_xfree( szData1 );
+            }
+            else
+               leto_SendAnswer( pUStru, szErr2, 4 );
          }
          else
             leto_SendAnswer( pUStru, szOk, 4 );
@@ -11162,9 +11175,9 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
             if( ulAreaID )  /* LETOCMD_udf_dbf */
             {
                pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+               pAStru = pUStru->pCurAStru;
                if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
                {
-                  pAStru = pUStru->pCurAStru;
                   pTag = pAStru->pTagCurrent;
                   if( pUStru->bDeleted != ( *pp2 == 0x41 ) )
                   {
@@ -11230,7 +11243,7 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
                /* close all tables left open after create/ open by udf */
                leto_CloseUdfAreas( pUStru );
                pUStru->ulUdfAreaID = 0;
-               if( pArea != ( AREAP ) hb_rddGetCurrentWorkAreaPointer() )
+               if( pArea != ( AREAP ) hb_rddGetCurrentWorkAreaPointer() && pAStru )
                {
                   if( s_iDebugMode > 10 )
                      leto_wUsLog( pUStru, -1, "DEBUG leto_Udf changed WA, reset to <%lu>", ulAreaID );
@@ -11249,7 +11262,7 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
 
             if( pArea )
             {
-               if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
+               if( ! ( s_bNoSaveWA && pAStru && ! pAStru->pTStru->bMemIO ) )
                   leto_ClearAreaEnv( pArea, pTag );
             }
          }

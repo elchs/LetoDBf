@@ -1449,7 +1449,7 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
    unsigned int uiRes = 0;
    HB_USHORT    uiFlags = ( ! HB_ISNUM( 4 ) ) ? 0 : ( HB_USHORT ) hb_parni( 4 );
    HB_BOOL      fPrev = HB_ISBYREF( 5 );
-   char **      pRetValue = NULL;
+   char *       pRetValue = NULL;
    PHB_ITEM     pVarItem;
 
    if( pCurrentConn )
@@ -1500,15 +1500,15 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
 
          uiRes = LetoVarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), cType,
                              cType == '3' ? hb_parc( 3 ) : szValue, ulLen,
-                             uiFlags, fPrev && cType != '3' ? pRetValue : NULL );
+                             uiFlags, fPrev && cType != '3' ? &pRetValue : NULL );
          if( uiRes )  /* sucessful set */
             leto_SetVarCache( pVarItem );
          else
             hb_itemRelease( pVarItem );
 
-         if( fPrev && uiRes >= 3 )
+         if( fPrev && uiRes >= 3 && pRetValue )
          {
-            ptr = *pRetValue;
+            ptr = pRetValue;
             cType = *ptr;
             ptr += 2;
             if( cType == '1' )

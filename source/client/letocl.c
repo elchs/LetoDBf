@@ -176,7 +176,7 @@ LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection )
    if( uiConnection < pLetoPool->uiConnCount )
       return pLetoPool->letoConnPool + uiConnection;
    else
-      return NULL;
+      return pLetoPool->letoConnPool;  /* UGLY try to pacify MinGW GNU C 6.2 warning: return NULL; */
 }
 
 /* _HB_INLINE_ */
@@ -201,7 +201,7 @@ LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection )
    if( uiConnection < s_uiConnCount )
       return s_letoConnPool + uiConnection;
    else
-      return NULL;
+      return s_letoConnPool;  /* UGLY try to pacify MinGW GNU C 6.2 warning: return NULL; */
 }
 
 LETOCONNECTION * letoGetCurrConn( void )
@@ -1677,7 +1677,7 @@ static HB_BOOL leto_SearchTransList( LETOCONNECTION * pConnection, HB_ULONG hTab
 
    while( ul < pConnection->ulRecsInList )
    {
-      if( pConnection->pTransList[ ul ].ulRecNo == ulRecNo && 
+      if( pConnection->pTransList[ ul ].ulRecNo == ulRecNo &&
           pConnection->pTransList[ ul ].hTable == hTable )
          return HB_TRUE;
       ul++;

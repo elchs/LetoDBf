@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-02 18:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+  * source/server/errint.c
+  * source/server/letofunc.c
+    * try to pacify some MinGW GNU C 6.2 warnings, it found one real bug
+
 2016-12-02 16:20 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/client/letocl.c
     ; correcting old comment, description was wrong
