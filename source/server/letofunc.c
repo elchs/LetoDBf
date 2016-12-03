@@ -5794,11 +5794,8 @@ static char * leto_recWithAlloc( AREAP pArea, PUSERSTRU pUStru, PAREASTRU pAStru
       {
          hb_xfree( szData );
          szData = NULL;
-         *pulLen = 0;
       }
    }
-   else
-      *pulLen = 0;
    return szData;
 }
 
