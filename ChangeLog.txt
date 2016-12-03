@@ -2,6 +2,45 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-03 15:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * tests/buildall.bat
+  * tests/runall.bat
+    * file attributes
+    ; to run all tests, use: runall[.sh] x.x.x.x
+      where this x.x.. is the IP address of server, optional with ':port'
+
+  * source/client/leto1.c
+    * do not mark in letoPutRec() autoinc fields for update at server,
+      server shell be the only instance who changes these values.
+
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+    ! inherited from LetoDB: in LetoDbGoTo() ulRecno was parsed 1 byte too
+      early; there is a pre-leading flag byte before the RecNo,
+    * not invalidate skip buffer after [un]locking, so now it's possibe to
+      lock and unlock without loosing skip buffer;
+    * ensured that first record in buffer is not re-read in LetoDbSkip(),
+      as it possible is meanwhile updated 
+    * do not set uiRecInBuf and do not re-read first record in buffer in
+      LetoDbGoTo()
+    * adjust buffer origin in LetoDbPutRecord() and LetoDbPutMemo(), so active
+      record is the first in buffer after data updates during no transaction
+    * add at few places a missing clearance of skip buffer
+    % buffer hit counter: uiShoots -> ulShoots 
+    - no need to fill buffer with a single record, removed leto_setSkipBuf()
+      calls - filling buffer will actually happen only in LetoDbSkip()
+    ; above will give significant performance increase with repeated calls:
+      [F|R]Lock(); REPL ... with ...; DbUnlock(); DbSkip();
+
+  * source/server/letofunc.c
+    ! fix wrong calculation for szReply buffer/ fieldinfo in leto_OpenTable()
+    * added info in leto_CreateTable() when max record size: 65534 or
+      field count: 2047 is oversized
+
+  * source/server/leto_2.c
+    % send/ recv buffer size to 64KB
+
 2016-12-03 05:47 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/letofunc.c
     * revert this change about a compiler warning

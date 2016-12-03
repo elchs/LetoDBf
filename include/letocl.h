@@ -98,7 +98,7 @@ typedef struct _LETOBUFFER_
    unsigned long     ulBufLen;        /* allocated buffer length */
    unsigned long     ulBufDataLen;    /* data length in buffer */
    HB_I64            llDeciSec;       /* buffer time in 1/100 seconds */
-   unsigned int      uiShoots;        /* using statistic */
+   unsigned long     ulShoots;        /* using statistic */
 } LETOBUFFER;                         /* 40 */
 
 typedef struct _LETOFIELD
@@ -171,7 +171,7 @@ typedef struct _LETOTABLE
    unsigned long     ulRecCount;        /* Count of records */
    unsigned char *   pRecord;           /* Buffer of record data */
    LETOBUFFER        Buffer;            /* skip buffer */
-   unsigned char *   ptrBuf;
+   unsigned char *   ptrBuf;            /* pointer into Buffer */
    unsigned int      uiRecInBuf;
    signed char       BufDirection;
    unsigned long     lLastUpdate;       /* from dbf header: last update */

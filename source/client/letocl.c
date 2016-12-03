@@ -1633,15 +1633,32 @@ static void leto_setSkipBuf( LETOCONNECTION * pConnection, LETOTABLE * pTable, c
                                                          ( char * ) pTable->Buffer.pBuffer, ptr, ulDataLen );
    else
       memcpy( ( char * ) pTable->Buffer.pBuffer, ptr, ulDataLen );
+   pTable->ptrBuf = pTable->Buffer.pBuffer;
    pTable->uiRecInBuf = 0;
+}
+
+/* pTable->ptrBuf must be pre-checked to be not NULL */
+static void leto_refrSkipBuf( LETOTABLE * pTable )  /* set new position in buffer to first */
+{
+   HB_ULONG ulRemove = pTable->ptrBuf - pTable->Buffer.pBuffer;
+
+   if( ulRemove )
+   {
+      memmove( pTable->Buffer.pBuffer, pTable->ptrBuf, pTable->Buffer.ulBufDataLen - ulRemove );
+      pTable->Buffer.ulBufDataLen -= ulRemove;
+      pTable->ptrBuf = pTable->Buffer.pBuffer;
+      pTable->uiRecInBuf = 0;
+#ifdef LETO_CLIENTLOG
+      leto_clientlog( NULL, 0, "DEBUG leto_refrSkipBuf new record %lu restlen %lu (%lu)", HB_GET_LE_UINT32( pTable->ptrBuf + 4 ), pTable->Buffer.ulBufDataLen, ulRemove );
+#endif
+   }
 }
 
 void leto_ClearBuffers( LETOTABLE * pTable )
 {
-   if( ! pTable->ptrBuf )
-      pTable->Buffer.ulBufDataLen = 0;
-   else
+   if( pTable->ptrBuf )
       pTable->ptrBuf = NULL;
+   pTable->Buffer.ulBufDataLen = 0;
 }
 
 static HB_ULONG leto_TransBlockLen( LETOCONNECTION * pConnection, HB_ULONG ulLen )
@@ -3632,6 +3649,9 @@ HB_EXPORT HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, co
    }
    else
    {
+      if( pTable->ptrBuf )
+         leto_refrSkipBuf( pTable );
+
       /* send without pre-leading length */
       //if ( ! leto_SendRecv( pTable, szData + 4, ulLen, 1021 ) )
       if( ! leto_SendRecv2( pConnection, szData + 4, ulLen, 1021 ) )
@@ -3728,27 +3748,29 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
    if( pTable->ptrBuf && leto_HotBuffer( pTable, &pTable->Buffer, pConnection->iBufRefreshTime ) )
    {
       HB_UCHAR * ptrBuf = pTable->Buffer.pBuffer;
-      HB_LONG    lu = 0;
-      HB_ULONG   ulRecLen;
+      HB_ULONG   ulRecLen, ul = 0;
 
       do
       {
-         ulRecLen = HB_GET_LE_UINT24( ptrBuf );
-#if 0  /* no limit receive */
-         if( ! ulRecLen || ulRecLen >= 1000000 )  // 2^24 = 16777215
-            break;
-#endif
-         if( HB_GET_LE_UINT32( ptrBuf + 3 ) == ulRecNo )
+         if( HB_GET_LE_UINT32( ptrBuf + 4 ) == ulRecNo )  /* fix: + 4 */
          {
-            pTable->ptrBuf = ptrBuf;
-            pTable->uiRecInBuf = lu;
-
-            leto_ParseRecord( pConnection, pTable, ( char * ) pTable->ptrBuf, HB_FALSE );
+            if( ul )  /* not re-read active record */
+            {
+               pTable->ptrBuf = ptrBuf;
+               leto_ParseRecord( pConnection, pTable, ( char * ) ptrBuf, HB_FALSE );
+            }
+#ifdef LETO_CLIENTLOG
+      leto_clientlog( NULL, 0, "LetoDbGoTo found record %lu in skip buffer pos %lu", ulRecNo, ul );
+#endif
+            pTable->Buffer.ulShoots++;
             fFound = HB_TRUE;
             break;
          }
+         ulRecLen = HB_GET_LE_UINT24( ptrBuf );
+         if( ! ulRecLen || ulRecLen > 0xFFFF )  /* malicious data in buffer */
+            break;
          ptrBuf += ulRecLen + 3;
-         lu++;
+         ul++;
       }
       while( ! leto_OutBuffer( &pTable->Buffer, ( char * ) ptrBuf ) );
 
@@ -3760,19 +3782,15 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
          LetoDbGotoEof( pTable );
       else
       {
-         char          szData[ 32 ];
-         const char *  ptr;
-         unsigned long ulLen;
+         char     szData[ 32 ];
+         HB_ULONG ulLen;
 
          ulLen = eprintf( szData, "%c;%lu;%lu;%c;", LETOCMD_goto, pTable->hTable, ulRecNo,
                                   ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
          if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
             return 1;
 
-         ptr = leto_firstchar( pConnection );
-         leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
-         if( ! pTable->fEof )
-            leto_setSkipBuf( pConnection, pTable, ptr, 0 );
+         leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ), HB_TRUE );
       }
       pTable->ptrBuf = NULL;
    }
@@ -3795,8 +3813,6 @@ HB_EXPORT HB_ERRCODE LetoDbGoBottom( LETOTABLE * pTable )
    ptr = leto_firstchar( pConnection );
    leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
    pTable->ptrBuf = NULL;
-   if( ! pTable->fEof )
-      leto_setSkipBuf( pConnection, pTable, ptr, 0 );
 
    return 0;
 }
@@ -3816,8 +3832,6 @@ HB_EXPORT HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable )
    ptr = leto_firstchar( pConnection );
    leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
    pTable->ptrBuf = NULL;
-   if( ! pTable->fEof )
-      leto_setSkipBuf( pConnection, pTable, ptr, 0 );
 
    return 0;
 }
@@ -3853,7 +3867,7 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
             }
             pTable->uiRecInBuf += ul;
          }
-         else if( pTable->uiRecInBuf >= ulSkips )
+         else if( pTable->uiRecInBuf > ulSkips )
          {
             pTable->uiRecInBuf -= ulSkips;
             pTable->ptrBuf = pTable->Buffer.pBuffer;
@@ -3867,18 +3881,15 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
                   break;
                }
             }
-            if( ul == pTable->uiRecInBuf )
+            if( ul && ul == pTable->uiRecInBuf )
                ul = ulSkips;
          }
 
-         if( ul == ulSkips )
+         if( ul == ulSkips )  /* && HB_GET_LE_UINT24( pTable->ptrBuf ) ) */
          {
-            if( HB_GET_LE_UINT24( pTable->ptrBuf ) )
-            {
-               leto_ParseRecord( pConnection, pTable, ( char * ) pTable->ptrBuf, HB_FALSE );
-               pTable->Buffer.uiShoots++;
-               return 0;
-            }
+            leto_ParseRecord( pConnection, pTable, ( char * ) pTable->ptrBuf, HB_FALSE );
+            pTable->Buffer.ulShoots++;
+            return 0;
          }
       }
    }
@@ -3892,10 +3903,11 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
 
    ptr = leto_firstchar( pConnection );
    leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
-   leto_setSkipBuf( pConnection, pTable, ptr, ulDataLen );
-   pTable->ptrBuf = pTable->Buffer.pBuffer;
    if( lToSkip )
+   {
+      leto_setSkipBuf( pConnection, pTable, ptr, ulDataLen );
       pTable->BufDirection = ( lToSkip > 0 ? 1 : -1 );
+   }
 
    return 0;
 }
@@ -3936,8 +3948,6 @@ HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHO
       }
       pData = leto_firstchar( pConnection );
       leto_ParseRecord( pConnection, pTable, pData, HB_TRUE );
-      if( ! pTable->fEof )
-         leto_setSkipBuf( pConnection, pTable, pData, 0 );
       pTable->ptrBuf = NULL;
    }
 
@@ -4021,9 +4031,6 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
    char *        szData, * pData, * ptr;
    unsigned long ulLen;
    int           iRet = 0;
-
-   if( ! pTable->ptrBuf )
-      pTable->Buffer.ulBufDataLen = 0;
 
    for( ui = 0; ui < pTable->uiFieldExtent; ui++ )
    {
@@ -4190,6 +4197,9 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
    {
       int iOk;
 
+      if( pTable->ptrBuf )
+         leto_refrSkipBuf( pTable );
+
       pData = szData + 4;
       if( fAppend )  /* wait for answer */
          iOk = leto_SendRecv( pConnection, pData, ulLen, 0 );
@@ -4295,6 +4305,7 @@ HB_EXPORT HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagNa
 
    ptr = leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
    leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
+   pTable->ptrBuf = NULL;
 
    return 0;
 }
@@ -4309,7 +4320,6 @@ HB_EXPORT HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagNam
 
    if( pTable->pTagCurrent )
       pTable->pTagCurrent->ulKeyNo = pTable->pTagCurrent->ulKeyCount = 0;  /* leto_ClearTagBuf( pTable->pTagCurrent ); */
-   pTable->ptrBuf = NULL;
 
    if( szTagName )
    {
@@ -4345,6 +4355,7 @@ HB_EXPORT HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagNam
    if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
       return 1;
    leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ), HB_TRUE );
+   pTable->ptrBuf = NULL;
 
    return pTagInfo ? 0 : 1;
 }
@@ -4386,8 +4397,6 @@ HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
 
    if( ! pTable->fShared || ( ulRecNo == pTable->ulRecNo ? pTable->fRecLocked : leto_IsRecLocked( pTable, ulRecNo ) ) )
       return 0;
-   leto_ClearBuffers( pTable );  // ToDo moved this below above check
-
    if( pTable->fFLocked )  /* release file lock */
    {
       ulLen = eprintf( szData, "%c;%lu;f;", LETOCMD_unlock, pTable->hTable );
@@ -4401,7 +4410,11 @@ HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
 
    ptr = leto_firstchar( pConnection );
    if( *( ptr + 2 ) != '+' )  /* "+++" as ACK indicates no new record data to read, else it is a LE_UINT24 */
+   {
       leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
+      if( pTable->ptrBuf )
+         leto_refrSkipBuf( pTable );
+   }
 
    if( ulRecNo == pTable->ulRecNo )
       pTable->fRecLocked = HB_TRUE;
@@ -4416,14 +4429,12 @@ HB_EXPORT HB_ERRCODE LetoDbRecUnLock( LETOTABLE * pTable, unsigned long ulRecNo 
 
    if( pConnection->fTransActive )
    {
-      leto_ClearBuffers( pTable );
       pConnection->iError = 1031;
       return 1;
    }
    if( ! pTable->fShared || pTable->fFLocked ||
       ( ulRecNo == pTable->ulRecNo ? ! pTable->fRecLocked : ! leto_IsRecLocked( pTable, ulRecNo ) ) )
       return 0;
-   leto_ClearBuffers( pTable );  // ToDo moved this below above checks
 
    ulLen = eprintf( szData, "%c;%lu;r;%lu;", LETOCMD_unlock, pTable->hTable, ulRecNo );
 
@@ -4445,7 +4456,6 @@ HB_EXPORT HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable )
 
    if( ! pTable->fShared || pTable->fFLocked )
       return HB_SUCCESS;
-   leto_ClearBuffers( pTable );  // ToDo moved this below above check
 
    ulLen = eprintf( szData, "%c;%lu;f;%lu;%d;", LETOCMD_lock, pTable->hTable, pTable->ulRecNo, pConnection->iLockTimeOut );
    if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) || leto_checkLockError( pConnection ) )
@@ -4453,7 +4463,11 @@ HB_EXPORT HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable )
 
    ptr = leto_firstchar( pConnection );
    if( *( ptr + 2 ) != '+' )  /* "+++" as ACK indicates no new record data to read, else it is a LE_UINT24 */
+   {
       leto_ParseRecord( pConnection, pTable, ptr, HB_TRUE );
+      if( pTable->ptrBuf )
+         leto_refrSkipBuf( pTable );
+   }
    pTable->fFLocked = HB_TRUE;
 
    return 0;
@@ -4467,13 +4481,11 @@ HB_EXPORT HB_ERRCODE LetoDbFileUnLock( LETOTABLE * pTable )
 
    if( pConnection->fTransActive )
    {
-      leto_ClearBuffers( pTable );
       pConnection->iError = 1031;
       return 1;
    }
    if( ! pTable->fShared )
       return HB_SUCCESS;
-   leto_ClearBuffers( pTable );  // ToDo moved this below above checks
 
    ulLen = eprintf( szData, "%c;%lu;f;", LETOCMD_unlock, pTable->hTable );
 
@@ -4502,6 +4514,7 @@ HB_EXPORT HB_ERRCODE LetoDbPack( LETOTABLE * pTable )
    ulLen = eprintf( szData, "%c;%lu;", LETOCMD_pack, pTable->hTable );
    if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
       return 1; /* 2; */
+   pTable->ptrBuf = NULL;
 
    return 0;
 }
@@ -4521,6 +4534,7 @@ HB_EXPORT HB_ERRCODE LetoDbZap( LETOTABLE * pTable )
    ulLen = eprintf( szData, "%c;%lu;", LETOCMD_zap, pTable->hTable );
    if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
       return 1;  /* 2; */
+   pTable->ptrBuf = NULL;
 
    return 0;
 }
@@ -4540,6 +4554,7 @@ HB_EXPORT HB_ERRCODE LetoDbReindex( LETOTABLE * pTable )
    ulLen = eprintf( szData, "%c;%lu;03;", LETOCMD_ord, pTable->hTable );
    if( ! leto_SendRecv( pConnection, szData, ulLen, 1006 ) )
       return 1; /* 2; */
+   pTable->ptrBuf = NULL;
 
    return 0;
 }

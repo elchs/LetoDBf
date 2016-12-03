@@ -11961,7 +11961,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
          ulLenLen = ptr - szReply;
 
          /* estimate max needed length -- see leto_recLen() for explanation .. */
-         if( ( ulLen = ulLenLen + leto_RecordLen( pArea ) + 25 + ( uiFieldCount * 3 ) ) > uiReplyBufLen )
+         if( ( ulLen = ulLenLen + leto_RecordLen( pArea ) + 25 + ( uiFieldCount * 30 ) ) > uiReplyBufLen )
          {
             uiReplyBufLen = ulLen;
             szReply = ( char * ) hb_xrealloc( szReply, uiReplyBufLen + 1 );
@@ -12256,6 +12256,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
    HB_ULONG     ulLenLen = 4;
    HB_ULONG     ulAreaID = 0;
    HB_ULONG     ulSelectID = 0;
+   HB_ULONG     ulRecordSize = 0;
 
    szReply[ 0 ] = '\0';
    pUStru->bLastAct = HB_FALSE;
@@ -12377,6 +12378,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          pp4 = pp5;
 
          hb_arraySetNI( pField, 3, ( int ) strtoul( pp4, &ptrTmp, 10 ) );
+         ulRecordSize += hb_arrayGetNI( pField, 3 ); 
          pp4 = ++ptrTmp;
 
          hb_arraySetNI( pField, 4, ( int ) strtoul( pp4, &ptrTmp, 10 ) );
@@ -12406,6 +12408,9 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          szCdp = NULL;
 
       /* last checks - note: there ever must be an ID for s_bNoSaveWA */
+      if( ulRecordSize >= 0xFFFF || uiFieldCount > 2047 )  /* no errcode, let Harbour even try it ;-) */
+         leto_wUsLog( pUStru, -1, "ERROR leto_CreateTable DBF %s oversized: record size %lu, fields %lu",
+                                  szFile, ulRecordSize, uiFieldCount );
       if( ! uiFieldCount || ! szFileName[ 0 ] || ( ( s_bNoSaveWA && ! bMemIO ) && ! ulSelectID ) )
          errcode = HB_FAILURE;
 

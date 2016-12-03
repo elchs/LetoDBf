@@ -1292,7 +1292,19 @@ static HB_ERRCODE letoPutRec( LETOAREAP pArea, HB_BYTE * pBuffer )
       memcpy( pTable->pRecord, pBuffer, pTable->uiRecordLen );
       pTable->uiUpdated |= LETO_FLAG_UPD_CHANGE;
       pTable->fDeleted = ( pTable->pRecord[ 0 ] == '*' );
-      memset( pTable->pFieldUpd, 1, pArea->area.uiFieldCount * sizeof( HB_UCHAR ) );
+      if( pTable->fHaveAutoinc )
+      {
+         HB_USHORT uiField = 0;
+
+         while( uiField < pArea->area.uiFieldCount )
+         {
+            if( ! ( ( ( LETOFIELD * ) ( pTable->pFields + uiField ) )->uiFlags & HB_FF_AUTOINC ) )
+               pTable->pFieldUpd[ uiField ] = 1;
+            uiField++;
+         }
+      }
+      else
+         memset( pTable->pFieldUpd, 1, pArea->area.uiFieldCount * sizeof( HB_UCHAR ) );
    }
    return HB_SUCCESS;
 }
@@ -2884,6 +2896,7 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
       ptr = leto_firstchar( pConnection );
       if( ! memcmp( ptr, "+++;", 4 ) )
          leto_ParseRec( pConnection, pAreaDst, ptr + 4 );
+      pArea->pTable->ptrBuf = NULL;
    }
    hb_xfree( pData );
 
@@ -3178,6 +3191,7 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
 
    if( ( iRcvLen - 4 ) > ( ptr - leto_getRcvBuff() ) )
       leto_ParseRec( pConnection, pArea, ptr );
+   pTable->ptrBuf = NULL;
 
    leto_SetAreaFlags( pArea );
    if( pArea->area.lpdbRelations )
@@ -6119,7 +6133,7 @@ HB_FUNC( LETO_SETSKIPBUFFER )
             hb_retni( 0 );
       }
       else
-         hb_retni( pArea->pTable->Buffer.uiShoots );
+         hb_retni( pArea->pTable->Buffer.ulShoots );
    }
    else
       hb_retni( 0 );

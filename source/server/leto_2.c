@@ -1848,8 +1848,8 @@ HB_FUNC( LETO_SERVER )
          hb_socketSetNoDelay( incoming, HB_TRUE );
          // hb_socketSetBlockingIO( incoming, HB_TRUE );
          /* set 64KB send and receive buffer */
-         hb_socketSetSndBufSize( incoming, 0x7FFF );
-         hb_socketSetRcvBufSize( incoming, 0x7FFF );
+         hb_socketSetSndBufSize( incoming, 0xFFFF );
+         hb_socketSetRcvBufSize( incoming, 0xFFFF );
 
          /* pass the second socket to thread3() to let handle him the init sequence with client */
          if( bSocketErr )
