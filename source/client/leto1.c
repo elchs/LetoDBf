@@ -406,6 +406,8 @@ static HB_ERRCODE letoEof( LETOAREAP pArea, HB_BOOL * pEof )
 
 static HB_ERRCODE letoFound( LETOAREAP pArea, HB_BOOL * pFound )
 {
+   HB_TRACE( HB_TR_DEBUG, ( "letoFound(%p, %p)", pArea, pFound ) );
+
    /* resolve any pending relations */
    if( pArea->lpdbPendingRel )
       SELF_FORCEREL( ( AREAP ) pArea );
@@ -638,6 +640,8 @@ static HB_ERRCODE letoSeek( LETOAREAP pArea, HB_BOOL fSoftSeek, PHB_ITEM pKey, H
    LETOTABLE *   pTable = pArea->pTable;
    LETOTAGINFO * pTagInfo = pTable->pTagCurrent;
    char          cType;
+
+   HB_TRACE( HB_TR_DEBUG, ( "letoSeek(%p, %d, %p, %d)", pArea, ( int ) fSoftSeek, pKey, ( int ) fFindLast ) );
 
    pArea->lpdbPendingRel = NULL;
    if( pTable->uiUpdated )
@@ -906,6 +910,8 @@ static HB_ERRCODE letoFlush( LETOAREAP pArea )
 
 static HB_ERRCODE letoGetRec( LETOAREAP pArea, HB_BYTE ** pBuffer )
 {
+   HB_TRACE( HB_TR_DEBUG, ( "letoGetRec(%p, %p)", pArea, pBuffer ) );
+
    if( pArea->lpdbPendingRel )
    {
       if( SELF_FORCEREL( ( AREAP ) pArea ) != HB_SUCCESS )
@@ -1271,6 +1277,8 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
 static HB_ERRCODE letoPutRec( LETOAREAP pArea, HB_BYTE * pBuffer )
 {
    LETOTABLE * pTable = pArea->pTable;
+
+   HB_TRACE( HB_TR_DEBUG, ( "letoPutRec(%p, %p)", pArea, pBuffer ) );
 
    if( pTable->fShared && ! pTable->fFLocked && ! pTable->fRecLocked )
    {
@@ -2025,7 +2033,7 @@ static LETOCONNECTION * leto_OpenConnection( LETOAREAP pArea, LPDBOPENINFO pOpen
    int          iPort = 0;
    unsigned int uiLen;
 
-   HB_TRACE( HB_TR_DEBUG, ( "()" ) );
+   HB_TRACE( HB_TR_DEBUG, ( "leto_OpenConnection(%p, %p, %s, %d)", pArea, pOpenInfo, szFile, ( int ) fCreate ) );
 
    if( pOpenInfo->ulConnection > 0 && pOpenInfo->ulConnection <= ( HB_ULONG ) uiGetConnCount() )
    {
@@ -2591,7 +2599,7 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    char             szFile[ HB_PATH_MAX ];
    char *           ptrdouble;
 
-   HB_TRACE( HB_TR_DEBUG, ( "letoOpen(%p)", pArea ) );
+   HB_TRACE( HB_TR_DEBUG, ( "letoOpen(%p, %p)", pArea, pOpenInfo ) );
 
    if( ! pOpenInfo->atomAlias || ! *pOpenInfo->atomAlias )  /* create a missing Alias */
    {
@@ -2722,6 +2730,7 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    pArea->area.fBof = pTable->fBof;
    pArea->area.fEof = pTable->fEof;
    pArea->area.fFound = pTable->fFound;
+
    return HB_SUCCESS;
 }
 
@@ -2729,8 +2738,9 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
 
 static HB_ERRCODE letoStructSize( LETOAREAP pArea, HB_USHORT * StructSize )
 {
-   HB_SYMBOL_UNUSED( pArea );
+   HB_TRACE( HB_TR_DEBUG, ( "letoStructSize(%p, %p)", pArea, StructSize ) );
 
+   HB_SYMBOL_UNUSED( pArea );
    *StructSize = sizeof( LETOAREA );
 
    return HB_SUCCESS;
@@ -2826,6 +2836,8 @@ static HB_ERRCODE letoSort( LETOAREAP pArea, LPDBSORTINFO pSortInfo )
    HB_USHORT     uiIndex;
    HB_ULONG      ulLen;
 
+   HB_TRACE( HB_TR_DEBUG, ( "letoSort(%p, %p)", pArea, pSortInfo ) );
+
    if( ! leto_CheckArea( pAreaDst ) ||
        ( pArea->pTable->uiConnection != pAreaDst->pTable->uiConnection ) ||
        ( pTransInfo->dbsci.itmCobFor && ! pTransInfo->dbsci.lpstrFor ) ||
@@ -2868,6 +2880,8 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
    HB_ERRCODE errCode;
    char *     pData, * ptr;
    HB_ULONG   ulLen;
+
+   HB_TRACE( HB_TR_DEBUG, ( "letoTrans(%p, %p)", pArea, pTransInfo ) );
 
    if( ! leto_CheckArea( pAreaDst ) ||
        ( pArea->pTable->uiConnection != pAreaDst->pTable->uiConnection ) ||
@@ -3262,7 +3276,6 @@ static HB_ERRCODE letoOrderListDelete( LETOAREAP pArea, LPDBORDERINFO pOrderInfo
    char          szData[ HB_PATH_MAX + 21 ];
    char          szBagName[ HB_PATH_MAX ];
    LETOTAGINFO * pTagInfo = pTable->pTagInfo, * pTag1, * pTagPrev;
-
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderListDelete(%p, %p)", pArea, pOrderInfo ) );
 
@@ -4498,6 +4511,8 @@ static HB_ERRCODE letoDrop( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pItemI
    char szData[ ( 2 * HB_PATH_MAX ) + 16 ];
    const char * szTableFile, * szIndexFile;
 
+   HB_TRACE( HB_TR_DEBUG, ( "letoDrop(%p, %p, %lu)", pRDD, pItemTable, ulConnect ) );
+
    HB_SYMBOL_UNUSED( pRDD );
    HB_SYMBOL_UNUSED( ulConnect );
 
@@ -4537,6 +4552,8 @@ static HB_ERRCODE letoExists( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pIte
    char szData[ ( 2 * HB_PATH_MAX ) + 16 ];
    const char * szTableFile, * szIndexFile;
 
+   HB_TRACE( HB_TR_DEBUG, ( "letoExists(%p, %p, %p, %lu)", pRDD, pItemTable, pItemIndex, ulConnect ) );
+
    HB_SYMBOL_UNUSED( pRDD );
    HB_SYMBOL_UNUSED( ulConnect );
 
@@ -4574,6 +4591,8 @@ static HB_ERRCODE letoRename( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pIte
    char szData[ ( 3 * HB_PATH_MAX ) + 16 ];
    const char * szTableFile, * szIndexFile, * szNewFile;
 
+   HB_TRACE( HB_TR_DEBUG, ( "letoRename(%p, %p, %p, %p, %lu)", pRDD, pItemTable, pItemIndex, pItemNew, ulConnect ) );
+
    HB_SYMBOL_UNUSED( pRDD );
    HB_SYMBOL_UNUSED( ulConnect );
 
@@ -4606,6 +4625,8 @@ static HB_ERRCODE letoRename( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pIte
 
 static HB_ERRCODE letoInit( LPRDDNODE pRDD )
 {
+   HB_TRACE( HB_TR_DEBUG, ( "letoInit(%p)", pRDD ) );
+
    HB_SYMBOL_UNUSED( pRDD );
 
    LetoInit();
@@ -4629,6 +4650,8 @@ static HB_ERRCODE letoInit( LPRDDNODE pRDD )
 static HB_ERRCODE letoExit( LPRDDNODE pRDD )
 {
    HB_USHORT i;
+
+   HB_TRACE( HB_TR_DEBUG, ( "letoExit(%p)", pRDD ) );
 
    HB_SYMBOL_UNUSED( pRDD );
 
@@ -5826,7 +5849,7 @@ LETOCONNECTION * leto_getConnection( int iParam )
 {
    LETOCONNECTION * pConnection = NULL;
 
-   HB_TRACE( HB_TR_DEBUG, ( "leto_getConnection()" ) );
+   HB_TRACE( HB_TR_DEBUG, ( "leto_getConnection(%d)", iParam ) );
 
    if( HB_ISCHAR( iParam ) )
    {

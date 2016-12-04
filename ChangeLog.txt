@@ -2,6 +2,17 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-04 14:09 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/client/leto1.c
+    * added missing HB_TRACE() for RDDFUNCS, shell be now complete
+
+  * source/client/letocl.c
+    ! make the found record in buffer the first in buffer
+    - removed the only HB_TRACE
+
+  * source/client/letomgmn.c
+    * corrected HB_TRACE
+
 2016-12-04 11:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/client/letocl.c
     ! not the first record, but the active record not to re-read

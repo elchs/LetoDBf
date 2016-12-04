@@ -1334,8 +1334,6 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
    const char * ptr = szSource;
    int          iLen = strlen( ptr );
 
-   HB_TRACE( HB_TR_DEBUG, ( "leto_getIpFromPath(%s)", szSource ) );
-
    while( iLen >= 2 && ( ptr[ 0 ] != '/' || ptr[ 1 ] != '/' ) )
    {
       if( ( ptrPort = strchr( ptr, ',' ) ) == NULL )
@@ -1649,7 +1647,8 @@ static void leto_refrSkipBuf( LETOTABLE * pTable )  /* set new position in buffe
       pTable->ptrBuf = pTable->Buffer.pBuffer;
       pTable->uiRecInBuf = 0;
 #ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "DEBUG leto_refrSkipBuf new record %lu restlen %lu (%lu)", HB_GET_LE_UINT32( pTable->ptrBuf + 4 ), pTable->Buffer.ulBufDataLen, ulRemove );
+      leto_clientlog( NULL, 0, "DEBUG leto_refrSkipBuf new record %lu restlen %lu (%lu)",
+                      HB_GET_LE_UINT32( pTable->ptrBuf + 4 ), pTable->Buffer.ulBufDataLen, ulRemove );
 #endif
    }
 }
@@ -3757,6 +3756,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
             if( ptrBuf != pTable->ptrBuf )  /* not re-read active record */
             {
                pTable->ptrBuf = ptrBuf;
+               leto_refrSkipBuf( pTable );
                leto_ParseRecord( pConnection, pTable, ( char * ) ptrBuf, HB_FALSE );
             }
 #ifdef LETO_CLIENTLOG

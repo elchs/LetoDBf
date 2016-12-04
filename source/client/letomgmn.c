@@ -148,7 +148,7 @@ static LETOCONNECTION * letoParseFile( const char * szSource, char * szFile )
    char szAddr[ 96 ];
    int  iPort = 0;
 
-   HB_TRACE( HB_TR_DEBUG, ( "letoParseFile(%s)", szSource ) );
+   HB_TRACE( HB_TR_DEBUG, ( "letoParseFile(%s, %s)", szSource, szFile ) );
 
    szAddr[ 0 ] = '\0';
 
