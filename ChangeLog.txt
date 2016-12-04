@@ -2,6 +2,10 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-04 11:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/client/letocl.c
+    ! not the first record, but the active record not to re-read
+
 2016-12-03 15:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * tests/buildall.bat
   * tests/runall.bat

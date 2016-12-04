@@ -3754,7 +3754,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
       {
          if( HB_GET_LE_UINT32( ptrBuf + 4 ) == ulRecNo )  /* fix: + 4 */
          {
-            if( ul )  /* not re-read active record */
+            if( ptrBuf != pTable->ptrBuf )  /* not re-read active record */
             {
                pTable->ptrBuf = ptrBuf;
                leto_ParseRecord( pConnection, pTable, ( char * ) ptrBuf, HB_FALSE );
