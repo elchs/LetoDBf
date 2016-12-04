@@ -3757,7 +3757,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
             {
                pTable->ptrBuf = ptrBuf;
                leto_refrSkipBuf( pTable );
-               leto_ParseRecord( pConnection, pTable, ( char * ) ptrBuf, HB_FALSE );
+               leto_ParseRecord( pConnection, pTable, ( char * ) pTable->ptrBuf, HB_FALSE );
             }
 #ifdef LETO_CLIENTLOG
       leto_clientlog( NULL, 0, "LetoDbGoTo found record %lu in skip buffer pos %lu", ulRecNo, ul );
