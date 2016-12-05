@@ -4,6 +4,8 @@
  *
  * Copyright 2013 Pavel Tsarenko <tpe2 / at / mail.ru>
  * www - http://www.harbour-project.org
+ *           2016 Rolf 'elch' Beckmann
+ * return values, remove dangerous LETO_PARSEREC() --> DbGoTop()
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -61,35 +63,55 @@ FUNCTION LBM_DbGetFilterArray()
 
 FUNCTION LBM_DbSetFilterArray( aFilterRec )
 
-   IF IsLeto() .AND. ValType( aFilterRec ) == "A"
-      leto_UDF( "LBM_DbSetFilterArray", leto_ATOC( aFilterRec ) )
-      leto_SetBM()
+   LOCAL xRet := .F.
+
+   IF IsLeto() .AND. ValType( aFilterRec ) == "A" .AND. LEN( aFilterRec ) > 0
+      xRet := leto_UDF( "LBM_DbSetFilterArray", leto_ATOC( aFilterRec ) )
+      IF xRet
+         leto_SetBM()
+      ENDIF
    ENDIF
 
-   RETURN NIL
+   RETURN xRet
 
 FUNCTION LBM_DbSetFilterArrayAdd( aFilterRec )
 
-   IF IsLeto() .AND. ValType( aFilterRec ) == "A"
-      leto_UDF( "LBM_DbSetFilterArrayAdd", leto_ATOC( aFilterRec ) )
-      leto_SetBM()
+   LOCAL xRet := .F.
+
+   IF IsLeto() .AND. ValType( aFilterRec ) == "A"  .AND. LEN( aFilterRec ) > 0
+      xRet := leto_UDF( "LBM_DbSetFilterArrayAdd", leto_ATOC( aFilterRec ) )
+      IF xRet
+        leto_SetBM()
+      ENDIF
    ENDIF
 
-   RETURN NIL
+   RETURN xRet
 
 FUNCTION LBM_DbSetFilterArrayDel( aFilterRec )
 
-   IF IsLeto() .AND. ValType( aFilterRec ) == "A"
-      leto_UDF( "LBM_DbSetFilterArrayDel", leto_ATOC( aFilterRec ) )
-      leto_SetBM()
+   LOCAL xRet := .F.
+
+   IF IsLeto() .AND. ValType( aFilterRec ) == "A"  .AND. LEN( aFilterRec ) > 0
+      xRet := leto_UDF( "LBM_DbSetFilterArrayDel", leto_ATOC( aFilterRec ) )
+      IF xRet
+         leto_SetBM()
+      ENDIF
    ENDIF
 
-   RETURN NIL
+   RETURN xRet
 
 FUNCTION LBM_DbSetFilter( xScope, xScopeBottom, cFilter )
 
+   LOCAL cToShootInYourFoot, xRet := .F.
+
    IF IsLeto()
-      leto_ParseRec( leto_Udf( "LBM_DbSetFilter", xScope, xScopeBottom, ordName( 0 ), cFilter, Set( _SET_DELETED ) ) )
+      cToShootInYourFoot := leto_Udf( "LBM_DbSetFilter", xScope, xScopeBottom, ordName( 0 ), cFilter, Set( _SET_DELETED ) )
+      IF HB_BLEN( cToShootInYourFoot ) > 10
+         leto_SetBM()
+         DBGOTOP()
+         xRet := .T.
+      ENDIF
    ENDIF
 
-   RETURN NIL
+   RETURN xRet
+

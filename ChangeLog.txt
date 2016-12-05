@@ -2,6 +2,32 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-05 05:50 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/client/letomgmt.c
+    ! remove last empty array item after deleting the first in leto_udf()
+
+  * source/server/letobm.prg
+  * source/client/letobmcl.c
+    * added boolean return value for rushmore leto_udf calls
+
+  * source/server/server.prg
+    * added requests for __BM functions
+
+  * source/server/letofunc.c
+    * changes to accept rushmore filter
+    * skip to valid record in leto_Skip() if filter is active 
+
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+    * let use rushmore also fOptimized flag like normal
+    * throwed LETO_PARSEREC() !PRG! level into the basket bin !
+    ; use instead a silly simple DbGoto() or DbGoTop() at PRG level
+    * in case of wrong keytype to search for LetoDbSeek() throw a RTE,
+      not silently jump to EOF + 1
+    - removal of leto_ClearBuffers(), change calls to pTable->ptrBuf = NULL
+    ! two more places in [set|clear]filter without skip buffer clearance
+
 2016-12-04 14:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/client/letocl.c
     ! and another fix for LetoDbGoTo() :-(

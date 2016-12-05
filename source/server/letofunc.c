@@ -6534,9 +6534,11 @@ static PHB_ITEM leto_KeyToItem( AREAP pArea, const char * ptr, int iKeyLen, cons
 static void leto_BMRestore( AREAP pArea, PAREASTRU pAStru )
 {
    pArea->dbfi.lpvCargo = pAStru->pBM;
-   pArea->dbfi.fFilter = HB_TRUE;
    if( pAStru->pBM )
+   {
+      pArea->dbfi.fFilter = HB_TRUE;
       pArea->dbfi.fOptimized = HB_TRUE;
+   }
 }
 #endif
 
@@ -6838,6 +6840,19 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
       if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
          leto_SetAreaEnv( pAStru, pArea, pUStru );
       leto_GotoIf( pArea, ulRecNo );
+      if( pArea->dbfi.fFilter )  /* adjust to next valid record one down, one up if EOF */
+      {
+         HB_BOOL  bFlag;
+
+         SELF_EOF( pArea, &bFlag );
+         if( ! bFlag )
+         {
+            SELF_SKIPFILTER( pArea, 1 );
+            SELF_EOF( pArea, &bFlag );
+            if( bFlag )
+               SELF_SKIP( pArea, -1 );
+         }
+      }
 
       /* Note: this is paradox: if *multiple* threads simultanous consecutive skip in same WA with filter condition,
        * it drastically improves performance to NOT let them do that simultanous */
@@ -7173,8 +7188,10 @@ static void leto_Goto( PUSERSTRU pUStru, const char * szData )
             errCode = SELF_GOTOP( pArea );
          else
             errCode = SELF_GOBOTTOM( pArea );
+#if 0
          if( errCode == HB_SUCCESS && pArea->dbfi.fFilter )
             errCode = SELF_SKIPFILTER( pArea, bTop ? 1 : -1 );
+#endif
          if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
             leto_ClearAreaEnv( pArea, pAStru->pTagCurrent );
       }
@@ -9672,7 +9689,7 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
    HB_BOOL   bClear = ( ulLen == 0 );
 
    leto_ResetFilter( pAStru );
-   if( s_bNoSaveWA )
+   if( s_bNoSaveWA && ! pAStru->pTStru->bMemIO )
       leto_ClearFilter( pArea );
 
    if( bClear )
@@ -9688,7 +9705,7 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
       if( hb_setGetOptimize() )
          bRes = leto_ParseFilter( pUStru, szData, ulLen );
 
-      if( bRes || ( bForce && s_bNoSaveWA ) )
+      if( bRes || bForce )
       {
          bRes = leto_ExprGetType( pUStru, szFilter, ( int ) ulLen ) == 'L';
          if( bRes )
@@ -9718,6 +9735,7 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
          pAStru->itmFltExpr = pFilterBlock;
       }
 
+#if 0
 #ifdef __BM
       if( bRes && bForce )
       {
@@ -9741,6 +9759,7 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
          pArea->dbfi.abFilterText = NULL;
       }
 #endif
+#endif
 
       if( ! bRes && bForce )
       {
@@ -9763,7 +9782,7 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
             if( s_iDebugMode > 10 )
                leto_wUsLog( pUStru, -1, "DEBUG leto_Filter! [ ForceOpt(%d) ] accepted <%s>", bForce, szFilter);
             leto_SendAnswer( pUStru, "++++", 4 );
-            if( s_bNoSaveWA )
+            if( s_bNoSaveWA && ! pAStru->pTStru->bMemIO )
                leto_SetFilter( pAStru, pArea, pUStru );
          }
          else
@@ -9930,9 +9949,12 @@ HB_FUNC( LETO_BMRESTORE )
       if( pArea )
       {
          if( hb_parl( 1 ) )
+         {
             leto_ResetFilter( pUStru->pCurAStru );
-         // ToDo really -- check also leto_ClearFilter( pArea )
-         if( pArea )
+            if( s_bNoSaveWA && ! pUStru->pCurAStru->pTStru->bMemIO )
+               leto_ClearFilter( pArea );
+         }
+         if( pUStru->pCurAStru->pBM )
             leto_BMRestore( pArea, pUStru->pCurAStru );
       }
    }
@@ -9942,6 +9964,7 @@ HB_FUNC( LETO_BMRESTORE )
 HB_FUNC( LETO_BMSAVE )
 {
    PUSERSTRU pUStru = letoGetUStru();
+   HB_BOOL   bRet = HB_FALSE;
 
    if( pUStru->pCurAStru )
    {
@@ -9951,10 +9974,15 @@ HB_FUNC( LETO_BMSAVE )
       if( pArea )
       {
          pAStru->pBM = pArea->dbfi.lpvCargo;
-         pArea->dbfi.lpvCargo = NULL;
-         pArea->dbfi.fFilter = pArea->dbfi.fOptimized = HB_FALSE;
+         if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
+         {
+            pArea->dbfi.lpvCargo = NULL;
+            pArea->dbfi.fFilter = pArea->dbfi.fOptimized = HB_FALSE;
+         }
+         bRet = HB_TRUE;
       }
    }
+   hb_retl( bRet );
 }
 #endif
 

@@ -655,8 +655,8 @@ static HB_ERRCODE letoSeek( LETOAREAP pArea, HB_BOOL fSoftSeek, PHB_ITEM pKey, H
 
    if( ( cType = leto_ItemType( pKey ) ) != pTagInfo->cKeyType )
    {
-      if( LetoDbSeek( pTable, NULL, 0, HB_FALSE, HB_FALSE ) )
-         return HB_FAILURE;
+      commonError( pArea, EG_DATATYPE, EDBF_DATATYPE, 0, NULL, EF_CANDEFAULT, NULL );
+      return HB_FAILURE;
    }
    else
    {
@@ -4251,6 +4251,7 @@ static HB_ERRCODE letoClearFilter( LETOAREAP pArea )
 
    HB_TRACE( HB_TR_DEBUG, ( "letoClearFilter(%p)", pArea ) );
 
+   pTable->ptrBuf = NULL;
    if( pTable->hTable && pArea->area.dbfi.fFilter )
    {
       if( pArea->area.dbfi.itmCobExpr )
@@ -4264,14 +4265,8 @@ static HB_ERRCODE letoClearFilter( LETOAREAP pArea )
          if( LetoDbClearFilter( pTable ) )
             return HB_FAILURE;
       }
-      else
-         leto_ClearBuffers( pTable );
    }
 
-#ifdef __BM
-   if( pArea->area.dbfi.lpvCargo )
-      pArea->area.dbfi.lpvCargo = NULL;
-#endif
    return SUPER_CLEARFILTER( ( AREAP ) pArea );
 }
 
@@ -4290,6 +4285,7 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
    if( pArea->lpdbPendingRel )  /* SELF_FORCEREL added */
       SELF_FORCEREL( ( AREAP ) pArea );
 
+   pTable->ptrBuf = NULL;
    if( hb_setGetOptimize() )
    {
       if( SELF_CLEARFILTER( ( AREAP ) pArea ) != HB_SUCCESS )
@@ -5736,6 +5732,7 @@ HB_FUNC( LETO_COMMIT )
    }
 }
 
+#if 0  /* to be removed an ugly hack, not needed, make a DbGoto[p]() at PRG level */
 HB_FUNC( LETO_PARSEREC )
 {
    LETOAREAP   pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
@@ -5745,11 +5742,15 @@ HB_FUNC( LETO_PARSEREC )
    {
       LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
 
-      leto_ParseRec( pConnection, pArea, hb_parc( 1 ) );
-      pTable->ptrBuf = NULL;
+      if( pConnection )
+      {
+         leto_ParseRec( pConnection, pArea, hb_parc( 1 ) );
+         pTable->ptrBuf = NULL;
+      }
    }
    hb_ret();
 }
+#endif
 
 #if 0  /* this concept is put on dry ice because of strong design problems */
 HB_FUNC( LETO_PARSERECORDS )
@@ -5830,11 +5831,7 @@ HB_FUNC( LETO_ISFLTOPTIM )
    LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
 
    if( leto_CheckArea( pArea ) )
-#ifndef __BM
       hb_retl( pArea->area.dbfi.fOptimized );
-#else
-      hb_retl( pArea->area.dbfi.fOptimized || pArea->area.dbfi.lpvCargo );
-#endif
    else
       hb_retl( HB_FALSE );
 }
@@ -6173,8 +6170,12 @@ HB_FUNC( LETO_SETBM )
 {
    LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
 
-   pArea->area.dbfi.lpvCargo = ( void * ) 1;
-   leto_ClearBuffers( pArea->pTable );
+   if( pArea )
+   {
+      pArea->area.dbfi.fFilter = HB_TRUE;
+      pArea->area.dbfi.fOptimized = HB_TRUE;
+      pArea->pTable->ptrBuf = NULL;
+   }
 }
 #endif
 

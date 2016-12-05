@@ -357,5 +357,4 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
 void leto_SetUpdated( LETOTABLE * pTable, HB_USHORT uiUpdated );
 const char * leto_ParseTagInfo( LETOTABLE * pTable, const char * pBuffer );
 void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen, unsigned long * pulLen );
-void leto_ClearBuffers( LETOTABLE * pTable );
 

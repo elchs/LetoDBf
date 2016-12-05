@@ -1858,8 +1858,8 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
    if( pConnection )
    {
       char *  szData;
-      char *  pParam, * ptr;
-      HB_SIZE nSize;
+      char *  pParam = NULL, * ptr;
+      HB_SIZE nSize = 0;
       HB_BOOL fExclusive = hb_setGetExclusive();
 #ifdef __XHARBOUR__
       PHB_ITEM * pBase;
@@ -1874,9 +1874,12 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
          pArray = hb_arrayFromParams( 0 );
 #endif
       }
-
-      hb_arrayDel( pArray, 1 );
-      pParam = hb_itemSerialize( pArray, HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
+      if( hb_arrayLen( pArray ) > 1 )  /* first item = funtion name */
+      {
+         hb_arrayDel( pArray, 1 );
+         hb_arraySize( pArray, hb_arrayLen( pArray ) - 1 );
+         pParam = hb_itemSerialize( pArray, HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
+      }
       hb_itemRelease( pArray );
 
       ulMemSize = hb_parclen( 1 ) + nSize + 42;
@@ -1892,8 +1895,11 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
                       fInThread ? '9' : '2', ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ),
                       0L, ptr, fExclusive ? 'T' : 'F', nSize );
       ptr = szData + strlen( szData );
-      memcpy( ptr, pParam, nSize );
-      hb_xfree( pParam );
+      if( pParam )
+      {
+         memcpy( ptr, pParam, nSize );
+         hb_xfree( pParam );
+      }
 
       pConnection->iError = 0;
       if( ! leto_DataSendRecv( pConnection, szData, ( ptr - szData ) + nSize ) )

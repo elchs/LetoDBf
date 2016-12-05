@@ -136,6 +136,12 @@ REQUEST LETO_DBCREATE, LETO_ORDCREATE
 REQUEST LETO_BACKUPTABLES, LETO_IDLESLEEP
 REQUEST LETO_UDFMUSTQUIT
 
+#ifdef __BM
+REQUEST LBM_DbGetFilterArray, LBM_DbSetFilterArray, LBM_DbSetFilterArrayAdd
+REQUEST LBM_DbSetFilterArrayDel, LBM_DbSetFilter
+REQUEST LETO_ATOC, LETO_CTOA
+#endif
+
 #ifdef __HB_EXT_CDP__
    #include "hbextcdp.ch"
 #else
