@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-05 13:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/server/errint.c
+    - removed the willful intional crash test, so MinGW GNU C 6.2 have
+      none! single warning left
+
 2016-12-05 05:50 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/client/letomgmt.c
     ! remove last empty array item after deleting the first in leto_udf()
