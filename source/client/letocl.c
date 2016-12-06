@@ -1622,8 +1622,6 @@ static _HB_INLINE_ HB_BOOL leto_OutBuffer( LETOBUFFER * pLetoBuf, char * ptr )
 
 static void leto_setSkipBuf( LETOCONNECTION * pConnection, LETOTABLE * pTable, const char * ptr, unsigned long ulDataLen )
 {
-   if( ! ulDataLen )
-      ulDataLen = HB_GET_LE_UINT24( ptr ) + 3;
    leto_AllocBuf( &pTable->Buffer, ulDataLen, 0 );
 
    if( pConnection->fCrypt && ! pConnection->fZipCrypt )
@@ -1651,13 +1649,6 @@ static void leto_refrSkipBuf( LETOTABLE * pTable )  /* set new position in buffe
                       HB_GET_LE_UINT32( pTable->ptrBuf + 4 ), pTable->Buffer.ulBufDataLen, ulRemove );
 #endif
    }
-}
-
-void leto_ClearBuffers( LETOTABLE * pTable )
-{
-   if( pTable->ptrBuf )
-      pTable->ptrBuf = NULL;
-   pTable->Buffer.ulBufDataLen = 0;
 }
 
 static HB_ULONG leto_TransBlockLen( LETOCONNECTION * pConnection, HB_ULONG ulLen )
@@ -1689,14 +1680,21 @@ static void leto_AddTransBuffer( LETOCONNECTION * pConnection, const char * pDat
 
 static HB_BOOL leto_SearchTransList( LETOCONNECTION * pConnection, HB_ULONG hTable, HB_ULONG ulRecNo )
 {
-   HB_ULONG ul = 0;
-
-   while( ul < pConnection->ulRecsInList )
+   /* recently searched to be not in list */
+   if( pConnection->pRecsNotList.ulRecNo != ulRecNo &&
+       pConnection->pRecsNotList.hTable != hTable )
    {
-      if( pConnection->pTransList[ ul ].ulRecNo == ulRecNo &&
-          pConnection->pTransList[ ul ].hTable == hTable )
-         return HB_TRUE;
-      ul++;
+      HB_ULONG ul = 0;
+
+      while( ul < pConnection->ulRecsInList )
+      {
+         if( pConnection->pTransList[ ul ].ulRecNo == ulRecNo &&
+             pConnection->pTransList[ ul ].hTable == hTable )
+            return HB_TRUE;
+         ul++;
+      }
+      pConnection->pRecsNotList.ulRecNo = ulRecNo;
+      pConnection->pRecsNotList.hTable = hTable;
    }
 
    return HB_FALSE;
@@ -1706,22 +1704,22 @@ static void leto_AddTransList( LETOCONNECTION * pConnection, HB_ULONG hTable, HB
 {
    if( ! leto_SearchTransList( pConnection, hTable, ulRecNo ) )
    {
-      HB_ULONG ulRecsInList = pConnection->ulRecsInList;
-
       if( ! pConnection->pTransList )
       {
          pConnection->pTransList = ( TRANSACTLIST * ) hb_xgrab( sizeof( TRANSACTLIST ) * 32 );
          pConnection->ulTransListLen = 32;
       }
-      else if( ulRecsInList >= pConnection->ulTransListLen )
+      else if( pConnection->ulRecsInList >= pConnection->ulTransListLen )
       {
          pConnection->ulTransListLen += 32;
          pConnection->pTransList = ( TRANSACTLIST * ) hb_xrealloc( pConnection->pTransList,
                                                                    sizeof( TRANSACTLIST ) * pConnection->ulTransListLen );
       }
-      pConnection->pTransList[ ulRecsInList ].hTable = hTable;
-      pConnection->pTransList[ ulRecsInList ].ulRecNo = ulRecNo;
+      pConnection->pTransList[ pConnection->ulRecsInList ].hTable = hTable;
+      pConnection->pTransList[ pConnection->ulRecsInList ].ulRecNo = ulRecNo;
       pConnection->ulRecsInList++;
+
+      pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0;
    }
 }
 
@@ -3522,6 +3520,61 @@ HB_EXPORT const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, 
    char             szData[ 32 ];
    unsigned long    ulLen;
 
+   if( ! pTable->ulRecNo )
+   {
+      *ulLenMemo = 0;
+      return "";
+   }
+
+   if( pConnection->fTransActive && leto_SearchTransList( pConnection, pTable->hTable, pTable->ulRecNo ) )
+   {
+      HB_ULONG  ulLen, ulTransex;
+      HB_UCHAR  uLenLen;
+      char *    ptr, * ptrPar;
+
+      ptr = ( char * ) ( pConnection->szTransBuffer + pConnection->uiTBufOffset );
+      for( ulTransex = 0; ulTransex < pConnection->ulRecsInTrans; ulTransex++ )
+      {
+         if( ( uLenLen = ( ( ( HB_UCHAR ) *ptr ) & 0xFF ) ) < 10 )
+         {
+            ulLen = leto_b2n( ++ptr, uLenLen );
+            ptr += uLenLen;
+
+            /* first: check for memo update action in transaction buffer */
+            if( ptr[ 0 ] == LETOCMD_memo )
+            {
+               /* second: verify the same WA */
+               if( strtoul( ptr + 2, &ptrPar, 10 ) == pTable->hTable )
+               {
+                  /* third: check for RecNo behind WA + ';p;' +  */
+                  if( strtoul( ptrPar + 3, &ptrPar, 10 ) == pTable->ulRecNo )
+                  {
+                     /* forth: check field index the same */
+                     if( ( unsigned int ) atoi( ++ptrPar ) == uiIndex + 1 )
+                     {
+                        ptrPar = strchr( ++ptrPar, ';' );
+                        ptrPar++;
+                        if( ( uLenLen = ( ( ( HB_UCHAR ) *ptrPar ) & 0xFF ) ) < 10 )
+                        {
+                           *ulLenMemo = leto_b2n( ++ptrPar, uLenLen );
+                           ptrPar += uLenLen;
+#ifdef LETO_CLIENTLOG
+                           leto_clientlog( NULL, 0, "LetoDbGetMemo transaction recno %lu WA %lu field %ld len %lu",
+                                                    pTable->ulRecNo, pTable->hTable, uiIndex + 1, *ulLenMemo );
+#endif
+                           return ptrPar;  /* found, sigh ... */
+                        }
+                     }
+                  }
+               }
+            }
+            ptr += ulLen;
+         }
+         else
+            break;  /* malicious data, shell leave a note */
+      }
+   }
+
    ulLen = eprintf( szData, "%c;%lu;%c;%lu;%d;",
                     LETOCMD_memo, pTable->hTable, LETOSUB_get, pTable->ulRecNo, uiIndex + 1 );
    if( leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
@@ -3643,7 +3696,7 @@ HB_EXPORT HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, co
    {
       ptr = leto_AddLen( ( szData + 4 ), &ulLen, HB_TRUE );  /* before */
       leto_AddTransBuffer( pConnection, ptr, ulLen );
-      if( ! fAppend )
+      if( ! fAppend && pTable->ulRecNo )
          leto_AddTransList( pConnection, pTable->hTable, pTable->ulRecNo );
    }
    else
@@ -3917,21 +3970,7 @@ HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHO
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
    const char *     pData = NULL;
 
-   if( ! szKey )  /* want search wrong cKeytype, then goto EOF */
-   {
-      char          szData[ 32 ];
-      unsigned long ulLen;
-
-      ulLen = eprintf( szData, "%c;%lu;-3;%c;", LETOCMD_goto, pTable->hTable,
-                       ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
-      if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
-      {
-         pConnection->iError = 1021;
-         return 1;
-      }
-      LetoDbGotoEof( pTable );
-   }
-   else
+   if( szKey )
    {
       char          szData[ LETO_MAX_KEY + LETO_MAX_TAGNAME + 56 ];
       unsigned long ulLen;
@@ -3960,7 +3999,7 @@ HB_EXPORT HB_ERRCODE LetoDbClearFilter( LETOTABLE * pTable )
    char          szData[ 24 ];
    unsigned long ulLen;
 
-   leto_ClearBuffers( pTable );
+   pTable->ptrBuf = NULL;
    ulLen = eprintf( szData, "%c;%lu;X;", LETOCMD_filt, pTable->hTable );
    if( ! leto_SendRecv2( pConnection, szData, ulLen, 1026 ) )
    {
@@ -3977,9 +4016,9 @@ HB_EXPORT HB_ERRCODE LetoDbSetFilter( LETOTABLE * pTable, const char * szFilter,
    char *        pData;
    unsigned long ulLen;
 
-   if( szFilter && ( ulLen = strlen( szFilter ) ) != 0 )
+   if( szFilter && ( ulLen = strlen( szFilter ) ) > 0 )
    {
-      leto_ClearBuffers( pTable );
+      pTable->ptrBuf = NULL;
       pData = ( char * ) hb_xgrab( ulLen + 36 );
       ulLen = eprintf( pData, "%c;%lu;%c;%s", LETOCMD_filt, pTable->hTable, fForceOpt ? 'T' : 'F', szFilter );
       if( ! leto_SendRecv( pConnection, pData, ulLen, 1026 ) )
@@ -4190,7 +4229,7 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
    {
       pData = leto_AddLen( szData + 4, &ulLen, HB_TRUE );  /* before */
       leto_AddTransBuffer( pConnection, pData, ulLen );
-      if( ! fAppend && ! fCommit )
+      if( ! fAppend && ! fCommit && pTable->ulRecNo )
          leto_AddTransList( pConnection, pTable->hTable, pTable->ulRecNo );
    }
    else  /* send without extra pre-leading length */

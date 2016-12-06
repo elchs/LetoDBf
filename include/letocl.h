@@ -186,42 +186,43 @@ typedef struct _LETOTABLE
 
 typedef struct
 {
-   HB_ULONG          hTable;            /* workarea */
+   HB_ULONG          hTable;
    HB_ULONG          ulRecNo;
 } TRANSACTLIST;
 
 typedef struct _LETOCONNECTION_
 {
-   unsigned int      iConnection;       /* ID of connection */
-   int               iConnectRes;       /* error state of connection -- just after connect */
-   int               iError;            /* formerly static s_iError */
+   unsigned int      iConnection;          /* ID of connection */
+   int               iConnectRes;          /* error state of connection -- just after connect */
+   int               iError;               /* formerly static s_iError */
    HB_SOCKET         hSocket;
    HB_SOCKET         hSocketErr;
    PHB_ZNETSTREAM    zstream;
    char *            pAddr;
-   int               iPort;             /* port at client side */
-   int               iServerPort;       /* port at server side */
+   int               iPort;                /* port at client side */
+   int               iServerPort;          /* port at server side */
    int               iTimeOut;
-   int               iLockTimeOut;      /* used for rlock and flock, -1 infinite, 0 = none, ms */
+   int               iLockTimeOut;         /* used for rlock and flock, -1 infinite, 0 = none, ms */
    char *            szPath;
    char              szVersion[ 24 ];
    unsigned int      uiMajorVer;
    unsigned int      uiMinorVer;
-   char *            szVerHarbour;      /* Harbour version of LetoDB server build */
+   char *            szVerHarbour;         /* Harbour version of LetoDB server build */
    char              szAccess[ 8 ];
    char              cDopcode[ LETO_DOPCODE_LEN ];   /* bytes > 0 for mixed into LETO_PASSWORD */
    HB_BOOL           fCrypt;
    HB_BOOL           fCloseAll;
    PCDPSTRU          pCdpTable;
    HB_BOOL           fTransActive;
-   HB_BYTE *         szTransBuffer;
-   HB_ULONG          ulTransBuffLen;
-   HB_ULONG          ulTransDataLen;
-   HB_ULONG          ulRecsInTrans;
-   HB_ULONG          ulTransBlockLen;
-   TRANSACTLIST *    pTransList;
-   HB_ULONG          ulTransListLen;
-   HB_ULONG          ulRecsInList;
+   HB_BYTE *         szTransBuffer;        /* buffered transaction data */
+   HB_ULONG          ulTransBuffLen;       /* allocated len */
+   HB_ULONG          ulTransDataLen;       /* buffered data len */
+   HB_ULONG          ulRecsInTrans;        /* count of blocks of Put[memo|record] */
+   HB_ULONG          ulTransBlockLen;      /* step size for [re]alloc */ 
+   TRANSACTLIST *    pTransList;           /* ulRecNo / hTable pairs */
+   HB_ULONG          ulTransListLen;       /* allocated pairs */
+   HB_ULONG          ulRecsInList;         /* count of filled pairs */
+   TRANSACTLIST      pRecsNotList;         /* searched pair not to be in pairs */
    HB_BOOL           fRefreshCount;
    HB_BOOL           fBufKeyNo;
    HB_BOOL           fBufKeyCount;

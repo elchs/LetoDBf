@@ -2,6 +2,22 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-06 06:52 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * include/letocl.h
+    ; some comments
+    % one new item
+
+  * source/client/letocl.c
+    * ToDo left from 2016-12-01, fetch memofield out of transaction buffer,
+      instead of unmodified server data.
+    ; For any data-update during transaction shell be avoided to modify same
+      record AND same field multiple times, with in between jumping to another
+      record of WA. This case always first modification will be fetched as
+      base value for next change.
+    % spare a local variable
+    % opt out a commonly appearing double call of leto_SearchTransList(),
+      one time for read, one time for (buffered) write after changes
+
 2016-12-05 13:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/errint.c
     - removed the willful intional crash test, so MinGW GNU C 6.2 have
