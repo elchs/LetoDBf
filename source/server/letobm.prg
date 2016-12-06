@@ -110,17 +110,17 @@ FUNCTION LBM_DbSetFilterArrayDel( cFilterRec )
  * Returns buffer with first filtered record
  * Function call from client:
  *
- *  leto_ParseRec( leto_Udf('LBM_DbSetFilter', <xScope>, <xScopeBottom>, <xOrder>, <cFilter>, <lDeleted> ) )
+ *  DbGoto( leto_Udf('LBM_DbSetFilter', <xScope>, <xScopeBottom>, <xOrder>, <cFilter>, <lDeleted> ) )
  */
 FUNCTION LBM_DbSetFilter( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
 
-   LOCAL cRec := "", aFilterRec := {}
+   LOCAL nRec := 0, aFilterRec := {}
    LOCAL lOpt := Set( _SET_FORCEOPT, .F. )
 
    leto_SetEnv( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
    GO TOP
    IF ! Eof()
-      cRec := Leto_Rec()
+      nRec := RecNo()
    ENDIF
    WHILE ! Eof()
       AAdd( aFilterRec, RecNo() )
@@ -132,5 +132,5 @@ FUNCTION LBM_DbSetFilter( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
    ENDIF
    SET( _SET_FORCEOPT, lOpt )
 
-   RETURN cRec
+   RETURN nRec
 

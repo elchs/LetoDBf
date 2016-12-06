@@ -49,13 +49,10 @@ FUNCTION UDF_Init
  *
  * Function Call from client:
  *
- * cRecBuf := Leto_Udf("UDF_AppendRec", <cFieldName>, [<cOrder>|<nOrder>], [<xMin>])
+ * cRecno := Leto_Udf("UDF_AppendRec", <cFieldName>, [<cOrder>|<nOrder>], [<xMin>])
  *
- * The function return buffer of appended record. After call of Leto_ParseRec
+ * The function return RECNO() of new record, make a DbGoto( x ) to that at client
  *
- * Leto_ParseRec( cRecBuf )
- * 
- * Internal data of rddleto is filled from record buffer.
  */
 
 FUNCTION UDF_AppendRec( cFieldName, xOrder, xMin )
@@ -102,7 +99,7 @@ FUNCTION UDF_AppendRec( cFieldName, xOrder, xMin )
       lApp := .F.
    ENDIF
 
-   RETURN if( lApp, leto_rec(), Nil )
+   RETURN if( lApp, RECNO(), 0 )
 
 FUNCTION UDF_Append()
    LOCAL lApp, lSetDel
@@ -115,12 +112,13 @@ FUNCTION UDF_Append()
          dbRecall()
       ENDIF
    ELSE
-      dbAppend()
-      IF ( lApp := ! NetErr() )
-         leto_RecLock( RecNo() )
+      IF dbAppend()
+         IF ( lApp := ! NetErr() )
+            leto_RecLock( RecNo(), .T. )
+         ENDIF
       ENDIF
    ENDIF
-   RETURN if( lApp, leto_rec(), Nil )
+   RETURN if( lApp, RECNO(), Nil )
 
 /*
  * This sample function delete records on scope xScope, xScopeBottom and filter <cFilter>
@@ -141,7 +139,7 @@ FUNCTION UDF_DeleteRecs( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
    NEXT
    dbCommit()
 
-   RETURN leto_rec()
+   RETURN RECNO()
 
 STATIC FUNCTION ClearRec
    LOCAL nCount := FCount(), nLoop, xValue
@@ -178,60 +176,6 @@ STATIC FUNCTION ClearRec
       ENDIF
    NEXT
    RETURN Nil
-
-/*
- * UDF_UpdCascade - cascade update key fields in main and relation table
- * Parameters:
- *   nRecNo       - record number in the main table
- *   cKeyField    - field name in the main table (primary key)
- *   xKeyNew      - new value of key field
- *   cClientAlias - client alias of the relation table
- *   cKeyField2   - field name in the relation table (foreign key)
- *   xOrder       - order name or order number in the relation table
- *
- * This function return array of record buffer in two tables
- * Call from client:
- *
- * aRecBuf := Leto_Udf("UDF_UpdCascade", ... )
- * (table1)->( leto_ParseRec( aRecBuf[1] ) )
- * (table2)->( leto_ParseRec( aRecBuf[2] ) )
- */
-FUNCTION UDF_UpdCascade( nRecNo, cKeyField, xKeyNew, cClientAlias, cKeyField2, xOrder )
-   LOCAL xKeyOld, cLetoAlias, cArea := Alias()
-   LOCAL nPos := FieldPos( cKeyField ), nPos2
-   LOCAL cRecBuf1, cRecBuf2
-
-   dbGoto( nRecNo )
-   xKeyOld := FieldGet( nPos )
-   IF xKeyOld != xKeyNew .and. leto_RecLock( nRecNo )
-      FieldPut( nPos, xKeyNew )
-      leto_RecUnlock( nRecNo )
-      cRecBuf1 := leto_rec()
-
-      cLetoAlias := leto_Alias( cClientAlias )
-      dbSelectArea( cLetoAlias )
-      IF Empty( cKeyField2 )
-         cKeyField2 := cKeyField
-      ENDIF
-      nPos2 := FieldPos( cKeyField2 )
-      IF ! Empty( xOrder )
-         ordSetFocus( xOrder )
-      ENDIF
-      WHILE dbSeek( xKeyOld )
-         IF leto_RecLock( RecNo() )
-            FieldPut( nPos2, xKeyNew )
-            leto_RecUnlock( RecNo() )
-         ELSE
-            EXIT
-         ENDIF
-      ENDDO
-      dbSeek( xKeyNew )
-      cRecBuf2 := leto_rec()
-
-      dbSelectArea( cArea )
-
-   ENDIF
-   RETURN { cRecBuf1, cRecBuf2 }
 
 /*
  * UDF_FilesExist - check files existence at the specified path
@@ -289,22 +233,8 @@ FUNCTION UDF_Locate( xScope, xScopeBottom, xOrder, cFilter, lDeleted, lLast )
 
    leto_ClearEnv( xScope, xScopeBottom, xOrder, cFilter )
 
-   RETURN leto_rec()
+   RETURN RECNO()
 
-#if 0
-/* See readme - deprecated !
- * UDF_dbEval function returns buffer with records by order <xOrder>, and for condition,
- * defined in <xScope>, <xScopeBottom>, <cFilter>, <lDeleted> parameters
- * Function call from client:
-   
-   leto_ParseRecords( leto_Udf('UDF_dbEval', <xScope>, <xScopeBottom>, <xOrder>, <cFilter>, <lDeleted> ) )
-   while ! eof()
-      ...
-      skip
-   enddo
-   dbInfo( DBI_CLEARBUFFER )
-
- */
 FUNCTION UDF_dbEval( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
    LOCAL cRecs
 

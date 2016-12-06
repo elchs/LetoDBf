@@ -102,13 +102,13 @@ FUNCTION LBM_DbSetFilterArrayDel( aFilterRec )
 
 FUNCTION LBM_DbSetFilter( xScope, xScopeBottom, cFilter )
 
-   LOCAL cToShootInYourFoot, xRet := .F.
+   LOCAL nRecno, xRet := .F.
 
    IF IsLeto()
-      cToShootInYourFoot := leto_Udf( "LBM_DbSetFilter", xScope, xScopeBottom, ordName( 0 ), cFilter, Set( _SET_DELETED ) )
-      IF HB_BLEN( cToShootInYourFoot ) > 10
+      nRecno := leto_Udf( "LBM_DbSetFilter", xScope, xScopeBottom, ordName( 0 ), cFilter, Set( _SET_DELETED ) )
+      IF nRecno > 0
          leto_SetBM()
-         DBGOTOP()
+         DBGOTO( nRecno )
          xRet := .T.
       ENDIF
    ENDIF

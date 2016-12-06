@@ -2,6 +2,17 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-06 09:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/server/letobm.prg
+  * source/client/letobmcl.c
+  * source/client/leto1.c
+  * tests/letoudf.prg
+  * Readme.txt
+    * cleanups
+
+  * Changelog.txt
+    * typo
+
 2016-12-06 06:52 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * include/letocl.h
     ; some comments
@@ -20,7 +31,7 @@
 
 2016-12-05 13:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/errint.c
-    - removed the willful intional crash test, so MinGW GNU C 6.2 have
+    - removed the willful intentional crash test, so MinGW GNU C 6.2 have
       none! single warning left
 
 2016-12-05 05:50 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
@@ -36,7 +47,7 @@
 
   * source/server/letofunc.c
     * changes to accept rushmore filter
-    * skip to valid record in leto_Skip() if filter is active 
+    * skip to valid record in leto_Skip() if filter is active
 
   * include/letocl.h
   * source/client/leto1.c
@@ -87,13 +98,13 @@
     * not invalidate skip buffer after [un]locking, so now it's possibe to
       lock and unlock without loosing skip buffer;
     * ensured that first record in buffer is not re-read in LetoDbSkip(),
-      as it possible is meanwhile updated 
+      as it possible is meanwhile updated
     * do not set uiRecInBuf and do not re-read first record in buffer in
       LetoDbGoTo()
     * adjust buffer origin in LetoDbPutRecord() and LetoDbPutMemo(), so active
       record is the first in buffer after data updates during no transaction
     * add at few places a missing clearance of skip buffer
-    % buffer hit counter: uiShoots -> ulShoots 
+    % buffer hit counter: uiShoots -> ulShoots
     - no need to fill buffer with a single record, removed leto_setSkipBuf()
       calls - filling buffer will actually happen only in LetoDbSkip()
     ; above will give significant performance increase with repeated calls:

@@ -5297,6 +5297,7 @@ HB_FUNC( LETO_ROLLBACK )
       LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
       char szData[ 8 ];
 
+      pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0;
       pConnection->fTransActive = HB_FALSE;
       pConnection->ulTransDataLen = pConnection->ulRecsInTrans = 0;
       pConnection->ulRecsInList = 0;
@@ -5411,6 +5412,7 @@ HB_FUNC( LETO_COMMITTRANSACTION )
       }
    }
 
+   pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0; 
    pConnection->ulRecsInList = 0;
    pConnection->ulTransDataLen = pConnection->ulRecsInTrans = 0;
    hb_retl( HB_TRUE );
@@ -5731,53 +5733,6 @@ HB_FUNC( LETO_COMMIT )
       }
    }
 }
-
-#if 0  /* to be removed an ugly hack, not needed, make a DbGoto[p]() at PRG level */
-HB_FUNC( LETO_PARSEREC )
-{
-   LETOAREAP   pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-   LETOTABLE * pTable = pArea->pTable;
-
-   if( leto_CheckArea( pArea ) && HB_ISCHAR( 1 ) && hb_parclen( 1 )  )
-   {
-      LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-
-      if( pConnection )
-      {
-         leto_ParseRec( pConnection, pArea, hb_parc( 1 ) );
-         pTable->ptrBuf = NULL;
-      }
-   }
-   hb_ret();
-}
-#endif
-
-#if 0  /* this concept is put on dry ice because of strong design problems */
-HB_FUNC( LETO_PARSERECORDS )
-{
-   LETOAREAP   pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-   LETOTABLE * pTable = pArea->pTable;
-
-   if( leto_CheckArea( pArea ) && HB_ISCHAR( 1 ) )
-   {
-      const char * pBuffer = hb_parc( 1 );
-      HB_ULONG     ulDataLen;
-
-      if( ( ulDataLen = hb_parclen( 1 ) ) > 0 )
-      {
-         pTable->BufDirection = 1;
-
-         //ulDataLen = leto_b2n( pBuffer + 1, uLenLen );
-         //ptr = pBuffer + 2 + uLenLen;
-         leto_ParseRec( pArea, pBuffer );
-
-         leto_setSkipBuf( pTable, pBuffer, ulDataLen, 0 );
-         pTable->ptrBuf = pTable->Buffer.pBuffer;
-      }
-   }
-   hb_ret();
-}
-#endif
 
 HB_FUNC( LETO_CONNECT_ERR )
 {
@@ -6203,23 +6158,6 @@ HB_FUNC( LETO_SIZE )
          break;
    }
 }
-
-#if 0
-HB_FUNC( LETO_ALIAS )
-{
-   if( hb_parclen( 1 ) )
-   {
-      char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
-
-      memcpy( szAlias, hb_parc( 1 ), HB_MIN( HB_RDD_MAX_ALIAS_LEN, hb_parclen( 1 ) ) );
-      szAlias[ HB_MIN( HB_RDD_MAX_ALIAS_LEN, hb_parclen( 1 ) ) ] = '\0';
-      hb_retc( szAlias );
-      return;
-   }
-
-   hb_retc_null();
-}
-#endif
 
 HB_FUNC( LETO_HASH )
 {

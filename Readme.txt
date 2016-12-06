@@ -991,12 +991,11 @@ A. Internals
  leto_udfExist check the existance of udf-function at the letodb server.
  <cSeverFunc> parameter is the same as for leto_udf().
 
-      LETO_PARSEREC( cRecBuf )                                 ==> nil
- This function is necessary for calling, if udf-function returns as
- result the buffer of record which should be current after of it
- works.
+      LETO_PARSEREC( cRecBuf )
+ ! deprecated - removed !
 
-      LETO_PARSERECORDS( cRecBuf )   ! deprecated - removed !
+      LETO_PARSERECORDS( cRecBuf )
+ ! deprecated - removed !
  see new LETO_DBEVAL() as powerful alternative, or sample of UDF_dbEval() in tests/letoudf.prg
 
 
