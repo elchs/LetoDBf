@@ -84,7 +84,6 @@ static HB_SOCKET s_hSocketMain = HB_NO_SOCKET;
 static HB_UINT * s_paSocks;
 static int       s_iSocksMax = 0;
 static int       s_iTimeOut = -1;
-//static int       s_iGlobalExit = 0;      /* thread global exit condition */
 static int       s_iZombieCheck = 0;     /* dead connection check time interval */
 static char **   s_szCmdSetDesc = NULL;
 
@@ -283,13 +282,9 @@ void leto_errInternal( HB_ULONG ulIntCode, const char * szText, const char * szP
 
 /*
  * elch: all threads will read, only one set it for shutdown --> no mutex
- * Note: cannot use hb_vmRequestQuery(): thread3 without HVM, also used in Windows leto_ServiceControlHandler()
+ * Note: cannot use hb_vmRequestQuery(): thread3 is without HVM; also used in Windows leto_ServiceControlHandler()
  */
-#if ( defined( __BORLANDC__ ) || defined( __MINGW32__ ) )
 int leto_ExitGlobal( HB_BOOL fExit )
-#else
-_HB_INLINE_ int leto_ExitGlobal( HB_BOOL fExit )
-#endif
 {
    static int s_iGlobalExit = 0;
 

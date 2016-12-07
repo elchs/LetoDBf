@@ -244,7 +244,6 @@ FUNCTION UDF_dbEval( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
    leto_ClearEnv( xScope, xScopeBottom, xOrder, cFilter )
 
    RETURN cRecs
-#endif
 
 FUNCTION UDF_Trans( cTo )
 /*

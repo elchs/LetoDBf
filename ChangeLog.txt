@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-07 15:05 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * tests/test_var.prg
+    + added showcase of variable type: array
+    ; a tiny, but very powerful addition to the leto_Var*() system
+    * formatting
+
+  * source/server/leto_2.c
+    * not inlining leto_ExitGlobal() cause of static variable therein
+
+  * tests/letoudf.prg
+    * cleanup
+
 2016-12-07 12:45 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * tests/buildall.bat
   * tests/buildall.sh
