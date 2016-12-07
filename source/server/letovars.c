@@ -55,6 +55,7 @@
 #define LETOVAR_LOG      '1'
 #define LETOVAR_NUM      '2'
 #define LETOVAR_STR      '3'
+#define LETOVAR_ARR      '4'
 
 struct leto_struLogical
 {
@@ -310,6 +311,7 @@ static char * leto_var_get( LETO_VAR * pItem, HB_ULONG * ulLen, HB_BOOL bWithPre
             break;
 
          case LETOVAR_STR:
+         case LETOVAR_ARR:
             lVarLen = pItem->item.asString.length;
             if( *ulLen > 0 && *ulLen < ( HB_ULONG ) lVarLen )
                lVarLen = ( long ) *ulLen;
@@ -335,7 +337,7 @@ static void leto_var_del( PUSERSTRU pUStru, LETO_VARGROUPS * pGroup, HB_USHORT u
    {
       leto_ClearVarCache();
       hb_xfree( pItem->szName );
-      if( pItem->type == LETOVAR_STR && pItem->item.asString.value )
+      if( ( pItem->type == LETOVAR_STR || pItem->type == LETOVAR_ARR ) && pItem->item.asString.value )
          hb_xfree( pItem->item.asString.value );
 
       if( pUStru && pUStru->pVarLink && ( pItem->cFlag & LETO_VOWN ) )
@@ -503,7 +505,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
             {
                if( *pp3 == LETOVAR_STR && ( ( HB_USHORT ) ( pValLength ) ) > s_uiVarLenMax )
                   leto_SendAnswer( pUStru, szErr3, 4 );
-               else if( *pp3 > LETOVAR_STR )
+               else if( *pp3 > LETOVAR_ARR )
                   leto_SendAnswer( pUStru, szErr2, 4 );
                else
                {
@@ -538,7 +540,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                         pItem->bDouble = '1';
                      }
                   }
-                  else if( *pp3 == LETOVAR_STR )
+                  else if( *pp3 == LETOVAR_STR || *pp3 == LETOVAR_ARR )
                      leto_var_set_str( pItem, pp4, pValLength );
 
                   pItem->type = *pp3;
@@ -818,21 +820,35 @@ void leto_vars_release( void )
 
 static PHB_ITEM leto_var_ret( LETO_VAR * pItem )
 {
-   PHB_ITEM pReturn = hb_itemNew( NULL );
+   PHB_ITEM pReturn = NULL;
 
    switch( pItem->type )
    {
       case LETOVAR_LOG:
+         pReturn = hb_itemNew( NULL );
          hb_itemPutL( pReturn, pItem->item.asLogical.value );
          break;
       case LETOVAR_NUM:
+         pReturn = hb_itemNew( NULL );
          if( pItem->bDouble == '0' )
             hb_itemPutNL( pReturn, pItem->item.asLong.value );
          else
             hb_itemPutND( pReturn, pItem->item.asDouble.value );
          break;
       case LETOVAR_STR:
+         pReturn = hb_itemNew( NULL );
          hb_itemPutCL( pReturn, pItem->item.asString.value, pItem->item.asString.length );
+         break;
+      case LETOVAR_ARR:
+         {
+            HB_SIZE      nSize = pItem->item.asString.length;
+            char *       pBuffer = ( char * ) hb_xgrab( nSize );
+            const char * pTmp = pBuffer;
+
+            memcpy( pBuffer, pItem->item.asString.value, nSize );
+            pReturn = hb_itemDeserialize( &pTmp, &nSize );
+            hb_xfree( pBuffer );
+         }
          break;
    }
    return pReturn;
@@ -911,6 +927,16 @@ HB_FUNC( LETO_VARSET )
          {
             leto_var_set_str( pItem, hb_parc( 3 ), hb_parclen( 3 ) );
             pItem->type = LETOVAR_STR;
+         }
+         else if( HB_ISARRAY( 3 ) )
+         {
+            HB_SIZE nSize = 0;
+            char *  pArr = hb_itemSerialize( hb_param( 3, HB_IT_ARRAY ), HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
+
+            leto_var_set_str( pItem, pArr, nSize );
+            pItem->type = LETOVAR_ARR;
+            if( pArr )
+               hb_xfree( pArr );
          }
       }
       if( pItem )

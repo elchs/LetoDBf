@@ -240,6 +240,7 @@ HB_FUNC( LETO_SERVICEDELETE )
          if( ControlService( schService, SERVICE_CONTROL_STOP, ( LPSERVICE_STATUS ) &ssp ) )
          {
             // Wait for the service to stop.
+            dwTimeout = 10000; // 10-second time-out
             while( ssp.dwCurrentState != SERVICE_STOPPED )
             {
                dwWaitTime = ssp.dwWaitHint / 10;

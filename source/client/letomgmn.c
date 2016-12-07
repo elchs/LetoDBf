@@ -410,7 +410,7 @@ HB_FUNC( LETO_DIRECTORY )  /* ( cPathSpec, cAttributes ) */
          ptr = leto_DecryptText( pConnection, &ulLen );
          if( ulLen )
          {
-            hb_itemReturnRelease( hb_itemDeserialize( ( const char ** ) &ptr, ( HB_SIZE * ) &ulLen ) );
+            hb_itemReturnRelease( hb_itemDeserialize( &ptr, ( HB_SIZE * ) &ulLen ) );
             return;
          }
       }
@@ -1455,7 +1455,7 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
    if( pCurrentConn )
    {
       pCurrentConn->iError = -10;
-      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && ( HB_ISLOG( 3 ) || HB_ISNUM( 3 ) || HB_ISCHAR( 3 ) ) )
+      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && ( HB_ISLOG( 3 ) || HB_ISNUM( 3 ) || HB_ISCHAR( 3 ) || HB_ISARRAY( 3 ) ) )
       {
          char     cType;
          HB_ULONG ulLen;
@@ -1491,16 +1491,28 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
             }
             ulLen = strlen( szValue );
          }
-         else /* if( HB_ISCHAR( 3 ) ) */
+         else if( HB_ISCHAR( 3 ) )
          {
             cType = '3';
             ulLen = hb_parclen( 3 );
             pVarItem = hb_itemPutCL( NULL, hb_parc( 3 ), ulLen );
          }
+         else  /* if( HB_ISARRAY( 3 ) ) */
+         {
+            HB_SIZE nSize = 0;
+            char *  pArr = hb_itemSerialize( hb_param( 3, HB_IT_ARRAY ), HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
 
-         uiRes = LetoVarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), cType,
-                             cType == '3' ? hb_parc( 3 ) : szValue, ulLen,
-                             uiFlags, fPrev && cType != '3' ? &pRetValue : NULL );
+            cType = '4';
+            pVarItem = hb_itemClone( hb_param( 3, HB_IT_ARRAY ) );
+            uiRes = LetoVarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), cType, pArr, ( HB_ULONG ) nSize, uiFlags, NULL );
+            if( pArr )
+               hb_xfree( pArr );
+         }
+
+         if( cType < '4' )
+            uiRes = LetoVarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), cType,
+                                cType == '3' ? hb_parc( 3 ) : szValue, ulLen,
+                                uiFlags, fPrev && cType != '3' ? &pRetValue : NULL );
          if( uiRes )  /* sucessful set */
             leto_SetVarCache( pVarItem );
          else
@@ -1562,6 +1574,16 @@ HB_FUNC( LETO_VARGET )
                case '3':   /* [ binary ] string */
                   hb_retclen( pData + 2, ulLen );
                   break;
+               case '4':   /* array from deserialized string */
+               {
+                  HB_SIZE  nSize = ( HB_SIZE ) ulLen;
+                  PHB_ITEM pArray = NULL;
+
+                  pData += 2;
+                  pArray = hb_itemDeserialize( &pData, &nSize );
+                  hb_itemReturnRelease( pArray );
+                  break;
+               }
             }
             return;
          }
@@ -1733,6 +1755,10 @@ HB_FUNC( LETO_VARGETLIST )
 
                   case '3':
                      hb_itemPutCL( hb_arrayGetItemPtr( aVar, 2 ), ptr, ulValLength );
+                     break;
+
+                  case '4':
+                     hb_itemPutC( hb_arrayGetItemPtr( aVar, 2 ), "{ ... }" );
                      break;
                }
                ptr += ulValLength;

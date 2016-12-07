@@ -2,6 +2,34 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-07 12:45 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * tests/buildall.bat
+  * tests/buildall.sh
+  * tests/runall.bat
+  * tests/runall.sh
+    + added test_file
+
+  * source/server/letovars.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    + intoducing variable type ARRAY for the leto_Var*() system
+    * add one casting ulong->ushort, it's verified to do so.
+
+  * source/server/leto_win.c
+    ! add a probably missing timeout value to about still nearly original piece
+      of LetoDB code.
+
+  * include/funcleto.h
+    ! increasing LETO_IDXINFOBLOCK -- ToDo: have to do more specific high ;-)
+      mathematics why this was too small
+
+  * source/server/letofunc.c
+    * tiny more secure about failure to create an index
+    * add fAppend param to LETO_RECLOCK
+
+  * Readme.txt
+    * updated for array param in leto_Var*()
+
 2016-12-06 09:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/letobm.prg
   * source/client/letobmcl.c
@@ -35,7 +63,7 @@
       none! single warning left
 
 2016-12-05 05:50 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
-  * source/client/letomgmt.c
+  * source/client/letomgmn.c
     ! remove last empty array item after deleting the first in leto_udf()
 
   * source/server/letobm.prg

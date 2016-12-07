@@ -2105,7 +2105,6 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
       else
          pTable->pTagCurrent->ulKeyCount = 0;
    }
-
    /* check if 'old' server data must be refreshed with buffered transaction data */
    if( pConnection->fTransActive && leto_SearchTransList( pConnection, pTable->hTable, pTable->ulRecNo ) )
    {
@@ -2257,7 +2256,7 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
                                        break;
 
                                     case 'C':
-                                       uiLen = leto_b2n( ptr, 2 );
+                                       uiLen = ( HB_USHORT ) leto_b2n( ptr, 2 );
                                        memcpy( ptrRec, ptrPar, uiLen + 2 );
                                        ptrPar += uiLen + 2;
                                        break;
@@ -3546,7 +3545,7 @@ HB_EXPORT const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, 
                /* second: verify the same WA */
                if( strtoul( ptr + 2, &ptrPar, 10 ) == pTable->hTable )
                {
-                  /* third: check for RecNo behind WA + ';p;' +  */
+                  /* third: check for RecNo behind WA + ';p;' */
                   if( strtoul( ptrPar + 3, &ptrPar, 10 ) == pTable->ulRecNo )
                   {
                      /* forth: check field index the same */
@@ -4746,7 +4745,7 @@ HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, co
    pConnection->iError = -1;
    if( strchr( szGroup, ';' ) || strchr( szVar, ';' ) )  /* illegal char in name */
       return 0;
-   if( cType < '1' || cType > '3' )
+   if( cType < '1' || cType > '4' )
       return 0;
    cFlag1 |= ( uiFlags & ( LETO_VCREAT | LETO_VOWN | LETO_VDENYWR | LETO_VDENYRD ) );
    if( pRetValue )

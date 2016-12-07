@@ -5714,7 +5714,8 @@ HB_FUNC( LETO_RECLOCK )
             SELF_RECNO( pArea, &ulRecNo );
       }
       if( ulRecNo )
-         hb_retl( leto_RecLock( pUStru, pAStru, ulRecNo, HB_FALSE, HB_ISNUM( 2 ) ? ( int ) ( hb_parnd( 2 ) * 1000 ) : 0 ) );
+         hb_retl( leto_RecLock( pUStru, pAStru, ulRecNo, HB_ISLOG( 2 ) ? hb_parl( 2 ) : HB_FALSE,
+                  HB_ISNUM( 3 ) ? ( int ) ( hb_parnd( 2 ) * 1000 ) : 0 ) );
       else
          hb_retl( HB_FALSE );
    }
@@ -13446,7 +13447,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
                   errcode = HB_FAILURE;
                   sprintf( szReply, "%s%s", "-011", pUStru->szHbError + 4 );
                }
-               else
+               else if( errcode == HB_SUCCESS )
                {
                   HB_USHORT    uo;
 #ifdef LETO_HBNONCONFORM

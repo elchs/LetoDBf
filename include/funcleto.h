@@ -100,7 +100,7 @@
 #define LETO_MAX_TAGNAME        10     /* ?? - CDX allows 10 ? */
 #define LETO_MAX_KEY            256    /* 240 = CDX, 256 = NTX */
 #define LETO_MAX_EXP            255
-#define LETO_IDXINFOBLOCK       HB_PATH_MAX + LETO_MAX_TAGNAME + LETO_MAX_KEY + LETO_MAX_EXP + 21
+#define LETO_IDXINFOBLOCK       HB_PATH_MAX + LETO_MAX_TAGNAME + LETO_MAX_KEY + LETO_MAX_EXP + LETO_MAX_EXP + 42
 
 #define LETO_CDX                0
 #define LETO_NTX                1

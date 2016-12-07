@@ -891,7 +891,7 @@ A. Internals
                                                                ==> lSuccess
 
  This function assign value <xValue> to variable <cVarName> from group <cGroupName>.
- xValue can be boolean, integer, decimal [NEW!] or string.
+ xValue can be boolean, integer, decimal [NEW!] or [NEW! binary] string, or an array [NEW!].
  Group- and Var- name are NOT trimmed of white spaces, char: ';' is an invalid char.
  Optional parameter <nFlags> defines variable create mode:
  LETO_VCREAT    - if variable doesn't exist, it's created;
