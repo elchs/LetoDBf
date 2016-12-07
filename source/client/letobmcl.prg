@@ -53,20 +53,20 @@ STATIC FUNCTION IsLeto
 
 FUNCTION LBM_DbGetFilterArray()
 
-   LOCAL cFilterRec
+   LOCAL aFilterRec := {}
 
    IF IsLeto()
-      cFilterRec := leto_UDF( "LBM_DbGetFilterArray" )
+      aFilterRec := leto_UDF( "LBM_DbGetFilterArray" )
    ENDIF
 
-   RETURN iif( ValType( cFilterRec ) == "C", leto_CTOA( cFilterRec ), Nil )
+   RETURN aFilterRec
 
 FUNCTION LBM_DbSetFilterArray( aFilterRec )
 
    LOCAL xRet := .F.
 
    IF IsLeto() .AND. ValType( aFilterRec ) == "A" .AND. LEN( aFilterRec ) > 0
-      xRet := leto_UDF( "LBM_DbSetFilterArray", leto_ATOC( aFilterRec ) )
+      xRet := leto_UDF( "LBM_DbSetFilterArray", aFilterRec )
       IF xRet
          leto_SetBM()
       ENDIF
@@ -79,7 +79,7 @@ FUNCTION LBM_DbSetFilterArrayAdd( aFilterRec )
    LOCAL xRet := .F.
 
    IF IsLeto() .AND. ValType( aFilterRec ) == "A"  .AND. LEN( aFilterRec ) > 0
-      xRet := leto_UDF( "LBM_DbSetFilterArrayAdd", leto_ATOC( aFilterRec ) )
+      xRet := leto_UDF( "LBM_DbSetFilterArrayAdd", aFilterRec )
       IF xRet
         leto_SetBM()
       ENDIF
@@ -92,7 +92,7 @@ FUNCTION LBM_DbSetFilterArrayDel( aFilterRec )
    LOCAL xRet := .F.
 
    IF IsLeto() .AND. ValType( aFilterRec ) == "A"  .AND. LEN( aFilterRec ) > 0
-      xRet := leto_UDF( "LBM_DbSetFilterArrayDel", leto_ATOC( aFilterRec ) )
+      xRet := leto_UDF( "LBM_DbSetFilterArrayDel", aFilterRec )
       IF xRet
          leto_SetBM()
       ENDIF

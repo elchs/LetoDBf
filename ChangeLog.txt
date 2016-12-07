@@ -2,6 +2,25 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-07 16:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  - common/letoserv.prg
+
+  * source/server/letobm.prg
+  * source/client/letobmcl.c
+  * source/server/server.prg
+    - removal of LETO_ATOC() LETO_CTOA() array conversion,
+      transmit arrays directly
+
+  * letodb.hbp
+  * letoaddon.hbp
+  * letodbsvc.hbp
+  * letodebug.hbp
+  * rddleto.hbp
+  * rddletoaddon.hbp
+  * rddletodebug.hbp
+    - removal of common/letoserv.prg
+    ! fix that lz4 is bound in letodbsvc.hbp
+
 2016-12-07 15:05 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * tests/test_var.prg
     + added showcase of variable type: array

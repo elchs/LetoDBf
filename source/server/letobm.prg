@@ -52,15 +52,12 @@ FUNCTION LBM_DbGetFilterArray()
    aFilterRec := BM_DbGetFilterArray()
    leto_BMSave()
 
-   RETURN leto_ATOC( aFilterRec )
+   RETURN aFilterRec
 
-FUNCTION LBM_DbSetFilterArray( cFilterRec, aFilterRec )
+FUNCTION LBM_DbSetFilterArray( aFilterRec )
 
-   LOCAL xRet
+   LOCAL xRet := .F.
 
-   IF ValType( cFilterRec ) == "C"
-      aFilterRec := leto_CTOA( cFilterRec )
-   ENDIF
    IF ValType( aFilterRec ) == "A" .AND. LEN( aFilterRec ) > 0
       leto_BMRestore( .T. )
       BM_DbSetFilterArray( aFilterRec )
@@ -69,36 +66,30 @@ FUNCTION LBM_DbSetFilterArray( cFilterRec, aFilterRec )
 
    RETURN xRet
 
-FUNCTION LBM_DbSetFilterArrayAdd( cFilterRec )
+FUNCTION LBM_DbSetFilterArrayAdd( aFilterRec )
 
-   LOCAL xRet := .F., aFilterRec
+   LOCAL xRet := .F.
 
-   IF ValType( cFilterRec ) == "C"
-      aFilterRec := leto_CTOA( cFilterRec )
-      IF ValType( aFilterRec ) == "A" .AND. LEN( aFilterRec ) > 0
-         leto_BMRestore()
-         BM_DbSetFilterArrayAdd(  )
-         xRet := leto_BMSave()
-      ENDIF
+   IF ValType( aFilterRec ) == "A" .AND. LEN( aFilterRec ) > 0
+      leto_BMRestore()
+      BM_DbSetFilterArrayAdd(  )
+      xRet := leto_BMSave()
    ENDIF
 
    RETURN xRet
 
-FUNCTION LBM_DbSetFilterArrayDel( cFilterRec )
+FUNCTION LBM_DbSetFilterArrayDel( aFilterRec )
 
-   LOCAL xRet := .F., aFilterRec
+   LOCAL xRet := .F.
 
-   IF ValType( cFilterRec ) == "C"
-      aFilterRec := leto_CTOA( cFilterRec )
-      IF ValType( aFilterRec ) == "A" .AND. LEN( aFilterRec ) > 0
-         leto_BMRestore()
-         BM_DbSetFilterArrayDel( leto_CTOA( cFilterRec ) )
-         aFilterRec := BM_DbGetFilterArray()
-         IF ValType( aFilterRec ) != "A" .OR. LEN( aFilterRec ) < 1
-            leto_BMRestore( .T. )
-         ELSE
-            xRet := leto_BMSave()
-         ENDIF
+   IF ValType( aFilterRec ) == "A" .AND. LEN( aFilterRec ) > 0
+      leto_BMRestore()
+      BM_DbSetFilterArrayDel( aFilterRec )
+      aFilterRec := BM_DbGetFilterArray()
+      IF ValType( aFilterRec ) != "A" .OR. LEN( aFilterRec ) < 1
+         leto_BMRestore( .T. )
+      ELSE
+         xRet := leto_BMSave()
       ENDIF
    ENDIF
 
@@ -128,7 +119,7 @@ FUNCTION LBM_DbSetFilter( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
    ENDDO
    leto_ClearEnv( xScope, xScopeBottom, cFilter )
    IF LEN( aFilterRec ) > 0
-      LBM_DbSetFilterArray( NIL, aFilterRec )
+      LBM_DbSetFilterArray( aFilterRec )
    ENDIF
    SET( _SET_FORCEOPT, lOpt )
 
