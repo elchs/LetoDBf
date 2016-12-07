@@ -3841,7 +3841,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable )
 HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-   HB_ULONG         ulDataLen;
+   HB_ULONG         ulDataLen, ulRecNo = pTable->ulRecNo;
    const char *     ptr;
    char             sData[ 42 ];
 
@@ -3910,6 +3910,8 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
       leto_setSkipBuf( pConnection, pTable, ptr, ulDataLen );
       pTable->BufDirection = ( lToSkip > 0 ? 1 : -1 );
    }
+   else if( pTable->ulRecNo != ulRecNo )  /* active record changed because possible filter active */
+      pTable->ptrBuf = NULL;
 
    return 0;
 }

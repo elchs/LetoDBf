@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-07 22:20 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/client/letocl.c
+    ! if a DbSkip( 0 ) results in a changed record ( because filter active ),
+      discard the skip buffer
+
 2016-12-07 21:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/client/letocl.c
     % two more inlining
