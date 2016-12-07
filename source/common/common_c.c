@@ -651,7 +651,27 @@ int eprintf( char * d, const char * fmt, ... )
                      }
                   }
                }
-               d += ultostr( ( HB_U64 ) lValue, d );
+
+               /* a copy of ultostr(), without '\0' termination; value is ensured to be positive */
+               if( lValue < 10 )
+                  *d++ = ( char ) ( '0' + lValue );
+               else
+               {
+                  HB_I64  lRemain;
+                  HB_UINT uiCount;
+                  char    buf[ 21 ];
+                  char *  ptrr = buf + 20;
+
+                  do
+                  {
+                     *--ptrr = ( char ) ( '0' + ( lValue - 10 * ( lRemain = lValue / 10 ) ) );
+                  }
+                  while( ( lValue = lRemain ) > 0 );
+            
+                  uiCount = buf + 20 - ptrr;
+                  memcpy( d, ptrr, uiCount );
+                  d += uiCount;
+               }
                break;
          }
          fmt++;

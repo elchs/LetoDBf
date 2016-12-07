@@ -2,6 +2,10 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-07 17:32 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/common/common_c.c
+    * instead of inlining use a copy of ultostr() in eprintf()
+
 2016-12-07 16:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/common/common_c.c
   * source/common/lz4netc.c
