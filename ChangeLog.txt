@@ -2,8 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-07 16:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/common/common_c.c
+  * source/common/lz4netc.c
+    - not inlining of non static funtions
+
 2016-12-07 16:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
-  - common/letoserv.prg
+  - source/common/letoserv.prg
 
   * source/server/letobm.prg
   * source/client/letobmcl.c

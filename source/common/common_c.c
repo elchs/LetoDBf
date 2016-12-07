@@ -386,11 +386,7 @@ HB_UCHAR leto_n2b( char * s, HB_U32 n )
 
 #ifdef USE_PMURHASH
 /* fast 'official' PD hashing logic, with possible collisions -- for NON !! security tasks */
-#if ( defined( __BORLANDC__ ) || defined( __MINGW32__ ) || defined( _MSC_VER ) )
 HB_U32 leto_hash( const char * key, int iLen )
-#else
-_HB_INLINE_ HB_U32 leto_hash( const char * key, int iLen )
-#endif
 {
    return ( HB_U32 ) PMurHash32( 0xABCD /* uint32_t seed */, ( const void * ) key, iLen);
 }
@@ -571,11 +567,7 @@ HB_FUNC( LETO_SSEARCH )
 
 /* convert unsigned long to zero terminated string, returns length */
 /* special version with fixed base 10 -- high technics, less divisions ;-) */
-#if ( defined( __BORLANDC__ ) || defined( __MINGW32__ ) )
 HB_UINT ultostr( HB_U64 ulValue, char * ptr )
-#else
-_HB_INLINE_ HB_UINT ultostr( HB_U64 ulValue, char * ptr )
-#endif
 {
    if( ulValue < 10 )
    {

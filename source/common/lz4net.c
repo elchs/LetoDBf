@@ -242,11 +242,7 @@ static void lz4_bfDecrypt( const HB_BLOWFISH * pBfKey, const char * pSrc, const 
 
 /* hb_lz4netEncryptTest: will a datablock be modified by compression and/or encryption ?
  * if not, and socket flag <MSG_MORE> is available, datablock can be send directly without memcpy() */
-#if ( defined( __BORLANDC__ ) || defined( __MINGW32__ ) || defined( _MSC_VER ) )
 HB_BOOL hb_lz4netEncryptTest( const PHB_LZ4NET pStream, const HB_ULONG ulLen )
-#else
-_HB_INLINE_ HB_BOOL hb_lz4netEncryptTest( const PHB_LZ4NET pStream, const HB_ULONG ulLen )
-#endif
 {
    return ( pStream && ( ( ulLen > LZ4_COMPRESS_MINLENGTH && pStream->iLevel > 0 ) || pStream->pBfKey ) ) ? HB_TRUE : HB_FALSE;
 }
