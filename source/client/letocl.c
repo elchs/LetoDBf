@@ -1564,7 +1564,7 @@ static void leto_SetBlankRecord( LETOTABLE * pTable, unsigned int uiAppend )
    }
 }
 
-static void leto_AllocBuf( LETOBUFFER * pLetoBuf, unsigned long ulDataLen, HB_ULONG ulAdd )
+static _HB_INLINE_ void leto_AllocBuf( LETOBUFFER * pLetoBuf, unsigned long ulDataLen, HB_ULONG ulAdd )
 {
    if( ulDataLen > pLetoBuf->ulBufLen )
    {
@@ -1651,7 +1651,7 @@ static void leto_refrSkipBuf( LETOTABLE * pTable )  /* set new position in buffe
    }
 }
 
-static HB_ULONG leto_TransBlockLen( LETOCONNECTION * pConnection, HB_ULONG ulLen )
+static _HB_INLINE_ HB_ULONG leto_TransBlockLen( LETOCONNECTION * pConnection, HB_ULONG ulLen )
 {
    return pConnection->ulTransBlockLen ? pConnection->ulTransBlockLen : ( ulLen < 256 ) ? 2048 : ulLen * 8;
 }
@@ -2195,25 +2195,6 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
                               ptrPar += uiLen;
                               break;
 
-#if 0  /* ToDo memo fields are not in LETOCMD_upd, but in LETOCMD_memo */
-                           case HB_FT_MEMO:
-                           case HB_FT_BLOB:
-                           case HB_FT_PICTURE:
-                           case HB_FT_OLE:
-                              if( pField->uiLen == 4 )
-                              {
-                                 memcpy( ptrRec, ptrPar, pField->uiLen );
-                                 ptrPar += pField->uiLen;
-                              }
-                              else
-                              {
-                                 memset( ptrRec, ' ', pField->uiLen );
-                                 if( *ptrPar++ != '\0' )
-                                    ptrRec[ pField->uiLen - 1 ] = '1';
-                              }
-                              break;
-#endif
-
                            case HB_FT_INTEGER:
                            case HB_FT_CURRENCY:
                            case HB_FT_DOUBLE:
@@ -2653,22 +2634,6 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
       pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
       pConnection->szBuffer = ( char * ) hb_xgrabz( pConnection->ulBufferLen + 1 );
 
-#if 0
-      pConnection->fTransActive = HB_FALSE;
-      pConnection->szTransBuffer = NULL;
-      pConnection->ulTransBuffLen = 0;
-      pConnection->ulTransDataLen = 0;
-      pConnection->ulRecsInTrans = 0;
-      pConnection->ulTransBlockLen = 0;
-      pConnection->pBufCrypt = NULL;
-      pConnection->ulBufCryptLen = 0;
-      pConnection->iDebugMode = 0;
-      pConnection->szVerHarbour = NULL;
-      pConnection->iConnectRes = 0;
-      pConnection->fZipCrypt = HB_FALSE;
-      pConnection->uiServerMode = 0;
-#endif
-
       if( leto_RecvFirst( pConnection ) )
       {
          char *       ptr, * pName;
@@ -2837,22 +2802,7 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
                         hb_itemRelease( pItem );
                      pConnection->uiServerMode = ( HB_USHORT ) uiSrvMode;
                      pConnection->fLowerCase = uiLowerCase ? HB_TRUE : HB_FALSE;
-#if 0  /* elch - no need to change lockscheme at client side */
-                     if( pConnection->uiLockSchemeExtend )
-                     {
-                        PHB_ITEM  pItem = hb_itemNew( NULL );
-                        LPRDDNODE pRDDNode;
-                        HB_USHORT uiRddID;
 
-                        pRDDNode = hb_rddFindNode( "LETO", &uiRddID );
-                        if( pRDDNode )
-                        {
-                           hb_itemPutNI( pItem, pConnection->uiLockSchemeExtend );
-                           SELF_RDDINFO( pRDDNode, RDDI_LOCKSCHEME, 0, pItem );
-                        }
-                        hb_itemRelease( pItem );
-                     }
-#endif
                      /* now the second socket for errors if MT is supported */
                      if( fZombieCheck && hb_vmIsMt() )
                      {

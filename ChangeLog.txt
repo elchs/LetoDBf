@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-07 21:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/client/letocl.c
+    % two more inlining
+    - cleanup of '#if 0'
+
+  * include/funcleto.h
+    ! LETO_IDXINFOBLOCK macro is expanded, then only last value multiplied;
+      missing brackets around that #define of aggregated constants
+    ; arghh
+
 2016-12-07 17:32 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/common/common_c.c
     * instead of inlining use a copy of ultostr() in eprintf()
@@ -9,7 +19,7 @@
 2016-12-07 16:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/common/common_c.c
   * source/common/lz4netc.c
-    - not inlining of non static funtions
+    - not inlining of non static functions
 
 2016-12-07 16:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   - source/common/letoserv.prg
