@@ -99,8 +99,18 @@ HB_FUNC( LETO_DAEMON )
    if( hNull != ( HB_FHANDLE ) -1 )
       hb_fsClose( hNull );
 
+#if defined( __GNUC__ )
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wunused-result"
+#endif
+
    ( void ) setuid( getuid() );
    ( void ) setgid( getgid() );
+
+#if defined( __GNUC__ )
+#  pragma GCC diagnostic pop
+#endif
+
    umask( 0x02 );                             /* set this to whatever is appropriate for you */
 
    setpgrp();
