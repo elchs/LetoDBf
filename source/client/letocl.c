@@ -3477,7 +3477,7 @@ HB_EXPORT const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, 
 
    if( pConnection->fTransActive && leto_SearchTransList( pConnection, pTable->hTable, pTable->ulRecNo ) )
    {
-      HB_ULONG  ulLen, ulTransex;
+      HB_ULONG  ulTransex;
       HB_UCHAR  uLenLen;
       char *    ptr, * ptrPar;
 

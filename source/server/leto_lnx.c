@@ -99,7 +99,7 @@ HB_FUNC( LETO_DAEMON )
    if( hNull != ( HB_FHANDLE ) -1 )
       hb_fsClose( hNull );
 
-#if defined( __GNUC__ )
+#if defined( __GNUC__ ) && ( ( __GNUC__ * 100 + __GNUC_MINOR__ ) >= 406 )
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wunused-result"
 #endif
@@ -107,7 +107,7 @@ HB_FUNC( LETO_DAEMON )
    ( void ) setuid( getuid() );
    ( void ) setgid( getgid() );
 
-#if defined( __GNUC__ )
+#if defined( __GNUC__ ) && ( ( __GNUC__ * 100 + __GNUC_MINOR__ ) >= 406 )
 #  pragma GCC diagnostic pop
 #endif
 

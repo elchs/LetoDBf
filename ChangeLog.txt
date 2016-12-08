@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-08 08:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/server/leto_lnx.c
+    * limit last warn disable for gcc >= 4.06
+
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    * pacify two warnings for clang 3.8
+
 2016-12-08 07:59 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/leto_lnx.c
     * try to disable 2 warning for gcc about unused results, what they are ;-)

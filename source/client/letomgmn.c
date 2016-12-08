@@ -1503,6 +1503,7 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
             char *  pArr = hb_itemSerialize( hb_param( 3, HB_IT_ARRAY ), HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
 
             cType = '4';
+            ulLen = ( HB_ULONG ) nSize;
             pVarItem = hb_itemClone( hb_param( 3, HB_IT_ARRAY ) );
             uiRes = LetoVarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), cType, pArr, ( HB_ULONG ) nSize, uiFlags, NULL );
             if( pArr )
