@@ -82,7 +82,9 @@ Contents
    7.9 Server variable management functions
    7.10 Calling udf-functions on the server
    7.11 Functions for bitmap filters
-8. Management utility
+8. Utils
+   8.1 Server Management utility
+   8.2 Uhura
 9. Server-side functions
 A. Internals
 
@@ -321,7 +323,12 @@ A. Internals
                                     theoretical ! maximum 65535. Adapt for performance in your environment.
                                     Can be set for specific tables and occasions with leto_SetSkipBuffer().
       Max_Vars_Number = 1000   -    Maximum number of shared variables
-      Max_Var_Size = 65535     -    Maximim size of a text variable
+      Max_Var_Size = 67108864  -    Maximim size in sum of all text/ array variables, default 64 MB.
+                                    A single text/ array variable is allowed to be a quarter of that ( 16 MB )
+                                    Be very carefull with thoughtless increasing this value to much bigger sizes,
+                                    as the server will need at least 4 times of that value as RAM.
+                                    Theoretical! maximum for a single! item is ~ 4 GB, then your server will need
+                                    to have 64! GB!! RAM. [ NOT tested ! :-) ]
       Trigger = <cFuncName>    -    Global function letodb RDDI_TRIGGER
       PendingTrigger = <cFuncName>- Global function letodb RDDI_PENDINGTRIGGER
       Tables_Max = 999         -    Number of *MAXIMUM* designated DBF tables handled by server,
@@ -352,10 +359,10 @@ A. Internals
                                     It can be changed 'on the fly' for critcal sections with new
                                     RDDI_DEBUGLEVEL -- see 7.5
       HardCommit = 0           -    if 0, SET HARDCOMMIT OFF, this is now DEFAULT.
-                                    It is recommended for UNSTABLE running server to set it
-                                    to 1, which means that each change at data tables are immedeate
-                                    written to harddrive bypassing the OS cache.
-                                    Expect significant reduced performance with setting '0'.
+                                    It is recommended for UNSTABLE running server to set it to <1>,
+                                    which means that each change at data tables are immedeate written to
+                                    harddrive bypassing the OS cache.
+                                    Expect significant reduced performance with setting '1'.
       AutOrder = 0             -    SET AUTORDER setting, this will influence the SET( _SET_AUTOPEN ) setting.
                                     Default is to auto-open production index.
                                     Set to -1 will disable AutOpen at server and client.
@@ -375,12 +382,12 @@ A. Internals
                                     will wait to succeed, before the thread for the connection give up.
                                     If used: Zombie_Check, this value shell be shorter than that.
       Zombie_Check = 0         -    Time in seconds, that a client must be quiet ( no activity ), before
-                                    an 'are you healthy' query (ping) is send from server, to verify it's not a
+                                    a 'are you healthy' query (ping) is send from server, to verify it's not a
                                     dead/ unplugged connection. ! Application must be linked multi-thread ( '-mt' ) !,
                                     else these checks cannot be done.
                                     As 3 times for a given interval a check is done, a zombie can be 1/3 time
                                     longer 'dead', e.g. 60 ==> max. 80 seconds 'dead' before detected.
-                                    Such connection will be shut down, opened files and locks are reseted.
+                                    Such connection will be shut down, opened files and locks are reset-ed.
                                     If set to 0 [ default ], these checks are diabled.
 
       It is possible to define [DATABASE] structure if you need to have a
@@ -547,8 +554,10 @@ A. Internals
  This timeout value is valid for each request to the server, not only for the initial connect.
  Default is 120000 aka 2 minutes. '-1' means infinite wait. After that timespan, application will
  break with an error if no answer from server had been send.
- <nBufRefreshTime> defines the time interval in 0.01 second units. After this
- time is up, the records buffer will be refreshed, 100 by default (1 sec)
+ <nBufRefreshTime> defines the time interval in 0.01 second units. After this time is up,
+ the records buffer will be refreshed, 100 by default (100/100 == 1 sec).
+ Value zero (0) means infinite! caching, -1 will disable using the skip buffer. These extreme values
+ should be applied only at special occasion and need.
  lZombieCheck = .F. disable check for dead connection and also the second socket
  for faster communication with the server. Default is .T.
  If you use in letodb.ini configuration point: Pass_for_Data = 1, it is advised to
@@ -562,7 +571,8 @@ A. Internals
          LETO_GETCURRENTCONNECTION()                           ==> nConnection ]
 
       LETO_GETSERVERVERSION( [ lHarbourVersion ] )             ==> cVersion
- Returns version of LetoDBf server, with given .T. boolean parameter the version of Harbour at compile time.
+ Returns version of LetoDBf server, with given .T. boolean parameter the version of Harbour at
+ compile time.
 
       LETO_GETLOCALIP()                                        ==> IP address of client station
       LETO_ADDCDPTRANSLATE(cClientCdp, cServerCdp )            ==> nil
@@ -678,6 +688,7 @@ A. Internals
  This function set size of cached records in a skip buffer for current workarea.
  By default, the size of skip buffer is CACHE_RECORDS server config value. Skip buffer is bidirectional.
  Skip buffer is refreshed after BUFF_REFRESH_TIME ( default: 1 sec )
+ Minimum value is 1.
  If parameter <nSkip> is absent, function returns buffer statistic ( number of buffer hits )
  with given numeric value effective set size or 0 if no workarea was selected.
 
@@ -705,7 +716,7 @@ A. Internals
  Reports [ and changes ] the debug level at server, responsible for amount of feedback in the log files.
  Use with care, log files will grow at a busy server in only some seconds MB stepwise ...
  For possible values look 4.1 :letodb.ini ...
- With <nNewLevel> this can be changed on the fly, no server restart is needed. This then applies to all 
+ With <nNewLevel> this can be changed on the fly, no server restart is needed. This then applies to all
  active and new server connections.
 
 
@@ -891,14 +902,28 @@ A. Internals
                                                                ==> lSuccess
 
  This function assign value <xValue> to variable <cVarName> from group <cGroupName>.
- xValue can be boolean, integer, decimal [NEW!] or [NEW! binary] string, or an array [NEW!].
- Group- and Var- name are NOT trimmed of white spaces, char: ';' is an invalid char.
- Optional parameter <nFlags> defines variable create mode:
- LETO_VCREAT    - if variable doesn't exist, it's created;
- LETO_VOWN      - own user variable (deleted after user disconnect);
- LETO_VDENYWR   - write deny for other users;
- LETO_VDENYRD   - read deny for other users;
- LETO_VPREVIOUS - return previous value to <xRetValue> parameter.
+ xValue can be:
+   boolean ( .T., .F. )
+   integer ( without decimals, can be incremented and decremented )
+   decimal ( integer with decimals: 4.2 )
+   limited in size !:
+   string  ( [NEW] also binary string, means containg any char like e.g. CHR( 0 ) )
+   array   ( [NEW] { ... } with any item type, unlimited in size )
+
+ String/ array are limited by default to be all in sum max 64 MB, maximum can be changed in
+ letodb.ini with config option "Max_Var_Size". A single string/ array limits to 1/4 of total
+ maximum ( default 16 MB ).
+ This is for security reasons, so that crazy users cannot fill up the whole server memory.
+ It is only allowed to assign new value of same type to an existing variable.
+ Group- and Var- names are NOT trimmed of white spaces, but char: ';' is an invalid char.
+
+ Optional parameter <nFlags> defines the variable create mode/ limitations.
+ These flags can be combined by aggregating the constants:
+ LETO_VCREAT    - if variable doesn't exist, it's created
+ LETO_VOWN      - own user variable (deleted after user disconnect)
+ LETO_VDENYWR   - write deny for other users
+ LETO_VDENYRD   - read deny for other users
+ LETO_VPREVIOUS - return previous value to < xRetValue > by reference given parameter
 
       LETO_VARGET( cGroupName, cVarName )                      ==> xValue
 
@@ -907,10 +932,10 @@ A. Internals
       LETO_VARINCR( cGroupName, cVarName, nFlags )             ==> nValue
       LETO_VARDECR( cGroupName, cVarName, nFlags )             ==> nValue
 
- Function increments /decrements integer value of variable <cVarName> of group <cGroupName>.
- ! Only allowed for integer [ INT() ] variables !
+ Function increments/ decrements integer value of variable <cVarName> of group <cGroupName>.
+ ! Only allowed for integer [ INT() ] variables without decimals!
  Remark that e.g. a result of a division: 'x / y' is ever a decimal value.
- So in doubt use: INT( value ) when you create such a variable for [in|de]crementing.
+ So if in doubt use INT( value ) when you want to create/ update such a variable.
 
       LETO_VARDEL( cGroupName[, cVarName ] )                   ==> lSuccess
 
@@ -920,14 +945,16 @@ A. Internals
       LETO_VARGETLIST( [cGroupName [, nMaxLen]] )              ==> aList
 
  Function return two-dimensional array with variables: { {<cVarName>, <value>}, ...}
+ Array variables are displayed symbolic with a: "{ ... }".
 
 
  special:
       LETO_VARGETCACHED()                                      ==> xValue [NIL]
 
- It returns the *last changed* LETO_VAR[SET|INCR|DECR]() variable *value*.
+ It is an optimized form of LETO_VARGET( ... ) and like this can be used excellent in filter
+ expressions. It returns the *last changed* LETO_VAR[SET|INCR|DECR]() variable *value*.
  ! To be used with care !
- When one *connection/user* set other variable, it will change the last cached value.
+ When one *connection/user* set a variable, it will change the last cached value.
  If then used in a filter condition, and type of value [ string, numeric, .. ] changed,
  the filter gets invalid !
  If none variable was set before by this connection, NIL value is returned.
@@ -941,7 +968,7 @@ A. Internals
  then you define a filter condition for your workarea, example for a numeric:
     DbSetFilter( NIL, "field_var < leto_VarGetCached()" )
  Avoid 'ALIAS->' names in filter condition for mode: No_Save_WA=0: they are invalid.
- The only param what really atters is the filter text value, codeblock is optional.
+ The only param what really matters is the filter text value, codeblock is optional.
  Function names requested ONLY in filter condition must be explicitely requested by a:
  REQUEST statement to be linked to your application.
 
@@ -967,25 +994,26 @@ A. Internals
  Examples of udf-functions are in the tests/letoudf.prg
 
       LETO_RPC( cSeverFunc, xParam1, ... )                     ==> NIL !
- ! Use with care !, it needs very well designed UDF functions.
- Function name is up now limited to 20 char length.
- It is same a bit similar as for LETO_UDF, but the function started will have NO workareas
+ ! Use with care !, it needs well designed UDF functions.
+ Function name is actually limited to 20 char length.
+ It is a bit similar as for LETO_UDF, but when the function starts it will have NO workareas
  opened: it is like a fresh connection, independent from the one who started it.
- After such job is started, no wait for the result will occure and and immedeate return to
- personal common work. You can start multiple jobs this way.
- This needs special care not to block others in the network from accessing their workareas.
- It is advised to be used in server mode 3: No_save_Wa = 1.
+ After such job is started, no waiting for the result will occure and only a boolean ( .T. )
+ is returned to your application if successful started. You can start multiple jobs this way.
+ This needs special care not to block others in the network from accessing their workareas,
+ so it is advised to be used only in server mode 3 aka No_save_Wa = 1.
 
  This is higly interesting for tasks, where you need no feedback, e.g. some 'cleaning'
- or calculating jobs.
- Sure you also can write a result of something to a DBF and retrieve that later.
- But when it starts, it have no workarea active, like a new connection to server.
- Such UDF functions should be *VERY* careful designed, as they can NOT be stopped by
- the connection which started them, so better to test them intensive forehand with
- LETO_UDF ...
- Such 'headless' UDF at server can only be stopped by the management console, if the
- running UDF is designed to repeatedly check for: leto_UDFmustQuit().
- If it ignores that, it is unstoppable until server shutdown ...
+ or background calculating jobs.
+ You can write a result of something to a DBF/ TXT and retrieve this way the result.
+ Or you can exchange info with any connection with help of LETO_VAR*() function, or even manage
+ the activity of your UDF with that server variable system -- an area left for many ideas ...
+
+ But such UDF functions should be *VERY* careful designed, as they can NOT be stopped by the 
+ connection which started them, so better to test them intensive beforehand with LETO_UDF.
+ Commonly it must end by itself, as such 'headless' UDF at server can else only be
+ stopped by the management console, if the running UDF is designed to repeatedly check for:
+ leto_UDFmustQuit(). If it ignores that, it is unstoppable until server shutdown ...
 
       LETO_UDFEXIST( cSeverFunc )                              ==> lExist
  leto_udfExist check the existance of udf-function at the letodb server.
@@ -1005,19 +1033,21 @@ A. Internals
  the following functions:
 
       LBM_DbGetFilterArray()                                   ==> aFilterRec
-      LBM_DbSetFilterArray( aFilterRec )                       ==> nil
-      LBM_DbSetFilterArrayAdd( aFilterRec )                    ==> nil
-      LBM_DbSetFilterArrayDel( aFilterRec )                    ==> nil
+      LBM_DbSetFilterArray( aFilterRec )                       ==> bFilterActive
+      LBM_DbSetFilterArrayAdd( aFilterRec )                    ==> bFilterActive
+      LBM_DbSetFilterArrayDel( aFilterRec )                    ==> bFilterActive
 
  Purpose and the parameters of these functions is the same as for the
- corresponding functions BM_*.
+ corresponding BM_*() functions.
+ < bFilterActive > indicates that there is a filter active at server side after the call.
+ This can be also verified with LETO_ISFLTOPTIM() returning TRUE.
+ An active filter can be cleared by a common DbClearFilter()/ SET FILTER TO.
 
       LBM_DbSetFilter( [<xScope>], [<xScopeBottom>], [<cFilter>] )
                                                                ==> nil
  This function set bitmap filter by current index order and for condition,
  defined in <xScope>, <xScopeBottom>, <cFilter> parameters.
- The current record after LBM_DbSetFilter() is the first record satisfying
- filter condition.
+ The current record after LBM_DbSetFilter() is the first record satisfying filter condition.
 
 
       7.12 Miscellaneous Functions
@@ -1027,27 +1057,53 @@ A. Internals
  Depending on how LetoDBF is compiled, MurMur3 hashing algorithm [default] or a homebrew
  algorithm is used. There may be rare collisions, means that it is possible that two <cText>
  resulting into same <nHashValue>. To be at safe side, ever compare the text char-by-char,
- after a valid hash-value is found. 
+ after a valid hash-value is found.
 
 
-      8. Management utility
+      8. Utils
+
+      8.1 Server Management utility
 
  There are two management utilities, GUI and console, the sources are in utils/manage directory.
 
+ For all, also Windows user, there is a ! NEW ! console utility to be found in
+ utils/manager/console.prg. Easily build it with just a: hbmk2 console
+ The executable will be found afterwards in the "bin" directory.
+ Run the console executable with a IP[:port] as first parameter.
+ This can be also set in letodb.ini with option: < Server > for running it local at server.
+ But this is a OS independent remote console, so you can watch the server from any station.
+ Displayed information refreshes automatically, so longer the console is up the greater this
+ interval will get, to less interfere server activity.
+ If no more needed, end it and restart it by occasion, and it will end automatic with shutting
+ LetoDBf server down.
+ Surfing in the four Browses' is done with mouse[wheel] or keyboard.
+ Also note this "Menu" button top left on screen fur further actions, like killing connections.
+
+ *LetoDBf note* : the GUI version is untested, not guaranteed to work.
  Windows only GUI utility, manage.prg, is made with the HwGUI library. If you have HwGUI,
  just write in the line 'set HWGUI_INSTALL=' in utils/manage/bld.bat a path
  to your HwGUI directory and run the bld.bat, it will build manage.exe for you.
 
- For those, who doesn't use HwGUI, there is a clored ! console mode utility:
- console.prg. Build a console.exe with a make/bat files, which you use to build
- Harbour single-file programs, you just need to add rddleto.lib to the libraries
- list. Run the console.exe with a server name or ip and port as a parameter:
 
-      console.exe server_name:nPort
-      console.exe ip_address:nPort
+      8.2 Uhura
 
- The server_name and ip_address in a command line must be without leading
- slashes ( '//' ), because Clipper/Harbour interprets them in a special way.
+ This is for automatic detection of the server, very helpful in networks with dynamical assigned
+ IP addresses. Build the executable in utils/uhura/uhura.prg with a: hbmk2 uhura
+ The executable will be found afterwards in the "bin" directory.
+ Start it at the same machine, where the LetoDBf server is running.
+ Linux! user can give with first param an interface name like "eth1" at which uhura will listen.
+ To stop Uhura, call: uhura [ interface ] STOP
+
+ Then look in utils/uhura/detect.prg for example of function use: detectServer( "letodb" ).
+ It sends out a broadcast request, and returns the answer of Uhura with the IP address of the
+ machine with Uhura, aka the IP address of LetoDBf server.
+ All you need for that is to be found in detect.prg, you need to link the helper functions to
+ your application, as i have not integrated this functionality into LetoDBf. [ ToDO ? ]
+
+ The call of: uhura help
+ will display info about available network interfaces at this machine.
+ This help screen will also pop up in case of problems, example when try to stop Uhura and she
+ is not running, or in case of invalid interface name ...
 
 
       9. Server-side functions
@@ -1068,21 +1124,24 @@ A. Internals
       leto_Alias( cClientAlias )                               ==> cServerAlias
  This function return the ALIAS name used at server for a given client side alias <cClientAlias>.
  Side effect is, if ALIAS name is valid, it will change the active selected workarea at server.
- The returned server ALIAS then can be user in usual RDD-operations.
+ The returned server ALIAS then can be used in usual RDD-operations.
  This function is mainly needed for mode 'No_Save_WA=0', here to use additional different workareas
  than the one which was actve when an UDF was initalially called.
  In server mode: 'No_Save_WA=0', ALIAS names at server and ALIAS name at client are different.
  All workareas used in an UDF are not available for other connections as long as the UDF is working.
  In server mode: 'No_Save_WA=1', ALIAS names at server and client side are the same.
  Also in this mode there is no exclusive restriction of workarea use only for the UDF connection,
- and using leto_Alias() gets obsolete.
+ and using leto_Alias() become somehow obsolete.
 
-      leto_RecLock( [ nRecord ], [ nSecs ] )                   ==> lSuccess
-  leto_Reclock() function locks record with <nRecord> number, or the current record for data change
-  access.
+      leto_RecLock( [ nRecord ], [ nSecs ], [ bAppend ] )      ==> lSuccess
+  leto_Reclock() function locks record with <nRecord> number, or the current record if nRecord is
+  left empty, for data change access.
   <nSecs> param is only available in server file open mode: No_save_WA = 1.
   With given optional <nSecs> [ can be decimal: 1.5 ] it will wait for success if not
   immediate succesfull.
+  These locks are internal known for your connection, as if done locally.
+  If you append a record in your UDF, which is locked after a successful append, you have to only
+  register it for your connection, done by third param set to TRUE ( .T. ) == append lock.
 
       leto_RecUnLock( [ nRecord ] )                            ==> Nil
   leto_RecUnlock function unlocks a locked record with <nRecord> number, or the current record.
@@ -1164,8 +1223,8 @@ A. Internals
  lRest == true ( .T. ) starts from actual record, lRest == false ( .F. ) from topmost, first record.
 
  The functions leto_DbUseArea, leto_OrdListAdd, leto_DbCreate(), leto_OrdCreate, leto_DbCloseArea,
- leto_RecLock, is intended for using in udf-functions instead
- of rdd functions: dbUseArea, OrdListAdd, OrdCreate, dbCloseArea, RLock, dbUnlock
+ leto_RecLock, is intended for using in UDF-functions instead of rdd functions:
+ dbUseArea, OrdListAdd, OrdCreate, dbCloseArea, RLock, dbUnlock
 
       leto_UDFMustQuit()                                       ==> lTrue
  If the console monitor quits a UDF or RPC thread on server, it sets an internal variable for this
@@ -1252,7 +1311,7 @@ A. Internals
  From POV of performance, mode #1# is the fastest, #3# in between, slowest is #2#.
  But expect only some % performance difference between the modes, as the most limiting factor is the TCP/IP network
  itself: the count of data-packages in a timespan is limited, and each request to server and response from it, is
- a whole data package, often filled with much less content as a single package can take (~ 1500 bytes). 
+ a whole data package, often filled with much less content as a single package can take (~ 1500 bytes).
 
  ...
 

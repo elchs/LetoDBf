@@ -2,6 +2,28 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-08 18:35 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * tests/letoudf.prg
+  * source/server/letofunc.c
+    ! LETO_RECLOCK() params were screwed after recently add of bAppend param
+
+  * tests/test_var.prg
+    * formatting
+  * source/server/letovars.c
+    * add limitation for arrays to be in sum with all strings default maximum
+      64 MB in size, and a quarter of total max ( 16 MB ) for a single item;
+      out-of-limits will lead to discard, perhaps leaving empty string/ array;
+      config option in letodb.ini is now size-limit of all strings + arrays.
+    ; as arrays are stored internally as binary string, a single 16 MB
+      PHB_ITEM array means also a xx MB binary sized storing string;
+      plus each connection/ thread using such variable will have its own
+      TLS PHB_ITEM, so huge values shell be carefully choosen.
+
+  * Readme.txt
+    * some corrections, additions, typos, bad english ...
+    * additions about use of the new remote console, and Uhura :-)
+    ; still remaining nonsense, missing explanations, formatting !, ...
+
 2016-12-08 08:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/leto_lnx.c
     * limit last warn disable for gcc >= 4.06

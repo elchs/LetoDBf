@@ -117,8 +117,9 @@ static HB_USHORT        s_uiVarGroupsAlloc = 0;
 static HB_USHORT        s_uiVarGroupsCurr = 0;
 static HB_ULONG         s_ulVarsCurr = 0;
 static HB_ULONG         s_ulVarsMax = 1000;
-static HB_USHORT        s_uiVarLenMax = 65535;
 static HB_USHORT        s_uiVarsOwnMax = 50;
+static HB_ULONG         s_ulVarLenAll = 0;
+static HB_ULONG         s_ulVarLenAllMax = 0x4000000;  /* 64 MB size of all strings/ arrays in sum */
 
 #if defined( HB_SPINLOCK_INIT ) && ! defined( HB_HELGRIND_FRIENDLY )
    static HB_SPINLOCK_T s_VarMtx = HB_SPINLOCK_INIT;
@@ -192,10 +193,10 @@ HB_FUNC( LETO_VARGETCACHED )
 
 
 /* during server start, no mutex need */
-void leto_setVarsMax( HB_ULONG ulMaxVars, HB_USHORT uiMaxVarLen )
+void leto_setVarsMax( HB_ULONG ulMaxVars, HB_ULONG ulMaxVarLen )
 {
    s_ulVarsMax = ulMaxVars;
-   s_uiVarLenMax = uiMaxVarLen;
+   s_ulVarLenAllMax = ulMaxVarLen;
 }
 
 static LETO_VAR * leto_var_create( PUSERSTRU pUStru, LETO_VARGROUPS * pGroup, const char * pp1, const char * pp2, char cFlag )
@@ -316,7 +317,7 @@ static char * leto_var_get( LETO_VAR * pItem, HB_ULONG * ulLen, HB_BOOL bWithPre
             if( *ulLen > 0 && *ulLen < ( HB_ULONG ) lVarLen )
                lVarLen = ( long ) *ulLen;
             if( lVarLen > 32 - iPrefix )
-               pData = hb_xrealloc( pData, lVarLen + iPrefix );
+               pData = ( char * ) hb_xrealloc( pData, lVarLen + iPrefix );
             memcpy( pData + iPrefix, pItem->item.asString.value, lVarLen );
             break;
       }
@@ -338,7 +339,10 @@ static void leto_var_del( PUSERSTRU pUStru, LETO_VARGROUPS * pGroup, HB_USHORT u
       leto_ClearVarCache();
       hb_xfree( pItem->szName );
       if( ( pItem->type == LETOVAR_STR || pItem->type == LETOVAR_ARR ) && pItem->item.asString.value )
+      {
+         s_ulVarLenAll -= pItem->item.asString.length;
          hb_xfree( pItem->item.asString.value );
+      }
 
       if( pUStru && pUStru->pVarLink && ( pItem->cFlag & LETO_VOWN ) )
       {
@@ -428,6 +432,7 @@ static void leto_var_set_str( LETO_VAR * pItem, const char * pStr, HB_ULONG ulLe
 {
    if( pItem->item.asString.allocated && pItem->item.asString.allocated < ulLen )
    {
+      s_ulVarLenAll -= pItem->item.asString.length;
       hb_xfree( pItem->item.asString.value );
       pItem->item.asString.allocated = 0;
    }
@@ -439,6 +444,7 @@ static void leto_var_set_str( LETO_VAR * pItem, const char * pStr, HB_ULONG ulLe
    pItem->item.asString.length = ulLen;
    memcpy( pItem->item.asString.value, pStr, ulLen );
    pItem->item.asString.value[ ulLen ] = '\0';
+   s_ulVarLenAll += ulLen;
 }
 
 static _HB_INLINE_ HB_BOOL leto_var_accessdeny( PUSERSTRU pUStru, LETO_VAR * pItem, HB_UCHAR cFlag )
@@ -503,7 +509,8 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                leto_SendAnswer( pUStru, szErrAcc, 4 );
             else
             {
-               if( *pp3 == LETOVAR_STR && ( ( HB_USHORT ) ( pValLength ) ) > s_uiVarLenMax )
+               if( ( *pp3 == LETOVAR_STR || *pp3 == LETOVAR_ARR ) && ( pValLength > s_ulVarLenAllMax >> 2 ||
+                   s_ulVarLenAll + pValLength - pItem->item.asString.length > s_ulVarLenAllMax ) )
                   leto_SendAnswer( pUStru, szErr3, 4 );
                else if( *pp3 > LETOVAR_ARR )
                   leto_SendAnswer( pUStru, szErr2, 4 );
@@ -700,7 +707,10 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                            *ptrTmp++ = pItem->type;
                            *ptrTmp++ = ';';
 
-                           ulVarLen = uiMaxLen;
+                           if( pItem->type != LETOVAR_ARR )
+                              ulVarLen = uiMaxLen;
+                           else
+                              ulVarLen = HB_MIN( 5, uiMaxLen );  /* will be symbolic presented */
                            pVarData = leto_var_get( pItem, &ulVarLen, HB_FALSE );
                            /* add length of content */
                            uiLenLen = leto_n2b( ptrTmp + 1, ulVarLen );
@@ -840,14 +850,14 @@ static PHB_ITEM leto_var_ret( LETO_VAR * pItem )
          hb_itemPutCL( pReturn, pItem->item.asString.value, pItem->item.asString.length );
          break;
       case LETOVAR_ARR:
+         if( ! pItem->item.asString.length )
+            pReturn = hb_itemArrayNew( 0 );
+         else
          {
             HB_SIZE      nSize = pItem->item.asString.length;
-            char *       pBuffer = ( char * ) hb_xgrab( nSize );
-            const char * pTmp = pBuffer;
+            const char * pTmp = pItem->item.asString.value;
 
-            memcpy( pBuffer, pItem->item.asString.value, nSize );
             pReturn = hb_itemDeserialize( &pTmp, &nSize );
-            hb_xfree( pBuffer );
          }
          break;
    }
@@ -923,17 +933,21 @@ HB_FUNC( LETO_VARSET )
             }
             pItem->type = LETOVAR_NUM;
          }
-         else if( HB_ISCHAR( 3 ) && ( HB_USHORT ) hb_parclen( 3 ) <= s_uiVarLenMax )
+         else if( HB_ISCHAR( 3 ) )
          {
-            leto_var_set_str( pItem, hb_parc( 3 ), hb_parclen( 3 ) );
-            pItem->type = LETOVAR_STR;
+           if( hb_parclen( 3 ) <= s_ulVarLenAllMax >> 2 &&
+               s_ulVarLenAll + hb_parclen( 3 ) - pItem->item.asString.length <= s_ulVarLenAllMax )
+              leto_var_set_str( pItem, hb_parc( 3 ), hb_parclen( 3 ) );
+           pItem->type = LETOVAR_STR;
          }
          else if( HB_ISARRAY( 3 ) )
          {
             HB_SIZE nSize = 0;
             char *  pArr = hb_itemSerialize( hb_param( 3, HB_IT_ARRAY ), HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
 
-            leto_var_set_str( pItem, pArr, nSize );
+            if( nSize <= s_ulVarLenAllMax >> 2 &&
+                s_ulVarLenAll + nSize - pItem->item.asString.length <= s_ulVarLenAllMax )
+               leto_var_set_str( pItem, pArr, nSize );
             pItem->type = LETOVAR_ARR;
             if( pArr )
                hb_xfree( pArr );

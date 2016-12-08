@@ -2,13 +2,12 @@
 /*
  * This sample demonstrates how to use set/get variables functions with Leto db server
  */
+REQUEST LETO
+
 #include "rddleto.ch"
 
 Function Main( cPath )
  LOCAL aArr, cTest, lRes, nRes, i
-
-   REQUEST LETO
-   RDDSETDEFAULT( "LETO" )
 
    IF Empty( cPath )
       cPath := "//127.0.0.1:2812/"
@@ -83,7 +82,7 @@ Function Main( cPath )
    ENDIF
 
    ?  "Adding 'var_binary' containing: 'CHR(0);CHR(1);CHR(0)' to [main] (Ok) "
-   lRes := leto_varSet( "main","var_binary", CHR(0) + ";" + CHR(1) + ";" + CHR(0), LETO_VCREAT+LETO_VOWN )
+   lRes := leto_varSet( "main","var_binary", CHR(0) + ";" + CHR(1) + ";" + CHR(0), LETO_VCREAT + LETO_VOWN )
    IF lRes
       cTest := leto_varGet( "main","var_binary" )
       IF cTest == CHR(0) + ";" + CHR(1) + ";" + CHR(0) .AND. hb_BLen( cTest ) == 5
@@ -96,11 +95,11 @@ Function Main( cPath )
    ENDIF
 
    ?  "Adding 'var_arr' = { 1, 2, 3 } to [main] (Ok) "
-   lRes := leto_varSet( "main", "var_arr", { 1, 2, 3 }, LETO_VCREAT+LETO_VOWN )
+   lRes := leto_varSet( "main", "var_arr", { 1, 2, 3 }, LETO_VCREAT + LETO_VOWN )
    IF lRes
       aArr = leto_varGet( "main","var_arr" )
       IF VALTYPE( aArr ) == "A" .AND. LEN( aArr ) == 3
-         ?? 'OK'
+         ?? 'OK', HB_BLEN( hb_Serialize( aArr ) ), "bytes" 
       ELSE
          ?? 'failure'
       ENDIF
@@ -210,19 +209,20 @@ Local i, j, arr, arr1
    ? "--- Vars list ---"
    IF ( arr := leto_varGetlist() ) != Nil
       FOR i := 1 TO Len( arr )
-         ? arr[i] + " ("
-         arr1 := leto_varGetlist( arr[i] )
+         ? arr[ i ] + " ("
+         arr1 := leto_varGetlist( arr[ i ] )
          FOR j := 1 TO Len( arr1 )
-            ?? arr1[j] + Iif( j == Len( arr1 ), ")-->", "," )
+            ?? arr1[ j ] + Iif( j == Len( arr1 ), ")-->", "," )
          NEXT
-         arr1 := leto_varGetlist( arr[i],8 )
+         arr1 := leto_varGetlist( arr[ i ], 8 )
          FOR j := 1 TO Len( arr1 )
-            ? "   " + arr1[j,1] + ":",arr1[j,2]
+            ? "   " + arr1[ j, 1 ] + ":",arr1[ j, 2 ]
          NEXT
       NEXT
    ELSE
-      ? "Error reading list:",leto_ferror()
+      ? "Error reading list:", leto_ferror()
    ENDIF
    ? "----------"
 
 Return Nil
+

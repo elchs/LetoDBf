@@ -5714,8 +5714,8 @@ HB_FUNC( LETO_RECLOCK )
             SELF_RECNO( pArea, &ulRecNo );
       }
       if( ulRecNo )
-         hb_retl( leto_RecLock( pUStru, pAStru, ulRecNo, HB_ISLOG( 2 ) ? hb_parl( 2 ) : HB_FALSE,
-                  HB_ISNUM( 3 ) ? ( int ) ( hb_parnd( 2 ) * 1000 ) : 0 ) );
+         hb_retl( leto_RecLock( pUStru, pAStru, ulRecNo, HB_ISLOG( 3 ) ? hb_parl( 3 ) : HB_FALSE,
+                  HB_ISNUM( 2 ) ? ( int ) ( hb_parnd( 2 ) * 1000 ) : 0 ) );
       else
          hb_retl( HB_FALSE );
    }

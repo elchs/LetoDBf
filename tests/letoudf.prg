@@ -114,7 +114,7 @@ FUNCTION UDF_Append()
    ELSE
       IF dbAppend()
          IF ( lApp := ! NetErr() )
-            leto_RecLock( RecNo(), .T. )
+            leto_RecLock( RecNo(),, .T. )
          ENDIF
       ENDIF
    ENDIF
