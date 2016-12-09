@@ -4679,7 +4679,7 @@ static HB_USHORT leto_MemoType( HB_ULONG ulConnect )
 
    if( pConnection && pConnection->uiMemoType )
       uiMemoType = pConnection->uiMemoType;
-   else if( pConnection && pConnection->szDriver )
+   else if( pConnection && *( pConnection->szDriver ) )
    {
 #ifdef __BM
       if( ! strcmp( pConnection->szDriver, "BMDBFNTX" ) )

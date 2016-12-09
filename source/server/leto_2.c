@@ -606,7 +606,7 @@ void leto_SendAnswer2( PUSERSTRU pUStru, char * szData, HB_ULONG ulLen, HB_BOOL 
             ulElapse = ( HB_ULONG ) ( ( llTmp / 1000 ) - pUStru->llLastAct );
 
          /* was there an alias available ? */
-         if( pUStru->pCurAStru && pUStru->pCurAStru->szAlias )
+         if( pUStru->pCurAStru && *( pUStru->pCurAStru->szAlias ) )
             strcpy( szAlias, pUStru->pCurAStru->szAlias );
          else
             szAlias[ 0 ] = '\0';

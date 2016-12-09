@@ -2,9 +2,6 @@
 {!bcc}-env:__LZ4=yes
 -env:__PMURHASH=yes
 
-# experimental !, only used only LETO_BACKUPTABLES()
-{linux}-env:__SPLICE=yes
-
 -l
 -strip
 -gc3
@@ -46,10 +43,8 @@
 {__SPLICE}-cflag=-DUSE_SPLICE=1
 #-gui
 -mt
-# if missing use -lhbmemio
 hbmemio.hbc
 hbct.hbc
-#-lhbmemio
 # if missing use {__BM}-lrddbm
 {__BM}rddbm.hbc
 

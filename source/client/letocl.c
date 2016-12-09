@@ -2782,8 +2782,7 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
 
                      memcpy( pConnection->szDriver, pName + 1, ptr2 - ( pName + 2 ) );
                      pConnection->szDriver[ ptr2 - ( pName + 2 ) ] = '\0';
-                     pConnection->uiDriver = ( pConnection->szDriver &&
-                                               strstr( pConnection->szDriver, "NTX" ) != NULL ) ? 1 : 0;
+                     pConnection->uiDriver = ( strstr( pConnection->szDriver, "NTX" ) != NULL ) ? 1 : 0;
 
                      sscanf( ptr2, "%u;%u;%u;%u;%d;%u;%u",
                              &uiMemoType, &uiMemoBlocksize, &uiLockScheme,

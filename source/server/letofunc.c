@@ -3587,7 +3587,7 @@ void leto_CloseUS( PUSERSTRU pUStru )
                      ( pUStru->szAddr    ? ( char * ) pUStru->szAddr    : szNull ),
                      ( pUStru->iPort     ? ( int ) pUStru->iPort     : 0 ),
                      ( pUStru->szNetname ? ( char * ) pUStru->szNetname : szNull ),
-                     ( pUStru->szExename ? ( char * ) pUStru->szExename : szNull ),
+                     ( *( pUStru->szExename ) ? ( char * ) pUStru->szExename : szNull ),
                      pUStru->iUserStru, s_uiUsersCurr, s_uiUsersMax,
                      s_uiTablesCurr, s_uiTablesMax );
    }
@@ -4364,7 +4364,7 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
       HB_GC_LOCKT();
 
       /* just to be safe -- there should be a filled pUstru->szDriver .. */
-      if( ! pUStru->szDriver || strlen( pUStru->szDriver ) < 3 )
+      if( ! *( pUStru->szDriver ) || strlen( pUStru->szDriver ) < 3 )
          pRDDNode = hb_rddFindNode( hb_rddDefaultDrv( NULL ), &uiRddID );
       else
          pRDDNode = hb_rddFindNode( pUStru->szDriver, &uiRddID );
@@ -4392,7 +4392,7 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
                char szFileName[ HB_PATH_MAX ];
                char szExt[ HB_MAX_FILE_EXT ];
 
-               if( ! pUStru->szDriver || strlen( pUStru->szDriver ) < 3 )
+               if( ! *( pUStru->szDriver ) || strlen( pUStru->szDriver ) < 3 )
                   leto_RddiGetValue( hb_rddDefaultDrv( NULL ), RDDI_TABLEEXT, szExt );
                else
                   leto_RddiGetValue( pUStru->szDriver, RDDI_TABLEEXT, szExt );
@@ -8199,7 +8199,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                      {
                         const char * szNull = "(null)";
 
-                        if( pUStru1->szLastRequest )
+                        if( *( pUStru1->szLastRequest ) )
                            memcpy( szRequest, pUStru1->szLastRequest, 63 );
                         else
                         {
@@ -8217,7 +8217,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                                         ui,
                                         pUStru1->szAddr    ? ( char * ) pUStru1->szAddr    : szNull,
                                         pUStru1->szNetname ? ( char * ) pUStru1->szNetname : szNull,
-                                        pUStru1->szExename ? ( char * ) pUStru1->szExename : szNull,
+                                        *( pUStru1->szExename ) ? ( char * ) pUStru1->szExename : szNull,
 //#if defined( HB_OS_WIN ) && ! defined( HB_OS_WIN_64 )
                                         ( long int ) ( llTimePoint - pUStru1->llLastAct ),
                                         szRequest,
@@ -8947,7 +8947,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                                  ( pUStru1->szAddr    ? ( char * ) pUStru1->szAddr    : "0" ),
                                  ( pUStru1->iPort     ? ( int ) pUStru1->iPort     : 0 ),
                                  ( pUStru1->szNetname ? ( char * ) pUStru1->szNetname : "?" ),
-                                 ( pUStru1->szExename ? ( char * ) pUStru1->szExename : "?" ) );
+                                 ( *( pUStru1->szExename ) ? ( char * ) pUStru1->szExename : "?" ) );
                         if( hb_socketShutdown( pUStru1->hSocket, HB_SOCKET_SHUT_RDWR ) == 0 )
                         {
                            if( pUStru1->hSockPipe[ 1 ] != FS_ERROR )
@@ -8989,7 +8989,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                                  ( pUStru1->szAddr    ? ( char * ) pUStru1->szAddr    : "RPC.thread" ),
                                  ( pUStru1->iPort     ? ( int ) pUStru1->iPort     : 0 ),
                                  ( pUStru1->szNetname ? ( char * ) pUStru1->szNetname : "?" ),
-                                 ( pUStru1->szExename ? ( char * ) pUStru1->szExename : "?" ) );
+                                 ( *(pUStru1->szExename ) ? ( char * ) pUStru1->szExename : "?" ) );
                         pUStru1->bCloseConnection = HB_TRUE;
                         iKilled = pUStru1->iUserStru;
                         bOk = HB_TRUE;
