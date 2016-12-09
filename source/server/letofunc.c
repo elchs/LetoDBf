@@ -5262,7 +5262,7 @@ HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs )
 static HB_BOOL leto_dbfCopy( PHB_FILE pSrcFile, const char * pszDest, HB_NHANDLE hSrcFile )
 {
    HB_ERRCODE errCode = hb_fsError();
-   HB_BOOL    bRetVal;
+   HB_BOOL    bRetVal = HB_FALSE;
    PHB_FILE   pDestFile;
 #if defined( HB_OS_LINUX ) && defined( USE_SPLICE )
    HB_FHANDLE hCopyPipe[ 2 ] = { FS_ERROR, FS_ERROR };

@@ -147,8 +147,31 @@ A. Internals
       hbmk2 rddletoaddon[.hbp]
  To do this in Linux for an installed Harbour, you need root rights to do that, e.g.
       sudo hbmk2 rddletoaddon[.hbp]
+
  After successful build, you can compile your applications using Harbour .hbc file:
-      hbmk2 your_application letodb.hbc.
+      hbmk2 your_application letodb.hbc
+
+
+ For first testing purpose, it is advised to let the letodb executable remain in the "bin"
+ directory of your downloaded LetoDBf package.
+ To install LetoDBf into your system, you can use:
+      hbmk2 letodbaddon.hbp
+ Linux users need to do this as root, aka using sudo.
+
+ Then the server executable goes into the place, where the Harbour executable directory is.
+ In Windows, the letodb.ini goes also into that place. In Linux it goes into: "/etc", where you
+ need root rights to change config options.
+
+ Installing LetoDBf needs to outcomment and adjust the LogPath in letodb.ini.
+ Use e.g. temporary directory of your OS, where normal user have write rights, e.g.: "/tmp".
+ 
+ 
+ 
+ , as else the logfiles will go
+ to same place where the executable is located, and there the user who started the server may
+ have no write allo 
+ 
+
  Look into the tests directory of LetoDBf for e.g. basic.prg, how such an application
  looks like. It will need very less additions, the rest of your application will stay
  as it was without LetoDBf usage.
@@ -923,7 +946,8 @@ A. Internals
  LETO_VOWN      - own user variable (deleted after user disconnect)
  LETO_VDENYWR   - write deny for other users
  LETO_VDENYRD   - read deny for other users
- LETO_VPREVIOUS - return previous value to < xRetValue > by reference given parameter
+ LETO_VPREVIOUS - return previous value to < xRetValue > by reference given parameter,
+                  not done for strings and arrays
 
       LETO_VARGET( cGroupName, cVarName )                      ==> xValue
 
