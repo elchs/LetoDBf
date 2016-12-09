@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-09 15:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * Readme.txt
+    * improving build instructions
+    - remove redundant text found in README.md
+
 2016-12-09 14:21 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/letovars.c
   * source/client/letomgmn.c

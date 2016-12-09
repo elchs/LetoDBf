@@ -7,47 +7,7 @@
                           /_____/\___/\__/\____/_____/_____/ |_| ork
 
 
- # Welcome to LetoDBf
- please note the trailing *f*, this is the *elch fork* of the famous LetoDB Database Server,
- for the origin see: https://sourceforge.net/p/letodb/code/ci/master/tree/
- or visit the original inventor: http://kresin.ru/en/letodb.html
-
- LetoDBf is like the origin a multiplatform, high performance database server with data stored in DBF
- tables. It is programmed mostly in pure 'Ansi-C' by extensively using the underlaying Harbour database
- engine ( http://harbour-project.org )
-
- The cause of this fork was to get the freedom of removing over many years accumulated legacy technics,
- and to continue, to improve and to enhance based on latest development status, without the strain to
- keep internal backward compatibility to older versions.
- Main goal of this fork is to use LetoDBf with newest Harbour and to max out its possibilities.
-
- Aside a sligthly, but overall rework of the internal communication between Client and Server,
- a bunch of new features and capabilties is added, to let Harbour DBF engine show its' muscles.
- Expect extendend locking schemes, share-and-lockable DBF tables in RAM ( HbMemIO ), all DBF on demand
- combine-able with 3 memofield types, new extended field attributes like autoincrement, etc ...
-
- The LetoDBf server file open mode: No_Save_WA is fully reworked: now the workareas are opened in exact
- same workarea-ID and ALIAS as at client side, plus client relations are active at server:
- this will e.g. allow indexing keys/ filtering rules on relationed fields of other workareas in this mode.
- Improved is the use of the server variables system, it allows really tricky filter conditions.
- This mode shell be the mode, if you need to execute server side UDF functions, where you now even can
- start an UDF in its own thread, working from then on independent from your connection as a new
- 'headless connection'
-
- 'Under the hood' works now a *TWO-socket* TCP connection ( if client application is MultiThread compiled ),
- enabling e,g, much faster data writes to the server.
- Available is on demand an extreme fast LZ4 compress- and Blowfish-encrypt-able network traffic.
- LetoDBf client lib ( used by your application ) became fully MultiThread save, each thread opens its own
- connection to the server. Threads, threads threads .., wherever you look.
-
- You should be able to use this fork likely you already used LetoDB --  BUT YOU CAN NOT MIX THEM.
- As the internal communication had changed, this LetoDBf server will only 'understand' client
- applications linked with this LetoDBf client library.
-
- ! Most important: NO WARRANTY from me on nothing -- decide yourself if LetoDBf fulfills your needs !
- For the case you wish ( reliable quick ) personal! support from me, we should talk about 'donation' :-)
- So far YOU are the only responsible one for all what happens with and around LetoDBf at your places.
-
+# Welcome to LetoDBf
 
 Contents
 --------
@@ -92,19 +52,19 @@ A. Internals
       1. Directory structure
 
       bin/          -    server executable file
-      doc/          -    documentation
       include/      -    source header files
       lib/          -    rdd library
       source/
           client/   -    client RDD lib sources
           common/   -    some common source files to server and client
-          client/   -    server sources
+          server/   -    server sources
           3rd/      -    third party source
           3rd/lz4   -    LZ4 compression library
       tests/        -    test programs, samples
       utils/
           manager/  -    server management utilities
           backup/   -    demo of backup-ing a running server
+          uhura/    -    automatic server IP detection
 
 
       2. Building binaries
@@ -112,65 +72,57 @@ A. Internals
  The letodb server and client library can be compiled only by the Harbour compiler > V3.0.
  It is strong recommended to download and build Harbour from the fresh 3.2 source:
  git clone https://github.com/harbour/core.git harbour
- or to use latest binary package: https://sourceforge.net/projects/harbour-project/files/
  For this you need your C-Compiler used by Harbour in your OS search path.
+ Or to use latest binary package: https://sourceforge.net/projects/harbour-project/files/
+ Follow the instruction found with Harbour.
 
- Then download latest source of LetoDBf, and move it to a new to be created directory:
- addons of the Harbour tree, e.g.; YouHarbourDirectory/addons/letodb
- This is not a must, but it will enable later to convenient use the letodb.hbc file for
- creation of you client applications.
-
- For Windows OS the letodb server can be compiled as Windows service or as daemon ( process ).
- For Linux it is possible as daemon ( recommended ) or in 'console mode' for debugging purpose.
- This is configured with macros __WIN_DAEMON__, __WIN_SERVICE__, __LINUX_DAEMON__, __CONSOLE__:
-
- letodb.hbp is ready configured for Windows and Linux daemon,
- letodbsvc.hbp is ready configured for use as Windows service.
-
- The server and the client library can be built als with support of the driver BMDBFCDX/BMDBFNTX.
- In this case, the basic RDD letodb server will be used instead DBFCDX/DBFNTX
- driver BMDBFCDX/BMDBFNTX, and supported the same functionality that BMDBF*.
- To build on this mode, in build scripts (letodb.hbp, rddleto.hbp for hbmk2
- and makefile.* for other compilers) it's need to set a macro __BM by un-commenting it.
-
- Default is to use LZ4 compression, this can be changed to classic ( much slower! ) zLib.
+ Then download latest source of LetoDBf:
+ git clone https://github.com/elchs/LetoDBf.git
+ and change into the root directory of download/ package.
 
 
       2.1 recommended way : building letodb with hbmk2, for all C compilers
 
  Hbmk2 is a 'make' tool developed and provided by Viktor Szakats to the Harbour team.
- The command line syntax is:
-      hbmk2 rddleto[.hbp]
-      hbmk2 letodb[.hbp]
 
- To integrate LetoDbf client library into your Harbour environment as an 'addon':
-      hbmk2 rddletoaddon[.hbp]
- To do this in Linux for an installed Harbour, you need root rights to do that, e.g.
-      sudo hbmk2 rddletoaddon[.hbp]
+ letodb.hbp is ready configured for Windows and Linux daemon,
+ letodbsvc.hbp is ready configured for use as Windows service.
 
- After successful build, you can compile your applications using Harbour .hbc file:
-      hbmk2 your_application letodb.hbc
+ -- all              hbmk2 rddleto
+ -- Windows service  hbmk2 letodbsvc
+ -- all others       hbmk2 letodb
 
+ Recommended: integrate LetoDbf client library into your Harbour environment as an 'addon':
+ -- Windows:         hbmk2 rddletoaddon
+ -- Linux  :         hbmk2 rddletoaddon
+ If you have installed Harbour, you need root rights to also install LetoDBf as addon:
+ -- Linux  :         sudo hbmk2 rddletoaddon
 
- For first testing purpose, it is advised to let the letodb executable remain in the "bin"
+ Resulting server executable can be found in the "bin" directory, library will be in "lib".
+ In the "bin" directory is also the "letodb.ini" file to configure the server.
+
+ After successful build as addon, you can compile your applications using Harbour .hbc file:
+                     hbmk2 your_application letodb.hbc
+
+ For first testing purpose it is recommended to let the letodb executable remain in the "bin"
  directory of your downloaded LetoDBf package.
- To install LetoDBf into your system, you can use:
-      hbmk2 letodbaddon.hbp
- Linux users need to do this as root, aka using sudo.
-
- Then the server executable goes into the place, where the Harbour executable directory is.
- In Windows, the letodb.ini goes also into that place. In Linux it goes into: "/etc", where you
- need root rights to change config options.
-
- Installing LetoDBf needs to outcomment and adjust the LogPath in letodb.ini.
+ To install LetoDBf into your system paths ( Linux users as root aka sudo ):
+                     hbmk2 letodbaddon.hbp
+ Then server executable goes into the place, where the Harbour executable directory is.
+ In Windows the letodb.ini goes also into that place, in Linux it goes into: "/etc",
+ where you need root rights to change config options.
+ !! Installing LetoDBf needs to outcomment and adjust the < LogPath > in letodb.ini.
  Use e.g. temporary directory of your OS, where normal user have write rights, e.g.: "/tmp".
- 
- 
- 
- , as else the logfiles will go
- to same place where the executable is located, and there the user who started the server may
- have no write allo 
- 
+
+ The server and the client library can be built with support of the driver BMDBFCDX/BMDBFNTX.
+ In this case, the basic RDD letodb server will be used instead DBFCDX/DBFNTX
+ driver BMDBFCDX/BMDBFNTX, and supported the same functionality that BMDBF*.
+ To build this mode, in build scripts (letodb.hbp, rddleto.hbp for hbmk2
+ and makefile.* for other compilers) it's need to set macro __BM by un-commenting it, aka
+ remove that < # > in first position
+
+ Default is to use LZ4 compression, this can be changed to classic ( much slower! ) zLib by
+ outcommentic it with a < # >. NOT recommended.
 
  Look into the tests directory of LetoDBf for e.g. basic.prg, how such an application
  looks like. It will need very less additions, the rest of your application will stay
@@ -1033,7 +985,7 @@ A. Internals
  Or you can exchange info with any connection with help of LETO_VAR*() function, or even manage
  the activity of your UDF with that server variable system -- an area left for many ideas ...
 
- But such UDF functions should be *VERY* careful designed, as they can NOT be stopped by the 
+ But such UDF functions should be *VERY* careful designed, as they can NOT be stopped by the
  connection which started them, so better to test them intensive beforehand with LETO_UDF.
  Commonly it must end by itself, as such 'headless' UDF at server can else only be
  stopped by the management console, if the running UDF is designed to repeatedly check for:
