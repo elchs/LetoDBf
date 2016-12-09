@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-09 11:42 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/server/letovars.c
+  * source/client/letomgmn.c
+    * HB_IT_LONG has also no decimals
+    * make LETO_VPREVIOUS flag invalid for string and array
+    * more clean implementation of double values, fixing rounding problems
+    * secure if string or array won't be created because set length limits,
+      then not to leave an empty 'typeless' variable
+    ! fix wrong boolean detection in LETO_VARGETLIST
+
+  * tests/test_var.prg
+    * adding test for LETO_VPREVIOUS
+
 2016-12-09 06:05 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * letodbsvc.hbp
     - double call of lz4net.c

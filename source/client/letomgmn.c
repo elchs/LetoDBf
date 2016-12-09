@@ -1479,7 +1479,7 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
          else if( HB_ISNUM( 3 ) )
          {
             cType = '2';
-            if( HB_IS_INTEGER( hb_param( 3, HB_IT_ANY ) ) )
+            if( HB_IS_INTEGER( hb_param( 3, HB_IT_NUMERIC ) ) || HB_IS_LONG( hb_param( 3, HB_IT_NUMERIC ) ) )
             {
                pVarItem = hb_itemPutNL( NULL, hb_parnl( 3 ) );
                hb_snprintf( szValue, 32, "%ld", hb_parnl( 3 ) );
@@ -1519,7 +1519,7 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
          else
             hb_itemRelease( pVarItem );
 
-         if( fPrev && uiRes >= 3 && pRetValue )
+         if( fPrev && uiRes > 3 && pRetValue )
          {
             ptr = pRetValue;
             cType = *ptr;
@@ -1527,9 +1527,18 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
             if( cType == '1' )
                hb_storl( *ptr == '1', 5 );
             else if( cType == '2' )
-               hb_stornl( atol( ptr ), 5 );
-            else if( cType == '3' )
-               hb_storclen( ptr, uiRes - 3, 5 );
+            {
+               char * pDec = strchr( ptr, '.' );
+
+               if( pDec )
+               {
+                  PHB_ITEM pItem = hb_stackItemFromBase( 5 );
+
+                  hb_itemPutNDLen( hb_itemUnRef( pItem ), atof( ptr ), uiRes - 3, uiRes - 3 - ( pDec - ptr + 1 ) );
+               }
+               else
+                 hb_stornl( atol( ptr ), 5 );
+            }
             else
                hb_stor( 5 );
          }
@@ -1567,11 +1576,19 @@ HB_FUNC( LETO_VARGET )
                   hb_retl( *( pData + 2 ) == '1' );
                   break;
                case '2':  /* numeric */
-                  if( strchr( pData + 2, '.' ) )
-                     hb_retnd( atof( pData + 2 ) );
+               {
+                  char * ptr = strchr( pData + 2, '.' );
+
+                  if( ptr )
+                  {
+                     int iLen = strlen( pData + 2 );
+
+                     hb_retndlen( atof( pData + 2 ), iLen, iLen - ( ptr - pData + 3 ) );
+                  }
                   else
                      hb_retnl( atol( pData + 2 ) );
                   break;
+               }
                case '3':   /* [ binary ] string */
                   hb_retclen( pData + 2, ulLen );
                   break;
@@ -1731,28 +1748,22 @@ HB_FUNC( LETO_VARGETLIST )
                switch( cType )
                {
                   case '1':
-                     hb_itemPutL( hb_arrayGetItemPtr( aVar, 2 ), ( *ptr == 1 ) );
+                     hb_itemPutL( hb_arrayGetItemPtr( aVar, 2 ), ( *ptr == '1' ) );
                      break;
 
                   case '2':  /* new: int or double value possible */
-                  {
-                     const char * ptr3 = ptr;
-                     HB_BOOL      fDec = HB_FALSE;
-
-                     while( ptr3 < ptr + ulValLength )
+                     ptr2 = ptr;
+                     while( ptr2 < ptr + ulValLength )
                      {
-                        if( *ptr3++ == '.' )
-                        {
-                           fDec = HB_TRUE;
+                        if( *ptr2 == '.' )
                            break;
-                        }
+                        ptr2++;
                      }
-                     if( ! fDec )
+                     if( *ptr2 != '.' )
                         hb_itemPutNL( hb_arrayGetItemPtr( aVar, 2 ), atol( ptr ) );
                      else
                         hb_itemPutND( hb_arrayGetItemPtr( aVar, 2 ), atof( ptr ) );
                      break;
-                  }
 
                   case '3':
                      hb_itemPutCL( hb_arrayGetItemPtr( aVar, 2 ), ptr, ulValLength );
