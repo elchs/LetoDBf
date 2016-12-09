@@ -14,17 +14,17 @@ Contents
 
 1. Directory structure
 2. Building binaries
-   2.1 the recommended way ( via hbmk2 )
+   2.1 via hbmk2
    2.2 Borland Win32 C compiler
    2.3 MS Visual C compiler
-   2.4 Mingw C compiler
-   2.5 Addition functions support
-   2.6 Codepage support
 3. Running and stopping server
+   3.1 the classic way for all OS
+   3.2 Run as Windows service
 4. Server configuration
    4.1 letodb.ini
-   4.2 Authentication
-5. Features of work with the letodb server
+   4.2 Different Server setups
+   4.3 Authentication
+5. How to work with the letodb server
    5.1 Connecting to the server from client programs
    5.2 Filters
    5.3 Database driver
@@ -74,14 +74,14 @@ A. Internals
  git clone https://github.com/harbour/core.git harbour
  For this you need your C-Compiler used by Harbour in your OS search path.
  Or to use latest binary package: https://sourceforge.net/projects/harbour-project/files/
- Follow the instruction found with Harbour.
+ Follow the instructions found with Harbour.
 
  Then download latest source of LetoDBf:
  git clone https://github.com/elchs/LetoDBf.git
  and change into the root directory of download/ package.
 
 
-      2.1 recommended way : building letodb with hbmk2, for all C compilers
+      2.1 building letodb with hbmk2, for all C compilers
 
  Hbmk2 is a 'make' tool developed and provided by Viktor Szakats to the Harbour team.
 
@@ -106,6 +106,7 @@ A. Internals
 
  For first testing purpose it is recommended to let the letodb executable remain in the "bin"
  directory of your downloaded LetoDBf package.
+
  To install LetoDBf into your system paths ( Linux users as root aka sudo ):
                      hbmk2 letodbaddon.hbp
  Then server executable goes into the place, where the Harbour executable directory is.
@@ -114,84 +115,22 @@ A. Internals
  !! Installing LetoDBf needs to outcomment and adjust the < LogPath > in letodb.ini.
  Use e.g. temporary directory of your OS, where normal user have write rights, e.g.: "/tmp".
 
- The server and the client library can be built with support of the driver BMDBFCDX/BMDBFNTX.
- In this case, the basic RDD letodb server will be used instead DBFCDX/DBFNTX
- driver BMDBFCDX/BMDBFNTX, and supported the same functionality that BMDBF*.
- To build this mode, in build scripts (letodb.hbp, rddleto.hbp for hbmk2
- and makefile.* for other compilers) it's need to set macro __BM by un-commenting it, aka
- remove that < # > in first position
-
- Default is to use LZ4 compression, this can be changed to classic ( much slower! ) zLib by
- outcommentic it with a < # >. NOT recommended.
-
- Look into the tests directory of LetoDBf for e.g. basic.prg, how such an application
- looks like. It will need very less additions, the rest of your application will stay
- as it was without LetoDBf usage.
 
 
       2.2 Borland Win32 C++ compiler
-
- An environment variable HB_PATH, which defines a path to the Harbour directory,
- must be set before compiling. This can be done, for example, by adding a line in a make_b32.bat:
-
-          SET HB_PATH=c:\harbour
-
- Then run the make_b32.bat and you will get server executable file letodb.exe in a bin/
- directory and rdd library rddleto.lib in the lib/ directory.
- Tested to working with bcc v.5.5.1, but this compiler can NOT use LZ4 compression.
-
-
       2.3 MS Visual C compiler
-
- An environment variable HB_PATH, which defines a path to the Harbour
- directory, must be set before compiling. Or just change the value of HRB_DIR
- in the makefile.vc
-
- Then run the make_vc.bat and you will get server executable file letodb in a bin/
- directory and rdd library librddleto.lib in a lib/ directory.
-
-
-      2.4.1 Mingw C compiler -- see point 2.1
-
-      2.4.2 xHarbour compiler
-
- Support for xHarbour is broken, as newest capabilities of Harbour >= v3.0 are used.
-
-
-      2.5 Additional Harbour functions support
-
- LetoDB use Harbour expression engine for evaluating index and filter expressions,
- and allows a call of the following functions:
-
-      ABS, ALLTRIM, AT, CHR, CTOD, DATE, DAY, DELETED, DESCEND, DTOC, DTOS,
-      EMPTY, I2BIN, L2BIN, LEFT, LEN, LOWER, LTRIM, MAX, MIN, MONTH, PAD, PADC,
-      PADL, PADR, RAT, RECNO, RIGHT, ROUND, RTRIM, SPACE, STOD, STR, STRZERO,
-      SUBSTR, REPLICATE, TIME, TRANSFORM, TRIM, UPPER, VAL, YEAR,
-      hb_ATokens, hb_WildMatch
-
-      Harbour extended time & date & timestamp functions:
-      HB_DATETIME, HB_DTOT, HB_TTOD, HB_NTOT, HB_TTON, HB_CTOT, HB_TTOC, ;
-      HB_TTOS, HB_STOT, HB_HOUR, HB_MINUTE, HB_SEC, HB_VALTOEXP, HB_ZCOMPRESS
-
- If you need else functions, it's necessary to add these in the source/server.prg module,
- done with:
-      REQUEST <cFName1>[, ...]
-
- You can enable the full set of all basic Harbour commands to be available at server runtime.
- Herefore comment out 2 lines in source/server/server.prg.
- Or if you need the full set of the Harbour Cl*pper tools contrib, another two lines must be
- outcommented.
-
-
-      2.6 Codepage support
-
-  In the file: source/include/letocdp.ch you may adapt the list of available codepages.
- These will then be enabled/ loaded for a client connection,
- Each connection can use a different codepage, but you should not open the same DBF aka index
- files with different codepage. It is important, with which CP setting the index was created.
+ For these both exist a make_b32.bat and a make_vc.bat. Look into, maybe adapt paths.
+ You will know what to do, are on your own.
 
 
       3. Running and stopping server
+
+ Before you do so, adapt the "DataPath" in letodb.ini, the most important setting.
+ If this path does not exist or is invalid, the server will not start !
+ If you 'installed' the server, also adapt the LogPath.
+
+
+      3.1 the classic way for all OS
 
  Start it, in default mode __WIN_DAEMON__ or both modes __LINUX_DAEMON__ and __CONSOLE__
       start /B letodb.exe           ( Windows )
@@ -206,21 +145,16 @@ A. Internals
       ./letodb reload               ( Linux )
 
 
- For use as "Windows service" server must be compiled with __WIN_SERVICE__ flag, see 2.
+      3.2  Run as Windows service
 
- The executable: "letodb.exe" and the config file "letodb.ini" must be copied into a directory,
- which is searched by Windows search path. This can be e.g. the "bin" directory of Harbour.
- To install and uninstall service, you need to be a user with administrative privileges.
-
- To install service, run letodb with 'install' parameter:
+ For use as "Windows service" server must be compiled as Windows service, see 2.1
+ To install LetoDbf as service, run letodb with 'install' parameter:
       letodb.exe install
  Verify letodbf.log for that the service was successful installed.
- With next Windows start, LetoDBf server shell be active, look again into log file.
+ With next Windows start, or after manually in the service management, LetoDBf server shell
+ be active. Look again into log file.
 
- To start and stop LetoDBf service manually, run your Windows service manager.
- Search in the web, how to find the service manager in your Windows version.
-
- To uninstall service, run letodb with 'uninstall' parameter:
+ To deinstall service, run letodb with 'uninstall' parameter:
       letodb.exe uninstall
  and restart your Windows server.
 
@@ -229,10 +163,11 @@ A. Internals
 
       4.1 letodb.ini
 
- You may provide a configuration file letodb.ini if you aren't satisfied with default values.
+ In Windows environment the letodb.ini must be placed in directory from where server is started.
+ In Linux the program looks for it into directory "/etc", if not found there into the directory
+ from where the server is started.
  This file is only read once with starting the server, after changes you have to restart the server.
- The file letodb.ini must be in the directory of the server executable [ or for Linux alternative in
- "/etc/letodb.ini" - the one in "/etc" will have precedence over one in the executable directory ].
+
  Currently following parameters exists ( default values are designated ).
 
       [MAIN]
@@ -365,22 +300,48 @@ A. Internals
                                     Such connection will be shut down, opened files and locks are reset-ed.
                                     If set to 0 [ default ], these checks are diabled.
 
-      It is possible to define [DATABASE] structure if you need to have a
- directory, where files are opened via other RDD:
-
-      [DATABASE]
-      DataPath =               -    (mandatory option)
-      Driver = CDX             -    ( CDX/NTX )
-
-      You can define as many [DATABASE] sections, as needed.
-
-      In Windows environment the letodb.ini must be placed in a directory, from
- where server is started.
-      In Linux the program looks for it in the directory from where the server
- is started and, if unsuccessfully, in the /etc directory.
 
 
-      4.2 Authentication
+      4.2  Different Server setups
+
+      4.2.1 UDF support
+
+ For the execution of UDF server side functions, when these call Harbour functions, these
+ Harbour functions must be during compile process linked into the executable.
+ There are allready many included, if really one is missing, it must be added in:
+ source/server.prg, done with:   REQUEST <cFName1>[, ...]
+
+ You can enable the full set of all basic Harbour commands to be available at server runtime.
+ Herefore comment out 2 lines in source/server/server.prg.
+ Or if you need the full set of the Harbour Cl*pper tools contrib, another two lines must be
+ outcommented.
+
+
+      4.2.2 Codepage support
+
+ In the file: source/include/letocdp.ch you may adapt the list of available codepages.
+ These will then be enabled/ loaded for a client connection,
+ Each connection can use a different codepage, but you should not open the same DBF aka index
+ files with different codepage. It is important, with which CP setting the index was created.
+
+
+      4.2.3 Rushmore index supprt
+
+ The server and the client library can be built with support of the driver BMDBFCDX/BMDBFNTX.
+ In this case, the basic RDD letodb server will be used instead DBFCDX/DBFNTX
+ driver BMDBFCDX/BMDBFNTX, and supported the same functionality that BMDBF*.
+ To build this mode, in build scripts (letodb.hbp, rddleto.hbp for hbmk2
+ and makefile.* for other compilers) it's need to set macro __BM by un-commenting it, aka
+ remove that < # > in first position
+
+
+      4.2.4 Compression LZ4 / ZLib
+
+ Default is to use LZ4 compression, this can be changed to classic ( much slower! ) zLib by
+ outcommentic it with a < # > in the corresponding .hbp files. ! NOT recommended !
+
+
+      4.3 Authentication
 
  To turn authentication subsystem on, you need to set one of the following
  letodb.ini parameters to 1: Pass_for_Login, Pass_for_Manage, Pass_for_Data.
@@ -399,47 +360,62 @@ A. Internals
  use LETO_CONNECT() function.
 
 
-      5. Features of work with the letodb server
+      5. How to work with the LetoDBf server
 
-      5.1 Connecting to the server from client programs
+      5.1 Connecting to the server
 
- To be able to connect to the server you need to link the rddleto library
- to your aplication and add at start of a main source file ONE line:
+ Look for example given in tests/basic.prg.
+
+ It will basically need 2 lines modification to your existing source, the rest of your
+ application will stay as it was without LetoDBf usage.
+ Hopefully you did not set the second param of DbUseArea( , cDriver, ... )
+ or used the "VIA option" of the "USE command". In that case remove them all.
+
+ To be able to connect to the server you need to request the LetoDBf RDD driver.
+ Herefore you add at very start of the file outside the main() procedure:
 
       REQUEST LETO
 
- See for example given in tests/basic.prg.
- This will request the LetoDBf RDD and sets also the default to this ( RddSetDefault( "LETO" ).
+ This will set the default RDD driver to "LETO" similar done with: RddSetDefault( "LETO" ).
  Further an additive idletask is activated, if you application is build with hbmk2 switch '-mt' for
- MultiThread support. This relates to the two port technic, and gives you performance advantages.
+ MultiThread support. ( done by using letodb.hbc )
 
- There are two ways to open a DBF table at the server, the recommended is using leto_Connect().
- For both ways, you firstly set a so called 'root path' in config file for option:
- DataPath = [drive:]\path\to\data_diretory
+ Then there are two ways to open a DBF table at the server,
+ THE **very recommended** because portable way is using leto_Connect().
 
       IF leto_Connect( "//192.168.5.22:2812/" ) < 0
          Alert( "Can't connect to server ..." )
          QUIT
       ENDIF
 
- With connection to the server, information about codepage is sent to server to be used for this
- connection for index keys etc. For further parameter of leto_Connect() see: 7.1
+ For detailed parameters of leto_Connect() see: 7.1
 
- After successfull connect to server, you use your ready application as done without LetoDBf.
- If your DBF names contain path elements, these are relative to the config option: <DataPath>
- at server. It is very recommended ! to set a <DataPath>, if no <DataPath> is set it will be the root
- directory [ Windows: of the drive with the server executable ].
+ With connection to the server, information about codepage is sent to server to be used for this
+ connection for index keys etc.
+
+ All filenames and paths now are relative to the root DataPath in letodb.ini.
+ It may look alike:
+      DataPath = [drive:]\path\to\data_diretory
+ If none DataPath is given ( ! NOT ! recommended ), it will be the root directory with the server
+ executable.
+
  Example: DbUseArea( .T.,, "test\customer.dbf" ) will open DBF in:
       [drive:]\path\to\data_diretory\test\customer.dbf.
- Allowed is no drive letter in the realative path, and only one "..\" to step up one directory higher
- than the <DataPath>. Note that this path is equal to your SET DEFAULT TO setting.
- The filenames can have optional an OS dependent pre-leading '\' or '/', example: /mydbf.dbf
 
- The other way, not recommended because of not being portable, to open a DBF tables is the
+ A drive letter in your filenames will be cut away, and only one "..\" directory step up higher than
+ the <DataPath> in letodb.ini is allowed.
+ This root path is equal to your SET DEFAULT TO setting, so if your filenames contain no path,
+ all new files will be created in <DataPath>
+ The filenames can have optional OS dependent leading '\' or '/', example: /mydbf.dbf, it will be
+ internally cut away.
+ All path separators in your filemnames are converted by LetoDBf server internal to the needed one,
+ no need to take care about. Use "\" of "/" is equal to it.
+
+
+ The other, not recommended way because of not being portable, is to open a DBF table is the
  'on the fly' method by adding IP-address/ port number and relative path to Harbours 'USE' command,
  example:
        USE "//192.168.5.22:2812/mydir/test"
- This will open DBF table: [drive:]\path\to\data_directory\mydir\test.dbf
 
 
       5.2 Filters

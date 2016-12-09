@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+
+2016-12-09 16:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * Readme.txt
+    * try to more improve, to get important information to the begining
+
 2016-12-09 15:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * Readme.txt
     * improving build instructions
