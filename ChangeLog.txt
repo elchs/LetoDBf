@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-09 06:05 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * letodbsvc.hbp
+    - double call of lz4net.c
+
+  * source/server/letofunc.c
+    * compiler warning about unfinished, still unused funtion
+
 2016-12-08 18:35 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * tests/letoudf.prg
   * source/server/letofunc.c

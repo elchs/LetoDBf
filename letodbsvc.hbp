@@ -68,7 +68,6 @@ source/server/leto_2.c
 source/common/blowfish.c
 source/common/common_c.c
 source/common/common.prg
-{__LZ4}source/common/lz4net.c
 {__LZ4}source/3rd/lz4/lib/lz4.c
 {__LZ4}source/common/lz4net.c
 {__PMURHASH}source/common/PMurHash.c
