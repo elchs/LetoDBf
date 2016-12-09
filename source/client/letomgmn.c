@@ -117,11 +117,6 @@ static void leto_DeinitVarCache( void * cargo )
 
 static HB_TSD_NEW( s_TSDitem, sizeof( PHB_ITEM * ), leto_InitVarCache, leto_DeinitVarCache );
 
-static PHB_ITEM leto_GetVarCached( void )
-{
-   return *( PHB_ITEM * ) hb_stackGetTSD( &s_TSDitem );
-}
-
 static void leto_SetVarCache( PHB_ITEM pVarItem )
 {
    PHB_ITEM * ppItemTSD = hb_stackGetTSD( &s_TSDitem );
@@ -1611,9 +1606,11 @@ HB_FUNC( LETO_VARGET )
    hb_ret();
 }
 
+/* retrieves THREAD LOCAL last leto_Var[Set|Inc|Dec] *value* */
 HB_FUNC( LETO_VARGETCACHED )
 {
-   hb_itemReturn( leto_GetVarCached() );   /* do not ! release */
+   /* hb_itemReturn( leto_GetVarCached() ); */
+   hb_itemReturn( *( PHB_ITEM * ) hb_stackGetTSD( &s_TSDitem ) );   /* do not ! release */
 }
 
 /*

@@ -948,6 +948,7 @@ STATIC FUNCTION Administrate( nConnection )
       "7 Change Refresh",;
       IIF( bLocked, "8 UNlock Server", "8 Lock   Server" ),;
       "9 View   Logfile",;
+      "D Change Debug",;
       "0 QUIT ! Console" }
  LOCAL cSave := SAVESCREEN( 1, 2, 2 + LEN( aMenu ), 19 )
  LOCAL arr
@@ -1023,9 +1024,12 @@ STATIC FUNCTION Administrate( nConnection )
                          IIF( bLocked,"W+/G", "W+/R" ) )
          CASE nMenu == 9
             ViewLogs( nConnection )
+         CASE nMenu == 10
+            ChangeDebug()
          CASE nMenu == 0
             EXIT
-         CASE nMenu == 10
+         CASE nMenu == LEN( aMenu )
+            hb_keyPut( K_ESC )
             hb_keyPut( K_ESC )
             EXIT
       ENDCASE
@@ -1042,7 +1046,7 @@ FUNCTION MyChoice( nStatus )  /* must be a public FUNCTION */
    IF nKey == K_LBUTTONUP
       mRow := MROW()
       mCol := MCOL()
-      IF mRow < 1 .OR. mRow > 11 .OR. mCol < 2 .AND. mCol > 19
+      IF mRow < 1 .OR. mRow > 12 .OR. mCol < 2 .AND. mCol > 19
          hb_keyPut( K_ESC )
       ENDIF
    ENDIF
@@ -1071,9 +1075,29 @@ STATIC FUNCTION ChangeRefresh
  LOCAL getlist := {}
 
    @ 2, 1, 6, MAXCOL() - 1 BOX SPACE( 9 )
-   @ 2, 2 SAY "Refresh rate ( 1/ 1000 ) second :" GET s_nRefresh PICTURE "@K 999999" ;
+   @ 3, 2 SAY "Refresh rate ( 1/ 1000 ) second :" GET s_nRefresh PICTURE "@K 999999" ;
                                                   VALID s_nRefresh >= 100 .AND. s_nRefresh <= 360000
    READ
+   SETCOLOR( oldcolor )
+   SETCURSOR( oldcurs )
+   RESTSCREEN( 2, 1, 6, MAXCOL() - 1, cSave )
+RETURN .T.
+
+STATIC FUNCTION ChangeDebug
+ LOCAL cSave := SAVESCREEN( 2, 1, 6, MAXCOL() - 1 )
+ LOCAL oldcolor := SETCOLOR( "W+/B,W+/G,,,W/N" )
+ LOCAL oldcurs := SETCURSOR( SC_NORMAL )
+ LOCAL getlist := {}
+ LOCAL nLevel := RDDInfo( RDDI_DEBUGLEVEL )
+
+   @ 2, 1, 6, MAXCOL() - 1 BOX SPACE( 9 )
+   @ 2, 2 SAY "DebugLevel: 0: none   1: the very most  10: a lot  15: partly traffic  21: full traffic"
+   @ 3, 2 SAY "old level: " + STR( nLevel, 2, 0 ) + "  new: " GET nLevel PICTURE "@K 99" ;
+                                                              VALID nLevel >= 0 .AND. nLevel <= 99
+   READ
+   IF LASTKEY() != K_ESC
+      RDDInfo( RDDI_DEBUGLEVEL, nLevel )
+   ENDIF
    SETCOLOR( oldcolor )
    SETCURSOR( oldcurs )
    RESTSCREEN( 2, 1, 6, MAXCOL() - 1, cSave )

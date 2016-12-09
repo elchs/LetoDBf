@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-09 14:21 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/server/letovars.c
+  * source/client/letomgmn.c
+    * dissolve inline function into solely target
+
+  * utils/manager/console.prg
+    + add change debuglevel into menu
+
 2016-12-09 13:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * letodbaddon.hbp
     - remove splice test
@@ -12,7 +20,7 @@
   * source/client/letol.c
     * correct clang warnings   
 
-2016-12-09 12:2 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+2016-12-09 12:42 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/letofunc.c
     * one more compiler warning
 
