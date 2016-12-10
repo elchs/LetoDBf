@@ -5200,6 +5200,7 @@ HB_FUNC( LETORDD )
 {
 }
 
+/* used by transactions begin and commit */
 static HB_ERRCODE leto_UpdArea( AREAP pArea, void * p )
 {
    if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) &&
@@ -5210,20 +5211,11 @@ static HB_ERRCODE leto_UpdArea( AREAP pArea, void * p )
    return HB_SUCCESS;
 }
 
-/* used by transactions, remove a remaining F-lock at server */
+/* used by transactions, forcible remove all locks at server */
 static HB_ERRCODE leto_UnLockRec( AREAP pArea, void * p )
 {
-   if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) &&
-       ( ( LETOAREAP ) pArea )->pTable->uiUpdated )
-   {
-      LETOAREAP pLetoArea = ( LETOAREAP ) pArea;
-
-      pLetoArea->pTable->fRecLocked = HB_FALSE;
-      if( pLetoArea->pTable->ulLocksMax || pLetoArea->pTable->fFLocked )
-         SELF_RAWLOCK( pArea, FILE_UNLOCK, 0 );
-      pLetoArea->pTable->fFLocked = HB_FALSE;
-      pLetoArea->pTable->ulLocksMax = 0;
-   }
+   if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) )
+      LetoDbFileUnLock( ( ( LETOAREAP ) pArea )->pTable );  /* removes also record locks */
    return HB_SUCCESS;
 }
 
@@ -5326,6 +5318,7 @@ HB_FUNC( LETO_ROLLBACK )
    }
 }
 
+/* if NOT fUnlockAll, client would not know about append RLocks, ToDo: diasble ? */
 HB_FUNC( LETO_COMMITTRANSACTION )
 {
    LETOAREAP        pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();

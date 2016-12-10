@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-10 15:25 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * include/srvleto.h
+  * source/client/letol.c
+  * source/server/letofunc.c
+    ! during transaction append not to unlock other records, but then unlock
+      all appended records after transaction completed or register them;
+      do last step only if any record is possible locked by append
+    ; this will significiant slow down transaction for shareable, not FLocked
+      table, but it's a must to do so
+
 2016-12-10 10:57 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/letofunc.c
     ! very serious ! silly bug fix about locking, Thanks! goes to Nenad

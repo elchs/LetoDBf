@@ -271,9 +271,11 @@ typedef struct
 typedef struct
 {
    AREAP             pArea;
+   PAREASTRU         pAStru;
    HB_ULONG          ulSelectID;              /* Client local area number (real) */
    HB_ULONG          ulRecNo;
    HB_BOOL           bAppend;
+   HB_BOOL           bLockable;
    HB_USHORT         uiFlag;
    HB_USHORT         uiItems;
    HB_USHORT *       puiIndex;

@@ -5946,7 +5946,12 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
          }
 
          if( pTA )
+         {
             pTA->bAppend = HB_TRUE;
+            pTA->bLockable = ! pAStru->pTStru->bMemIO &&
+                             ( ( ( ! s_bNoSaveWA ) ? s_bShareTables : HB_TRUE ) ?
+                             ( ! pAStru->pTStru->bShared || ! pAStru->bLocked ) : HB_FALSE );
+         }
          else
          {
             if( ulRecNo )  /* aka bUnlockAll */
@@ -9415,7 +9420,7 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
    int            iRes = 0;
    int            iAppended = 0;
    AREAP          pArea = NULL;
-   HB_BOOL        bUnlockAll;
+   HB_BOOL        bUnlockAll, bTransWithAppend = HB_FALSE;
    HB_ULONG *     pulAppends = NULL;
    HB_ULONG       ulResLen = 4;
    HB_ULONG       ulTransOk = 0;
@@ -9458,6 +9463,7 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
                   ulAreaIDOld = ulAreaID;
                   pTA[ i ].ulSelectID = ulAreaID;
                   pTA[ i ].pArea = pArea;
+                  pTA[ i ].pAStru = pUStru->pCurAStru;
                   ++ptrPar;
                   switch( ptr[ 0 ] )
                   {
@@ -9466,9 +9472,12 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
                         break;
                      case LETOCMD_add:
                         iRes = leto_UpdateRecord( pUStru, ptrPar, HB_TRUE, NULL, &pTA[ i ], HB_FALSE, pArea );
+                        bTransWithAppend = HB_TRUE;
                         break;
                      case LETOCMD_memo:
                         iRes = leto_Memo( pUStru, ptrPar, &pTA[ i ], pArea );
+                        if( pTA[ i ].bAppend )
+                           bTransWithAppend = HB_TRUE;
                         break;
                      default:
                         leto_wUsLog( pUStru, 0, "ERROR leto_Transaction! bad command!" );
@@ -9506,15 +9515,15 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
          HB_BOOL         bFlushed;
 
          hb_xvmSeqBegin();
-         for( i = 0; i < iRecNumber && ! pUStru->iHbError; i++ )
+
+         for( i = 0; i < iRecNumber; i++ )
          {
             pArea = pTA[ i ].pArea;
 
             if( pTA[ i ].bAppend )
             {
                hb_rddSetNetErr( HB_FALSE );
-               /* ToFix: what if ! HB_SUCCESS ? */
-               SELF_APPEND( pArea, HB_FALSE );  /* changed: unlocks no other records */
+               SELF_APPEND( pArea, HB_FALSE );  /* changed: not to unlock other records */
                SELF_RECNO( pArea, &pTA[ i ].ulRecNo );
                //pTA[ i ].ulRecNo = ( ( DBFAREAP ) pArea )->ulRecNo;
                //pUStru->pCurAStru->pTStru->pGlobe->ulRecCount++;
@@ -9560,6 +9569,29 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
             for( i1 = 0; i1 < pTA[ i ].uiItems; i1++ )
                if( pTA[ i ].pItems[ i1 ] )
                   SELF_PUTVALUE( pArea, pTA[ i ].puiIndex[ i1 ], pTA[ i ].pItems[ i1 ] );
+         }
+
+         /* unlocking all appended records, nowbody else knew about these locks */
+         if( bTransWithAppend )
+         {
+            PHB_ITEM pLock = NULL;
+
+            for( i = 0; i < iRecNumber; i++ )
+            {
+               if( pTA[ i ].bAppend && pTA[ i ].bLockable )  /* if possible reclocked */
+               {
+                  pArea = pTA[ i ].pArea;
+                  if( bUnlockAll )
+                  {
+                     pLock = hb_itemPutNL( pLock, pTA[ i ].ulRecNo );
+                     SELF_UNLOCK( pArea, pLock );
+                  }
+                  else  /* register lock */
+                     leto_RecLock( pUStru, pTA[ i ].pAStru, pTA[ i ].ulRecNo, HB_TRUE, 0 );
+               }
+            }
+            if( pLock )
+               hb_itemRelease( pLock );
          }
 
          /* flushing with server hardcommit setting, [default] unlock tables of transaction, detaching */
