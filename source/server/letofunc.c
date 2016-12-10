@@ -9579,15 +9579,18 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
 
             for( i = 0; i < iRecNumber; i++ )
             {
-               if( pTA[ i ].bAppend && pTA[ i ].bLockable )  /* if possible reclocked */
+               if( pTA[ i ].bAppend )
                {
-                  pArea = pTA[ i ].pArea;
-                  if( bUnlockAll )
+                  if( bUnlockAll )  /* default */
                   {
-                     pLock = hb_itemPutNL( pLock, pTA[ i ].ulRecNo );
-                     SELF_UNLOCK( pArea, pLock );
+                     if( pTA[ i ].bLockable )  /* possible reclocked append */
+                     {
+                        pArea = pTA[ i ].pArea;
+                        pLock = hb_itemPutNL( pLock, pTA[ i ].ulRecNo );
+                        SELF_UNLOCK( pArea, pLock );
+                     }
                   }
-                  else  /* register lock */
+                  else  /* only register append lock */
                      leto_RecLock( pUStru, pTA[ i ].pAStru, pTA[ i ].ulRecNo, HB_TRUE, 0 );
                }
             }

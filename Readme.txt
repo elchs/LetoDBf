@@ -69,15 +69,16 @@ A. Internals
 
       2. Building binaries
 
- The letodb server and client library can be compiled only by the Harbour compiler > V3.0.
+ The letodb server and client library can be compiled only by the Harbour compiler >= V3.0.
  It is strong recommended to download and build Harbour from the fresh 3.2 source:
- git clone https://github.com/harbour/core.git harbour
- For this you need your C-Compiler used by Harbour in your OS search path.
- Or to use latest binary package: https://sourceforge.net/projects/harbour-project/files/
+    git clone https://github.com/harbour/core.git
+ For this you need your C-Compiler used for Harbour in your OS search path.
+ Or to use latest binary package:
+    https://sourceforge.net/projects/harbour-project/files/
  Follow the instructions found with Harbour.
 
  Then download latest source of LetoDBf:
- git clone https://github.com/elchs/LetoDBf.git
+    git clone https://github.com/elchs/LetoDBf.git
  and change into the root directory of download/ package.
 
 
@@ -85,49 +86,50 @@ A. Internals
 
  Hbmk2 is a 'make' tool developed and provided by Viktor Szakats to the Harbour team.
 
- letodb.hbp is ready configured for Windows and Linux daemon,
- letodbsvc.hbp is ready configured for use as Windows service.
+ letodb.hbp is ready configured server for Windows and Linux daemon,
+ letodbsvc.hbp is ready configured server for use as Windows service.
 
  -- all              hbmk2 rddleto
  -- Windows service  hbmk2 letodbsvc
- -- all others       hbmk2 letodb
+ -- all other        hbmk2 letodb
 
  Recommended: integrate LetoDbf client library into your Harbour environment as an 'addon':
- -- Windows:         hbmk2 rddletoaddon
- -- Linux  :         hbmk2 rddletoaddon
- If you have installed Harbour, you need root rights to also install LetoDBf as addon:
+ -- all    :         hbmk2 rddletoaddon
+ If you have 'installed' Harbour, you need root rights to also install LetoDBf as addon:
  -- Linux  :         sudo hbmk2 rddletoaddon
 
- Resulting server executable can be found in the "bin" directory, library will be in "lib".
+ Resulting server executable will be found in the "bin" directory, library will be in "lib".
  In the "bin" directory is also the "letodb.ini" file to configure the server.
 
  After successful build as addon, you can compile your applications using Harbour .hbc file:
                      hbmk2 your_application letodb.hbc
 
- For first testing purpose it is recommended to let the letodb executable remain in the "bin"
+ For first testing purpose it is recommended to let the server executable remain in the "bin"
  directory of your downloaded LetoDBf package.
 
- To install LetoDBf into your system paths ( Linux users as root aka sudo ):
-                     hbmk2 letodbaddon.hbp
+ To install LetoDBf into your OS system search paths:
+ -- Windows          hbmk2 letodbaddon.hbp
+ -- Linux  :         sudo hbmk2 letodbaddon.hbp
  Then server executable goes into the place, where the Harbour executable directory is.
- In Windows the letodb.ini goes also into that place, in Linux it goes into: "/etc",
+ In Windows the letodb.ini goes also into same place, in Linux it goes into: "/etc",
  where you need root rights to change config options.
- !! Installing LetoDBf needs to outcomment and adjust the < LogPath > in letodb.ini.
- Use e.g. temporary directory of your OS, where normal user have write rights, e.g.: "/tmp".
-
+ ! Installing LetoDBf needs to outcomment and adjust the <LogPath> in letodb.ini !
+ Use e.g. temporary directory of your OS, where normal users have write rights, e.g.: "/tmp".
 
 
       2.2 Borland Win32 C++ compiler
       2.3 MS Visual C compiler
- For these both exist a make_b32.bat and a make_vc.bat. Look into, maybe adapt paths.
- You will know what to do, are on your own.
+ For these both exists a make_b32.bat and a make_vc.bat. Look into, maybe adapt paths.
+ You will know what to do, are on your own. I use them only for sporadic tests.
 
 
       3. Running and stopping server
 
  Before you do so, adapt the "DataPath" in letodb.ini, the most important setting.
  If this path does not exist or is invalid, the server will not start !
- If you 'installed' the server, also adapt the LogPath.
+ If you 'installed' the server or use it as service, also adapt the LogPath where the log
+ files will go. If LogPath is not set, they go into directory of server executable.
+ For both directories user needs write rights granted by the OS.
 
 
       3.1 the classic way for all OS
@@ -140,44 +142,52 @@ A. Internals
       letodb.exe stop               ( Windows )
       ./letodb stop                 ( Linux )
 
- To reload letoudf.hrb module, run the same executable with the 'reload' parameter:
+ To reload the "letoudf.hrb" module, containing UDF server side functions, it must be in same
+ directory same as server executable, use the 'reload' parameter:
       letodb.exe reload             ( Windows )
       ./letodb reload               ( Linux )
 
 
-      3.2  Run as Windows service
+      3.2  Run as Windows@ service
 
  For use as "Windows service" server must be compiled as Windows service, see 2.1
- To install LetoDbf as service, run letodb with 'install' parameter:
+ To install LetoDbf as service, the executable must be places in a directory covered by OS system
+ search paths to be found from any place.
+ Then run letodb with 'install' parameter:
       letodb.exe install
- Verify letodbf.log for that the service was successful installed.
- With next Windows start, or after manually in the service management, LetoDBf server shell
+
+ Verify letodbf.log that the service was successful installed.
+ With next Windows start, or after manually with the service management, LetoDBf server shell
  be active. Look again into log file.
 
  To deinstall service, run letodb with 'uninstall' parameter:
       letodb.exe uninstall
- and restart your Windows server.
+ and restart your Windows machine.
 
 
       4. Server configuration
 
       4.1 letodb.ini
 
- In Windows environment the letodb.ini must be placed in directory from where server is started.
- In Linux the program looks for it into directory "/etc", if not found there into the directory
- from where the server is started.
- This file is only read once with starting the server, after changes you have to restart the server.
+ In Windows environment the letodb.ini config file must be placed in directory of server executable.
+ In Linux the server looks for it in directory "/etc", if not found there then into the directory
+ of server executable.
+ This file is only read once with starting LetoDBf, after changes therein you have to restart the server
+ to let them get active.
 
  Currently following parameters exists ( default values are designated ).
 
       [MAIN]
-      IP =                     -    IP address, where Letodb server listens for connections;
+      IP =                     -    ! Leave it empty for Windows. !
+                                    IP address, where Letodb server listens for connections;
                                     If not set, all net interfaces ( all IP addresses ) available on the
-                                    computer, are used. ! Leave it empty for Windows. !
+                                    computer, are used.
       Server =                 -    IP address used by tools like management console to find the server.
-                                    This can be, but must not be, the same as used for config option 'IP'.
+                                    This can be, but must not be, the same as used for config option 'IP'
+                                    and is just for convenience.
       Port = 2812              -    Server port number, default is 2812 [ then 2813 used for second socket ]
                                     There are two! ports used by server, this and the following number.
+                                    ! You ever connect to first port number !
                                     [ may read Internals: second socket .. ]
       DataPath =               -    PATH to a base directory on a server with your databases,
                                     may include also a drive letter for poor Windows systems
@@ -187,7 +197,7 @@ A. Internals
                                     at server starttime, plus info about new connected and disconneted clients
                                     if config option <DEBUG> level is greater zero [ 0 ].
                                     Each connection will get an own log file [ if DEBUG level is increased ].
-      Default_Driver = CDX     -    default RDD to open files on server ( CDX/NTX )
+      Default_Driver = CDX     -    default RDD to open files on server ( CDX/ NTX )
                                     Can on demand changed by client with function: leto_DbDriver().
       Lock_Scheme = 0          -    If > 0, extended locking scheme will be used by server.
                                     Then DB_DBFLOCK_HB32 will be used for NTX/CDX;
@@ -196,13 +206,15 @@ A. Internals
       Memo_Type =              -    memo type ( FPT/ DBT/ SMT ),
                                     Default: FPT for DBFCDX, DBT for DBFNTX;
       Memo_BSize =             -    for expert users !, this will change default memo blocksize
-                                    for *NEW* created data tables.
+                                    for *NEW* created DBF data tables.
       Lower_Path = 0           -    if 1, convert all paths and filenames to lower case;
-      EnableFileFunc = 0       -    if 1, using of file functions ( leto_file(),
-                                    leto_ferase(), leto_frename() is enabled;
-      EnableAnyExt = 0         -    if 1, *creating* of data tables and indexes with
-                                    any extention, other than standard ( dbf,cdx,ntx )
-                                    is enabled;
+                                    This is useful if: all files at disk are in lower case, in your
+                                    application they are named mixed case, and the [Linux] OS for server
+                                    is case sensitive for filenames.
+      EnableFileFunc = 0       -    if 1, using of file functions ( leto_file(), leto_ferase(),leto_frename() etc ..
+                                    is allowed. Else these functions do nothing or return .F.
+      EnableAnyExt = 0         -    if 1, *creating* of data tables and indexes with any extention, other than
+                                    standard ( dbf,cdx,ntx ) is allowed. Else these would be rejected.
       Pass_for_Login = 0       -    Lowest level of password verification: after login all is allowed to all
                                     if 1, user authentication is necessary to login to the server;
       Pass_for_Manage = 0      -    if 1, user authentication is necessary to use management functions,
@@ -218,16 +230,16 @@ A. Internals
                                     operation and creating workareas on the server with same workarea settings
                                     as at client [ WA number, alias, filter conditions, relations ]
                                     ( in default mode '0' each file is opened only one time and have only one
-                                    virtual workarea for all users -- no relations at server active ).
+                                    virtual workarea for all users -- no relations at server are active, Alias
+                                    names at server internally different ).
                                     When set to '1', it is also combined with "Share_Tables" setting, where
                                     "Share_Tables = 1" signalizes LetoDB that there will be 3rd party
                                     [non LetoDBf application] simultanous access to DBF tables.
                                     With "Share_Tables = 0" some internal performance increasing shortcuts
-                                    can be done.
-                                    Useful for UDF action at server, as the UDF function get same workarea
-                                    environment as the client have.
+                                    are done.
+                                    Choose this to '1', if you plan to execute server side UDF functions.
       Cache_Records            -    The number of records to read into the client read cache,
-                                    used for skipping etc. at client side without new requesting the server.
+                                    used for skipping etc without new requesting the server.
                                     Records are valid at client as long as the hotbuffer timeout.
                                     Default is 10, minimum is 1 (slow performance), good values are 10 - 50,
                                     theoretical ! maximum 65535. Adapt for performance in your environment.
@@ -306,14 +318,23 @@ A. Internals
 
       4.2.1 UDF support
 
- For the execution of UDF server side functions, when these call Harbour functions, these
- Harbour functions must be during compile process linked into the executable.
- There are allready many included, if really one is missing, it must be added in:
- source/server.prg, done with:   REQUEST <cFName1>[, ...]
+ Aside calling single Harbour command with leto_UDF( "cCommand"[, xParam] ), you can load your own
+ functions with a <HRB> file also during the server is running.
+ A very basic example is found in: tests/letoudf.prg.
+ How to compile a PRG to a HRB, look into letoudf.hbp. This is called with: hbmk2 letoudf.
+ Place the resulting <HRB> file in same directory as the server executable.
+ After the "reload" command or tigether with server start you have an entry in letodbf.log if they
+ were successful loaded. In case of error you shell also find a short text what have failed.
 
- You can enable the full set of all basic Harbour commands to be available at server runtime.
+ For the execution of single Harbour functions at server side, or when your functions in the HRB file
+ need Harbour commands ( like "STR", "DTOC" ), these Harbour functions must during compile process linked into
+ executable.
+ There are already very many! available. If really one is missing, it must be added at top in:
+ source/server/server.prg, done like the others there with a: REQUEST <cFunction>
+
+ You can enable also the full set of all basic Harbour commands to be available at server runtime.
  Herefore comment out 2 lines in source/server/server.prg.
- Or if you need the full set of the Harbour Cl*pper tools contrib, another two lines must be
+ Or if you need the full set of the Harbour Cl*pper tools contrib [CT], another two lines must be
  outcommented.
 
 
@@ -327,37 +348,44 @@ A. Internals
 
       4.2.3 Rushmore index supprt
 
- The server and the client library can be built with support of the driver BMDBFCDX/BMDBFNTX.
- In this case, the basic RDD letodb server will be used instead DBFCDX/DBFNTX
- driver BMDBFCDX/BMDBFNTX, and supported the same functionality that BMDBF*.
- To build this mode, in build scripts (letodb.hbp, rddleto.hbp for hbmk2
- and makefile.* for other compilers) it's need to set macro __BM by un-commenting it, aka
- remove that < # > in first position
+ The server and the client library can be built with support of the driver BMDBFCDX/ BMDBFNTX/ BMDBFNTX.
+ In this case, these RDD will be used by default, aka e,g. BMDBFCDX if "CDX" is found in letodb.ini
+ Basically they support the same functionality, plus some special functions to set bitmap filters, see
+ section 7.11
+ To build server for this, in build scripts (letodb.hbp, rddleto[addon].hbp for hbmk2) it's need to set
+ macro __BM by un-commenting it, aka remove that < # > of first position
+ Re-compile both!! server executable and client library.
 
 
       4.2.4 Compression LZ4 / ZLib
 
- Default is to use LZ4 compression, this can be changed to classic ( much slower! ) zLib by
- outcommentic it with a < # > in the corresponding .hbp files. ! NOT recommended !
-
+ Default is to use highspeed realtime LZ4 compression algorithm, but stoneage BCC 5.5 compiler cannot use it !
+ This can be changed to classic ( slower! ) ZLib compression by outcommenting with set a < # > into first position
+ of the corresponding .hbp files, found at very top the line with: "#-env:__LZ4=yes"
+ I would very recommend lightning fast LZ4.
+ Re-compile both!! server executable and client library. This must fit together, a server with LZ4 won't understand
+ a client application with ZLib. 
+ 
 
       4.3 Authentication
 
- To turn authentication subsystem on, you need to set one of the following
- letodb.ini parameters to 1: Pass_for_Login, Pass_for_Manage, Pass_for_Data.
- Before, you need to create, at least, one user with admin rights, because when authentication
- subsystem works, only authenticated users with admin rights are able to add/change users
+ To turn authentication system on, aka to log into server with required username/ password,
+ you need to set one of the following letodb.ini parameters to 1:
+ Pass_for_Login, Pass_for_Manage, Pass_for_Data.
+ ! Beforehand, you need to create at least one user with admin rights, because when authentication
+ system is active, only authenticated users with admin rights are able to add/ change users
  and passwords.
-      To add a user, you need to include a call of LETO_USERADD() in your client side
- program, for example:
 
+ To add a first user, you need to execute LETO_USERADD() one time, for example:
       LETO_USERADD( "admin", "secret:", "YYY" )
+ where "secret" is the password, and "YYY" is a 3 letter Y_es and N_o string,
+ which grants rights to; 'admin' 'manage' 'write access'.
 
- where "YYY" is a string, which gives rights to admin, manage and write access. You may
- also use the utils/manager/console.prg program to set or change authentication data.
+ You can also use the console program in utils/manager/console.prg to add/ delete users.
+ Look for section 8.1
 
- To connect to a server with an authentication data ( username and password ) you need to
- use LETO_CONNECT() function.
+ To connect to a server with an authentication active with username and password, you must use
+ the LETO_CONNECT() function.
 
 
       5. How to work with the LetoDBf server
@@ -377,7 +405,7 @@ A. Internals
       REQUEST LETO
 
  This will set the default RDD driver to "LETO" similar done with: RddSetDefault( "LETO" ).
- Further an additive idletask is activated, if you application is build with hbmk2 switch '-mt' for
+ Further an additive idletask is activated, if your application is build with hbmk2 switch '-mt' for
  MultiThread support. ( done by using letodb.hbc )
 
  Then there are two ways to open a DBF table at the server,
@@ -388,7 +416,7 @@ A. Internals
          QUIT
       ENDIF
 
- For detailed parameters of leto_Connect() see: 7.1
+ For detailed parameters info of leto_Connect() see: 7.1
 
  With connection to the server, information about codepage is sent to server to be used for this
  connection for index keys etc.
@@ -409,7 +437,7 @@ A. Internals
  The filenames can have optional OS dependent leading '\' or '/', example: /mydbf.dbf, it will be
  internally cut away.
  All path separators in your filemnames are converted by LetoDBf server internal to the needed one,
- no need to take care about. Use "\" of "/" is equal to it.
+ no need to take care about. Use "\" or "/" is equal to it.
 
 
  The other, not recommended way because of not being portable, is to open a DBF table is the
@@ -441,19 +469,23 @@ A. Internals
 
       5.3 Database driver
 
-      If nowhere explicitely set, the default database driver for the server is DBFCDX.
+ If nowhere explicitely set, the default database driver for the server is DBFCDX.
  This default driver at server can be changed in the letodb.ini with setting of Default_Driver.
- Active driver for your connection, you can query and !SET! with:
+ The active driver for your connection you can query and !SET! with:
 
        leto_DbDriver( [ <cNewDriver> ], [ <cMemoType> ], [ <nBlocksize> ] )
                                                                ==> aInfo
 
  This will return a 3 dimensional array, in the order of the parameters, so aInfo[ 1 ] is
- the active used driver. With no arguments the active setting is returned.
- You can change that at by using "DBFNTX", "DBFCDX", "DBFFPT", "DBFNSX" or "SIXDBF".
+ the active used driver. With no arguments the active settings are returned.
+ You can change that default by using "DBFNTX", "DBFCDX", "DBFFPT", "DBFNSX" or "SIXDBF".
+
  Each driver can be aside their defaults combined with MemoType "DBT", "FPT" or "SMT".
  Further for expert ! users the blocksize used for the memofield can be changed:
  minimum is 32 Bytes, maximum 64KB == 65535 Bytes and always must be a multiple of 32 Bytes.
+ ! This must be done before creating a new DBF, else the setting active with creation is used for
+ that DBF.
+
  !! Use leto_DbDriver() function before open or create new files !!
  This way you can even mix different drivers for a single connection. Sure you can not mix different
  drivers for the same database, so e.g. a DBFNTX table must be used for all connections as NTX type.
@@ -1016,21 +1048,29 @@ A. Internals
 
       8.1 Server Management utility
 
- There are two management utilities, GUI and console, the sources are in utils/manage directory.
+ There are two management utilities, Windows GUI and all OS console.
+ Sources lay in the utils/manage directory.
 
- For all, also Windows user, there is a ! NEW ! console utility to be found in
- utils/manager/console.prg. Easily build it with just a: hbmk2 console
+ For all OS, also Windows, there is a ! NEW ! console utility to be found in:
+ utils/manager/console.prg. Easily build it with just a:
+    hbmk2 console
  The executable will be found afterwards in the "bin" directory.
- Run the console executable with a IP[:port] as first parameter.
- This can be also set in letodb.ini with option: < Server > for running it local at server.
- But this is a OS independent remote console, so you can watch the server from any station.
- Displayed information refreshes automatically, so longer the console is up the greater this
- interval will get, to less interfere server activity.
- If no more needed, end it and restart it by occasion, and it will end automatic with shutting
- LetoDBf server down.
- Surfing in the four Browses' is done with mouse[wheel] or keyboard.
- Also note this "Menu" button top left on screen fur further actions, like killing connections.
 
+ Run the console executable with a IP[:port] as first parameter.
+ This can be also set in letodb.ini with option: <Server> for running it local at server.
+ But as this is a OS independent remote console, you can watch the server from any station.
+
+ Full parameter set is: console[.exe] IP[:port] [username] [password]
+
+ Displayed information refreshes automatically, as longer the console is up the greater this
+ interval will get, to less interfere server activity.
+ If no more needed, end it and restart it by occasion. It will end automatic with shutting down
+ LetoDBf server.
+ Surfing in the four Browses' is done with mouse[wheel] or keyboard.
+ Also note this "Menu" button top left on screen for further actions, like killing connections,
+ adding users to the authentication system, ...
+
+ 
  *LetoDBf note* : the GUI version is untested, not guaranteed to work.
  Windows only GUI utility, manage.prg, is made with the HwGUI library. If you have HwGUI,
  just write in the line 'set HWGUI_INSTALL=' in utils/manage/bld.bat a path

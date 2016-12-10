@@ -2,6 +2,17 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-10 21:21 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/server/letofunc.c
+    ! if not to be unlocked, registering append locks must happen even not
+      physical lockable, e.g. for hbMemIO tables.
+
+  * utils/manager/console.prg
+    * cell for locks fill the whole browse area
+  
+  * Readme.txt
+    * more corrections, improvements
+
 2016-12-10 16:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/client/letol.c
   * source/client/letocl.c

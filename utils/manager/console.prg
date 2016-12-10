@@ -266,8 +266,8 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 4 ]:cargo, @aPos[ 4 ], nSkip) }
    ATAIL( aBrows ):headSep   := "ÍËÍ"
    ATAIL( aBrows ):colSep    := " º "
-   oColumn := TbColumnNew( "Record Lock", ArrBlock( ATAIL( aBrows ), 2, @aPos[ 4 ] ) )
-   oColumn:width := 11
+   oColumn := TbColumnNew( "    Record Lock    ", ArrBlock( ATAIL( aBrows ), 2, @aPos[ 4 ] ) )
+   oColumn:width := 19
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "Filename", ArrBlock( ATAIL( aBrows ), 1, @aPos[ 4 ] ) )
