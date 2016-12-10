@@ -3619,6 +3619,8 @@ HB_EXPORT HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, co
    LETOFIELD *      pField = pTable->pFields + uiIndex;
    HB_BOOL          fAppend = ( pTable->uiUpdated & LETO_FLAG_UPD_APPEND );
 
+   if( pTable->fReadonly )
+      return HB_FAILURE;
    if( pField->uiLen == 4 )
       HB_PUT_LE_UINT32( &pTable->pRecord[ pTable->pFieldOffset[ uiIndex ] ], ( ulLenMemo ) ? 1 : 0 );
    else
@@ -3996,11 +3998,12 @@ HB_EXPORT HB_ERRCODE LetoDbCommit( LETOTABLE * pTable )
    char          szData[ 32 ];
    unsigned long ulLen;
 
-   if( pConnection->fTransActive )
+   if( pConnection->fTransActive || pTable->fReadonly )
    {
       pConnection->iError = 1;
-      return 1;
+      return HB_FAILURE;
    }
+
    ulLen = eprintf( szData, "%c;%lu;", LETOCMD_flush, pTable->hTable );
    //if( !leto_SendRecv( pTable, szData, 0, 1021 ) )
    if( ! leto_SendRecv2( pConnection, szData, ulLen, 1011 ) )
@@ -4009,7 +4012,7 @@ HB_EXPORT HB_ERRCODE LetoDbCommit( LETOTABLE * pTable )
       return 1;
    }
 
-   return 0;
+   return HB_SUCCESS;
 }
 
 HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
@@ -4021,6 +4024,8 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
    unsigned long ulLen;
    int           iRet = 0;
 
+   if( pTable->fReadonly )
+      return HB_FAILURE;
    for( ui = 0; ui < pTable->uiFieldExtent; ui++ )
    {
       if( pTable->pFieldUpd[ ui ] )
@@ -4238,7 +4243,7 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
 HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
 {
    if( pTable->fReadonly )
-      return 1;  /* was 10; */
+      return HB_FAILURE;
 
    leto_SetUpdated( pTable, LETO_FLAG_UPD_APPEND | ( fUnLockAll ? LETO_FLAG_UPD_UNLOCK : 0 ) );
    pTable->fBof = pTable->fEof = pTable->fFound = pTable->fDeleted = HB_FALSE;
@@ -4354,7 +4359,7 @@ HB_EXPORT HB_ERRCODE LetoDbIsRecLocked( LETOTABLE * pTable, unsigned long ulRecN
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
 
    pConnection->iError = 0;
-   if( ulRecNo != 0 && ulRecNo != pTable->ulRecNo )
+   if( ulRecNo != 0 && ulRecNo != pTable->ulRecNo && ! pTable->fReadonly )
    {
       if( ! pTable->fShared || pTable->fFLocked || leto_IsRecLocked( pTable, ulRecNo ) )
          *uiRes = 1;
@@ -4372,7 +4377,7 @@ HB_EXPORT HB_ERRCODE LetoDbIsRecLocked( LETOTABLE * pTable, unsigned long ulRecN
       }
    }
    else
-      *uiRes = ! pTable->fShared || pTable->fFLocked || pTable->fRecLocked;   // elch ??
+      *uiRes = ! pTable->fShared || pTable->fFLocked || pTable->fRecLocked;
 
    return 0;
 }
@@ -4384,8 +4389,10 @@ HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
    char *           ptr;
    unsigned long    ulLen;
 
-   if( ! pTable->fShared || ( ulRecNo == pTable->ulRecNo ? pTable->fRecLocked : leto_IsRecLocked( pTable, ulRecNo ) ) )
-      return 0;
+   if( pTable->fReadonly )
+      return HB_FAILURE;
+   else if( ! pTable->fShared || ( ulRecNo == pTable->ulRecNo ? pTable->fRecLocked : leto_IsRecLocked( pTable, ulRecNo ) ) )
+      return HB_SUCCESS;
    if( pTable->fFLocked )  /* release file lock */
    {
       ulLen = eprintf( szData, "%c;%lu;f;", LETOCMD_unlock, pTable->hTable );
@@ -4421,7 +4428,7 @@ HB_EXPORT HB_ERRCODE LetoDbRecUnLock( LETOTABLE * pTable, unsigned long ulRecNo 
       pConnection->iError = 1031;
       return 1;
    }
-   if( ! pTable->fShared || pTable->fFLocked ||
+   if( ! pTable->fShared || pTable->fFLocked || pTable->fReadonly ||
       ( ulRecNo == pTable->ulRecNo ? ! pTable->fRecLocked : ! leto_IsRecLocked( pTable, ulRecNo ) ) )
       return 0;
 
@@ -4443,7 +4450,9 @@ HB_EXPORT HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable )
    HB_ULONG ulLen;
    char *   ptr;
 
-   if( ! pTable->fShared || pTable->fFLocked )
+   if( pTable->fReadonly )
+      return HB_FAILURE;
+   else if( ! pTable->fShared || pTable->fFLocked  )
       return HB_SUCCESS;
 
    ulLen = eprintf( szData, "%c;%lu;f;%lu;%d;", LETOCMD_lock, pTable->hTable, pTable->ulRecNo, pConnection->iLockTimeOut );
@@ -4473,7 +4482,7 @@ HB_EXPORT HB_ERRCODE LetoDbFileUnLock( LETOTABLE * pTable )
       pConnection->iError = 1031;
       return 1;
    }
-   if( ! pTable->fShared )
+   if( ! pTable->fShared || pTable->fReadonly )
       return HB_SUCCESS;
 
    ulLen = eprintf( szData, "%c;%lu;f;", LETOCMD_unlock, pTable->hTable );

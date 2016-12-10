@@ -167,6 +167,7 @@ typedef struct
    char *            szDriver;                 /* human readable driver used for this table, HB_RDD_MAX_DRIVERNAME_LEN */
    HB_USHORT         uiAreas;                  /* Number of references, 1 for s_bNoSaveWA */
    HB_BOOL           bShared;                  /* TRUE = non-exclusive opened */
+   HB_BOOL           bReadonly;                /* TRUE = not write- lock- able */
    HB_BOOL           bMemIO;                   /* is this a HbMemIO table = special handling */
    HB_BOOL           bWhoCares;
    HB_BYTE *         szTable;                  /* may include leading [back]slash, name of table */

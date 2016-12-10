@@ -5215,7 +5215,7 @@ static HB_ERRCODE leto_UpdArea( AREAP pArea, void * p )
 static HB_ERRCODE leto_UnLockRec( AREAP pArea, void * p )
 {
    if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) )
-      LetoDbFileUnLock( ( ( LETOAREAP ) pArea )->pTable );  /* removes also record locks */
+      SELF_RAWLOCK( pArea, FILE_UNLOCK, 0 );
    return HB_SUCCESS;
 }
 
@@ -5405,7 +5405,7 @@ HB_FUNC( LETO_COMMITTRANSACTION )
       }
    }
 
-   pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0; 
+   pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0;
    pConnection->ulRecsInList = 0;
    pConnection->ulTransDataLen = pConnection->ulRecsInTrans = 0;
    hb_retl( HB_TRUE );

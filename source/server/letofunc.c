@@ -3091,7 +3091,7 @@ static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT ui
 }
 
 /* HB_GC_LOCKT() must be ensured by caller ! */
-static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * szDriver, HB_BOOL bShared, const char * szLetoAlias )
+static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * szDriver, HB_BOOL bShared, const char * szLetoAlias, HB_BOOL bReadonly )
 {
    PTABLESTRU pTStru = s_tables + s_uiTablesFree;
    HB_UINT    uiTable = s_uiTablesFree;
@@ -3126,6 +3126,7 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
    strcpy( pTStru->szDriver, szDriver );
    pTStru->bMemIO = ! strncmp( szName, "mem:", 4 );
    pTStru->bShared = bShared;
+   pTStru->bReadonly = bReadonly;
    letoListInit( &pTStru->LocksList, sizeof( HB_ULONG ) );
    letoListInit( &pTStru->IndexList, sizeof( INDEXSTRU ) );
    pTStru->uiRecordLen = leto_RecordLen( pArea );
@@ -11936,7 +11937,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                if( ! ulSelectID )
                   ulSelectID = hb_rddGetCurrentWorkAreaNumber();
 
-               if( ( iTableStru = leto_InitTable( ulAreaID, szFile, szDriver, bShared, szRealAlias ) ) >= 0 )
+               if( ( iTableStru = leto_InitTable( ulAreaID, szFile, szDriver, bShared, szRealAlias, bReadonly ) ) >= 0 )
                {
                   HB_GC_UNLOCKT();
                   bUnlocked = HB_TRUE;
@@ -12543,7 +12544,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          }
          else
          {
-            int iTableStru = leto_InitTable( ulAreaID, szFile, szDriver, HB_FALSE, szRealAlias );
+            int iTableStru = leto_InitTable( ulAreaID, szFile, szDriver, HB_FALSE, szRealAlias, HB_FALSE );
 
             if( iTableStru >= 0 )
             {
