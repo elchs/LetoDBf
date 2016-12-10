@@ -2,14 +2,17 @@
  * This sample tests working with dbf files
  * Just change the cPath value to that one you need.
  */
+
+#define __MEM_IO__ 1
+#define FIELD_IDS  1    // 341 * 5000 nRounds = ~ 4GB
+
 REQUEST DBORDERINFO, ORDLISTCLEAR, ORDBAGCLEAR, ORDDESTROY
 REQUEST LETO
 REQUEST DBFNTX
+REQUEST hb_UTF8ToStr
 
 #include "dbinfo.ch"
 #include "set.ch"
-
-#define __MEM_IO__ 1
 
 Function Main( cPath )
  LOCAL aNames := { "Petr", "Ivan", "Alexander", "Pavel", "Alexey", "Fedor", ;
@@ -21,6 +24,8 @@ Function Main( cPath )
  LOCAL cFile1 := "test1"
  LOCAL cFile2 := "test2"
  LOCAL nRounds := 10000
+ LOCAL nDeleted
+ LOCAL aStruct, aStructAll := {}
  FIELD NAME, NUM, INFO, DINFO, MINFO
 
    SET DATE FORMAT "dd/mm/yy"
@@ -71,14 +76,22 @@ Function Main( cPath )
                              { "INTEGER", "I:+", 4, 0 },;
                              { "AUTOINC", "+",  4, 0 } } )
 #else
-      IF dbCreate( cFile1, { { "NAME",  "C", 10, 0 },;
-                             { "NUM",   "N",  4, 0 },;
-                             { "INFO",  "C", 32, 0 },;
-                             { "DINFO", "D",  8, 0 },;
-                             { "TINFO", "T", 17, 0 },;
-                             { "MINFO", "M", 10, 0 } } )
+      aStruct := { { "NAME",  "C", 10, 0 },;
+                   { "NUM",   "N",  4, 0 },;
+                   { "INFO",  "C", 64, 0 },;
+                   { "DINFO", "D",  8, 0 },;
+                   { "TINFO", "T", 17, 0 },;
+                   { "MINFO", "M", 10, 0 } }
+      FOR i := 1 TO FIELD_IDS
+         FOR ii := 1 TO 6
+            AADD( aStructAll, ACLONE( aStruct[ ii ] ) )
+            IF i > 1
+               aStructAll[ ( ( i - 1 )  * 6 ) + ii, 1 ] := ALLTRIM( aStruct[ ii, 1 ] ) + hb_ntos( i )
+            ENDIF
+         NEXT ii
+      NEXT i
+      IF dbCreate( cFile1, aStructAll )
 #endif
-
          ? "File " + cFile1 + hb_rddInfo( RDDI_TABLEEXT ) + " has been created"
       ELSE
          ALERT( "DBF CREATE FAILED" + IIF( NetErr(), ", TABLE IN USE BY OTHER", "" ) )
@@ -103,30 +116,31 @@ Function Main( cPath )
 
    ?
    IF RecCount() == 0
-      ? "please wait, appending " + hb_ntos( nRounds * LEN( aNames ) ) + " records ..." 
+      ? "please wait, appending " + hb_ntos( nRounds * LEN( aNames ) ) + " records ..."
       nSec := hb_milliseconds()
 
-      // IF FLock()
-      FOR ii := 1 TO nRounds
-         FOR i := 1 TO Len( aNames )
-            IF DbAppend()
-               /* Harbour returns .T. if successful, else alike for: APPEND BLANK, check for NetErr() before proceeding */
-               REPLACE NAME  WITH aNames[ i ],;
-                       NUM   WITH i + 1000, ;
-                       INFO  WITH "This is a record number "+ Ltrim( Str( i ) ),;
-                       DINFO WITH Date() + i - 1, ;
-                      MINFO WITH "elk test" + STR( i, 10, 0)
-            ENDIF
-         NEXT i
-      NEXT ii
-      //   DbUnlock()
-      // ENDIF
+      IF FLock()
+         FOR ii := 1 TO nRounds
+            FOR i := 1 TO Len( aNames )
+               IF DbAppend()
+                  /* Harbour returns .T. if successful, else alike for: APPEND BLANK, check for NetErr() before proceeding */
+                  REPLACE NAME  WITH aNames[ i ],;
+                          NUM   WITH i + 1000, ;
+                          INFO  WITH "This is a record number "+ Ltrim( Str( i ) ),;
+                          DINFO WITH Date() + i - 1, ;
+                          MINFO WITH "elk test" + STR( i, 10, 0 )
+               ENDIF
+            NEXT i
+         NEXT ii
+         DbUnlock()
+      ENDIF
 
       ?? STR( ( hb_milliseconds() - nSec ) / 1000, 6, 2 ), "s -- "
       ?? STR( ( Len( aNames ) * nRounds ) / ( ( hb_milliseconds() - nSec ) / 1000 ), 7, 0 ), "/ s"
       DbUnLock()
       IF RDDSETDEFAULT() == "LETO"
-         ? "file size: ", Leto_FileSize( cFile1 + hb_rddInfo( RDDI_TABLEEXT ) ) / 1024 / 1024, "MB"
+         ? "file size: ", Leto_FileSize( cFile1 + hb_rddInfo( RDDI_TABLEEXT ) ) / 1024 / 1024, "MB; record length " +;
+                          hb_ntos( dbInfo( DBI_GETRECSIZE ) )
       ELSE
          ? "file size: ", hb_FSize( cFile1 + hb_rddInfo( RDDI_TABLEEXT ) ) / 1024 / 1024, "MB"
       ENDIF
@@ -157,13 +171,17 @@ Function Main( cPath )
 
 /* --- benchmarks --- */
 
-   ? "skipping from top to bottom ..."
-   nSec := hb_milliseconds()
-   DbGoTop()
-   DO WHILE ! EOF()
-      DbSkip( 1 )
-   ENDDO
-   ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7,2 ), "seconds"
+   ? "skipping top to bottom ..."
+   FOR i := 1 TO 5
+     LETO_SETSKIPBUFFER( 21 * i * i )
+     nSec := hb_milliseconds()
+      DbGoTop()
+      DO WHILE ! EOF()
+        DbSkip( 1 )
+      ENDDO
+      ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7,2 ), "s;"
+   NEXT i
+   LETO_SETSKIPBUFFER( 21 )
 
    ? "GoTop, seek ..."
    DbSetorder( 1 )
@@ -177,14 +195,15 @@ Function Main( cPath )
       ENDIF
    NEXT i
    ?? STR( i - 1, 6, 0 ), "times, ", STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
-   
+
    IF FLock()
       ? "FILE locked, skip through records, data change two fields ..."
       nSec := hb_milliseconds()
       DbGoTop()
       DO WHILE ! EOF()
          Replace INFO  WITH "This is a record number " + hb_ntos( RECNO() ),;
-                 DINFO WITH DATE()
+                 DINFO WITH DATE(),;
+                 MINFO WITH "elk tested" + STR( RECNO(), 10, 0 )
          DbSkip( 1 )
       ENDDO
       ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
@@ -207,10 +226,12 @@ Function Main( cPath )
    ? "skipping from top to bottom, delete every 3rd record ..."
    nSec := hb_milliseconds()
    DbGoTop()
+   nDeleted := 0
    DO WHILE ! EOF()
       IF RECNO() % 3 == 0 .AND. RLock()
          DELETE
          DbUnlock()
+         nDeleted++
       ENDIF
       DbSkip( 1 )
    ENDDO
@@ -218,18 +239,20 @@ Function Main( cPath )
 
    ? "verify deleted record ..."
    ii := 0
+   LETO_SETSKIPBUFFER( 250 )
    nSec := hb_milliseconds()
    DbGoTop()
    DO WHILE ! EOF()
-      IF RECNO() % 3 == 0
+      IF RECNO() % 3 == 0 .AND. DELETED()
          ii++
       ENDIF
       DbSkip( 1 )
    ENDDO
-   ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "seconds", IIF( ii > 0, "( Ok )", "FAIL!" )
+   ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "seconds", IIF( ii == nDeleted, "( Ok )", "FAIL!" )
+   LETO_SETSKIPBUFFER( 21 )
 
    ? "( amount of buffered SKIPs: " + STR( LETO_SETSKIPBUFFER(), 10, 0 ) + " )"
-#ifdef __MEMIO__
+#ifdef __MEM_IO__
    IF RDDSETDEFAULT() == "LETO"
       ? "determine maximum request-rate ... "
       ii := 0

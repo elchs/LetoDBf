@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-10 10:57 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/server/letofunc.c
+    ! very serious ! silly bug fix about locking, Thanks! goes to Nenad
+    ; can someone send him a medallion ?
+
+  * tests/test_mem.prg
+    + including test about above fix
 
 2016-12-09 16:55 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * Readme.txt
@@ -24,11 +31,11 @@
   * letodbaddon.hbp
     - remove splice test
 
-  * source/server/letofunc.c    
+  * source/server/letofunc.c
   * source/server/leto_2.c
-  * source/client/letocl.c  
+  * source/client/letocl.c
   * source/client/letol.c
-    * correct clang warnings   
+    * correct clang warnings
 
 2016-12-09 12:42 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/letofunc.c

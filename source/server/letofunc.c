@@ -5056,7 +5056,6 @@ static HB_BOOL leto_RecLock( PUSERSTRU pUStru, PAREASTRU pAStru, HB_ULONG ulRecN
 
    if( pTStru->pGlobe->bLocked )  /* client have to release a file lock beforehand */
       return HB_FALSE;
-
    else if( ! pTStru->bShared )  /* exclusive opened */
       return HB_TRUE;
 
@@ -5714,8 +5713,15 @@ HB_FUNC( LETO_RECLOCK )
             SELF_RECNO( pArea, &ulRecNo );
       }
       if( ulRecNo )
-         hb_retl( leto_RecLock( pUStru, pAStru, ulRecNo, HB_ISLOG( 3 ) ? hb_parl( 3 ) : HB_FALSE,
-                  HB_ISNUM( 2 ) ? ( int ) ( hb_parnd( 2 ) * 1000 ) : 0 ) );
+      {
+         HB_BOOL bAppend = HB_ISLOG( 3 ) ? hb_parl( 3 ) : HB_FALSE;
+
+         if( bAppend && ! pAStru-> bLocked )
+            hb_retl( leto_RecLock( pUStru, pAStru, ulRecNo, bAppend,
+                     HB_ISNUM( 2 ) ? ( int ) ( hb_parnd( 2 ) * 1000 ) : 0 ) );
+         else
+            hb_retl( HB_TRUE );
+      }
       else
          hb_retl( HB_FALSE );
    }
@@ -5728,7 +5734,7 @@ HB_FUNC( LETO_RECLOCKLIST )
 {
    PUSERSTRU pUStru = letoGetUStru();
 
-   if( pUStru->pCurAStru && HB_ISARRAY( 1 ) && ! leto_IsServerLock( pUStru ) )
+   if( pUStru->pCurAStru && ! pUStru->pCurAStru->bLocked && HB_ISARRAY( 1 ) && ! leto_IsServerLock( pUStru ) )
    {
       PAREASTRU pAStru = pUStru->pCurAStru;
       PHB_ITEM  pArray = hb_param( 1, HB_IT_ARRAY );
@@ -5953,7 +5959,7 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
                // pAStru->pTStru->pGlobe->ulRecCount++;
                if( pRecNo )
                   *pRecNo = ulRecNo;
-               if( ! leto_RecLock( pUStru, pAStru, ulRecNo, bAppend, 0 ) )
+               if( ! pAStru->bLocked && ! leto_RecLock( pUStru, pAStru, ulRecNo, bAppend, 0 ) )
                {
                   /* this commonly can not happen, above append was succcessful,
                    * and we only register record-number in list */
@@ -9507,9 +9513,10 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
             if( pTA[ i ].bAppend )
             {
                hb_rddSetNetErr( HB_FALSE );
-               SELF_APPEND( pArea, HB_TRUE );  /* unlocks all other records */
-               //SELF_RECNO( pArea, &pTA[ i ].ulRecNo );
-               pTA[ i ].ulRecNo = ( ( DBFAREAP ) pArea )->ulRecNo;
+               /* ToFix: what if ! HB_SUCCESS ? */
+               SELF_APPEND( pArea, HB_FALSE );  /* changed: unlocks no other records */
+               SELF_RECNO( pArea, &pTA[ i ].ulRecNo );
+               //pTA[ i ].ulRecNo = ( ( DBFAREAP ) pArea )->ulRecNo;
                //pUStru->pCurAStru->pTStru->pGlobe->ulRecCount++;
 
                for( i1 = 0; i1 < iAppended; i1++ )
