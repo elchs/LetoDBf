@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-11 11:21 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/server/letofunc.c
+    % mutex lock the list one time before the loop, not for each item
+    % redundant 'else' condition
+
+  * Readme.txt
+    * more corrections, improvements
+    ; more may follow, ToDo: convert to a MD
+
 2016-12-10 21:21 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/letofunc.c
     ! if not to be unlocked, registering append locks must happen even not

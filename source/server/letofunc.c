@@ -3242,6 +3242,8 @@ static HB_BOOL leto_TableUnlock( PAREASTRU pAStru, HB_BOOL bOnlyRecLocks, AREAP 
             PLETO_LOCK_ITEM pLockA;
             PHB_ITEM        pLock = NULL;
 
+            letoListLock( &pAStru->pTStru->LocksList );
+
             /* note: ever the first in list is removed, until emty */
             do
             {
@@ -3249,10 +3251,12 @@ static HB_BOOL leto_TableUnlock( PAREASTRU pAStru, HB_BOOL bOnlyRecLocks, AREAP 
                {
                   pLock = hb_itemPutNL( pLock, pLockA->ulRecNo );
                   SELF_UNLOCK( pArea, pLock );
-                  letoDelRecFromListTS( &pAStru->pTStru->LocksList, pLockA->ulRecNo );
+                  letoDelRecFromList( &pAStru->pTStru->LocksList, pLockA->ulRecNo );
                }
             }
             while( pAStru->pTStru->LocksList.pItem );
+
+            letoListUnlock( &pAStru->pTStru->LocksList );
             if( pLock )
                hb_itemRelease( pLock );
          }
@@ -3266,6 +3270,7 @@ static HB_BOOL leto_TableUnlock( PAREASTRU pAStru, HB_BOOL bOnlyRecLocks, AREAP 
             PLETO_LOCK_ITEM pLockA = ( PLETO_LOCK_ITEM ) pAStru->LocksList.pItem;
             PHB_ITEM        pLock = NULL;
 
+            letoListLock( &pAStru->pTStru->LocksList );
             while( pLockA )
             {
                if( bRealLock )
@@ -3273,9 +3278,10 @@ static HB_BOOL leto_TableUnlock( PAREASTRU pAStru, HB_BOOL bOnlyRecLocks, AREAP 
                   pLock = hb_itemPutNL( pLock, pLockA->ulRecNo );
                   SELF_UNLOCK( pArea, pLock );
                }
-               letoDelRecFromListTS( &pAStru->pTStru->LocksList, pLockA->ulRecNo );
+               letoDelRecFromList( &pAStru->pTStru->LocksList, pLockA->ulRecNo );
                pLockA = pLockA->pNext;
             }
+            letoListUnlock( &pAStru->pTStru->LocksList );
 
             if( pLock )
                hb_itemRelease( pLock );
@@ -5102,7 +5108,7 @@ static HB_BOOL leto_RecLock( PUSERSTRU pUStru, PAREASTRU pAStru, HB_ULONG ulRecN
 
       return ! bWasLocked;
    }
-   else if( ! ( ! s_bNoSaveWA && pTStru->pGlobe->bLocked ) )  /* file locked not by myself */
+   else
    {
       /* Add a record number (ulRecNo) to the area's and table's
        * locks lists (pAStru->pLocksPos)
@@ -5147,8 +5153,6 @@ static HB_BOOL leto_RecLock( PUSERSTRU pUStru, PAREASTRU pAStru, HB_ULONG ulRecN
       /* The record is locked by another user/area, so we return an error */
       return ! bWasLocked;
    }
-   else
-      return HB_FALSE;
 }
 
 static void leto_RecUnlock( PAREASTRU pAStru, HB_ULONG ulRecNo )

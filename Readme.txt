@@ -69,48 +69,53 @@ A. Internals
 
       2. Building binaries
 
- The letodb server and client library can be compiled only by the Harbour compiler >= V3.0.
- It is strong recommended to download and build Harbour from the fresh 3.2 source:
-    git clone https://github.com/harbour/core.git
- For this you need your C-Compiler used for Harbour in your OS search path.
- Or to use latest binary package:
-    https://sourceforge.net/projects/harbour-project/files/
- Follow the instructions found with Harbour.
+ Get an build the fantastic Harbour:
+    The letodb server and client library can be compiled only by the Harbour compiler >= V3.0.
+    It is strong recommended to download and build Harbour from the fresh 3.2 source:
+       git clone https://github.com/harbour/core.git
+    For this you need your C-Compiler used for Harbour in your OS search path.
+    Or to use latest binary package:
+       https://sourceforge.net/projects/harbour-project/files/
+    Follow the instructions found with Harbour.
 
- Then download latest source of LetoDBf:
-    git clone https://github.com/elchs/LetoDBf.git
- and change into the root directory of download/ package.
+ Get latest source of LetoDBf
+    with GIT:
+       git clone https://github.com/elchs/LetoDBf.git
+    or as ZIP package at:
+       https://github.com/elchs/LetoDBf
+    and change in command window into the the root directory of download package.
 
 
       2.1 building letodb with hbmk2, for all C compilers
 
- Hbmk2 is a 'make' tool developed and provided by Viktor Szakats to the Harbour team.
+ Server itself:
+    letodb.hbp is ready configured server for Windows and Linux daemon,
+    letodbsvc.hbp is ready configured server for use as Windows service.
+    -- Windows service  hbmk2 letodbsvc
+    -- all other OS     hbmk2 letodb
 
- letodb.hbp is ready configured server for Windows and Linux daemon,
- letodbsvc.hbp is ready configured server for use as Windows service.
-
- -- all              hbmk2 rddleto
- -- Windows service  hbmk2 letodbsvc
- -- all other        hbmk2 letodb
-
- Recommended: integrate LetoDbf client library into your Harbour environment as an 'addon':
- -- all    :         hbmk2 rddletoaddon
- If you have 'installed' Harbour, you need root rights to also install LetoDBf as addon:
- -- Linux  :         sudo hbmk2 rddletoaddon
+ Client library:
+    -- all OS:          hbmk2 rddleto
+ Recommended is to integrate LetoDbf client library into your Harbour environment as an 'addon':
+    If Linux user have 'installed' Harbour, you need root rights to also install LetoDBf as 'addon':
+    -- Linux:           sudo hbmk2 rddletoaddon
+    -- all OS:          hbmk2 rddletoaddon
 
  Resulting server executable will be found in the "bin" directory, library will be in "lib".
  In the "bin" directory is also the "letodb.ini" file to configure the server.
 
- After successful build as addon, you can compile your applications using Harbour .hbc file:
-                     hbmk2 your_application letodb.hbc
+ After successful build as 'addon', you can compile *at any place* your applications with:
+    hbmk2 your_application letodb.hbc
+ else you have to point to the "letodb.hbc", example out of a sub-directory in LetoDBf:
+    hbmk2 your_application ../letodb.hbc
 
  For first testing purpose it is recommended to let the server executable remain in the "bin"
- directory of your downloaded LetoDBf package.
-
- To install LetoDBf into your OS system search paths:
- -- Windows          hbmk2 letodbaddon.hbp
- -- Linux  :         sudo hbmk2 letodbaddon.hbp
- Then server executable goes into the place, where the Harbour executable directory is.
+ directory of your LetoDBf package.
+ To install LetoDBf server into your OS system search paths:
+ -- Linux with Harbour 'installed':
+                        sudo hbmk2 letodbaddon.hbp
+ -- all OS:             hbmk2 letodbaddon.hbp
+ Then the server executable goes into the place, where the Harbour executable directory is.
  In Windows the letodb.ini goes also into same place, in Linux it goes into: "/etc",
  where you need root rights to change config options.
  ! Installing LetoDBf needs to outcomment and adjust the <LogPath> in letodb.ini !
@@ -119,6 +124,7 @@ A. Internals
 
       2.2 Borland Win32 C++ compiler
       2.3 MS Visual C compiler
+
  For these both exists a make_b32.bat and a make_vc.bat. Look into, maybe adapt paths.
  You will know what to do, are on your own. I use them only for sporadic tests.
 
@@ -151,14 +157,13 @@ A. Internals
       3.2  Run as Windows@ service
 
  For use as "Windows service" server must be compiled as Windows service, see 2.1
- To install LetoDbf as service, the executable must be places in a directory covered by OS system
- search paths to be found from any place.
- Then run letodb with 'install' parameter:
+ To install LetoDbf as service, the executable must be placed in a directory covered by the OS
+ system search paths to be found from any place. Then run letodb with 'install' parameter:
       letodb.exe install
 
- Verify letodbf.log that the service was successful installed.
- With next Windows start, or after manually with the service management, LetoDBf server shell
- be active. Look again into log file.
+ Verify in letodbf.log that the service was successful installed.
+ With next Windows start, or after manually with the service management, LetoDBf server shell be active.
+ Look again into log file.
 
  To deinstall service, run letodb with 'uninstall' parameter:
       letodb.exe uninstall
@@ -170,10 +175,14 @@ A. Internals
       4.1 letodb.ini
 
  In Windows environment the letodb.ini config file must be placed in directory of server executable.
- In Linux the server looks for it in directory "/etc", if not found there then into the directory
- of server executable.
+ In Linux the server looks for it in directory "/etc", if not found there then in the directory of
+ server executable.
  This file is only read once with starting LetoDBf, after changes therein you have to restart the server
- to let them get active.
+ to let it get active.
+
+ Really important options commonly only are: DataPath, LogPath, Share_Tables, No_Save_WA,
+ LetoDBf newbies then continue reading with section: 5. How to work with the LetoDBf server,
+ and come some days later experienced back to look in 4.x sections what else all is possible.
 
  Currently following parameters exists ( default values are designated ).
 
@@ -196,10 +205,35 @@ A. Internals
                                     File letodbf.log for the main server will contain some info from settings
                                     at server starttime, plus info about new connected and disconneted clients
                                     if config option <DEBUG> level is greater zero [ 0 ].
+      Share_Tables = 0         -    if 0 [ default ], LetoDB opens all tables in an exclusive mode,
+                                    what leads to significant performance increase.
+                                    If 1, tables are opened in the same mode [shared/exclusive] as client
+                                    applications opened them, what allows LetoDB to work in coexistence with
+                                    other applications [ non LetoDB users ] simultanous on the same DBF tables.
+      No_Save_WA = 0           -    When this mode is set to '1', each dbUseArea() will cause a real file open
+                                    operation and creating workareas on the server with same workarea settings
+                                    as at client [ WA number, alias, filter conditions, relations ]
+                                    ( in default mode '0' each file is opened only one time and have only one
+                                    virtual workarea for all users -- no relations at server are active, Alias
+                                    names at server internally different ).
+                                    When set to '1', it is also combined with "Share_Tables" setting, where
+                                    "Share_Tables = 1" signalizes LetoDB that there will be 3rd party
+                                    [non LetoDBf application] simultanous access to DBF tables.
+                                    With "Share_Tables = 0" some internal performance increasing shortcuts
+                                    are done.
+                                    Choose this to '1', if you plan to execute server side UDF functions.
                                     Each connection will get an own log file [ if DEBUG level is increased ].
-      Default_Driver = CDX     -    default RDD to open files on server ( CDX/ NTX )
+      Default_Driver = CDX     -    default RDD to open DBF tables in at server ( possible: CDX/ NTX )
+                                    Then the server by default uses DBFCDX or DBFNTX RDD.
                                     Can on demand changed by client with function: leto_DbDriver().
+      Cache_Records            -    The default number of records to be read into the client read cache,
+                                    used for skipping etc without new requesting the server.
+                                    Records are valid at client as long as the hotbuffer timeout.
+                                    Default is 10, minimum is 1 (slow performance), good values are 10 - 50,
+                                    theoretical ! maximum 65535. Adapt for performance in your environment.
+                                    Can be set for specific tables and occasions with leto_SetSkipBuffer().
       Lock_Scheme = 0          -    If > 0, extended locking scheme will be used by server.
+                                    * This is only needed, if your DBF will be greater in size as 1 GB. *
                                     Then DB_DBFLOCK_HB32 will be used for NTX/CDX;
                                     _or_ if set to 6, DB_DBFLOCK_CLIPPER2 for NTX, HB32 for other
                                     _or_ if set to 2, DB_DBFLOCK_COMIX for CDX, HB32 for other.
@@ -221,29 +255,6 @@ A. Internals
                                     e.g. run the monitor console [ Leto_mggetinfo() ]
       Pass_for_Data = 0        -    if 1, user authentication is necessary to have write access to the data;
       Pass_File = "leto_users" -    the path and name of users info file;
-      Share_Tables = 0         -    if 0 [ default ], LetoDB opens all tables in an exclusive mode,
-                                    what leads to significant performance increase.
-                                    If 1, tables are opened in the same mode [shared/exclusive] as client
-                                    applications opened them, what allows LetoDB to work in coexistence with
-                                    other applications [ non LetoDB users ] simultanous on the same DBF tables.
-      No_Save_WA = 0           -    When this mode is set to '1', each dbUseArea() will cause a real file open
-                                    operation and creating workareas on the server with same workarea settings
-                                    as at client [ WA number, alias, filter conditions, relations ]
-                                    ( in default mode '0' each file is opened only one time and have only one
-                                    virtual workarea for all users -- no relations at server are active, Alias
-                                    names at server internally different ).
-                                    When set to '1', it is also combined with "Share_Tables" setting, where
-                                    "Share_Tables = 1" signalizes LetoDB that there will be 3rd party
-                                    [non LetoDBf application] simultanous access to DBF tables.
-                                    With "Share_Tables = 0" some internal performance increasing shortcuts
-                                    are done.
-                                    Choose this to '1', if you plan to execute server side UDF functions.
-      Cache_Records            -    The number of records to read into the client read cache,
-                                    used for skipping etc without new requesting the server.
-                                    Records are valid at client as long as the hotbuffer timeout.
-                                    Default is 10, minimum is 1 (slow performance), good values are 10 - 50,
-                                    theoretical ! maximum 65535. Adapt for performance in your environment.
-                                    Can be set for specific tables and occasions with leto_SetSkipBuffer().
       Max_Vars_Number = 1000   -    Maximum number of shared variables
       Max_Var_Size = 67108864  -    Maximim size in sum of all text/ array variables, default 64 MB.
                                     A single text/ array variable is allowed to be a quarter of that ( 16 MB )
@@ -313,8 +324,7 @@ A. Internals
                                     If set to 0 [ default ], these checks are diabled.
 
 
-
-      4.2  Different Server setups
+      4.2  Different Server compile setups/ extensions
 
       4.2.1 UDF support
 
@@ -436,14 +446,16 @@ A. Internals
  all new files will be created in <DataPath>
  The filenames can have optional OS dependent leading '\' or '/', example: /mydbf.dbf, it will be
  internally cut away.
- All path separators in your filemnames are converted by LetoDBf server internal to the needed one,
- no need to take care about. Use "\" or "/" is equal to it.
+ All path separators in your filenames are converted by LetoDBf server internal to the needed one,
+ you need not to take care about. Use of "\" or "/" is equal.
 
 
- The other, not recommended way because of not being portable, is to open a DBF table is the
- 'on the fly' method by adding IP-address/ port number and relative path to Harbours 'USE' command,
+ The other, not recommended way because of not being portable, is to open a DBF table with the
+ 'on the fly' method by adding IP-address[:port] plus relative path to Harbours 'USE' command,
  example:
        USE "//192.168.5.22:2812/mydir/test"
+ will open file in:
+       [drive:]\path\to\data_diretory\mydir\test.dbf.
 
 
       5.2 Filters
