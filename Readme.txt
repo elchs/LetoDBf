@@ -46,6 +46,7 @@ Contents
    8.1 Server Management utility
    8.2 Uhura
 9. Server-side functions
+10,Differences to original LetoDB/ Harbour
 A. Internals
 
 
@@ -646,10 +647,10 @@ A. Internals
       7.3 Additional functions for current workarea
 
       LETO_COMMIT()
- This function can be used for current workarea instead of calls:  dbCommit(); dbUnlock()
- The client sends to the server 3 packages: for record updating on the server, for commit record
- and unlocking record. Leto_Commit sends only one package for all these operations.
- A file-lock is left active, only record locks are unlocked.
+
+ Deprecated.
+ But functionality is still there, it is what a common DbCommit() does.
+ It is even allowed to be used during transactions.
 
       LETO_DBEVAL( [ <cBlock> ], [ <cFor> ], [ <cWhile> ], [ nNext ], [ nRecord ], [ lRest ] )
                                                                ==>aResults
@@ -1312,6 +1313,14 @@ A. Internals
  ! see explanations for purpose at client side function leto_VarGetCached() !
 
 
+      10. Different behaviour to LetoDB/ Harbour
+
+ There are not much, or better shell not be, differences.
+ One worth to mention: LetoDBf will strictly refuse to overwrite an used table, which is basically
+ else possible. But against that is taken extra protection.
+
+
+-------------
 
       A. Some Internals
 
@@ -1336,6 +1345,35 @@ A. Internals
  for the positive 'ACK', can immediate proceed and also network traffic is avoided.
  But the client will not miss such a negative 'NO-ACK': in such case a runtime error message will
  pop up 'delayed' with the known Harbour error handling system at client/ user side.
+
+
+ Or in my other words:
+ ( https://groups.google.com/forum/#!topic/harbour-users/q_ZqmOB6Sns )
+ In the classic 'client-server' model, the client send a request and receives a response from server
+ - at any time. Each of these request/response need a whole 'package' to be send, even commonly less 
+ filled with just a few bytes instead max possible ~ 1500 Bytes.
+ The amount of packages per timespan is limited, so despite fullspeed communication you see less
+ network traffic.
+
+ There is a group of requests, for which the server send an 'ACK' aka: done!
+ This touches the package limit and further the client have to wait for it.
+ Best example: update data, aka: REPLACE .. WITH .., lead to billions of ducky ACK ACK ACK to wait for
+ after each update request. :-)  So i wanted to spare the ACK, but *not to miss* the very rare NO!-ACK.
+ ( example in case: when record not locked )
+
+ Solution: the client open a second socket to server, at which a second thread is waiting for incoming
+ info ( reverse the first socket, where the server is waiting for incoming )
+ So the server do not send an ACK, but only in case of problem a NO!-ACK to this second socket.
+ The second thread at client receives it, and prepares a mutex secured 'global' error object.
+ This is checked by the first thread for not empty, after each send request ( and when going idle mode ).
+ In case of a filled error object, first main thread let runtime error system pops up with that.
+ This i named the 'delayed' error :-)
+
+ Summa: this lead to a significant performance increase, as client can push out all these 'data update'
+ requests ( and some other request like UNlock, etc ), one after another without delay for the ACK,
+ nice filling the queue at server. In case the client have no MultiThread capability, no second socket
+ is opened, the server acts 'classic' for this connection, makes ACK ACK ACK :-)
+
 
  Requesting and detaching workareas: many other server, also HbNetIO, will open a DBF table again for each
  connection after user command: DbUseArea(). Detaching an opened workarea means, it is at server side 'closed'

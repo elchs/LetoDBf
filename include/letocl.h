@@ -232,6 +232,7 @@ typedef struct _LETOCONNECTION_
    TRANSACTWA *      pTransAppend;         /* WA used for transaction append */
    HB_USHORT         uiTransAppend;        /* count of WA for append */
    HB_USHORT         uiTransAppLen;        /* allocated for WA for append */
+   HB_ULONG          ulTransLockErr;       /* temporary eperimental */
    HB_BOOL           fRefreshCount;
    HB_BOOL           fBufKeyNo;
    HB_BOOL           fBufKeyCount;
@@ -290,7 +291,7 @@ HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo );
 HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable );
 HB_ERRCODE LetoDbGoBottom( LETOTABLE * pTable );
 HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip );
-HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit );
+HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable );
 HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, const char * szValue, unsigned long ulLenMemo );
 HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll );
 HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const char * szTag, const char * szKey, unsigned int uiFlags, const char * szFor, const char * szWhile, unsigned long ulNext );

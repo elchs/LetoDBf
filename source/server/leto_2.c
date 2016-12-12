@@ -174,8 +174,6 @@ static void leto_CommandDescInit( void )
 
    /* a - z + more */
    s_szCmdSetDesc[ LETOCMD_add     - LETOCMD_OFFSET ] = "append";
-   s_szCmdSetDesc[ LETOCMD_cmta    - LETOCMD_OFFSET ] = "commit_append";
-   s_szCmdSetDesc[ LETOCMD_cmtu    - LETOCMD_OFFSET ] = "commit_update";
    s_szCmdSetDesc[ LETOCMD_dbi     - LETOCMD_OFFSET ] = "dbinfo";
    s_szCmdSetDesc[ LETOCMD_dboi    - LETOCMD_OFFSET ] = "dborderinfo";
    s_szCmdSetDesc[ LETOCMD_flush   - LETOCMD_OFFSET ] = "flush";

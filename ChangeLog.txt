@@ -2,6 +2,23 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-12 23:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * include/cmdleto.h
+  * include/letocl.h
+  * source/client/let1.c
+  * source/client/letol.c
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+    - removing the LETO_COMMIT() hack, LetoDBf does not benefit, maybe is
+      even faster without: will send out data-update, unlock, flush and wait
+      for none of these requests for the server ACK
+    ; 'command' itself is still there!, can be even called during transactions
+    ; removal cleans up functions which are very complex by its nature,
+      and belong to the most called ones.
+
+  * Readme.txt
+    * tiny note about about, other mods
+
 2016-12-12 17:08 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/client/letol.c
     ! revert cleaning the buffers, as it is only searched in limit to formerly

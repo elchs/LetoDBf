@@ -5917,7 +5917,7 @@ static void leto_Unlock( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppend, HB_ULONG * pRecNo, TRANSACTSTRU * pTA, HB_BOOL bCommit, AREAP pArea )
+static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppend, HB_ULONG * pRecNo, TRANSACTSTRU * pTA, AREAP pArea )
 {
    PAREASTRU    pAStru = pUStru->pCurAStru;
    int          iRes = 0;
@@ -5979,8 +5979,13 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
       }
       else
       {
+#if 0
          if( ( ! pTA || ulRecNo ) && pAStru->pTStru->bShared &&
             ! ( pAStru->bLocked || leto_IsRecLocked( pAStru, ulRecNo ) ) )
+#else
+         if( ulRecNo && ! pTA && pAStru->pTStru->bShared &&
+             ! ( pAStru->bLocked || leto_IsRecLocked( pAStru, ulRecNo ) ) )
+#endif
          {
             /*  The table is opened in shared mode, but the record/ table is not locked */
             if( ! pTA )
@@ -6343,31 +6348,12 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
          if( pUStru->iHbError )
             iRes = 101;
       }
-
-      if( bCommit && ! iRes )
-      {
-         /* note: removed hb_xvmSeqBegin() */
-         if( SELF_FLUSH( pArea ) != HB_SUCCESS )
-            iRes = 101;
-         pAStru->bUseSkipBuffer = HB_FALSE;
-
-         if( ! iRes )
-         {
-            if( ! leto_TableUnlock( pAStru, HB_TRUE, pArea ) )  /* changed -- not remove also a file lock */
-            {
-               if( s_iDebugMode > 0 )
-                  leto_wUsLog( pUStru, 0, "ERROR commit action - table not unlocked" );
-            }
-         }
-         else if( s_iDebugMode > 0 )
-            leto_wUsLog( pUStru, 0, "ERROR commit action - SELF_FLUSH() failed" );
-      }
    }
 
    return iRes;
 }
 
-static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppend, HB_BOOL bCommit )
+static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppend )
 {
    const char * pData;
    char         szData1[ 24 ];
@@ -6382,7 +6368,7 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
    }
    else  /* ToDo ? when server is locked */
    {
-      iRes = leto_UpdateRecord( pUStru, szData, bAppend, &ulRecNo, NULL, bCommit, NULL );
+      iRes = leto_UpdateRecord( pUStru, szData, bAppend, &ulRecNo, NULL, NULL );
       switch( iRes )
       {
          case 0:
@@ -6468,22 +6454,12 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
 
 static void leto_UpdateRecAdd( PUSERSTRU pUStru, const char * szData )
 {
-   leto_UpdateRec( pUStru, szData, HB_TRUE, HB_FALSE );
+   leto_UpdateRec( pUStru, szData, HB_TRUE );
 }
 
 static void leto_UpdateRecUpd( PUSERSTRU pUStru, const char * szData )
 {
-   leto_UpdateRec( pUStru, szData, HB_FALSE, HB_FALSE );
-}
-
-static void leto_UpdateRecMta( PUSERSTRU pUStru, const char * szData )
-{
-   leto_UpdateRec( pUStru, szData, HB_TRUE, HB_TRUE );
-}
-
-static void leto_UpdateRecMtu( PUSERSTRU pUStru, const char * szData )
-{
-   leto_UpdateRec(  pUStru, szData, HB_FALSE, HB_TRUE );
+   leto_UpdateRec( pUStru, szData, HB_FALSE );
 }
 
 static PHB_ITEM leto_KeyToItem( AREAP pArea, const char * ptr, int iKeyLen, const char * pOrder, char cKeyType )
@@ -9469,10 +9445,10 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
                   switch( ptr[ 0 ] )
                   {
                      case LETOCMD_upd:
-                        iRes = leto_UpdateRecord( pUStru, ptrPar, HB_FALSE, NULL, &pTA[ i ], HB_FALSE, pArea );
+                        iRes = leto_UpdateRecord( pUStru, ptrPar, HB_FALSE, NULL, &pTA[ i ], pArea );
                         break;
                      case LETOCMD_add:
-                        iRes = leto_UpdateRecord( pUStru, ptrPar, HB_TRUE, NULL, &pTA[ i ], HB_FALSE, pArea );
+                        iRes = leto_UpdateRecord( pUStru, ptrPar, HB_TRUE, NULL, &pTA[ i ], pArea );
                         bTransWithAppend = HB_TRUE;
                         break;
                      case LETOCMD_memo:
@@ -13891,8 +13867,6 @@ void leto_CommandSetInit()
 
    /* a - z + more */
    s_cmdSet[ LETOCMD_add     - LETOCMD_OFFSET ] = &leto_UpdateRecAdd;
-   s_cmdSet[ LETOCMD_cmta    - LETOCMD_OFFSET ] = &leto_UpdateRecMta;
-   s_cmdSet[ LETOCMD_cmtu    - LETOCMD_OFFSET ] = &leto_UpdateRecMtu;
    s_cmdSet[ LETOCMD_dbi     - LETOCMD_OFFSET ] = &leto_Info;
    s_cmdSet[ LETOCMD_dboi    - LETOCMD_OFFSET ] = &leto_OrderInfo;
    s_cmdSet[ LETOCMD_flush   - LETOCMD_OFFSET ] = &leto_Flush;

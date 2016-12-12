@@ -299,9 +299,9 @@ static HB_BOOL leto_CheckError( LETOAREAP pArea )
       return HB_FALSE;
 }
 
-static _HB_INLINE_ void leto_PutRec( LETOAREAP pArea, HB_BOOL fCommit )
+static _HB_INLINE_ void leto_PutRec( LETOAREAP pArea )
 {
-   if( LetoDbPutRecord( pArea->pTable, fCommit ) != 0 )
+   if( LetoDbPutRecord( pArea->pTable ) != 0 )
    {
       if( LetoGetError() == 1000 )
          commonError( pArea, EG_DATATYPE, LetoGetError(), 0, NULL, 0, NULL );
@@ -427,7 +427,7 @@ static HB_ERRCODE letoGoBottom( LETOAREAP pArea )
 
    pArea->lpdbPendingRel = NULL;
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( LetoDbGoBottom( pTable ) )
       return HB_FAILURE;
@@ -454,7 +454,7 @@ static HB_ERRCODE letoGoTo( LETOAREAP pArea, HB_ULONG ulRecNo )
 
    pArea->lpdbPendingRel = NULL;
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( LetoDbGoTo( pTable, ( unsigned long ) ulRecNo ) )
       return HB_FAILURE;
@@ -489,7 +489,7 @@ static HB_ERRCODE letoGoTop( LETOAREAP pArea )
 
    pArea->lpdbPendingRel = NULL;
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( LetoDbGoTop( pTable ) )
       return HB_FAILURE;
@@ -647,7 +647,7 @@ static HB_ERRCODE letoSeek( LETOAREAP pArea, HB_BOOL fSoftSeek, PHB_ITEM pKey, H
 
    pArea->lpdbPendingRel = NULL;
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( ! pTagInfo )
    {
@@ -707,7 +707,7 @@ static HB_ERRCODE letoSkipRaw( LETOAREAP pArea, HB_LONG lToSkip )
 
    pArea->lpdbPendingRel = NULL;
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( LetoDbSkip( pTable, lToSkip ) == HB_SUCCESS )
       leto_SetAreaFlags( pArea );
@@ -746,14 +746,14 @@ static void leto_AddRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
    /* [re-]allocate locks array for the table */
    if( ! pTable->pLocksPos )
    {
-      pTable->ulLocksAlloc = 10;
+      pTable->ulLocksAlloc = 64;
       pTable->pLocksPos = ( HB_ULONG * ) hb_xgrab( sizeof( HB_ULONG ) * pTable->ulLocksAlloc );
       pTable->ulLocksMax = 0;
    }
    else if( pTable->ulLocksMax == pTable->ulLocksAlloc )
    {
-      pTable->pLocksPos = ( HB_ULONG * ) hb_xrealloc( pTable->pLocksPos, sizeof( HB_ULONG ) * ( pTable->ulLocksAlloc + 10 ) );
-      pTable->ulLocksAlloc += 10;
+      pTable->pLocksPos = ( HB_ULONG * ) hb_xrealloc( pTable->pLocksPos, sizeof( HB_ULONG ) * ( pTable->ulLocksAlloc + 64 ) );
+      pTable->ulLocksAlloc += 64;
    }
 
    /* search if already registered */
@@ -783,7 +783,7 @@ static HB_ERRCODE letoAppend( LETOAREAP pArea, HB_BOOL fUnLockAll )
    pArea->lpdbPendingRel = NULL;
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
    pArea->area.fBof = pArea->area.fEof = pArea->area.fFound = HB_FALSE;
 
    if( LetoDbAppend( pTable, fUnLockAll ) )
@@ -899,7 +899,7 @@ static HB_ERRCODE letoFlush( LETOAREAP pArea )
    HB_TRACE( HB_TR_DEBUG, ( "letoFlush(%p)", pArea ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( ! letoGetConnPool( pTable->uiConnection )->fTransActive )
    {
@@ -1933,7 +1933,7 @@ static HB_ERRCODE letoRecNo( LETOAREAP pArea, HB_ULONG * ulRecNo )
    HB_TRACE( HB_TR_DEBUG, ( "letoRecNo(%p, %p)", pArea, ulRecNo ) );
 
    if( pTable->uiUpdated & LETO_FLAG_UPD_APPEND )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( pArea->lpdbPendingRel )
    {
@@ -1991,7 +1991,7 @@ static HB_ERRCODE letoClose( LETOAREAP pArea )
    HB_TRACE( HB_TR_DEBUG, ( "letoClose(%p)", pArea ) );
 
    if( pTable && pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    pArea->lpdbPendingRel = NULL;
    if( pTable )
@@ -2767,7 +2767,7 @@ static HB_ERRCODE letoPack( LETOAREAP pArea )
    HB_TRACE( HB_TR_DEBUG, ( "letoPack(%p)", pArea ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( letoGetConnPool( pTable->uiConnection )->fTransActive )
    {
@@ -2894,7 +2894,7 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
    }
 
    if( pAreaDst->pTable->uiUpdated )
-      leto_PutRec( pAreaDst, HB_FALSE );
+      leto_PutRec( pAreaDst );
 
    ulLen = 82 + LETO_MAX_TAGNAME +
            hb_itemGetCLen( pTransInfo->dbsci.lpstrFor ) +
@@ -2928,7 +2928,7 @@ static HB_ERRCODE letoZap( LETOAREAP pArea )
    HB_TRACE( HB_TR_DEBUG, ( "letoZap(%p)", pArea ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( letoGetConnPool( pTable->uiConnection )->fTransActive )
    {
@@ -3148,7 +3148,7 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderListAdd(%p, %p)", pArea, pOrderInfo ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    szBagName = leto_RemoveIpFromPath( hb_itemGetCPtr( pOrderInfo->atomBagName ) );
 
@@ -3224,7 +3224,7 @@ static HB_ERRCODE letoOrderListClear( LETOAREAP pArea )  /* OrdListClear() */
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderListClear(%p)", pArea ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( pTagInfo )
    {
@@ -3282,7 +3282,7 @@ static HB_ERRCODE letoOrderListDelete( LETOAREAP pArea, LPDBORDERINFO pOrderInfo
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderListDelete(%p, %p)", pArea, pOrderInfo ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( ! pTagInfo )
       return HB_FAILURE;
@@ -3368,7 +3368,7 @@ static HB_ERRCODE letoOrderListFocus( LETOAREAP pArea, LPDBORDERINFO pOrderInfo 
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderListFocus(%p, %p)", pArea, pOrderInfo ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( HB_IS_STRING( pOrderInfo->itmOrder ) )
    {
@@ -3401,7 +3401,7 @@ static HB_ERRCODE letoOrderListRebuild( LETOAREAP pArea )
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderListRebuild(%p)", pArea ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( LetoDbReindex( pTable ) )
       return HB_FAILURE;
@@ -3424,7 +3424,7 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderCreate(%p, %p)", pArea, pOrderInfo ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    /* we need to transfer to server and use the compiled string expression
    * a possible CB in pOrderInfo->itmCobExpr doesn't matter */
@@ -3532,7 +3532,7 @@ static HB_ERRCODE letoOrderDestroy( LETOAREAP pArea, LPDBORDERINFO pOrderInfo ) 
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderDestroy(%p, %p)", pArea, pOrderInfo ) );
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( ! pTagInfo || ! pTable )
       return HB_FAILURE;
@@ -3914,7 +3914,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
 
             pArea->lpdbPendingRel = NULL;
             if( pTable->uiUpdated )
-               leto_PutRec( pArea, HB_FALSE );
+               leto_PutRec( pArea );
 
             ulLen = eprintf( szData, "%c;%lu;0%c;%s;%lu;", LETOCMD_ord, pTable->hTable,
                              ( uiIndex == DBOI_POSITION ? '5' : '9' ),
@@ -3963,7 +3963,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
 
          pArea->lpdbPendingRel = NULL;
          if( pTable->uiUpdated )
-            leto_PutRec( pArea, HB_FALSE );
+            leto_PutRec( pArea );
 
          ulLen = eprintf( szData, "%c;%lu;06;%s;%lu;%c;%lu;", LETOCMD_ord, pTable->hTable,
                           ( pTagInfo ) ? pTagInfo->TagName : "",
@@ -3995,7 +3995,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
       case DBOI_SKIPREGEXBACK:
          pArea->lpdbPendingRel = NULL;
          if( pTable->uiUpdated )
-            leto_PutRec( pArea, HB_FALSE );
+            leto_PutRec( pArea );
 
          if( pTagInfo && pOrderInfo->itmNewVal && HB_IS_STRING( pOrderInfo->itmNewVal ) )
          {
@@ -4359,7 +4359,7 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
       return HB_SUCCESS;  /* Harbour conform, better would be HB_FAILURE */
 
    if( pTable->uiUpdated )
-      leto_PutRec( pArea, HB_FALSE );
+      leto_PutRec( pArea );
 
    if( pArea->lpdbPendingRel )
    {
@@ -5208,7 +5208,7 @@ static HB_ERRCODE leto_UpdArea( AREAP pArea, void * p )
    if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) &&
        ( ( LETOAREAP ) pArea )->pTable->uiUpdated )
    {
-      leto_PutRec( ( LETOAREAP ) pArea, HB_FALSE );
+      leto_PutRec( ( LETOAREAP ) pArea );
    }
    return HB_SUCCESS;
 }
@@ -5535,7 +5535,7 @@ HB_FUNC( LETO_GROUPBY )
       LETOTABLE *      pTable = pArea->pTable;
 
       if( pTable->uiUpdated )
-         leto_PutRec( pArea, HB_FALSE );
+         leto_PutRec( pArea );
 
       szField = hb_parc( 2 );
       if( strchr( szField, ',' ) == NULL && ! hb_rddFieldIndex( ( AREAP ) pArea, szField ) )
@@ -5666,7 +5666,7 @@ HB_FUNC( LETO_SUM )
       LETOTABLE *      pTable = pArea->pTable;
 
       if( pTable->uiUpdated )
-         leto_PutRec( pArea, HB_FALSE );
+         leto_PutRec( pArea );
 
       szField = hb_parc( 1 );
       szFilter = HB_ISCHAR( 2 ) ? hb_parc( 2 ) : "";
@@ -5735,25 +5735,7 @@ HB_FUNC( LETO_COMMIT )
    LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
 
    if( leto_CheckArea( pArea ) )
-   {
-      LETOTABLE * pTable = pArea->pTable;
-
-      if( letoGetConnPool( pTable->uiConnection )->fTransActive )
-         commonError( pArea, EG_SYNTAX, 1031, 0, NULL, 0, NULL );
-      else if( pTable->uiUpdated )
-      {
-         leto_PutRec( pArea, HB_TRUE );
-         pTable->fFLocked = pTable->fRecLocked = HB_FALSE;
-         pTable->ulLocksMax = 0;
-      }
-      else
-      {
-         if( LetoDbCommit( pTable ) )
-            commonError( pArea, EG_SYNTAX, 1031, 0, NULL, 0, NULL );
-         if( letoUnLock( pArea, NULL ) == HB_FAILURE )
-            commonError( pArea, EG_SYNTAX, 1031, 0, NULL, 0, NULL );
-      }
-   }
+      hb_retni( letoFlush( pArea ) );
 }
 
 HB_FUNC( LETO_CONNECT_ERR )

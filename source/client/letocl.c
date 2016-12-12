@@ -415,17 +415,19 @@ static void leto_ClearTagInfos( LETOTABLE * pTable )
    pTable->pTagInfo = NULL;
 }
 
+/* search reversed as at least for transactions expected to be a lastly added one */
 static HB_BOOL leto_IsRecLocked( LETOTABLE * pTable, unsigned long ulRecNo )
 {
-   if( pTable->pLocksPos )
+   if( pTable->pLocksPos && pTable->ulLocksMax )
    {
-      unsigned long ul;
+      unsigned long ul = pTable->ulLocksMax - 1;
 
-      for( ul = 0; ul < pTable->ulLocksMax; ul++ )
+      do
       {
          if( pTable->pLocksPos[ ul ] == ulRecNo )
             return HB_TRUE;
       }
+      while( ul-- );
    }
    return HB_FALSE;
 }
@@ -1537,7 +1539,7 @@ static void leto_SetBlankRecord( LETOTABLE * pTable, unsigned int uiAppend )
 {
    if( uiAppend )
       pTable->ulRecNo = 0;  /* needed at server side for transactions to be zero*/
-   /* set all to space, revert below for binary fields to zero */
+   /* set all to white space, revert later for binary fields to '\0' */
    memset( pTable->pRecord, ' ', pTable->uiRecordLen );
    if( pTable->fHaveBinary )
    {
@@ -1715,6 +1717,11 @@ static void leto_AddTransList( LETOCONNECTION * pConnection, LETOTABLE * pTable 
          pConnection->pTransList = ( TRANSACTLIST * ) hb_xrealloc( pConnection->pTransList,
                                                                    sizeof( TRANSACTLIST ) * pConnection->ulTransListLen );
       }
+#if 0  // experimental verify
+      if( ! ( ! pTable->fShared || pTable->fFLocked || leto_IsRecLocked( pTable, pTable->ulRecNo ) ) )
+         pConnection->ulTransLockErr++;
+#endif
+
       pConnection->pTransList[ pConnection->ulRecsInList ].hTable = pTable->hTable;
       pConnection->pTransList[ pConnection->ulRecsInList ].ulRecNo = pTable->ulRecNo;
       pConnection->ulRecsInList++;
@@ -4061,7 +4068,7 @@ HB_EXPORT HB_ERRCODE LetoDbCommit( LETOTABLE * pTable )
    return HB_SUCCESS;
 }
 
-HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
+HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
    HB_BOOL       fAppend = ( pTable->uiUpdated & LETO_FLAG_UPD_APPEND );
@@ -4083,20 +4090,11 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
    hb_rddSetNetErr( HB_FALSE );
    if( fAppend )
    {
-      if( fCommit )
-         pData += eprintf( pData, "%c;%lu; %c;%d;", LETOCMD_cmta, pTable->hTable,
-                                                    ( pTable->uiUpdated & LETO_FLAG_UPD_UNLOCK ) ? '1' : '0', uiUpd );
-      else
-         pData += eprintf( pData, "%c;%lu;%c%c;%d;", LETOCMD_add, pTable->hTable, pTable->fHaveAutoinc ? '0' : ' ',
-                                                    ( pTable->uiUpdated & LETO_FLAG_UPD_UNLOCK ) ? '1' : '0', uiUpd );
+      pData += eprintf( pData, "%c;%lu;%c%c;%d;", LETOCMD_add, pTable->hTable, pTable->fHaveAutoinc ? '0' : ' ',
+                                                  ( pTable->uiUpdated & LETO_FLAG_UPD_UNLOCK ) ? '1' : '0', uiUpd );
    }
    else
-   {
-      if( fCommit )
-         pData += eprintf( pData, "%c;%lu;%lu;%d;", LETOCMD_cmtu, pTable->hTable, pTable->ulRecNo, uiUpd );
-      else
-         pData += eprintf( pData, "%c;%lu;%lu;%d;", LETOCMD_upd, pTable->hTable, pTable->ulRecNo, uiUpd );
-   }
+      pData += eprintf( pData, "%c;%lu;%lu;%d;", LETOCMD_upd, pTable->hTable, pTable->ulRecNo, uiUpd );
 
    *pData++ = ( pTable->uiUpdated & LETO_FLAG_UPD_DELETE ) ? ( ( pTable->fDeleted ) ? '1' : '2' ) : '0';
    *pData++ = ';';
@@ -4226,7 +4224,7 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
    ulLen = pData - szData - 4;
    leto_SetUpdated( pTable, LETO_FLAG_UPD_NONE );
 
-   if( pConnection->fTransActive && ! fCommit )
+   if( pConnection->fTransActive )
    {
       pData = leto_AddLen( szData + 4, &ulLen, HB_TRUE );  /* before */
       leto_AddTransBuffer( pConnection, pData, ulLen );
@@ -4300,7 +4298,7 @@ HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
    /* if pTable->fHaveAutoinc, autoincrement-values will be received in LetoDbPutRecord() */
    leto_SetBlankRecord( pTable, 1 );
 
-   if( ! LetoDbPutRecord( pTable, HB_FALSE ) )
+   if( ! LetoDbPutRecord( pTable ) )
       pTable->fRecLocked = HB_TRUE;
    else
       return 1;
