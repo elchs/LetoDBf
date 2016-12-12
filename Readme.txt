@@ -584,7 +584,7 @@ A. Internals
 
  !! Important !! -- during a transaction, aka after leto_BeginTransaction():
    # Recno() will be '0' after appending a blank record with e.g. DbAppend()
-   # it is explicitly forbidden to mix RLock() and FLock()
+   # it is explicitly forbidden to mix RLock() and FLock() FOR SAME WORKAREA
    # you can not unlock record or table ( e.g. NOT using DbUnlock() )
    # Transactions must start and end with a LETO RDD workarea active selected;
      this must be further the same LetoDBf server at start and end.
@@ -751,6 +751,9 @@ A. Internals
  //ip_address:port/%data_path%/[mem:]file_name.
  If the connection string is omitted, the currently active connection is used.
 
+      Leto_FError()                                            ==> nError
+ Returns an error code of last file function.
+ 
       Leto_File( cFileName )                                   ==> lFileExists
  Determine if file exist at the server, analog of File() function
 
@@ -781,9 +784,6 @@ A. Internals
 
       Leto_DirRemove( cPath )                                  ==> -1 if failed
  Deletes a directory at the server
-
-      Leto_FError()                                            ==> nError
- Returns an error code of last file function.
 
       Leto_FileRead( cFileName, nStart, nLen, @cBuf )          ==> -1 if failed
  Read a content of file at the server from <nStart> offset and max <nLen> length.

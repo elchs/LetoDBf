@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-12 05:05 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * Readme.txt
+    ! lock mixing only for same WA forbidden
+    * move Leto_Ferror to top of list
+
+  * source/client/letocl.c
+    * leto_Ferror() also for Leto_File()
+    ! quick dirty fix against client crash if filefunc disabled;
+    ; ToFix change protocol!
+
 2016-12-12 03:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * include/letocl.h
   * source/client/leto1.c

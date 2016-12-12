@@ -4995,6 +4995,7 @@ HB_EXPORT HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFi
          pConnection->iError = 0;
          return HB_TRUE;
       }
+      pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
 
    return HB_FALSE;
@@ -5097,11 +5098,11 @@ HB_EXPORT const char * LetoMemoRead( LETOCONNECTION * pConnection, const char * 
 
    ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
    hb_xfree( pData );
-   if( ulRes )
+   if( ulRes && memcmp( pConnection->szBuffer, "+F;100;", 7 ) )
    {
       const char * ptr = leto_DecryptText( pConnection, &ulLen );
 
-      if( ulLen )
+      if( ulLen && ptr )
       {
          pConnection->iError = 0;
          *ulMemoLen = ulLen;
@@ -5403,6 +5404,7 @@ HB_EXPORT HB_BYTE LetoDirExist( LETOCONNECTION * pConnection, const char * szFil
          pConnection->iError = 0;
          return 1;
       }
+      pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
 
    return 0;
