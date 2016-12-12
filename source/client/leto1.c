@@ -125,8 +125,10 @@ static HB_ERRCODE commonError( LETOAREAP pArea, HB_ERRCODE uiGenCode, HB_ERRCODE
 {
    HB_ERRCODE errCode = 0;
 
+   HB_TRACE( HB_TR_DEBUG, ( "commonError(%p, %d, %d, %d, '%s', %d)", pArea, uiGenCode, uiSubCode, uiOsCode, szFileName, uiFlags ) );
+
    HB_SYMBOL_UNUSED( pArea );
-   if( ! hb_vmRequestQuery() )  /* avoid more errormessages, we want to quit */
+   if( hb_vmRequestQuery() == 0 )  /* avoid more errormessages, we want to quit */
    {
       PHB_ITEM pError = hb_errNew();
 
@@ -3010,7 +3012,7 @@ static HB_ERRCODE letoClearRel( LETOAREAP pArea )
 {
    HB_ERRCODE errCode = HB_SUCCESS;
 
-   HB_TRACE( HB_TR_DEBUG, ( "letoClearRel(%p)", pArea ) );
+   HB_TRACE( HB_TR_DEBUG, ( "letoClearRel(%p) [%p]", pArea, ( ( AREAP ) pArea )->lpdbRelations ) );
 
    if( ( ( AREAP ) pArea )->lpdbRelations )
    {
@@ -5215,7 +5217,10 @@ static HB_ERRCODE leto_UpdArea( AREAP pArea, void * p )
 static HB_ERRCODE leto_UnLockRec( AREAP pArea, void * p )
 {
    if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) )
+   {
+      ( ( LETOAREAP ) pArea )->pTable->ptrBuf = NULL;
       SELF_RAWLOCK( pArea, FILE_UNLOCK, 0 );
+   }
    return HB_SUCCESS;
 }
 
@@ -5273,9 +5278,37 @@ HB_FUNC( LETO_BEGINTRANSACTION )
       LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
 
       hb_rddIterateWorkAreas( leto_UpdArea, ( void * ) pConnection );
+#if 0
       pConnection->ulTransBlockLen = HB_ISNUM( 1 ) ? hb_parnl( 1 ) : 0;
+#else
+      if( ( HB_ISLOG( 1 ) && hb_parl( 1 ) ) )  /* unlock if explicitely given */
+         hb_rddIterateWorkAreas( leto_UnLockRec, ( void * ) pConnection );
+#endif
       pConnection->fTransActive = HB_TRUE;
    }
+}
+
+static void leto_ClearTransBuffers( LETOCONNECTION * pConnection )
+{
+   if( pConnection->szTransBuffer )
+   {
+      hb_xfree( pConnection->szTransBuffer );
+      pConnection->szTransBuffer = NULL;
+   }
+   if( pConnection->pTransList )
+   {
+      hb_xfree( pConnection->pTransList );
+      pConnection->pTransList = NULL;
+   }
+   if( pConnection->pTransAppend )
+   {
+      hb_xfree( pConnection->pTransAppend );
+      pConnection->pTransAppend = NULL;
+   }
+
+   pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0;
+   pConnection->ulRecsInList = pConnection->uiTransAppend = 0;
+   pConnection->ulTransDataLen = pConnection->ulRecsInTrans = pConnection->uiTransAppLen = 0;
 }
 
 HB_FUNC( LETO_ROLLBACK )
@@ -5289,20 +5322,8 @@ HB_FUNC( LETO_ROLLBACK )
       LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
       char szData[ 8 ];
 
-      pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0;
       pConnection->fTransActive = HB_FALSE;
-      pConnection->ulTransDataLen = pConnection->ulRecsInTrans = 0;
-      pConnection->ulRecsInList = 0;
-      if( pConnection->szTransBuffer )
-      {
-         hb_xfree( pConnection->szTransBuffer );
-         pConnection->szTransBuffer = NULL;
-      }
-      if( pConnection->pTransList )
-      {
-         hb_xfree( pConnection->pTransList );
-         pConnection->pTransList = NULL;
-      }
+      leto_ClearTransBuffers( pConnection );
 
       szData[ 0 ] = LETOCMD_ta;
       szData[ 1 ] = ';';
@@ -5324,6 +5345,9 @@ HB_FUNC( LETO_COMMITTRANSACTION )
    LETOAREAP        pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
    LETOTABLE *      pTable = pArea->pTable;
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+   HB_USHORT        ui = 0;
+
+   HB_TRACE( HB_TR_DEBUG, ( "LETO_COMMITTRANSACTION(%d)", ( int ) ( HB_ISLOG( 1 ) ? hb_parl( 1 ) : HB_TRUE ) ) );
 
    if( ! leto_CheckTrans( pArea, HB_TRUE ) )
    {
@@ -5331,8 +5355,24 @@ HB_FUNC( LETO_COMMITTRANSACTION )
       return;
    }
 
+   /* check all WA for not updated data, before deactivate transaction mode */
    hb_rddIterateWorkAreas( leto_UpdArea, ( void * ) pConnection );
    pConnection->fTransActive = HB_FALSE;
+
+   while( ui < pConnection->uiTransAppend )
+   {
+      /* this will indicate a shared WA with no [F|R]lock, so we try a Flock() */
+      if( ! pConnection->pTransAppend[ ui ].ulRecNo )
+      {
+         if( LetoDbFileLock( pConnection->pTransAppend[ ui ].pTable ) )
+         {
+            leto_ClearTransBuffers( pConnection );
+            commonError( pArea, EG_UNLOCKED, EDBF_APPENDLOCK, 0, NULL, 0, NULL );
+            return;
+         }
+      }
+      ui++;
+   }
 
    if( pConnection->szTransBuffer && ( pConnection->ulTransDataLen > ( HB_ULONG ) pConnection->uiTBufOffset ) )
    {
@@ -5345,6 +5385,7 @@ HB_FUNC( LETO_COMMITTRANSACTION )
       {
          if( fUnlockAll )
             hb_rddIterateWorkAreas( leto_UnLockRec, ( void * ) pConnection );
+         leto_ClearTransBuffers( pConnection );
          hb_retl( HB_FALSE );
          return;
       }
@@ -5392,22 +5433,10 @@ HB_FUNC( LETO_COMMITTRANSACTION )
             }
          }
       }
-
-      if( pConnection->szTransBuffer )
-      {
-         hb_xfree( pConnection->szTransBuffer );
-         pConnection->szTransBuffer = NULL;
-      }
-      if( pConnection->pTransList )
-      {
-         hb_xfree( pConnection->pTransList );
-         pConnection->pTransList = NULL;
-      }
+      
+      leto_ClearTransBuffers( pConnection );
    }
 
-   pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0;
-   pConnection->ulRecsInList = 0;
-   pConnection->ulTransDataLen = pConnection->ulRecsInTrans = 0;
    hb_retl( HB_TRUE );
 }
 

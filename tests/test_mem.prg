@@ -3,8 +3,15 @@
  * Just change the cPath value to that one you need.
  */
 
-#define __MEM_IO__ 1
-#define FIELD_IDS  1    // 341 * 5000 nRounds = ~ 4GB
+#define __MEM_IO__   1
+#define __LZ4__      1
+
+/* activate for transaction test */
+// #define __TRANSACT__ 1
+
+/* 341 FILED_IDS' == 2046 !max! fields  *  5000 ROUNDS = ~ 4 GB */
+#define FIELD_IDS    1
+#define ROUNDS       10000
 
 REQUEST DBORDERINFO, ORDLISTCLEAR, ORDBAGCLEAR, ORDDESTROY
 REQUEST LETO
@@ -15,6 +22,7 @@ REQUEST hb_UTF8ToStr
 #include "set.ch"
 
 Function Main( cPath )
+ LOCAL nRounds := ROUNDS
  LOCAL aNames := { "Petr", "Ivan", "Alexander", "Pavel", "Alexey", "Fedor", ;
                    "Konstantin", "Vladimir", "Nikolay", "Andrey", "Dmitry", "Sergey" }
  LOCAL i, ii, aStru
@@ -23,7 +31,6 @@ Function Main( cPath )
  LOCAL nKey, nSec
  LOCAL cFile1 := "test1"
  LOCAL cFile2 := "test2"
- LOCAL nRounds := 10000
  LOCAL nDeleted
  LOCAL aStruct, aStructAll := {}
  FIELD NAME, NUM, INFO, DINFO, MINFO
@@ -52,8 +59,10 @@ Function Main( cPath )
             cFile2 := "mem:" + cFile2
          ENDIF
 #endif
-         // LETO_TOGGLEZIP( 1 )
-         // ? "NETWORK TRAFFIC COMPRESSION:", Iif( LETO_TOGGLEZIP() > 0, "ON", "OFF" )
+#ifdef __LZ4__
+         LETO_TOGGLEZIP( 1 )
+#endif
+         ? "NETWORK TRAFFIC COMPRESSION:", Iif( LETO_TOGGLEZIP() > 0, "ON", "OFF" )
       ENDIF
    ELSE
 #ifdef __MEM_IO__
@@ -109,17 +118,23 @@ Function Main( cPath )
    ENDIF
 
    aStru := dbStruct()
-   ? "Fields:", Len( aStru )
    FOR i := 1 TO Len( aStru )
       ? i, PadR( aStru[ i, 1 ], 10 ), aStru[ i, 2 ], STR( aStru[ i, 3 ], 5, 0 ), aStru[ i, 4 ]
    NEXT
 
+#ifdef __TRANSACT__
+   ? "with transaction"
+#else
    ?
+#endif
    IF RecCount() == 0
       ? "please wait, appending " + hb_ntos( nRounds * LEN( aNames ) ) + " records ..."
       nSec := hb_milliseconds()
 
       IF FLock()
+#ifdef __TRANSACT__
+         leto_BeginTransaction()
+#endif
          FOR ii := 1 TO nRounds
             FOR i := 1 TO Len( aNames )
                IF DbAppend()
@@ -132,7 +147,11 @@ Function Main( cPath )
                ENDIF
             NEXT i
          NEXT ii
+#ifdef __TRANSACT__
+         leto_CommitTransaction()
+#else
          DbUnlock()
+#endif
       ENDIF
 
       ?? STR( ( hb_milliseconds() - nSec ) / 1000, 6, 2 ), "s -- "
@@ -169,8 +188,10 @@ Function Main( cPath )
       DbSetIndex( cFile2 )
    ENDIF
 
+
 /* --- benchmarks --- */
 
+   /* test diffeent skipbuffer sizes from 21 to 525 */
    ? "skipping top to bottom ..."
    FOR i := 1 TO 5
      LETO_SETSKIPBUFFER( 21 * i * i )
@@ -197,6 +218,9 @@ Function Main( cPath )
    ?? STR( i - 1, 6, 0 ), "times, ", STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
 
    IF FLock()
+#ifdef __TRANSACT__
+         leto_BeginTransaction()
+#endif
       ? "FILE locked, skip through records, data change two fields ..."
       nSec := hb_milliseconds()
       DbGoTop()
@@ -207,20 +231,32 @@ Function Main( cPath )
          DbSkip( 1 )
       ENDDO
       ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
+#ifdef __TRANSACT__
+      leto_CommitTransaction()
+#else
       DbUnLock()
+#endif
    ENDIF
 
    ? "record locking, skip through records, data change two fields ..."
    nSec := hb_milliseconds()
    DbGoTop()
+#ifdef __TRANSACT__
+   leto_BeginTransaction()
+#endif
    DO WHILE ! EOF()
       IF RLock()
          Replace INFO  WITH "This is a record number " + hb_ntos( RECNO() ),;
                  DINFO WITH DATE()
+#ifndef __TRANSACT__
          DbUnLock()
+#endif
       ENDIF
       DbSkip( 1 )
    ENDDO
+#ifdef __TRANSACT__
+   leto_CommitTransaction()
+#endif
    ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
 
    ? "skipping from top to bottom, delete every 3rd record ..."
@@ -239,7 +275,6 @@ Function Main( cPath )
 
    ? "verify deleted record ..."
    ii := 0
-   LETO_SETSKIPBUFFER( 250 )
    nSec := hb_milliseconds()
    DbGoTop()
    DO WHILE ! EOF()
@@ -249,7 +284,6 @@ Function Main( cPath )
       DbSkip( 1 )
    ENDDO
    ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "seconds", IIF( ii == nDeleted, "( Ok )", "FAIL!" )
-   LETO_SETSKIPBUFFER( 21 )
 
    ? "( amount of buffered SKIPs: " + STR( LETO_SETSKIPBUFFER(), 10, 0 ) + " )"
 #ifdef __MEM_IO__

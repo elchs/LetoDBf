@@ -2,6 +2,34 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-12 03:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+    ! re-allow switching from Rlock() to Flock(), but then remove Rlocks
+    * allocate clean buffers !for transactions
+    * log all WA with records to append during transaction;
+      when transaction is commited, it must for such shareable WA
+      exist a [F|R]lock, else Flock() is automatic tried; if that Flock()
+      fails, Transaction will throw a RTE.
+    ; this resolves a possible race condition at server side:
+      after successful check to start transaction sequence, another
+      connection could jumped in with a Flock() for a WA with records to be
+      appended in transaction; at least a Rlock will prevent that.
+
+  * source/server/letofunc.c
+    ! allow Flock() for empty table, aka validation for !RecNo was wrong
+
+  * test/test_ta.prg
+    - straying DbUnlock()
+  * test/test_mem.prg
+    + #define to switch for two performance tests as transaction
+
+  * Readme.txt
+    * notes about transactions
+    + add leto_direxist, leto_dirremove
+    ; not working leto_file() a myth ?
+
 2016-12-11 11:21 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * source/server/letofunc.c
     % mutex lock the list one time before the loop, not for each item
@@ -18,7 +46,7 @@
 
   * utils/manager/console.prg
     * cell for locks fill the whole browse area
-  
+
   * Readme.txt
     * more corrections, improvements
 

@@ -145,7 +145,7 @@ Local nDelta
 Local lRet := .T.
 Field NORD, DORD, NPROD, SUMMA, NORM
 
-   leto_BeginTransaction()
+   leto_BeginTransaction( .T. )
 
    select NAKL1
    IF ! dbSeek( Dtos( NAKL2->DORD ) + STR( NAKL2->NORD, 10, 0 ) ) .OR. ! DoRlock( 3 )
@@ -167,12 +167,11 @@ Field NORD, DORD, NPROD, SUMMA, NORM
    nSummNew := SUMMA
    replace SUMMA with SUMMA + nDelta, NORM with "elch tested"
 
-   leto_CommitTransaction()
+   leto_CommitTransaction( .F. )
 
    IF SUMMA != nSummNew + nDelta .OR. NORM != "elch tested"
       lRet := .F.
    ENDIF
-   DBUNLOCK()
 
    /* check existent file lock, will crash if not */
    select NAKL2

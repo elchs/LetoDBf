@@ -190,6 +190,12 @@ typedef struct
    HB_ULONG          ulRecNo;
 } TRANSACTLIST;
 
+typedef struct
+{
+   LETOTABLE *       pTable;
+   HB_ULONG          ulRecNo;
+} TRANSACTWA;
+
 typedef struct _LETOCONNECTION_
 {
    unsigned int      iConnection;          /* ID of connection */
@@ -223,6 +229,9 @@ typedef struct _LETOCONNECTION_
    HB_ULONG          ulTransListLen;       /* allocated pairs */
    HB_ULONG          ulRecsInList;         /* count of filled pairs */
    TRANSACTLIST      pRecsNotList;         /* searched pair not to be in pairs */
+   TRANSACTWA *      pTransAppend;         /* WA used for transaction append */
+   HB_USHORT         uiTransAppend;        /* count of WA for append */
+   HB_USHORT         uiTransAppLen;        /* allocated for WA for append */
    HB_BOOL           fRefreshCount;
    HB_BOOL           fBufKeyNo;
    HB_BOOL           fBufKeyCount;

@@ -374,8 +374,8 @@ A. Internals
  of the corresponding .hbp files, found at very top the line with: "#-env:__LZ4=yes"
  I would very recommend lightning fast LZ4.
  Re-compile both!! server executable and client library. This must fit together, a server with LZ4 won't understand
- a client application with ZLib. 
- 
+ a client application with ZLib.
+
 
       4.3 Authentication
 
@@ -576,22 +576,47 @@ A. Internals
 
       7.2 Transaction functions
 
+ Transactions are nice for Flocked or non-shared, exclusive opened tables.
+ For RLock() an insane tremendous overhead is needed. Example: to Rlock() the 1000th record
+ at server, it must search through 999 existing locks. In sum it have been done 499500 times
+ for the 1000th record. When the transaction is applied at server, these Rlocks are again
+ verified, that are 1000 * 1000 = 1 million checks.
 
- !! During a transaction, after leto_BeginTransaction(), Recno() will be '0' after appending
-    a blank record with e.g. DbAppend() !!
+ !! Important !! -- during a transaction, aka after leto_BeginTransaction():
+   # Recno() will be '0' after appending a blank record with e.g. DbAppend()
+   # it is explicitly forbidden to mix RLock() and FLock()
+   # you can not unlock record or table ( e.g. NOT using DbUnlock() )
+   # Transactions must start and end with a LETO RDD workarea active selected;
+     this must be further the same LetoDBf server at start and end.
 
-      LETO_BEGINTRANSACTION( [ nBlockLen ] )
- Parameter <nBlockLen> can be used for set memory allocation block size, default step-size is 1 KB.
- For big transaction it *minimal* might improve transaction speed at the client side.
-
- ! Important !: it is explicitly forbidden to mix RLock() and FLock() for one workarea. !
+      LETO_BEGINTRANSACTION( [ [ lUnlockAll ] )
+ NEW: with <lUnlockAll> param, only here default is false ( .F. )
+ By default, all locks ( R-locks and F-locks ) remain,
+ with .T. it's very convenient to remove them for all LETO workareas at once.
 
       LETO_ROLLBACK( [ lUnlockAll ] )                          ==> nil
-      LETO_COMMITTRANSACTION( [ lUnlockAll ] )                 ==> lSuccess
- lUnlockAll default is true [ .T. ] and will automatic unlock all locks ( R-locks and F-locks ).
- Use lUnlockAll = .F. only in conjunction with F-locks during transaction, so these F-locks
- will remain active.
+ This will discard the collected field changes and records to be appended.
+ By default <lUnlockAll> is true (.T.), then all locks ( R-locks and F-locks ) removed,
 
+
+      LETO_COMMITTRANSACTION( [ lUnlockAll ] )                 ==> lSuccess
+ default <lUnlockAll> == .T. will automatic unlock *all* locks ( Rlock() and Flocks() ) after
+ the transaction is processed at server.
+ Default (.T.) recommended to do, as it is faster. Also the client will have no information
+ about what records are appended & R-locked at server, it must query for that again.
+
+ ! ATTENTION !
+ If you want to also *append* records in a transaction, you need for a shared opened table at
+ least Flock() *or* one single Rlock() done during transaction for this workarea.
+ If none is locked, as example a transaction containing only records to append,
+ LetoDBf client will try internally to set itself a Flock().
+ This will fail if any other connection have a record locked [Rlock()] for this workarea.
+ Then the transaction will fail with a runtime error.
+ Above is needed to ensure, when transaction sequence runs at server, nobody can jump in by
+ occasion to Flock() the table, which then would block the wanted DbAppend() at server.
+ Rely on this automatic, or ensure explicitely a Flock() or at least one Rlock() active for
+ each workarea with records to append. This Rlock()ed record must even not contain changed data,
+ only the lock counts.
 
       LETO_INTRANSACTION()                                     ==> lTransactionActive
 
@@ -747,8 +772,15 @@ A. Internals
  Writes a character string into a file at the server, analog of
  MemoWrit() function.
 
-      Leto_MakeDir( cDirName )                                 ==> -1 if failed
+      Leto_DirExist( cPath )                                   ==> lDirExists
+ Determine if cirectory exist at the server, analog of Leto_File() function, but
+ for directories
+
+      Leto_MakeDir( cPath )                                    ==> -1 if failed
  Creates a directory at the server
+
+      Leto_DirRemove( cPath )                                  ==> -1 if failed
+ Deletes a directory at the server
 
       Leto_FError()                                            ==> nError
  Returns an error code of last file function.
@@ -1082,7 +1114,7 @@ A. Internals
  Also note this "Menu" button top left on screen for further actions, like killing connections,
  adding users to the authentication system, ...
 
- 
+
  *LetoDBf note* : the GUI version is untested, not guaranteed to work.
  Windows only GUI utility, manage.prg, is made with the HwGUI library. If you have HwGUI,
  just write in the line 'set HWGUI_INSTALL=' in utils/manage/bld.bat a path

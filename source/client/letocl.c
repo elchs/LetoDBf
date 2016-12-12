@@ -1653,7 +1653,7 @@ static void leto_refrSkipBuf( LETOTABLE * pTable )  /* set new position in buffe
 
 static _HB_INLINE_ HB_ULONG leto_TransBlockLen( LETOCONNECTION * pConnection, HB_ULONG ulLen )
 {
-   return pConnection->ulTransBlockLen ? pConnection->ulTransBlockLen : ( ulLen < 256 ) ? 2048 : ulLen * 8;
+   return pConnection->ulTransBlockLen ? pConnection->ulTransBlockLen : ( ulLen < 512 ) ? 8192 : ulLen * 16;
 }
 
 static void leto_AddTransBuffer( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen )
@@ -1700,26 +1700,64 @@ static HB_BOOL leto_SearchTransList( LETOCONNECTION * pConnection, HB_ULONG hTab
    return HB_FALSE;
 }
 
-static void leto_AddTransList( LETOCONNECTION * pConnection, HB_ULONG hTable, HB_ULONG ulRecNo )
+static void leto_AddTransList( LETOCONNECTION * pConnection, LETOTABLE * pTable )
 {
-   if( ! leto_SearchTransList( pConnection, hTable, ulRecNo ) )
+   if( ! leto_SearchTransList( pConnection, pTable->hTable, pTable->ulRecNo ) )
    {
       if( ! pConnection->pTransList )
       {
-         pConnection->pTransList = ( TRANSACTLIST * ) hb_xgrab( sizeof( TRANSACTLIST ) * 32 );
+         pConnection->pTransList = ( TRANSACTLIST * ) hb_xgrabz( sizeof( TRANSACTLIST ) * 32 );
          pConnection->ulTransListLen = 32;
       }
       else if( pConnection->ulRecsInList >= pConnection->ulTransListLen )
       {
          pConnection->ulTransListLen += 32;
-         pConnection->pTransList = ( TRANSACTLIST * ) hb_xrealloc( pConnection->pTransList,
-                                                                   sizeof( TRANSACTLIST ) * pConnection->ulTransListLen );
+         pConnection->pTransList = ( TRANSACTLIST * ) hb_xreallocz( pConnection->pTransList,
+                                                                    sizeof( TRANSACTLIST ) * pConnection->ulTransListLen );
       }
-      pConnection->pTransList[ pConnection->ulRecsInList ].hTable = hTable;
-      pConnection->pTransList[ pConnection->ulRecsInList ].ulRecNo = ulRecNo;
+      pConnection->pTransList[ pConnection->ulRecsInList ].hTable = pTable->hTable;
+      pConnection->pTransList[ pConnection->ulRecsInList ].ulRecNo = pTable->ulRecNo;
       pConnection->ulRecsInList++;
 
       pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0;
+   }
+}
+
+static void leto_AddTransAppend( LETOCONNECTION * pConnection, LETOTABLE * pTable )
+{
+   HB_USHORT ui = 0;
+
+   while( ui < pConnection->uiTransAppend )
+   {
+      if( pConnection->pTransAppend[ ui ].pTable == pTable )
+         break;
+      ui++;
+   }
+
+   if( ui >= pConnection->uiTransAppend )
+   {
+      if( ! pConnection->pTransAppend )
+      {
+         pConnection->pTransAppend = ( TRANSACTWA * ) hb_xgrabz( sizeof( TRANSACTWA ) * 16 );
+         pConnection->uiTransAppLen = 16;
+      }
+      else if( pConnection->uiTransAppend >= pConnection->uiTransAppLen )
+      {
+         pConnection->uiTransAppLen += 16;
+         pConnection->pTransAppend = ( TRANSACTWA * ) hb_xreallocz( pConnection->pTransAppend,
+                                                                      sizeof( TRANSACTWA ) * pConnection->uiTransAppLen );
+      }
+
+      pConnection->pTransAppend[ ui ].pTable = pTable;
+      pConnection->uiTransAppend++;
+   }
+
+   if( ! pConnection->pTransAppend[ ui ].ulRecNo )
+   {
+      if( ! pTable->fShared || pTable->fFLocked )
+         pConnection->pTransAppend[ ui ].ulRecNo = 999999999;
+      else if( pTable->ulLocksMax )
+         pConnection->pTransAppend[ ui ].ulRecNo = pTable->pLocksPos[ pTable->ulLocksMax - 1 ];
    }
 }
 
@@ -2975,6 +3013,11 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
       hb_xfree( pConnection->pTransList );
       pConnection->pTransList = NULL;
    }
+   if( pConnection->pTransAppend )
+   {
+      hb_xfree( pConnection->pTransAppend );
+      pConnection->pTransAppend = NULL;
+   }
    if( pConnection->pBufCrypt )
    {
       hb_xfree( pConnection->pBufCrypt );
@@ -3647,7 +3690,9 @@ HB_EXPORT HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, co
       ptr = leto_AddLen( ( szData + 4 ), &ulLen, HB_TRUE );  /* before */
       leto_AddTransBuffer( pConnection, ptr, ulLen );
       if( ! fAppend && pTable->ulRecNo )
-         leto_AddTransList( pConnection, pTable->hTable, pTable->ulRecNo );
+         leto_AddTransList( pConnection, pTable );
+      else
+         leto_AddTransAppend( pConnection, pTable );
    }
    else
    {
@@ -4180,12 +4225,14 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable, HB_BOOL fCommit )
    ulLen = pData - szData - 4;
    leto_SetUpdated( pTable, LETO_FLAG_UPD_NONE );
 
-   if( pConnection->fTransActive )
+   if( pConnection->fTransActive && ! fCommit )
    {
       pData = leto_AddLen( szData + 4, &ulLen, HB_TRUE );  /* before */
       leto_AddTransBuffer( pConnection, pData, ulLen );
-      if( ! fAppend && ! fCommit && pTable->ulRecNo )
-         leto_AddTransList( pConnection, pTable->hTable, pTable->ulRecNo );
+      if( ! fAppend && pTable->ulRecNo )
+         leto_AddTransList( pConnection, pTable );
+      else
+         leto_AddTransAppend( pConnection, pTable );
    }
    else  /* send without extra pre-leading length */
    {
@@ -4393,12 +4440,9 @@ HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
       return HB_FAILURE;
    else if( ! pTable->fShared || ( ulRecNo == pTable->ulRecNo ? pTable->fRecLocked : leto_IsRecLocked( pTable, ulRecNo ) ) )
       return HB_SUCCESS;
-   if( pTable->fFLocked )  /* release file lock */
-   {
-      ulLen = eprintf( szData, "%c;%lu;f;", LETOCMD_unlock, pTable->hTable );
-      if( ! leto_SendRecv2( pConnection, szData, ulLen, 1038 ) )
-         return 1;
-   }
+
+   if( pTable->fFLocked )  /* release file lock beforehand */
+      LetoDbFileUnLock( pTable );
 
    ulLen = eprintf( szData, "%c;%lu;r;%lu;%d;", LETOCMD_lock, pTable->hTable, ulRecNo, pConnection->iLockTimeOut );
    if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) || leto_checkLockError( pConnection ) )
@@ -4454,6 +4498,9 @@ HB_EXPORT HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable )
       return HB_FAILURE;
    else if( ! pTable->fShared || pTable->fFLocked  )
       return HB_SUCCESS;
+
+   if( pTable->ulLocksMax )  /* release all our record locks */
+      LetoDbFileUnLock( pTable );
 
    ulLen = eprintf( szData, "%c;%lu;f;%lu;%d;", LETOCMD_lock, pTable->hTable, pTable->ulRecNo, pConnection->iLockTimeOut );
    if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) || leto_checkLockError( pConnection ) )

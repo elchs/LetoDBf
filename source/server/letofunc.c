@@ -5841,51 +5841,47 @@ static void leto_Lock( PUSERSTRU pUStru, const char * szData )
 {
    PAREASTRU pAStru = pUStru->pCurAStru;
    char *    pTimeOut = NULL;
-   HB_ULONG  ulRecNo;
+   HB_ULONG  ulRecNo = strtoul( szData + 2, &pTimeOut, 10 );
 
-   if( ( ulRecNo = strtoul( szData + 2, &pTimeOut, 10 ) ) == 0 )
+   switch( *szData )
    {
-      leto_wUsLog( pUStru, 0, "ERROR leto_Lock() missing RecNo!" );
-      leto_SendAnswer( pUStru, szErr2, 4 );
-   }
-   else
-   {
-      switch( *szData )
-      {
-         case 'r':  /* reclock */
-            if( leto_RecLock( pUStru, pAStru, ulRecNo, HB_FALSE,
-                              ( s_bNoSaveWA && pTimeOut && *pTimeOut++ ) ? atoi( pTimeOut ) : 0 ) )
-            {
-               if( leto_Updated( pAStru ) )
-                  leto_SendRecWithOk( pUStru, pAStru, ulRecNo );
-               else
-                  leto_SendAnswer( pUStru, szOk, 4 );
-            }
-            else
-               leto_SendAnswer( pUStru, szErr4, 4 );
-            break;
-
-         case 'f':  /* filelock */
-            if( leto_IsServerLock( pUStru ) )
-            {
-               leto_SendAnswer( pUStru, szErr2, 4 );
-               break;
-            }
-            if( ! leto_TableLock( pAStru, ( s_bNoSaveWA && pTimeOut && *pTimeOut++ ) ? atoi( pTimeOut ) : 0 ) )
-            {
-               leto_SendAnswer( pUStru, szErr4, 4 );
-               break;
-            }
-
+      case 'r':  /* reclock */
+         if( ulRecNo && leto_RecLock( pUStru, pAStru, ulRecNo, HB_FALSE,
+                                      ( s_bNoSaveWA && pTimeOut && *pTimeOut++ ) ? atoi( pTimeOut ) : 0 ) )
+         {
             if( leto_Updated( pAStru ) )
                leto_SendRecWithOk( pUStru, pAStru, ulRecNo );
             else
                leto_SendAnswer( pUStru, szOk, 4 );
-            break;
+         }
+         else
+         {
+            leto_SendAnswer( pUStru, szErr4, 4 );
+            if( ! ulRecNo )
+               leto_wUsLog( pUStru, 0, "ERROR leto_Lock() missing RecNo! for Rlock" );
+         }
+         break;
 
-         default:  /* should never happen */
-            leto_SendAnswer( pUStru, szErr1, 4 );
-      }
+      case 'f':  /* filelock */
+         if( leto_IsServerLock( pUStru ) )
+         {
+            leto_SendAnswer( pUStru, szErr2, 4 );
+            break;
+         }
+         if( ! leto_TableLock( pAStru, ( s_bNoSaveWA && pTimeOut && *pTimeOut++ ) ? atoi( pTimeOut ) : 0 ) )
+         {
+            leto_SendAnswer( pUStru, szErr4, 4 );
+            break;
+         }
+
+         if( ulRecNo && leto_Updated( pAStru ) )
+            leto_SendRecWithOk( pUStru, pAStru, ulRecNo );
+         else
+            leto_SendAnswer( pUStru, szOk, 4 );
+         break;
+
+      default:  /* should never happen */
+         leto_SendAnswer( pUStru, szErr1, 4 );
    }
 }
 
@@ -9527,11 +9523,10 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
 
             if( pTA[ i ].bAppend )
             {
-               hb_rddSetNetErr( HB_FALSE );
+               /* ensured by client that nobody else can Flock() after done validation */
                SELF_APPEND( pArea, HB_FALSE );  /* changed: not to unlock other records */
                SELF_RECNO( pArea, &pTA[ i ].ulRecNo );
-               //pTA[ i ].ulRecNo = ( ( DBFAREAP ) pArea )->ulRecNo;
-               //pUStru->pCurAStru->pTStru->pGlobe->ulRecCount++;
+               /* pUStru->pCurAStru->pTStru->pGlobe->ulRecCount++; */
 
                for( i1 = 0; i1 < iAppended; i1++ )
                {
@@ -9572,8 +9567,10 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
                SELF_RECALL( pArea );
 
             for( i1 = 0; i1 < pTA[ i ].uiItems; i1++ )
+            {
                if( pTA[ i ].pItems[ i1 ] )
                   SELF_PUTVALUE( pArea, pTA[ i ].puiIndex[ i1 ], pTA[ i ].pItems[ i1 ] );
+            }
          }
 
          /* unlocking all appended records, nowbody else knew about these locks */
@@ -9617,7 +9614,7 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
 
                      pArea = pTA[ i ].pArea;
                      pTA[ i ].pArea = NULL;
-                     /* ToDo -- to understand how we can make from pArea a DBFAREAP */
+
                      if( ( ( DBFAREAP ) pArea )->fUpdateHeader || ( ( DBFAREAP ) pArea )->fDataFlush ||
                          ( ( DBFAREAP ) pArea )->fMemoFlush )
                      {
@@ -9676,7 +9673,7 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
          pData = szErr4;
       else if( iRes > 100 )
       {
-         sprintf( szData1, "-%d;", iRes );
+         sprintf( szData1, "-%04d;", iRes );
          pData = szData1;
       }
       if( pulAppends )
@@ -9701,12 +9698,13 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
    else
       pData = szOk;
 
+   leto_SendAnswer( pUStru, pData, ulResLen );
+
    HB_GC_LOCKTRAN();
    s_ulTransAll++;
    s_ulTransOK += ulTransOk;
    HB_GC_UNLOCKTRAN();
 
-   leto_SendAnswer( pUStru, pData, ulResLen );
    if( pResult )
       hb_xfree( pResult );
 }
