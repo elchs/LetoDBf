@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-12 17:08 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * source/client/letol.c
+    ! revert cleaning the buffers, as it is only searched in limit to formerly
+      set item; fix of not everwhere available hb_xreallocz()
+
 2016-12-12 14:11 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * Readme.txt
     * improves; a note about not given :port --> not send 

@@ -1706,14 +1706,14 @@ static void leto_AddTransList( LETOCONNECTION * pConnection, LETOTABLE * pTable 
    {
       if( ! pConnection->pTransList )
       {
-         pConnection->pTransList = ( TRANSACTLIST * ) hb_xgrabz( sizeof( TRANSACTLIST ) * 32 );
+         pConnection->pTransList = ( TRANSACTLIST * ) hb_xgrab( sizeof( TRANSACTLIST ) * 32 );
          pConnection->ulTransListLen = 32;
       }
       else if( pConnection->ulRecsInList >= pConnection->ulTransListLen )
       {
          pConnection->ulTransListLen += 32;
-         pConnection->pTransList = ( TRANSACTLIST * ) hb_xreallocz( pConnection->pTransList,
-                                                                    sizeof( TRANSACTLIST ) * pConnection->ulTransListLen );
+         pConnection->pTransList = ( TRANSACTLIST * ) hb_xrealloc( pConnection->pTransList,
+                                                                   sizeof( TRANSACTLIST ) * pConnection->ulTransListLen );
       }
       pConnection->pTransList[ pConnection->ulRecsInList ].hTable = pTable->hTable;
       pConnection->pTransList[ pConnection->ulRecsInList ].ulRecNo = pTable->ulRecNo;
@@ -1738,17 +1738,18 @@ static void leto_AddTransAppend( LETOCONNECTION * pConnection, LETOTABLE * pTabl
    {
       if( ! pConnection->pTransAppend )
       {
-         pConnection->pTransAppend = ( TRANSACTWA * ) hb_xgrabz( sizeof( TRANSACTWA ) * 16 );
+         pConnection->pTransAppend = ( TRANSACTWA * ) hb_xgrab( sizeof( TRANSACTWA ) * 16 );
          pConnection->uiTransAppLen = 16;
       }
       else if( pConnection->uiTransAppend >= pConnection->uiTransAppLen )
       {
          pConnection->uiTransAppLen += 16;
-         pConnection->pTransAppend = ( TRANSACTWA * ) hb_xreallocz( pConnection->pTransAppend,
-                                                                      sizeof( TRANSACTWA ) * pConnection->uiTransAppLen );
+         pConnection->pTransAppend = ( TRANSACTWA * ) hb_xrealloc( pConnection->pTransAppend,
+                                                                   sizeof( TRANSACTWA ) * pConnection->uiTransAppLen );
       }
 
       pConnection->pTransAppend[ ui ].pTable = pTable;
+      pConnection->pTransAppend[ ui ].ulRecNo = 0;
       pConnection->uiTransAppend++;
    }
 
