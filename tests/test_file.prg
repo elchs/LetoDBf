@@ -2,22 +2,26 @@
  * This sample demonstrates how to use file functions with Leto db server
  * EnableFileFunc = 1 must be set in server's letodb.ini
  */
-
+REQUEST LETO
 #include "rddleto.ch"
+
+REQUEST Leto_MakeDir, Leto_DirExist, Leto_DirRemove, Leto_FError
 
 Function Main( cPath )
  LOCAL cBuf, arr, i
  LOCAL nPort := 2812
 
-   REQUEST LETO
    RDDSETDEFAULT( "LETO" )
 
+   ALTD()
    IF Empty( cPath )
       cPath := "//127.0.0.1:2812/"
    ELSE
       cPath := "//" + cPath + IiF( ":" $ cPath, "", ":" + ALLTRIM( STR( nPort ) ) )
       cPath += Iif( Right(cPath,1) == "/", "", "/" )
    ENDIF
+
+   ? "Hey, LetoDBf:", Leto_Ping()
 
    ? "Connect to " + cPath + " - "
    IF ( leto_Connect( cPath ) ) == -1
@@ -27,10 +31,17 @@ Function Main( cPath )
    ELSE
       ?? "Ok"
    ENDIF
-   ?
+
+   ? "Hey, LetoDBf:", Leto_Ping()
+
+   /* No more IP prefix needed after Leto_connect() */
+   cPath := ""
 
    ? 'leto_file( "test1.txt" ) - '
    ?? Iif( leto_file( cPath + "test1.txt" ), "Ok", "No" )
+   i := Leto_fError()
+   ? 'file functions working ? - ' + Iif( i == 100, "disabled",;
+      Iif( i == 0, "well well", "ups, error: " + STR( leto_fError(), 5, 0 ) ) ) 
 
    ? 'leto_memowrite( "test1.txt", "A test N1" ) - '
    ?? Iif( leto_memowrite( cPath + "test1.txt", "A test N1" ), "Ok", "Failure" )
@@ -62,7 +73,7 @@ Function Main( cPath )
    ? 'leto_filesize( "test2.txt" ) - '
    ?? leto_filesize( cPath + "test2.txt" )
 
-   arr := leto_directory( cPath )
+   arr := leto_directory( "\" )
    ? 'leto_directory(): (' + Ltrim(Str(Len(arr))) + ")"
    ? "Press any key to continue..."
    Inkey( 0 )

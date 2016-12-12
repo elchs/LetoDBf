@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-12 14:11 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * Readme.txt
+    * improves; a note about not given :port --> not send 
+
+  * test/test_file.prg
+    * just a bit clean-up
+
 2016-12-12 05:05 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * Readme.txt
     ! lock mixing only for same WA forbidden

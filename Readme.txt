@@ -576,30 +576,50 @@ A. Internals
 
       7.2 Transaction functions
 
- Transactions are nice for Flocked or non-shared, exclusive opened tables.
- For RLock() an insane tremendous overhead is needed. Example: to Rlock() the 1000th record
- at server, it must search through 999 existing locks. In sum it have been done 499500 times
- for the 1000th record. When the transaction is applied at server, these Rlocks are again
- verified, that are 1000 * 1000 = 1 million checks.
+ A transaction is a series of data changes, which is guaranteed to be applied in a sequence alike
+ 'one block'. In practical life, only record/ file locks are set at server ( no DbAppend() lock ),
+ and all data changes are buffered at client side. If you DbSeek()/ DbSkip() to a record with changed
+ data, you will see at client your changes still not applied at server side.
 
- !! Important !! -- during a transaction, aka after leto_BeginTransaction():
-   # Recno() will be '0' after appending a blank record with e.g. DbAppend()
-   # it is explicitly forbidden to mix RLock() and FLock() FOR SAME WORKAREA
-   # you can not unlock record or table ( e.g. NOT using DbUnlock() )
-   # Transactions must start and end with a LETO RDD workarea active selected;
-     this must be further the same LetoDBf server at start and end.
+ As a side effect, transactions are nice for Flock()ed or non-shared, exclusive opened tables, because
+ for these it leads to a !drastical! improved performance to append 10000 records in a fraction of a second.
+ For RLock() an insane tremendous overhead is needed, if really **many** records need to be
+ changed. Example: to Rlock() the 1000th record at server, it must search through 999 existing locks.
+ In sum it have been done 499500 times for the 1000th record. When the transaction is applied at
+ server, these Rlocks are again verified, then are 1000 * 1000 = 1 million checks needed.
+ Only 1000 Rlock() record changes of above example are taken just on the fly, but if there are 10th
+ of thousands ...
+
+ !! Important !! -- during an active transaction, aka after leto_BeginTransaction():
+   # it is explicitly forbidden to mix RLock() and FLock() FOR THE SAME WORKAREA
+   # you can not unlock any record or whole table ( e.g. NOT use DbUnlock() )
+   # transactions must start and end with a LETO RDD workarea active, and this must be further
+     from the same LetoDBf server.
+   # you can modify same field of same record multiple times, and in between changing to different
+     record, but will get as value always first modification. In other words: you cannot add up a sum.
+     Later at server these changes are applied as consecutive changes in a row, so last change makes
+     the result.
+   # Recno() will be '0' after 'appending' a blank record with e.g. DbAppend()
+   # as server does the job for auto-incrementing fields, they will be empty at client side for a
+     transactioned DbAppend(). Leave them unchanged, server will fill them later during real append.
+
 
       LETO_BEGINTRANSACTION( [ [ lUnlockAll ] )
+
  NEW: with <lUnlockAll> param, only here default is false ( .F. )
  By default, all locks ( R-locks and F-locks ) remain,
- with .T. it's very convenient to remove them for all LETO workareas at once.
+ with .T. it's very convenient to remove them for all LETO workareas at once, which will give
+ you a fresh start ( aka must not think about to continue for this or that workarea with Rlock()
+ or FLock().
 
       LETO_ROLLBACK( [ lUnlockAll ] )                          ==> nil
+
  This will discard the collected field changes and records to be appended.
- By default <lUnlockAll> is true (.T.), then all locks ( R-locks and F-locks ) removed,
+ By default <lUnlockAll> is true (.T.), then all locks ( R-locks and F-locks ) are removed,
 
 
       LETO_COMMITTRANSACTION( [ lUnlockAll ] )                 ==> lSuccess
+
  default <lUnlockAll> == .T. will automatic unlock *all* locks ( Rlock() and Flocks() ) after
  the transaction is processed at server.
  Default (.T.) recommended to do, as it is faster. Also the client will have no information
@@ -619,6 +639,8 @@ A. Internals
  only the lock counts.
 
       LETO_INTRANSACTION()                                     ==> lTransactionActive
+
+ Just returns a boolean if inside or outside heaven.
 
 
       7.3 Additional functions for current workarea
@@ -742,18 +764,24 @@ A. Internals
 
       7.6 File functions
 
- IMPORTANT: all file commands start at the DataPath, so <cFileName> is a relative path to
- the root path defined in letodb.ini with DataPath.  Only ONE ( 1 ) single ".." is allowed.
+ IMPORTANT: all file commands start at server with the DataPath, so <cFileName> is a relative path
+ to the root path defined in letodb.ini with DataPath.  Only ONE ( 1 ) single ".." is allowed.
  Exception: filenames starting with "mem:" redirects into the RAM of server (virtual HbNetIO FS )
 
- Further the <cFileName> parameter of all file functions can contain a connection string
- to the letodb server in a format:
- //ip_address:port/%data_path%/[mem:]file_name.
- If the connection string is omitted, the currently active connection is used.
+ Recommended is to use plain filenames, after the use of Leto_Connect().
+
+ Alternatively in the OLD style, the <cFileName> parameter of all file functions *can* contain a
+ connection string to the letodb server in a format:
+ //ip_address:port/[mem:][\]file_name
+ !! Known mis-feature !! if you omit the ":port", the request is not! send to server.
+
+ If the whole connection prefix "//..:../" is omitted, the currently active connection is used.
+ Such an connection is established with recommended: Leto_Connect() -or- after a aingle LetoDbf command
+ by using correct connection prefix. After connection is established, can leave away all this IP:port ...
 
       Leto_FError()                                            ==> nError
- Returns an error code of last file function.
- 
+ Returns an error code of ( some, not for all ) file function.
+
       Leto_File( cFileName )                                   ==> lFileExists
  Determine if file exist at the server, analog of File() function
 
