@@ -995,7 +995,7 @@ static long leto_Recv( LETOCONNECTION * pConnection )
  * => no need to memcpy() data in a temp buffer to add data-length beforehand
  *    only use such buffer always for hb_znet connection
  * EXCEPTION for zipped traffic, here to do it 'old style' using receive buffer */
-#if ( defined( __BORLANDC__ ) || defined( __MINGW32__ ) )
+#if defined( __BORLANDC__ )
 static long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen )
 #else
 static _HB_INLINE_ long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen )
@@ -1717,7 +1717,7 @@ static void leto_AddTransList( LETOCONNECTION * pConnection, LETOTABLE * pTable 
          pConnection->pTransList = ( TRANSACTLIST * ) hb_xrealloc( pConnection->pTransList,
                                                                    sizeof( TRANSACTLIST ) * pConnection->ulTransListLen );
       }
-#if 0  // experimental verify
+#if 0  /* experimental verify */
       if( ! ( ! pTable->fShared || pTable->fFLocked || leto_IsRecLocked( pTable, pTable->ulRecNo ) ) )
          pConnection->ulTransLockErr++;
 #endif
@@ -2272,7 +2272,7 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
                                        break;
 
                                     case 'L':
-                                       *ptrRec++ = *ptrPar++;
+                                       *ptrRec = *ptrPar++;
                                        break;
 
                                     case 'N':
@@ -3803,7 +3803,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
    if( pTable->ptrBuf && leto_HotBuffer( pTable, &pTable->Buffer, pConnection->iBufRefreshTime ) )
    {
       HB_UCHAR * ptrBuf = pTable->Buffer.pBuffer;
-      HB_ULONG   ulRecLen, ul = 0;
+      HB_ULONG   ulRecLen;
 
       do
       {
@@ -3816,7 +3816,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
                leto_ParseRecord( pConnection, pTable, ( char * ) pTable->ptrBuf, HB_FALSE );
             }
 #ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "LetoDbGoTo found record %lu in skip buffer pos %lu", ulRecNo, ul );
+            leto_clientlog( NULL, 0, "LetoDbGoTo found record %lu in skip buffer", ulRecNo );
 #endif
             pTable->Buffer.ulShoots++;
             fFound = HB_TRUE;
@@ -3826,7 +3826,6 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
          if( ! ulRecLen || ulRecLen > 0xFFFF )  /* malicious data in buffer */
             break;
          ptrBuf += ulRecLen + 3;
-         ul++;
       }
       while( ! leto_OutBuffer( &pTable->Buffer, ( char * ) ptrBuf ) );
 
@@ -3972,11 +3971,9 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
 
 HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHORT uiKeyLen, HB_BOOL fSoftSeek, HB_BOOL fFindLast )
 {
-   LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-   const char *     pData = NULL;
-
    if( szKey )
    {
+      LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
       char          szData[ LETO_MAX_KEY + LETO_MAX_TAGNAME + 56 ];
       unsigned long ulLen;
 
@@ -3990,8 +3987,8 @@ HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHO
          pConnection->iError = 1021;
          return 1;
       }
-      pData = leto_firstchar( pConnection );
-      leto_ParseRecord( pConnection, pTable, pData, HB_TRUE );
+
+      leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ), HB_TRUE );
       pTable->ptrBuf = NULL;
    }
 

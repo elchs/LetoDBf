@@ -2,11 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-13 09:27 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * Readme.txt
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    % minor mods
+
+  * source/server/server.prg
+    % not use heap
+    - cleanups
+
 2016-12-12 23:15 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * include/cmdleto.h
   * include/letocl.h
-  * source/client/let1.c
-  * source/client/letol.c
+  * source/client/leto1.c
+  * source/client/letocl.c
   * source/server/leto_2.c
   * source/server/letofunc.c
     - removing the LETO_COMMIT() hack, LetoDBf does not benefit, maybe is

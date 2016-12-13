@@ -1590,11 +1590,12 @@ HB_FUNC( LETO_VARGET )
                case '4':   /* array from deserialized string */
                {
                   HB_SIZE  nSize = ( HB_SIZE ) ulLen;
-                  PHB_ITEM pArray = NULL;
+                  PHB_ITEM pArray;
 
                   pData += 2;
                   pArray = hb_itemDeserialize( &pData, &nSize );
-                  hb_itemReturnRelease( pArray );
+                  if( pArray )
+                     hb_itemReturnRelease( pArray );
                   break;
                }
             }

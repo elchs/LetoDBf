@@ -46,7 +46,6 @@ Contents
    8.1 Server Management utility
    8.2 Uhura
 9. Server-side functions
-10,Differences to original LetoDB/ Harbour
 A. Internals
 
 
@@ -1313,12 +1312,6 @@ A. Internals
  ! see explanations for purpose at client side function leto_VarGetCached() !
 
 
-      10. Different behaviour to LetoDB/ Harbour
-
- There are not much, or better shell not be, differences.
- One worth to mention: LetoDBf will strictly refuse to overwrite an used table, which is basically
- else possible. But against that is taken extra protection.
-
 
 -------------
 
@@ -1432,3 +1425,4 @@ A. Internals
 
 
  whish all possible fun !
+ elch

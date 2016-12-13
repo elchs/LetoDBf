@@ -70,6 +70,7 @@ REQUEST HB_MEMIO
 #ifdef __BM
    REQUEST BMDBFNTX
    REQUEST BMDBFCDX
+   REQUEST BMDBFNSX
    REQUEST BM_DBSEEKWILD
 #endif
 
@@ -100,7 +101,7 @@ MEMVAR oApp
 // #define __HBEXTERN__HBCT__REQUEST 1
 // #include "hbct.hbx"
 
-/* else these selected functions are linked into server executable with REQUEST */
+/* following selected functions are linked into server executable with REQUEST */
 REQUEST ABS, ALLTRIM, AT, CHR, CTOD, DATE, DAY, DELETED, DESCEND, DTOC, DTOS, ;
         EMPTY, I2BIN, L2BIN, LEFT, LEN, LOWER, LTRIM, MAX, MIN, MONTH, OS, PAD, PADC, ;
         PADL, PADR, RAT, RECNO, RIGHT, ROUND, RTRIM, SPACE, STOD, STR, STRZERO, ;
@@ -123,9 +124,6 @@ REQUEST ordKeyVal, dbOrderInfo, RDDinfo, Alias, Select, dbSelectArea
 REQUEST LETO_VARSET, LETO_VARGET, LETO_VARINCR, LETO_VARDECR, LETO_VARDEL, LETO_VARGETLIST
 REQUEST LETO_VARGETCACHED, LETO_BVALUE, LETO_BSEARCH
 
-/* something elch special ;-) */
-REQUEST MIXKEY
-
 REQUEST LETO_GETUSTRUID, LETO_WUSLOG, LETO_GETAPPOPTIONS
 REQUEST LETO_SELECT, LETO_SELECTAREA, LETO_ALIAS, LETO_AREAID, LETO_SELECTAREA, LETO_MAKEALIAS
 REQUEST LETO_REC, LETO_DBEVAL
@@ -135,6 +133,9 @@ REQUEST LETO_DBUSEAREA, LETO_DBCLOSEAREA, LETO_ORDLISTADD
 REQUEST LETO_DBCREATE, LETO_ORDCREATE
 REQUEST LETO_BACKUPTABLES, LETO_IDLESLEEP
 REQUEST LETO_UDFMUSTQUIT
+
+/* don't !! use, a ToDo to remove elch special ;-) */
+REQUEST MIXKEY
 
 #ifdef __BM
 REQUEST LBM_DbGetFilterArray, LBM_DbSetFilterArray, LBM_DbSetFilterArrayAdd
@@ -681,33 +682,7 @@ FUNCTION leto_ClearEnv( xScope, xScopeBottom, xOrder, cFilter )
    RETURN NIL
 
 
-#if 0
-/* useful for dynamic server address */
-/* try to find IP address for an interface name -- or return the first found with a MAC */
-STATIC FUNCTION IPForInterface( cName )
-
-   LOCAL aIFace := hb_socketGetIFaces( HB_SOCKET_AF_INET, .T. )
-   LOCAL nIFace := 0
-   LOCAL cIP    := ""
-
-   IF Len( aIFace ) > 0
-      IF ! Empty( cName )
-         cName := Upper( cName )
-         nIFace := AScan( aIFace, {| aItm | Upper( aItm[ HB_SOCKET_IFINFO_NAME ] ) == cName } )
-      ELSE
-         /* first interface with guilty MAC address */
-         nIFace := AScan( aIFace, {| aItm | ! Empty( aItm[ HB_SOCKET_IFINFO_HWADDR ] ) .AND. ;
-            ! aItm[ HB_SOCKET_IFINFO_HWADDR ] == "00:00:00:00:00:00" } )
-      ENDIF
-   ENDIF
-   IF nIFace > 0
-      cIP := aIFace[ nIFace, HB_SOCKET_IFINFO_ADDR ]
-   ENDIF
-
-   RETURN cIP
-#endif
-
-/* elch mixkey */
+/* don't ! use, elch historical needed mixkey */
 #pragma BEGINDUMP
 #include <extend.h>
 
@@ -716,18 +691,16 @@ HB_FUNC( MIXKEY )
    const char * ptr    = hb_parc( 1 );
    unsigned int iNLen  = hb_parni( 2 );
    unsigned int iZLen  = hb_parni( 3 );
-   char * pcRet = ( char * ) hb_xgrab( iZLen );
-   char * pNPart = ( char * ) hb_xgrab( iNLen );
-   char * pZPart = ( char * ) hb_xgrab( iZLen );
-   unsigned int iNPart = 0;
-   unsigned int iZPart = 0;
-   unsigned int i = 0;
-   unsigned int y;
+   char pcRet[ 16 ], pNPart[ 16 ], pZPart[ 16 ];
+   unsigned int iNPart = 0, iZPart = 0;
+   unsigned int i = 0, y, z = hb_parclen( 1 ); 
 
-   while( i < iZLen )
-      pcRet[ i++ ] = ' ';
-
-   while( strlen( ptr ) > 0 )
+   if( iNLen > 16 )
+      iNLen = 16;
+   if( iZLen > 16 )
+      iZLen = 16;
+   memset( pcRet, ' ', iZLen );
+   while( z > 0 )
    {
       switch( ptr[ 0 ] )
       {
@@ -758,6 +731,7 @@ HB_FUNC( MIXKEY )
             break;
       }
       ptr++;
+      z--;
    }
 
    if( iNPart > 0 )
@@ -779,10 +753,7 @@ HB_FUNC( MIXKEY )
    }
 
    hb_retclen( pcRet, iZLen );
-
-   hb_xfree( pcRet );
-   hb_xfree( pNPart );
-   hb_xfree( pZPart );
 }
 
 #pragma ENDDUMP
+
