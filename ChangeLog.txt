@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-13 13:13 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * letodb.hbp
+  * letoaddon.hbp
+  * letodbsvc.hbp
+  * Readme.txt
+  * source/server/server.prg
+    * added/ modified information about codepage extensions 
+
 2016-12-13 09:27 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * Readme.txt
   * source/client/letocl.c

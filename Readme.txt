@@ -350,10 +350,21 @@ A. Internals
 
       4.2.2 Codepage support
 
- In the file: source/include/letocdp.ch you may adapt the list of available codepages.
- These will then be enabled/ loaded for a client connection,
- Each connection can use a different codepage, but you should not open the same DBF aka index
- files with different codepage. It is important, with which CP setting the index was created.
+ This topic relates mainly to index files.
+ Each connection can use a different codepage.
+ Each connection is actually limited to use same codepage for all its tables.
+ You should avoid to open the *same* DBF aka its index files with different codepages.
+ These limits i may extend, if possible, in future if its' really needed.
+ It is important, with which CP setting the index was created and then later DBF data is modified.
+
+ In the file: source/include/letocdp.ch
+ you may adapt the list of available codepages. These can then be enabled/ loaded for a client connection.
+ ! After changing content in that include file, you have to rebuild the server !
+ The names in that file are the same you use in you sourcecode, but with prefix: HB_CODEPAGE_MyCodepage
+
+ Above shell be the recommended way to adapt the list of possible codepages.
+ Alternatively, you can enable *all* by Harbour known codepages by outcommenting in:
+ letodb.hbp ( ledodbaddon/ letodbsvc ) the line with: "__HB_EXT_CDP__" [ remove the '#' at beginning ] 
 
 
       4.2.3 Rushmore index supprt

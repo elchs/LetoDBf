@@ -2,11 +2,20 @@
 {!bcc}-env:__LZ4=yes
 -env:__PMURHASH=yes
 
-# experimental !, only used only LETO_BACKUPTABLES()
-#{linux}-env:__SPLICE=yes
+# alternative to recommended adaption of: source/include//letocdp.ch
+# outcomment following line to enable all by Harbour known codepages in LetoDBf
+#-prgflag=-D__HB_EXT_CDP__=yes
 
+# Uncomment "plugrand" line for a random password used by server to encrypt the
+# users/passwords/rights file. Then 'nobody' know the password,
+# but with each new server build the file must be deleted/ new created.
+#-plugin=plugrand.hb
+
+#-cflag=-D__HARBOUR30__=1
+
+
+# --- down here you should not modify without deeper knowledge about why ---
 -l
-#-inc
 -strip
 -gc3
 -mt
@@ -27,7 +36,7 @@
 
 #-cflag=-D__HARBOUR30__=1
 
-#-warn=max
+-warn=max
 -prgflag={unix}-D__LINUX_DAEMON__
 #-prgflag={unix}-D__CONSOLE__
 -prgflag={unix}-D__LINUX__

@@ -143,14 +143,13 @@ REQUEST LBM_DbSetFilterArrayDel, LBM_DbSetFilter
 #endif
 
 #ifdef __HB_EXT_CDP__
+   /* ! all ! available codepages */
+   /* #define __HBEXTERN__HBCDPAGE__REQUEST__
+    * #include "hbcpage.hbx" */
    #include "hbextcdp.ch"
 #else
    /* only selected codepages */
    #include "letocdp.ch"
-
-   /* ! all ! available codepages */
-   // #define __HBEXTERN__HBCDPAGE__REQUEST__
-   // #include "hbcpage.hbx"
 #endif
 
 #include "cmdleto.h"
