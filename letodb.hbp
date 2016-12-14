@@ -36,7 +36,7 @@
 
 #-cflag=-D__HARBOUR30__=1
 
--warn=max
+#-warn=max
 -prgflag={unix}-D__LINUX_DAEMON__
 #-prgflag={unix}-D__CONSOLE__
 -prgflag={unix}-D__LINUX__

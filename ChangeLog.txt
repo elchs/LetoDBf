@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-13 08:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * letodb.hbp
+  * letoaddon.hbp
+  * letodbsvc.hbp
+    ! disable warn=max; warns about cpp+11 style
+
 2016-12-13 07:33 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * include/letocl.h
   * source/client/leto1.c
