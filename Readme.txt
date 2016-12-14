@@ -223,8 +223,11 @@ A. Internals
                                     are done.
                                     Choose this to '1', if you plan to execute server side UDF functions.
                                     Each connection will get an own log file [ if DEBUG level is increased ].
-      Default_Driver = CDX     -    default RDD to open DBF tables in at server ( possible: CDX/ NTX )
-                                    Then the server by default uses DBFCDX or DBFNTX RDD.
+      Default_Driver = CDX     -    default RDD to open DBF tables in at server, if not given explicitely in
+                                    your sourcecode. Possible values: CDX NTX
+                                    If the server is linked with rushmore index support, CDX gets BMCDX and
+                                    NTX will became BMNTX
+                                    If not set, the server by default uses CDX [ BMCDX ]
                                     Can on demand changed by client with function: leto_DbDriver().
       Cache_Records            -    The default number of records to be read into the client read cache,
                                     used for skipping etc without new requesting the server.
@@ -237,10 +240,10 @@ A. Internals
                                     Then DB_DBFLOCK_HB32 will be used for NTX/CDX;
                                     _or_ if set to 6, DB_DBFLOCK_CLIPPER2 for NTX, HB32 for other
                                     _or_ if set to 2, DB_DBFLOCK_COMIX for CDX, HB32 for other.
-      Memo_Type =              -    memo type ( FPT/ DBT/ SMT ),
-                                    Default: FPT for DBFCDX, DBT for DBFNTX;
-      Memo_BSize =             -    for expert users !, this will change default memo blocksize
-                                    for *NEW* created DBF data tables.
+      Memo_Type =              -    LEAVE IT EMPTY, to get the default for the choosen option Default_Driver.
+                                    Default: FPT for DBFCDX, DBT for DBFNTX, SMT for others.
+      Memo_BSize =             -    for !expert! users !, this will change default memo blocksize
+                                    for *NEW* created DBF data tables. Before doing so, you need a lesson about.
       Lower_Path = 0           -    if 1, convert all paths and filenames to lower case;
                                     This is useful if: all files at disk are in lower case, in your
                                     application they are named mixed case, and the [Linux] OS for server
@@ -357,25 +360,37 @@ A. Internals
  These limits i may extend, if possible, in future if its' really needed.
  It is important, with which CP setting the index was created and then later DBF data is modified.
 
+ If your questions now are: what is a codepage ? -- how do i determine the used codepage in my sourcecode ?
+ -- what is the command to change in my sourcecode the codepage ? --  and similar questions ...
+ indicate, that you are using default settings. Then you are nearly done about this section.
+
  In the file: source/include/letocdp.ch
  you may adapt the list of available codepages. These can then be enabled/ loaded for a client connection.
  ! After changing content in that include file, you have to rebuild the server !
- The names in that file are the same you use in you sourcecode, but with prefix: HB_CODEPAGE_MyCodepage
+ The names in that file are the same you use in your sourcecode, but with prefix: HB_CODEPAGE_MyCodepage
 
  Above shell be the recommended way to adapt the list of possible codepages.
  Alternatively, you can enable *all* by Harbour known codepages by outcommenting in:
- letodb.hbp ( ledodbaddon/ letodbsvc ) the line with: "__HB_EXT_CDP__" [ remove the '#' at beginning ] 
+ letodb.hbp ( ledodbaddon/ letodbsvc ) the line with: "__HB_EXT_CDP__" [ remove the '#' at beginning ]
 
 
-      4.2.3 Rushmore index supprt
+      4.2.3 Rushmore bitmap index supprt
 
- The server and the client library can be built with support of the driver BMDBFCDX/ BMDBFNTX/ BMDBFNTX.
+ Before you believe, this will be the mother of filtering performance problems, let be told she isn't.
+ Better to invest a bit time about how to get optimized *server-side* filters with help of the Leto_Var*()
+ system, see section 5.2 and search for the Leto_VarGetCached() idea ...
+ Because to get the array with record numbers to be set as valid, it must be skipped one time through the
+ whole database, in opposite to first suggest where this is done for so many records as just needed.
+ To update this 'fixed set', again a full run is needed, where above suggest just actualizes the expression.
+
+ The server and the client library can be built with support of the driver BMDBFCDX/ BMDBFNTX/ BMDBFNSX.
  In this case, these RDD will be used by default, aka e,g. BMDBFCDX if "CDX" is found in letodb.ini
- Basically they support the same functionality, plus some special functions to set bitmap filters, see
- section 7.11
- To build server for this, in build scripts (letodb.hbp, rddleto[addon].hbp for hbmk2) it's need to set
- macro __BM by un-commenting it, aka remove that < # > of first position
- Re-compile both!! server executable and client library.
+ Basically they support the same functionality as classic CDX/ NTX, but there are five functions to set
+ bitmap filters, see section 7.11
+ To build server for this, you need to uncomment in the hbp file / letodb.hbp, rddleto.hbp ) a macro:
+ "__BM", done with removing of the '#' at beginning of lines with that "__BM".
+ Then re-compile *both* sides sides of LetoDBf, aka server executable and client library.
+ As they are implemented as an UDF call, you must also set in letodb.ini Allow_UDF = 1.
 
 
       4.2.4 Compression LZ4 / ZLib
@@ -386,6 +401,9 @@ A. Internals
  I would very recommend lightning fast LZ4.
  Re-compile both!! server executable and client library. This must fit together, a server with LZ4 won't understand
  a client application with ZLib.
+
+ Additional remark: at least stoneage old BCC 5.5 had problems with using LZ4, so it is outcommented for all BCC
+ versions. If you want to try it with a newer BCC version you have to remove that: "{!bcc}" in the HBP files.
 
 
       4.3 Authentication
@@ -460,6 +478,11 @@ A. Internals
  All path separators in your filenames are converted by LetoDBf server internal to the needed one,
  you need not to take care about. Use of "\" or "/" is equal.
 
+ To check for some firsst examples, look into the "tests" directory. Build them all at once with: "buildall"
+ resp. "-/buildall.sh" for Linux. Add for execution as first param the IP address of the server,
+ if unknown but at same machine running as the application use loopback network: 127.0.0.1
+ At any case you shell try the "test_file" executable, as about a not working "Leto_File() functions exist
+ multiple! miles long mysthic threads at Harbour Google group about its inner magic :-) 8-) !!
 
  The other, not recommended way because of not being portable, is to open a DBF table with the
  'on the fly' method by adding IP-address[:port] plus relative path to Harbours 'USE' command,
@@ -467,27 +490,38 @@ A. Internals
        USE "//192.168.5.22:2812/mydir/test"
  will open file in:
        [drive:]\path\to\data_diretory\mydir\test.dbf.
+ After doing this an initial time, you are also connected to the server and would need for the next calls
+ no more IPaddress:port prefix more. This is a hint for experienced LetoDB users to think about.
 
 
       5.2 Filters
 
- The filter is established usually: by the SET FILTER TO command or by a call
- DbSetFilter() function. The filter which can be executed on the server is called optimized.
- If the filter can't be executed on the server, it is not optimized. Such filter
- is slow as from the server all records, which are all the same requested then
- are filtered on the client.
- To set the optimized filter, it is necessary, that in logical expression for the filter were no variables
- or functions only known by the client. Also filter expressions containing ALIAS-> names for fields will be
- rejected as non optimized.
- With the help of leto_Var*() functions and UDF loadable functions in the UDF module, it is possible to turn
- a non-optimized filter into an optimized. For using leto_Var*() functions see notes about: leto_VarGetCached()
- To check, whether the filter is optimized, it is necessary to call the LETO_ISFLTOPTIM() function.
+ The filter is established usually: by the SET FILTER TO command or by calling DbSetFilter() function.
+ The filter expression which can be executed at the server is called optimized.
+ If the filter can't be executed on the server, it is called: not optimized. Such filter is slow as from the
+ server all records must be received, wand the nthe client have to discard all the invalid ones.
 
+ To set the optimized filter, it is necessary, that in the expression is solely executable for the server.
+ So all the functions therein, like standarf Str(), Upper(), DToS() etc must be known to the server.
+ If your expression contains an own function from yourself, this can be loaded with as HRB file any time during
+ a running server, see therefore 4.2.1 UDF supprt.
+ If your expression contains a variable only know to you application, the mighty Leto_Var*() system comes into
+ game play. With this you can share the content of a variable at client side with the server, and vice versa.
+ See therefore section 7.9 Server variables.
+
+ So with the help of leto_Var*() functions plus UDF loadable functions plus a rich set of classic Harbour
+ commands, it is possible to turn any non-optimized filter into an optimized.
+ Thes are lightning fast, a pleasure to work with.
+ To test, whether a filter is an optimized, just check for with the LETO_ISFLTOPTIM() function, returns TRUE.
+
+ These two settings limit the use of optimized filters:
  SET( _SET_OPTIMIZE, .F. ) will disable any filter evalution at server, so every filter will become a
- non-optimized filter executed by client [ default is .T. ].
- Only with server mode: No_save_WA = 1 and then setting
- SET( _SET_FORCEOPT, .T. ) will enable all possible filter expressions at server, even those with ALIAS names
- in the expression string [ default is .F. ].
+ non-optimized filter to be executed by client [ the default is .T. == allow them ].
+ Only in server mode: No_save_WA = 1 and then setting:
+ SET( _SET_FORCEOPT, .T. ) will enable filter expressions at server, even those with ALIAS names, maybe of an
+ relationed workarea, in the expression string [ default is .F. == not allow].
+ Server mode No_Save_WA = 1 is needed, because in mode '0' LetoDBf server uses internal other named ALIAS
+ names as the client, the workareas are different and there is no relation at server active.
 
 
       5.3 Database driver
@@ -520,9 +554,9 @@ A. Internals
  These HbMemIO called tables are especially useful for temporary tables. They are limited to
  available RAM at your server and only valid during one server run, all lost after LetoDB shutdown.
 
- Filenames for these special data tables optional can have optional a leading path seperator
+ Filenames for these special data tables optional can have *optional* a leading path seperator
  [ '/' or '\' ], follwed mandatory by a 'mem:' prefix. As example:
- "/mem:speeddata.dbf" would be a valid filename. These data tables work like 'real' data tables,
+ "/mem:speeddata.dbf" will be a valid filename. These data tables work like 'real' data tables,
  so they are created using the active database driver ( see 5.3 ).
  When index orders are created, the bagname must also have this prefix: "mem:", else it will be
  created on harddrive.
@@ -536,14 +570,11 @@ A. Internals
 
       6. Variables management
 
-      Letodb allows to manage variables, which are shared between applications, connected
- to the server. Variables are separated into groups and may be of logical, integer or
- character type. You can set a variable, get it, delete or increment/decrement
- ( numerical, of course ). All operations on variables are performed consecutively by
- one thread, so the variables may work as semaphores. See the functions list for a syntax
- of appropriate functions and tests/test_var.prg for a sample.
-      Letodb.ini may contain lines to determine the maximum number of variables and a
- maximum size of a text variable.
+ Letodb allows to manage variables, which are shared between applications, connected
+ to the server and with the server itself. All operations on variables are performed consecutively by
+ one thread, so the variables may work as semaphores.
+
+ Scroll to section: 7.9 Server variable functions, and check a first example in tests/test_var.prg.
 
 
       7. Functions list
@@ -753,19 +784,19 @@ A. Internals
  because of ugly design problems. It is left as dummy function.
  If such functionality is really needed, encapsulate your request in a transaction.
  Or use: LetoCommit() after the record is appended, to spare an tiny unlock request to server.
- ( Note for experts: memo-fields need a record/ RecNo at server to be put, auto-incrementing fields also.
-   In case the developer uses: DbAppend( [.T.] ), there are at least one record left locked at server, about
-   the client have no information. Also functions like: RecCount() will become dangerous useless. )
 
-      RddInfo( RDDI_REFRESHCOUNT, <lSet>,, [nConnection] )
+      RddInfo( RDDI_REFRESHCOUNT[, <lSet> ] )
+
  By default, the RDDI_REFRESHCOUNT flag is set to true.  If this flag is set, function: RecCount() retrieve
  amount of records from server.
  If not set, with common record data transmitted values are used and are maybe slightly out-timed.
  If other applications are appending records to the table, new value of records count won't be immediately received.
  If RDDI_REFRESHCOUNT flag is cleared, dbGoto(0) clears record buffer and set EOF and other flags instead of sending a
  server request.
+ ( RDDI_REFRESHCOUNT     101 RDDI_BUFKEYNO         102  RDDI_BUFKEYCOUNT      103 )
 
       RddInfo( RDDI_DEBUGLEVEL [, nNewLevel ] )
+
  Reports [ and changes ] the debug level at server, responsible for amount of feedback in the log files.
  Use with care, log files will grow at a busy server in only some seconds MB stepwise ...
  For possible values look 4.1 :letodb.ini ...
@@ -962,7 +993,7 @@ A. Internals
   'on the fly' to countercheck the password for the one user who asks for access.
 
 
-      7.9 Server variable management functions
+      7.9 Server variable functions
 
       LETO_VARSET( cGroupName, cVarName, xValue [, nFlags [, @xRetValue]] )
                                                                ==> lSuccess
@@ -1354,7 +1385,7 @@ A. Internals
  Or in my other words:
  ( https://groups.google.com/forum/#!topic/harbour-users/q_ZqmOB6Sns )
  In the classic 'client-server' model, the client send a request and receives a response from server
- - at any time. Each of these request/response need a whole 'package' to be send, even commonly less 
+ - at any time. Each of these request/response need a whole 'package' to be send, even commonly less
  filled with just a few bytes instead max possible ~ 1500 Bytes.
  The amount of packages per timespan is limited, so despite fullspeed communication you see less
  network traffic.

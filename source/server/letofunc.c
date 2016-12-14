@@ -106,7 +106,6 @@ static HB_BOOL   s_bFileFunc = HB_FALSE;
 static HB_BOOL   s_bAnyExt = HB_FALSE;
 static HB_USHORT s_uiLockExtended = HB_FALSE; // change default to extended mode ( DBFLOCK_CLIPPER, DBFLOCK_HB32 )
 static HB_BOOL   s_bUdfEnabled = HB_FALSE;
-static HB_BOOL   s_bCryptTraf = HB_FALSE;     // means crypting data, not whole traffic e.g. not fieldnames
 static HB_USHORT s_uiCacheRecords = 10;
 static HB_BOOL   s_bOptimize = HB_TRUE;
 static HB_BOOL   s_bForceOpt = HB_FALSE;
@@ -300,14 +299,6 @@ HB_USHORT leto_ActiveUser( void )
 HB_USHORT leto_MaxUsers( void )
 {
    return s_uiUsersAlloc;
-}
-
-char leto_CryptTraf( void )
-{
-   if( s_bCryptTraf )
-      return 'Y';
-   else
-      return 'N';
 }
 
 HB_BOOL leto_CheckPass( int iType )
@@ -1425,11 +1416,9 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
       s_bPass4M = hb_parl( 6 );
    if( HB_ISLOG( 7 ) )
       s_bPass4D = hb_parl( 7 );
-
    if( HB_ISCHAR( 8 ) && hb_parclen( 8 ) > 0 )
       leto_acc_setPath( hb_parc( 8 ) );
-   if( HB_ISLOG( 9 ) )
-      s_bCryptTraf = hb_parl( 9 );
+
    if( HB_ISLOG( 10 ) )
       s_bShareTables = hb_parl( 10 );
    if( HB_ISLOG( 11 ) )
@@ -2178,31 +2167,11 @@ static _HB_INLINE_ HB_ULONG leto_recLen( PTABLESTRU pTStru )
    return pTStru->uiRecordLen + 25 + ( pTStru->uiFields * 3 );
 }
 
-static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char * szData, HB_ULONG ulLenData, HB_BOOL fRefr )
+static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char * szData, HB_BOOL fRefr )
 {
-   char *    pData;
+   char *    pData = szData + SHIFT_FOR_LEN;
    HB_ULONG  ulRealLen;
    HB_USHORT uiFieldCount;
-
-   if( s_bCryptTraf && ! pUStru->bZipCrypt )  /* ToDo ? no decrypt for UDF level bBeQuiet */
-   {
-      if( ulLenData > pUStru->ulBufCryptLen )
-      {
-         if( ! pUStru->ulBufCryptLen )
-         {
-            pUStru->ulBufCryptLen = HB_MAX( ulLenData, LETO_SENDRECV_BUFFSIZE );
-            pUStru->pBufCrypt = ( HB_BYTE * ) hb_xgrab( pUStru->ulBufCryptLen + 1 );
-         }
-         else
-         {
-            pUStru->ulBufCryptLen = ulLenData;
-            pUStru->pBufCrypt = ( HB_BYTE * ) hb_xrealloc( pUStru->pBufCrypt, ulLenData + 1 );
-         }
-      }
-      pData = ( char * ) pUStru->pBufCrypt;
-   }
-   else
-      pData = szData + SHIFT_FOR_LEN;
 
    // SELF_FIELDCOUNT( pArea, &uiFieldCount ) == HB_SUCCESS  // pAStru->pTStru->uiFields;
    uiFieldCount = pArea->uiFieldCount;
@@ -2463,20 +2432,7 @@ static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char 
       else
          *pData++ = '#';
 
-      if( s_bCryptTraf && ! pUStru->bZipCrypt )
-      {
-         char * szKey = leto_localKey( pUStru->cDopcode, LETO_DOPCODE_LEN );
-
-         ulRealLen = pData - ( char * ) pUStru->pBufCrypt;
-         /* changed to local key */
-         leto_encrypt( ( const char * ) pUStru->pBufCrypt, ulRealLen, szData + SHIFT_FOR_LEN,
-                       &ulRealLen, szKey, HB_FALSE );
-         if( szKey )
-            hb_xfree( szKey );
-      }
-      else
-         ulRealLen = pData - szData - SHIFT_FOR_LEN;
-
+      ulRealLen = pData - szData - SHIFT_FOR_LEN;
       HB_PUT_LE_UINT24( szData, ( HB_U32 ) ulRealLen );
       ulRealLen += SHIFT_FOR_LEN;
    }
@@ -2504,7 +2460,7 @@ HB_FUNC( LETO_REC )
    ulLen = leto_recLen( pUStru->pCurAStru->pTStru );
    szData = ( char * ) hb_xgrab( ulLen );
 
-   ulLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szData, ulLen, HB_TRUE );
+   ulLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szData, HB_TRUE );
 
    hb_retclen_buffer( szData, ulLen );
 }
@@ -3979,8 +3935,8 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
                      LETO_RELEASE_STRING, LETO_VERSION_STRING, strlen( szAddr ) ? "IP " : "port ", szAddr, iPort, iPort + 1 );
       leto_writelog( NULL, -1, "INFO: DataPath=%s, ShareTables=%d, NoSaveWA=%d, max database=%d",
                      ( s_pDataPath ? s_pDataPath : "" ), s_bShareTables, s_bNoSaveWA, s_uiTablesAlloc);
-      leto_writelog( NULL, -1, "INFO: LoginPassword=%d, CacheRecords=%d, LockExtended=%d, CryptTraffic=%d",
-                     s_bPass4L, s_uiCacheRecords, s_uiLockExtended, s_bCryptTraf );
+      leto_writelog( NULL, -1, "INFO: LoginPassword=%d, CacheRecords=%d, LockExtended=%d",
+                     s_bPass4L, s_uiCacheRecords, s_uiLockExtended );
    }
 }
 
@@ -4140,41 +4096,7 @@ static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG u
       }
    }
 
-   if( ( s_bCryptTraf && ! pUStru->bZipCrypt ) && ulLen )  /* else done by hb_znet* */
-   {
-      char * szKey = leto_localKey( pUStru->cDopcode, LETO_DOPCODE_LEN );
-
-      /* compress here, if not later done by compressed traffic */
-#ifdef USE_LZ4
-      if( pUStru->iZipRecord < 1 && ulLen > LETO_LZ4_COMPRESS_MIN )
-#else
-      if( pUStru->iZipRecord < 1 && ulLen > LETO_ZIP_MINLENGTH )
-#endif
-      {
-#ifdef USE_LZ4
-         leto_lz4Compress( ( char * ) pUStru->pBufCrypt + 4, &nDest, ( const char * ) pData, ulLen,
-                          HB_ZLIB_COMPRESSION_SPEED );
-#else
-         hb_zlibCompress( ( char * ) pUStru->pBufCrypt + 4, &nDest, ( const char * ) pData, ulLen,
-                          HB_ZLIB_COMPRESSION_SPEED );
-#endif
-         HB_PUT_LE_UINT32( pUStru->pBufCrypt + 4 + nDest, nDest );
-         HB_PUT_LE_UINT32( pUStru->pBufCrypt + 4 + nDest + 4, ulLen );
-         ulLen = nDest + 8;
-         leto_encrypt( ( const char * ) pUStru->pBufCrypt + 4, ulLen,
-                         ( char * ) pUStru->pBufCrypt + 4, &ulLen, szKey, HB_FALSE );
-         HB_PUT_LE_UINT32( pUStru->pBufCrypt, ulLen | 0x80000000 );
-      }
-      else
-      {
-         leto_encrypt( pData, ulLen, ( char * ) pUStru->pBufCrypt + 4, &ulLen, szKey, HB_FALSE );
-         HB_PUT_LE_UINT32( pUStru->pBufCrypt, ulLen );
-      }
-
-      if( szKey )
-         hb_xfree( szKey );
-   }
-   else if( ulLen )
+   if( ulLen )
    {
       /* compress here, if not later done by compressed traffic */
 #ifdef USE_LZ4
@@ -4299,6 +4221,7 @@ static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
             case RDDI_FORCEOPT:
             case RDDI_AUTOOPEN:
             case RDDI_MULTITAG:
+            case RDDI_STRUCTORD:
                if( pp3 && strlen( pp3 ) == 1 )
                   pItem = hb_itemPutL( NULL, ( *pp3 == 'T' ) );
                else
@@ -5796,7 +5719,7 @@ static char * leto_recWithAlloc( AREAP pArea, PUSERSTRU pUStru, PAREASTRU pAStru
 
    if( szData )
    {
-      *pulLen = leto_rec( pUStru, pAStru, pArea, szData + 1, ulRecLen, HB_TRUE );
+      *pulLen = leto_rec( pUStru, pAStru, pArea, szData + 1, HB_TRUE );
       if( *pulLen )
       {
          szData[ 0 ] = '+';
@@ -6855,7 +6778,7 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
          HB_BOOL  bFlag;
 
          szData1 = ( char * ) hb_xgrab( ulMemSize + 1 );
-         ulLenAll = leto_rec( pUStru, pAStru, pArea, szData1 + 1, ulMemSize, HB_TRUE );
+         ulLenAll = leto_rec( pUStru, pAStru, pArea, szData1 + 1, HB_TRUE );
          if( ! ulLenAll )
             pData = szErr2;
          else if( ! pAStru->bUseSkipBuffer )
@@ -6885,7 +6808,7 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
                         if( bFlag )
                            break;
                      }
-                     ulLen2 = leto_rec( pUStru, pAStru, pArea, szData1 + 1 + ulLenAll, ulMemSize - 1 - ulLenAll, HB_FALSE );
+                     ulLen2 = leto_rec( pUStru, pAStru, pArea, szData1 + 1 + ulLenAll, HB_FALSE );
                      if( ! ulLen2 )
                      {
                         pData = szErr2;
@@ -6998,7 +6921,7 @@ static PHB_ITEM * leto_dbEval( PUSERSTRU pUStru, AREAP pArea, PHB_ITEM * pBlocks
       }
       else  // default action: raw record
       {
-         ulLen2 = leto_rec( pUStru, pUStru->pCurAStru, pArea, szData1, ulRecLen, i == 1 );
+         ulLen2 = leto_rec( pUStru, pUStru->pCurAStru, pArea, szData1, i == 1 );
          i++;
          if( ! ulLen2 )
             break;
@@ -9757,32 +9680,6 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
          pAStru->itmFltExpr = pFilterBlock;
       }
 
-#if 0
-#ifdef __BM
-      if( bRes && bForce )
-      {
-         DBFILTERINFO pFilterInfo;
-         PHB_ITEM     pText = hb_itemPutCL( NULL, szFilter, ulLen );
-
-         pFilterInfo.itmCobExpr = pFilterBlock;
-         pFilterInfo.abFilterText = pText;
-         pFilterInfo.fFilter = HB_TRUE;
-         pFilterInfo.lpvCargo = NULL;
-         pFilterInfo.fOptimized = HB_TRUE;
-         SELF_SETFILTER( pArea, &pFilterInfo );
-
-         pAStru->pBM = pArea->dbfi.lpvCargo;
-
-         pArea->dbfi.itmCobExpr = NULL;
-         pArea->dbfi.lpvCargo = NULL;
-         pArea->dbfi.fFilter = HB_FALSE;
-         pArea->dbfi.fOptimized = HB_FALSE;
-         hb_itemRelease( pText );
-         pArea->dbfi.abFilterText = NULL;
-      }
-#endif
-#endif
-
       if( ! bRes && bForce )
       {
          if( s_iDebugMode >= 2 )
@@ -10971,7 +10868,7 @@ static void leto_Trans( PUSERSTRU pUStru, const char * szData, HB_BOOL bSort )
                szData1 = ( char * ) hb_xgrab( ulLen + 6 );
                memcpy( szData1, szOk, 4 );
                szData1[ 4 ] = ';';
-               ulLen = leto_rec( pUStru, pAStruDst, pAreaDst, szData1 + 5, ulLen, HB_TRUE ) + 5;
+               ulLen = leto_rec( pUStru, pAStruDst, pAreaDst, szData1 + 5, HB_TRUE ) + 5;
 
                leto_SendAnswer( pUStru, szData1, ulLen );
                hb_xfree( szData1 );
@@ -12097,7 +11994,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             HB_ULONG ulRealLen;
 
             szTmp = ( char * ) hb_xgrab( ulRecLen );
-            ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTmp, ulRecLen, HB_TRUE );
+            ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTmp, HB_TRUE );
             if( ulRealLen )
             {
                if( ulRealLen + ulLenLen > uiReplyBufLen )
@@ -12591,7 +12488,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          if( ulRecLen > 0 )
          {
             char *   szTmp = ( char * ) hb_xgrab( ulRecLen );
-            HB_ULONG ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTmp, ulRecLen, HB_TRUE );
+            HB_ULONG ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTmp, HB_TRUE );
 
             if( ! ulRealLen )
             {
@@ -13013,7 +12910,7 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
          if( ulRecLen > 0 )
          {
             char *   szTemp = ( char * ) hb_xgrab( ulRecLen );
-            HB_ULONG ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTemp, ulRecLen, HB_TRUE );
+            HB_ULONG ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTemp, HB_TRUE );
 
             if( ulRealLen )
             {
@@ -13685,7 +13582,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
          *szReply = '+';
          strcpy( szReply + 1, szTmp );
          hb_xfree( szTmp );
-         ulLenLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szReply + 1 + ulLen, ulRecLen, HB_TRUE ) + 1 + ulLen;
+         ulLenLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szReply + 1 + ulLen, HB_TRUE ) + 1 + ulLen;
       }
    }
 

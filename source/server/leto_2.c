@@ -1284,7 +1284,7 @@ static HB_THREAD_STARTFUNC( thread2 )
 
       ulTmp = sprintf( szBuffer, "%s %s", LETO_RELEASE_STRING, LETO_VERSION_STRING );
       szBuffer[ ulTmp++ ] = ';';
-      szBuffer[ ulTmp++ ] = leto_CryptTraf();
+      szBuffer[ ulTmp++ ] = 'N';  /* ex. s_bCryptTraf */
 
       leto_random_block( pUStru->cDopcode, LETO_DOPCODE_LEN, 42 );
       leto_encrypt( pUStru->cDopcode, LETO_DOPCODE_LEN, szTmp, &ulLen, LETO_PASSWORD, HB_TRUE );

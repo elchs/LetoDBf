@@ -615,7 +615,7 @@ METHOD New() CLASS HApp
 
 FUNCTION leto_SetEnv( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
 
-   IF ! Empty( xOrder )
+   IF ! Empty( xOrder ) .AND. ValType( xOrder) $ "CN"
       nOldOrder := OrdNumber()
       ordSetFocus( xOrder )
    ENDIF

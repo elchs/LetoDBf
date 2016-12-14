@@ -38,9 +38,9 @@ Function Main( cPath )
          QUIT
       ELSE
          ? LETO_GetServerVersion()
-         LETO_DBDRIVER( "DBFCDX" )
+         // LETO_DBDRIVER( "DBFCDX" )
          // LETO_DBDRIVER( "DBFNTX" )
-         ? "DBF DATABASE DRIVER        :", LETO_DBDRIVER()[ 1 ]
+         ? "DBF DATABASE DRIVER        :", LETO_DBDRIVER()[ 1 ], "MEMOTYPE:", LETO_DBDRIVER()[ 2 ] 
          LETO_TOGGLEZIP( 1 )
          ? "NETWORK TRAFFIC COMPRESSION:", Iif( LETO_TOGGLEZIP() > 0, "ON", "OFF" )
       ENDIF
@@ -104,13 +104,17 @@ Function Main( cPath )
       ? "INDEX KEY 3:", IIF( indexord() == 3, "(ok)", "(fail)" ), indexkey( 3 )
       INDEX ON DINFO TAG DINFO
       ? "INDEX KEY 4:", IIF( indexord() == 3, "(ok)", "(fail)" ), indexkey( 3 )
-      ? "File has been indexed"
+      ? "Table now indexed"
+      IF RDDINFO( RDDI_MULTITAG )
+         ?? ", all in one file"
+      ENDIF
+      ?? " with extension: ", RDDInfo( RDDI_ORDEREXT ), ";"
    ELSE
       ? "File was indexed"
       DbSetIndex( "test2" )
    ENDIF
-   ?? DBORDERINFO( DBOI_ORDERCOUNT )
-   ?? " active orders "
+   ?? STR( DBORDERINFO( DBOI_ORDERCOUNT ), 2, 0 )
+   ?? " orders active "
    ?? Iif( DBORDERINFO( DBOI_ORDERCOUNT ) == 3, "- Ok","- Failure" )
    DBSETORDER( 0 )
    ? "table locked", IIF( FLock(), "(Ok)", "Failure" )
@@ -224,8 +228,12 @@ Function Main( cPath )
       ? i, ordKey( i )
    ENDDO
    i := DBORDERINFO( DBOI_ORDERCOUNT )
-   ? "Active orders ", i, Iif( i == 3, "- Ok","- Failure" )
-   ? "Focus set to ", indexord(), Iif( indexord() == SET( _SET_AUTORDER ), "- Ok","- Failure" )
+   IF RDDInfo( RDDI_STRUCTORD )
+      ? "Active orders ", i, Iif( i == 3, "- Ok","- Failure" )
+      ? "Focus set to ", indexord(), Iif( indexord() == SET( _SET_AUTORDER ), "- Ok","- Failure" )
+   ELSE
+      ? "Indextype does not support to auto-open index, found:", STR( i, 1, 0 ), " TAGs"
+   ENDIF
    OrdListAdd( "test2" )
    ? "Destroy TAG <NUMI> in BAG <test2>", IIF( OrdDestroy( "NUMI" ) .AND. ! hb_dbExists( "test2.cdx" ), "- Ok","- Failure" )
 

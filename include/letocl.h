@@ -364,7 +364,7 @@ HB_BYTE LetoDirMake( LETOCONNECTION * pConnection, const char * szFile );
 HB_BYTE LetoDirExist( LETOCONNECTION * pConnection, const char * szFile );
 HB_BYTE LetoDirRemove( LETOCONNECTION * pConnection, const char * szFile );
 
-void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const char * szData, HB_BOOL fCrypt );
+void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const char * szData );
 void leto_SetUpdated( LETOTABLE * pTable, HB_USHORT uiUpdated );
 const char * leto_ParseTagInfo( LETOTABLE * pTable, const char * pBuffer );
 void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen, unsigned long * pulLen );

@@ -2,13 +2,39 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-13 07:33 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/leto_2.c
+  * source/server/letocl.c
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+  * test/test_dbfe.prg
+  * test/test_filt.prg
+    + RDDI_STRUCTORD
+    ! default memotypes fix ( smt )
+    - removing partial encrypting record data
+    ; in LetoDBf Blowfish encrypt possible with network traffic compression;
+      old param in server.prg stays at moment as unused placeholder
+    - cleanup
+
+  * source/client/letobmcl.c
+  * source/server/letobm.prg
+  * source/server/server.prg
+    * more secure-ing bitmap filter
+    ! missing xOrder for leto_ClearEnv()
+
+  * Readme.txt
+    ; as usual until better ;-)
+
 2016-12-13 13:13 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * letodb.hbp
   * letoaddon.hbp
   * letodbsvc.hbp
   * Readme.txt
   * source/server/server.prg
-    * added/ modified information about codepage extensions 
+    * added/ modified information about codepage extensions
 
 2016-12-13 09:27 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * Readme.txt
@@ -44,7 +70,7 @@
 
 2016-12-12 14:11 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * Readme.txt
-    * improves; a note about not given :port --> not send 
+    * improves; a note about not given :port --> not send
 
   * test/test_file.prg
     * just a bit clean-up

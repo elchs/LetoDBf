@@ -5,7 +5,8 @@
  * Copyright 2013 Pavel Tsarenko <tpe2 / at / mail.ru>
  * www - http://www.harbour-project.org
  *           2016 Rolf 'elch' Beckmann
- * return values, remove dangerous LETO_PARSEREC() --> DbGoTop()
+ * return values, remove dangerous LETO_PARSEREC() --> DbGoTo()
+ * removed array to string conversions
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -59,7 +60,7 @@ FUNCTION LBM_DbGetFilterArray()
       aFilterRec := leto_UDF( "LBM_DbGetFilterArray" )
    ENDIF
 
-   RETURN aFilterRec
+   RETURN IIF( VALTYPE( aFilterRec ) == "A", aFilterRec, {} )
 
 FUNCTION LBM_DbSetFilterArray( aFilterRec )
 
@@ -67,7 +68,7 @@ FUNCTION LBM_DbSetFilterArray( aFilterRec )
 
    IF IsLeto() .AND. ValType( aFilterRec ) == "A" .AND. LEN( aFilterRec ) > 0
       xRet := leto_UDF( "LBM_DbSetFilterArray", aFilterRec )
-      IF xRet
+      IF VALTYPE( xRet ) == "L" .AND. xRet
          leto_SetBM()
       ENDIF
    ENDIF
@@ -80,7 +81,7 @@ FUNCTION LBM_DbSetFilterArrayAdd( aFilterRec )
 
    IF IsLeto() .AND. ValType( aFilterRec ) == "A"  .AND. LEN( aFilterRec ) > 0
       xRet := leto_UDF( "LBM_DbSetFilterArrayAdd", aFilterRec )
-      IF xRet
+      IF VALTYPE( xRet ) == "L" .AND. xRet
         leto_SetBM()
       ENDIF
    ENDIF
@@ -93,20 +94,21 @@ FUNCTION LBM_DbSetFilterArrayDel( aFilterRec )
 
    IF IsLeto() .AND. ValType( aFilterRec ) == "A"  .AND. LEN( aFilterRec ) > 0
       xRet := leto_UDF( "LBM_DbSetFilterArrayDel", aFilterRec )
-      IF xRet
+      IF VALTYPE( xRet ) == "L" .AND. xRet
          leto_SetBM()
       ENDIF
    ENDIF
 
    RETURN xRet
 
+/*  ToDo much too dangerous, SCOPE and FILTER need pre-validation */
 FUNCTION LBM_DbSetFilter( xScope, xScopeBottom, cFilter )
 
    LOCAL nRecno, xRet := .F.
 
    IF IsLeto()
-      nRecno := leto_Udf( "LBM_DbSetFilter", xScope, xScopeBottom, ordName( 0 ), cFilter, Set( _SET_DELETED ) )
-      IF nRecno > 0
+      nRecno := leto_Udf( "LBM_DbSetFilter", xScope, xScopeBottom, OrdName( 0 ), cFilter, Set( _SET_DELETED ) )
+      IF VALTYPE( nRecno ) == "N" .AND. nRecno > 0
          leto_SetBM()
          DBGOTO( nRecno )
          xRet := .T.

@@ -5,6 +5,7 @@
 
 REQUEST LETO
 REQUEST DBFCDX
+
 REQUEST leto_VarGet, leto_varSet, leto_varGetCached, leto_varDel
 REQUEST DbSetIndex, DbClearIndex
 
@@ -24,8 +25,7 @@ Function Main( cPath )
    ALTD()
    SET DATE FORMAT "dd/mm/yy"
 
-   IF Empty( cPath )
-      //cPath := "//127.0.0.1:2812/temp/"
+   IF Empty( cPath )  /* try it at local hard drive */
       cPath := ""
       RDDSETDEFAULT( "DBFCDX" )
    ELSE
@@ -66,7 +66,7 @@ Function Main( cPath )
                  MINFO WITH STR( ii ) + STR( i )
       NEXT i
    NEXT ii
-   ? LEN( aNames ) * 5, "Records has been added"
+   ? LEN( aNames ) * 21, "Records has been added"
    INDEX ON NAME TAG NAME
    ? "INDEX KEY 1:", IndexKey( 1 )
    INDEX ON NUM TAG NUM ADDITIVE
@@ -88,6 +88,12 @@ Function Main( cPath )
    Inkey( 0 )
    CLS
 
+   ? "Testing filtering for "
+   IF RDDSETDEFAULT() == "LETO"
+      ?? Leto_DBDriver()[ 1 ]
+   ELSE
+      ?? "DBFCDX"
+   ENDIF
    ?
    ? 'ordSetFocus( "NAME" )'
    ordSetFocus( "NAME" )

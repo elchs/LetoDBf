@@ -259,7 +259,7 @@ void leto_ConnectionClose( LETOCONNECTION * pConnection )
 static void leto_ParseRec( LETOCONNECTION * pConnection, LETOAREAP pArea, const char * szData )
 {
    pConnection->iError = 0;
-   leto_ParseRecord( pConnection, pArea->pTable, szData, HB_TRUE );
+   leto_ParseRecord( pConnection, pArea->pTable, szData );
    if( ! pConnection->iError )
       leto_SetAreaFlags( pArea );
    else
@@ -4683,19 +4683,11 @@ static HB_USHORT leto_MemoType( HB_ULONG ulConnect )
       uiMemoType = pConnection->uiMemoType;
    else if( pConnection && *( pConnection->szDriver ) )
    {
-#ifdef __BM
-      if( ! strcmp( pConnection->szDriver, "BMDBFNTX" ) )
-#else
-      if( ! strcmp( pConnection->szDriver, "DBFNTX" ) )
-#endif
+      if( strstr( pConnection->szDriver, "NTX" ) != NULL )
          uiMemoType = DB_MEMO_DBT;
-#ifdef __BM
-      else if( ! strcmp( pConnection->szDriver, "BMDBFCDX" ) )
-#else
-      else if( ! strcmp( pConnection->szDriver, "DBFCDX" ) )
-#endif
+      else if( strstr( pConnection->szDriver, "CDX" ) != NULL )
          uiMemoType = DB_MEMO_FPT;
-      else if( ! strcmp( pConnection->szDriver, "SIXCDX" ) )
+      else
          uiMemoType = DB_MEMO_SMT;
    }
    else if( pConnection && pConnection->uiDriver == 1 )
@@ -4840,6 +4832,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
       case RDDI_FORCEOPT:
       case RDDI_AUTOOPEN:
       case RDDI_MULTITAG:
+      case RDDI_STRUCTORD:
       {
          LETOCONNECTION * pConnection;
          int iRes = 1;
@@ -5433,7 +5426,7 @@ HB_FUNC( LETO_COMMITTRANSACTION )
             }
          }
       }
-      
+
       leto_ClearTransBuffers( pConnection );
    }
 
@@ -5906,15 +5899,20 @@ HB_FUNC( LETO_DBDRIVER )
 
          if( ! szMemoType )
          {
-            if( pConnection->uiDriver )
+            if( ! strcmp( szDriver, "DBFNTX" ) || ! strcmp( szDriver, "BMDBFNTX" ) )
             {
                iMemoType = DB_MEMO_DBT;
                memcpy( pConnection->szMemoExt, ".dbt\0", 5 );
             }
-            else
+            else if( ! strcmp( szDriver, "DBFCDX" ) || ! strcmp( szDriver, "BMDBFCDX" ) )
             {
                iMemoType = DB_MEMO_FPT;
                memcpy( pConnection->szMemoExt, ".fpt\0", 5 );
+            }
+            else
+            {
+               iMemoType = DB_MEMO_SMT;
+               memcpy( pConnection->szMemoExt, ".smt\0", 5 );
             }
          }
          else if( ! strcmp( szMemoType, "DBT" ) )

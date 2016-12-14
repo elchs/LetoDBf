@@ -2,6 +2,8 @@
  * Leto db server BMDBF* functions
  *
  * Copyright 2013 Pavel Tsarenko <tpe2 / at / mail.ru>
+ *           2016 Rolf 'elch' Beckmann
+ * boolean return values, removed array to string conversions
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -109,7 +111,7 @@ FUNCTION LBM_DbSetFilter( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
    LOCAL lOpt := Set( _SET_FORCEOPT, .F. )
 
    leto_SetEnv( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
-   GO TOP
+   DbGoTop()
    IF ! Eof()
       nRec := RecNo()
    ENDIF
@@ -117,7 +119,7 @@ FUNCTION LBM_DbSetFilter( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
       AAdd( aFilterRec, RecNo() )
       SKIP
    ENDDO
-   leto_ClearEnv( xScope, xScopeBottom, cFilter )
+   leto_ClearEnv( xScope, xScopeBottom, xOrder, cFilter )
    IF LEN( aFilterRec ) > 0
       LBM_DbSetFilterArray( aFilterRec )
    ENDIF
