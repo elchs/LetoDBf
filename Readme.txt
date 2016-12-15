@@ -457,8 +457,10 @@ A. Internals
 
  For detailed parameters info of leto_Connect() see: 7.1
 
- With connection to the server, information about codepage is sent to server to be used for this
- connection for index keys etc.
+ With connection to the server, and later with opening or creating a table, information about codepage
+ and dateformat settings are sent to server. This is important for creating index orders containing
+ national special characters or index keys containing a date value.
+ The last applied dateformat setting will keep from then on the active one at server.
 
  All filenames and paths now are relative to the root DataPath in letodb.ini.
  It may look alike:

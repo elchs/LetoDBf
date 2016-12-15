@@ -2170,11 +2170,9 @@ static _HB_INLINE_ HB_ULONG leto_recLen( PTABLESTRU pTStru )
 static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char * szData, HB_BOOL fRefr )
 {
    char *    pData = szData + SHIFT_FOR_LEN;
+   HB_USHORT uiFieldCount = pArea->uiFieldCount;
    HB_ULONG  ulRealLen;
-   HB_USHORT uiFieldCount;
 
-   // SELF_FIELDCOUNT( pArea, &uiFieldCount ) == HB_SUCCESS  // pAStru->pTStru->uiFields;
-   uiFieldCount = pArea->uiFieldCount;
    if( uiFieldCount )
    {
       HB_BYTE * pRecord;
@@ -4558,6 +4556,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
       HB_BOOL  bFreeBuf = HB_FALSE;
 
       leto_DataPath( pSrcFile, szFile );
+      /* leto_SetUserEnv( pUStru ); */
 
       if( *szData == '0' )
       {
@@ -6375,14 +6374,41 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
       hb_xfree( szData2 );
 }
 
+static void leto_Flush( PUSERSTRU pUStru, const char * szData )
+{
+   AREAP   pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_BOOL bOk;
+
+   bOk = SELF_FLUSH( pArea ) == HB_SUCCESS;
+   if( bOk )
+      SELF_GOCOLD( pArea );
+   pUStru->pCurAStru->bUseSkipBuffer = HB_FALSE;
+
+   if( szData )  /* else a flush done after append/ update */
+      leto_SendAnswer2( pUStru, szOk, 4, bOk, 1000 );
+   //leto_SendAnswer( pUStru, szOk|szErrr101, 4 );
+}
+
 static void leto_UpdateRecAdd( PUSERSTRU pUStru, const char * szData )
 {
    leto_UpdateRec( pUStru, szData, HB_TRUE );
 }
 
+static void leto_UpdateRecAddflush( PUSERSTRU pUStru, const char * szData )
+{
+   leto_UpdateRec( pUStru, szData, HB_TRUE );
+   leto_Flush( pUStru, NULL );
+}
+
 static void leto_UpdateRecUpd( PUSERSTRU pUStru, const char * szData )
 {
    leto_UpdateRec( pUStru, szData, HB_FALSE );
+}
+
+static void leto_UpdateRecUpdflush( PUSERSTRU pUStru, const char * szData )
+{
+   leto_UpdateRec( pUStru, szData, HB_FALSE );
+   leto_Flush( pUStru, NULL );
 }
 
 static PHB_ITEM leto_KeyToItem( AREAP pArea, const char * ptr, int iKeyLen, const char * pOrder, char cKeyType )
@@ -7918,7 +7944,6 @@ static _HB_INLINE_ void leto_BufCheck( char ** ppData, char ** pptr, HB_ULONG * 
    }
 }
 
-#if 0
 #if defined( HB_OS_LINUX )
 static HB_U64 leto_LinuxRam( int uiType )
 {
@@ -7979,7 +8004,6 @@ static HB_U64 leto_LinuxRam( int uiType )
 
    return ullFreeRam;
 }
-#endif
 #endif
 
 static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
@@ -8482,11 +8506,11 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
          {
             char     s[ HB_PATH_MAX + 90 ];
             HB_ULONG ulLen;
-//#if defined( HB_OS_LINUX )
-//            unsigned long ulFreeRam = ( unsigned long ) leto_LinuxRam( 0 );
-//#else
+#if defined( HB_OS_LINUX )
+            unsigned long ulFreeRam = ( unsigned long ) leto_LinuxRam( 0 );
+#else
             unsigned long ulFreeRam = ( unsigned long ) hb_xquery( HB_MEM_CHAR );
-//#endif
+#endif
 
             ulLen = sprintf( s, "+%lu;%s;%d;%lu;%d;%lu;%lu;%lu;%lu;",
 #if defined( __HARBOUR30__ )
@@ -9036,17 +9060,33 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
 
          if( pp5 )
             pp5 += strlen( pp5 ) + 1;
+
          if( pp5 && *pp5 )
          {
             char * ptr;
 
-            if( ( ptr = strchr( pp1, ';' ) ) != NULL )
+            if( ( ptr = strchr( pp5, ';' ) ) != NULL )
             {
-               pUStru->szDateFormat = ( char * ) hb_xgrab( ptr - pp1 + 1 );
-               memcpy( pUStru->szDateFormat, pp1, ptr - pp1 );
-               pUStru->szDateFormat[ ptr - pp1 ] = '\0';
-               if( *( ptr + 1 ) == ';' )
-                  pUStru->bCentury = ( *( ptr + 2 ) == 'T' ? HB_TRUE : HB_FALSE );
+               pUStru->szDateFormat = ( char * ) hb_xgrab( ptr - pp5 + 1 );
+               memcpy( pUStru->szDateFormat, pp5, ptr - pp5 );
+               pUStru->szDateFormat[ ptr - pp5 ] = '\0';
+               if( pUStru->szDateFormat )
+               {
+                  PHB_ITEM pItem = hb_itemNew( NULL );
+
+                  hb_itemPutC( pItem, pUStru->szDateFormat );
+                  hb_setSetItem( HB_SET_DATEFORMAT, pItem );
+                  hb_itemRelease( pItem );
+               }
+               pUStru->uiEpoch = ( unsigned int ) atoi( ++ptr );
+               if( pUStru->uiEpoch )
+               {
+                  PHB_ITEM pItem = hb_itemNew( NULL );
+
+                  hb_itemPutNI( pItem, pUStru->uiEpoch );
+                  hb_setSetItem( HB_SET_EPOCH, pItem );
+                  hb_itemRelease( pItem );
+               }
             }
          }
       }
@@ -9068,6 +9108,10 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                       s_bLowerPath ? '1' : '0' );
          hb_xfree( szVersion );
          pData = pBuf;
+
+         if( pUStru->hSocketErr == HB_NO_SOCKET && iDebugMode() > 0 )  /* second socket comes also here */
+            leto_writelog( NULL, -1, "INFO: connected from %s :%d  CP: %s  DF: %s  conn-ID %d",
+                                     pUStru->szAddr, pUStru->iPort, hb_cdpID(), hb_setGetDateFormat(), pUStru->iUserStru - 1 );
       }
    }
 
@@ -9223,22 +9267,6 @@ static void leto_Zap( PUSERSTRU pUStru, const char * szData )
       pData = szOk;
 
    leto_SendAnswer( pUStru, pData, 4 );
-}
-
-static void leto_Flush( PUSERSTRU pUStru, const char * szData )
-{
-   AREAP   pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   HB_BOOL bOk;
-
-   HB_SYMBOL_UNUSED( szData );
-
-   bOk = SELF_FLUSH( pArea ) == HB_SUCCESS;
-   if( bOk )
-      SELF_GOCOLD( pArea );
-   pUStru->pCurAStru->bUseSkipBuffer = HB_FALSE;
-
-   leto_SendAnswer2( pUStru, szOk, 4, bOk, 1000 );
-   //leto_SendAnswer( pUStru, szOk|szErrr101, 4 );
 }
 
 static void leto_Reccount( PUSERSTRU pUStru, const char * szData )
@@ -11684,9 +11712,35 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
 
       pp5 += strlen( pp5 ) + 1;
       if( *pp5 )
-         ulSelectID = strtoul( pp5, NULL, 10 );
+         ulSelectID = strtoul( pp5, &ptr2, 10 );
+      else
+         ptr2 = NULL;
       if( ( s_bNoSaveWA && ! bMemIO ) && ! ulSelectID )
          errcode = HB_FAILURE;
+
+      if( ptr2 )
+      {
+         pp5 = ptr2 + 1;
+         if( ( ptr2 = strchr( pp5, ';' ) ) != NULL && ptr2 - pp5 > 1 )
+         {
+            if( ! pUStru->szDateFormat || strncmp( pUStru->szDateFormat, pp5, ptr2 - pp5 ) || 
+                strlen( pUStru->szDateFormat ) != ( unsigned int ) ( ptr2 - pp5 ) )
+            {
+               PHB_ITEM pItem = hb_itemNew( NULL );
+   
+               if( pUStru->szDateFormat )
+                  hb_xfree( pUStru->szDateFormat );
+               pUStru->szDateFormat = ( char * ) hb_xgrab( ptr2 - pp5 + 1 );
+               memcpy( pUStru->szDateFormat, pp5, ptr2 - pp5 );
+               pUStru->szDateFormat[ ptr2 - pp5 ] = '\0';
+               hb_itemPutC( pItem, pUStru->szDateFormat );
+               hb_setSetItem( HB_SET_DATEFORMAT, pItem );
+               hb_itemRelease( pItem );
+               if( s_iDebugMode > 10 )
+                  leto_wUsLog( pUStru, -1, "DEBUG leto_CreateTable new dateformat %s set", hb_setGetDateFormat() );
+            }
+         }
+      }
 
       if( ! szFileName[ 0 ] )
       {
@@ -12325,7 +12379,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          pp4 = pp5;
 
          hb_arraySetNI( pField, 3, ( int ) strtoul( pp4, &ptrTmp, 10 ) );
-         ulRecordSize += hb_arrayGetNI( pField, 3 ); 
+         ulRecordSize += hb_arrayGetNI( pField, 3 );
          pp4 = ++ptrTmp;
 
          hb_arraySetNI( pField, 4, ( int ) strtoul( pp4, &ptrTmp, 10 ) );
@@ -12338,9 +12392,12 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
 
       if( *pp5++ == ';' && *pp5 )  /* note: a double ';' after the fields */
          ulSelectID = strtoul( pp5, &ptrTmp, 10 );
-      pp5 = ptrTmp;
+      else
+         ptrTmp = NULL;
+      if( ptrTmp )
+         pp5 = ptrTmp + 1;
 
-      if( *pp5++ != ';' )
+      if( pp5 && *pp5++ != ';' )
       {
          if( ( ptrTmp = strchr( pp5, ';' ) ) != NULL )
          {
@@ -12349,10 +12406,31 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
                strcpy( szCdp, pp5 );
             else
                szCdp = NULL;
+            pp5 = ptrTmp + 1;
          }
       }
       else
          szCdp = NULL;
+
+      if( pp5 && ( ptrTmp = strchr( pp5, ';' ) ) != NULL && ptrTmp - pp5 > 1 )
+      {
+         if( ! pUStru->szDateFormat || strncmp( pUStru->szDateFormat, pp5, ptrTmp - pp5 ) ||
+             strlen( pUStru->szDateFormat ) != ( unsigned int ) ( ptrTmp - pp5 ) )
+         {
+            PHB_ITEM pItem = hb_itemNew( NULL );
+
+            if( pUStru->szDateFormat )
+               hb_xfree( pUStru->szDateFormat );
+            pUStru->szDateFormat = ( char * ) hb_xgrab( ptrTmp - pp5 + 1 );
+            memcpy( pUStru->szDateFormat, pp5, ptrTmp - pp5 );
+            pUStru->szDateFormat[ ptrTmp - pp5 ] = '\0';
+            hb_itemPutC( pItem, pUStru->szDateFormat );
+            hb_setSetItem( HB_SET_DATEFORMAT, pItem );
+            hb_itemRelease( pItem );
+            if( s_iDebugMode > 10 )
+               leto_wUsLog( pUStru, -1, "DEBUG leto_CreateTable new dateformat %s set", hb_setGetDateFormat() );
+         }
+      }
 
       /* last checks - note: there ever must be an ID for s_bNoSaveWA */
       if( ulRecordSize >= 0xFFFF || uiFieldCount > 2047 )  /* no errcode, let Harbour even try it ;-) */
@@ -13021,6 +13099,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
       if( nParam < 3 || ( ( nLen = strlen( szRawData ) ) < 1 && strlen( pp2 ) < 1 ) || strlen( pp3 ) < 1 )
          pData = szErr2;
    }
+
 
    if( pData )  /* very early error if ! NULL */
    {
@@ -13764,6 +13843,7 @@ void leto_CommandSetInit()
 
    /* a - z + more */
    s_cmdSet[ LETOCMD_add     - LETOCMD_OFFSET ] = &leto_UpdateRecAdd;
+   s_cmdSet[ LETOCMD_cmta    - LETOCMD_OFFSET ] = &leto_UpdateRecAddflush;
    s_cmdSet[ LETOCMD_dbi     - LETOCMD_OFFSET ] = &leto_Info;
    s_cmdSet[ LETOCMD_dboi    - LETOCMD_OFFSET ] = &leto_OrderInfo;
    s_cmdSet[ LETOCMD_flush   - LETOCMD_OFFSET ] = &leto_Flush;
@@ -13785,6 +13865,7 @@ void leto_CommandSetInit()
    s_cmdSet[ LETOCMD_trans   - LETOCMD_OFFSET ] = &leto_TransNoSort;
    s_cmdSet[ LETOCMD_unlock  - LETOCMD_OFFSET ] = &leto_Unlock;
    s_cmdSet[ LETOCMD_upd     - LETOCMD_OFFSET ] = &leto_UpdateRecUpd;
+   s_cmdSet[ LETOCMD_cmtu    - LETOCMD_OFFSET ] = &leto_UpdateRecUpdflush;
    s_cmdSet[ LETOCMD_udf_dbf - LETOCMD_OFFSET ] = &leto_UdfDbf;         /* with ulAreaID */
    s_cmdSet[ LETOCMD_zap     - LETOCMD_OFFSET ] = &leto_Zap;
 }

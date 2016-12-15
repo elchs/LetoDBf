@@ -174,6 +174,7 @@ static void leto_CommandDescInit( void )
 
    /* a - z + more */
    s_szCmdSetDesc[ LETOCMD_add     - LETOCMD_OFFSET ] = "append";
+   s_szCmdSetDesc[ LETOCMD_cmta    - LETOCMD_OFFSET ] = "appendflush";
    s_szCmdSetDesc[ LETOCMD_dbi     - LETOCMD_OFFSET ] = "dbinfo";
    s_szCmdSetDesc[ LETOCMD_dboi    - LETOCMD_OFFSET ] = "dborderinfo";
    s_szCmdSetDesc[ LETOCMD_flush   - LETOCMD_OFFSET ] = "flush";
@@ -195,6 +196,7 @@ static void leto_CommandDescInit( void )
    s_szCmdSetDesc[ LETOCMD_trans   - LETOCMD_OFFSET ] = "transition";
    s_szCmdSetDesc[ LETOCMD_unlock  - LETOCMD_OFFSET ] = "unlock";
    s_szCmdSetDesc[ LETOCMD_upd     - LETOCMD_OFFSET ] = "update";
+   s_szCmdSetDesc[ LETOCMD_cmtu    - LETOCMD_OFFSET ] = "updateflush";
    s_szCmdSetDesc[ LETOCMD_udf_dbf - LETOCMD_OFFSET ] = "udf_dbf";
    s_szCmdSetDesc[ LETOCMD_zap     - LETOCMD_OFFSET ] = "zap";
 }
@@ -1101,7 +1103,7 @@ static HB_THREAD_STARTFUNC( thread3 )
                            if( hb_socketSend( hSocket, fConfirmed ? szOk : szErr1, 4, 0, 100 ) < 4 )
                               fConfirmed = HB_FALSE;
                            else if( iDebugMode() >= 10 )
-                              leto_writelog( NULL, -1, "DEBUG thread3() 2. socket for client at address: %s:%d",
+                              leto_writelog( NULL, -1, "DEBUG thread3() 2. socket for client at address: %s :%d",
                                              szAddrPort ? szAddrPort : "?:?", iServerPort );
                         }
 
@@ -1272,10 +1274,6 @@ static HB_THREAD_STARTFUNC( thread2 )
    hb_vmThreadInit( NULL );
    leto_initSet();
 
-   if( iDebugMode() > 0 )
-      leto_writelog( NULL, -1, "INFO: connect from %s:%d  thread-ID %lu  conn-ID %d",
-                     pUStru->szAddr, pUStru->iPort, ( HB_ULONG ) pUStru->hThreadID, pUStru->iUserStru - 1 );
-
    /* prepare and send initial answer for fresh connect */
    {
       char     szBuffer[ 64 ];
@@ -1297,10 +1295,6 @@ static HB_THREAD_STARTFUNC( thread2 )
       s_ullBytesSend += pUStru->ulBytesSend;
       HB_GC_UNLOCKS();
    }
-
-   if( iDebugMode() > 0 )
-      leto_writelog( NULL, -1, "INFO: connected from %s:%d  thread-ID %lu  conn-ID %d",
-                     pUStru->szAddr, pUStru->iPort, ( HB_ULONG ) pUStru->hThreadID, pUStru->iUserStru - 1 );
 
    while( ! leto_ExitGlobal( HB_FALSE ) && pUStru->hSocket != HB_NO_SOCKET )
    {

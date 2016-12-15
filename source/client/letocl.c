@@ -2085,6 +2085,7 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
       else
          pTable->pTagCurrent->ulKeyCount = 0;
    }
+
    /* check if 'old' server data must be refreshed with buffered transaction data */
    if( pConnection->fTransActive && leto_SearchTransList( pConnection, pTable->hTable, pTable->ulRecNo ) )
    {
@@ -2707,11 +2708,15 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
             ptr += ulLen * 2;
          }
          *ptr++ = ';';
-         eprintf( ptr, "%s;%s;%c", leto_GetServerCdp( pConnection, HB_CDP_PAGE()->id ),
-                  hb_setGetDateFormat(), hb_setGetCentury() );
+         eprintf( ptr, "%s;%s;%d;", leto_GetServerCdp( pConnection, HB_CDP_PAGE()->id ),
+                  hb_setGetDateFormat(), hb_setGetEpoch() );
 
          ulLen = strlen( szData + LETO_MSGSIZE_LEN );
          HB_PUT_LE_UINT32( szData, ulLen );
+
+#ifdef LETO_CLIENTLOG
+         leto_clientlog( NULL, 0, "INTRO :%s", szData + 4 );
+#endif
          if( hb_socketSend( hSocket, szData, LETO_MSGSIZE_LEN + ulLen, 0, -1 ) <= 0 )
          {
             pConnection->iConnectRes = LETO_ERR_SEND;
@@ -3187,10 +3192,10 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    szData = ( char * ) hb_xgrab( strlen( szFields ) + 30 +        /* uiFields * 24 --> strlen() */
                                  HB_PATH_MAX + HB_RDD_MAX_ALIAS_LEN + HB_RDD_MAX_DRIVERNAME_LEN );
 
-   ulLen = eprintf( szData, "%c;%s;%s;%s;%d;%d;%d;%d;%s;%d;%s;", LETOCMD_creat, szFile,
+   ulLen = eprintf( szData, "%c;%s;%s;%s;%d;%d;%d;%d;%s;%d;%s;%s;", LETOCMD_creat, szFile,
                     szAlias ? szAlias : "", pConnection->szDriver,
                     pConnection->uiMemoType, pConnection->uiMemoVersion, pConnection->uiMemoBlocksize,
-                    uiFields, szFields, uiArea, szCdpage ? szCdpage : "" );
+                    uiFields, szFields, uiArea, szCdpage ? szCdpage : "", hb_setGetDateFormat() );
    if( ! leto_DataSendRecv( pConnection, szData, ulLen ) )
    {
       pConnection->iError = 1000;
@@ -3256,9 +3261,9 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    HB_ULONG     ulLen;
 
    hb_rddSetNetErr( HB_FALSE );
-   ulLen = eprintf( szData, "%c;%s;%s;%c%c;%s;%s;%d;", LETOCMD_open, szFile, szAlias,
+   ulLen = eprintf( szData, "%c;%s;%s;%c%c;%s;%s;%d;%s;", LETOCMD_open, szFile, szAlias,
                     ( fShared ) ? 'T' : 'F', ( fReadOnly ) ? 'T' : 'F',
-                    szCdp, pConnection->szDriver, uiArea );
+                    szCdp, pConnection->szDriver, uiArea, hb_setGetDateFormat() );
    if( ! leto_DataSendRecv( pConnection, szData, ulLen ) )
    {
       pConnection->iError = 1000;
@@ -4014,22 +4019,28 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
       if( pTable->pFieldUpd[ ui ] )
          uiUpd++;
    }
-   szData = ( char * ) hb_xgrab( pTable->uiRecordLen + ( uiUpd * 5 ) + 20 );
+   szData = ( char * ) hb_xgrab( pTable->uiRecordLen + ( uiUpd * 8 ) + 20 );
    pData = szData + 4;
 
    hb_rddSetNetErr( HB_FALSE );
    if( fAppend )
-   {
       pData += eprintf( pData, "%c;%lu;%c%c;%d;", LETOCMD_add, pTable->hTable, pTable->fHaveAutoinc ? '0' : ' ',
                                                   ( pTable->uiUpdated & LETO_FLAG_UPD_UNLOCK ) ? '1' : '0', uiUpd );
-   }
    else
       pData += eprintf( pData, "%c;%lu;%lu;%d;", LETOCMD_upd, pTable->hTable, pTable->ulRecNo, uiUpd );
+
+   if( ( pTable->uiUpdated & LETO_FLAG_UPD_FLUSH ) && ! pConnection->fTransActive )
+   {
+      if( fAppend )
+         szData[ 4 ] = LETOCMD_cmta;
+      else
+         szData[ 4 ] = LETOCMD_cmtu;
+   }
 
    *pData++ = ( pTable->uiUpdated & LETO_FLAG_UPD_DELETE ) ? ( ( pTable->fDeleted ) ? '1' : '2' ) : '0';
    *pData++ = ';';
 
-   if( uiUpd )  /* any updated field */
+   if( uiUpd )  /* updated fields, no memo */
    {
       LETOFIELD *  pField;
       HB_BOOL      fTwoBytes = ( pTable->uiFieldExtent > 255 );
@@ -4362,7 +4373,7 @@ HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
    char             szData[ 48 ];
-   char *           ptr;
+   const char *     ptr;
    unsigned long    ulLen;
 
    if( pTable->fReadonly )
@@ -4419,9 +4430,9 @@ HB_EXPORT HB_ERRCODE LetoDbRecUnLock( LETOTABLE * pTable, unsigned long ulRecNo 
 HB_EXPORT HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-   char     szData[ 48 ];
-   HB_ULONG ulLen;
-   char *   ptr;
+   char             szData[ 48 ];
+   HB_ULONG         ulLen;
+   const char *     ptr;
 
    if( pTable->fReadonly )
       return HB_FAILURE;
@@ -4450,8 +4461,8 @@ HB_EXPORT HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable )
 HB_EXPORT HB_ERRCODE LetoDbFileUnLock( LETOTABLE * pTable )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-   char          szData[ 48 ];
-   unsigned long ulLen;
+   char             szData[ 48 ];
+   unsigned long    ulLen;
 
    if( pConnection->fTransActive )
    {
@@ -5090,7 +5101,7 @@ HB_EXPORT const char * LetoFileRead( LETOCONNECTION * pConnection, const char * 
 
    ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
    hb_xfree( pData );
-#if 1
+   /* ToDo rework -- countercheck result is not error number */
    if( ulRes > 4 && ulRes < 10 && ! strncmp( pConnection->szBuffer, "+F;", 3 ) &&
        pConnection->szBuffer[ 3 ] >= '0' && pConnection->szBuffer[ 3 ] <= '9' &&
        strchr( pConnection->szBuffer + 4, ';' ) != NULL )
@@ -5117,28 +5128,6 @@ HB_EXPORT const char * LetoFileRead( LETOCONNECTION * pConnection, const char * 
          return ptr;
       }
    }
-#else
-   if( ulRes >= 5 )
-   {
-      ptr = leto_firstchar( pConnection );
-      if( *( ptr - 1 ) == '+' )
-      {
-         if( *ptr == 'T' )
-         {
-            ptr += 2;
-            *ulLen = HB_GET_LE_UINT32( ptr );
-            ptr += 4;
-
-            if( *ulLen <= ulRes - 6 )
-               return ptr;  /* read buffer is null terminated */
-            else
-               pConnection->iError = -2;
-         }
-         else
-            pConnection->iError = atoi( ptr + 2 );
-      }
-   }
-#endif
    else
       pConnection->iError = -1;
 

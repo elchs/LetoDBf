@@ -8,6 +8,9 @@ REQUEST LETO
 
 PROCEDURE main( cAddress )  /* pure IP-address */
 
+   SET( _SET_DATEFORMAT, "dd.mm.yyyy" ) 
+   HB_CDPselect( "DE850" )
+   
    IF Empty( cAddress )
       cAddress := "//127.0.0.1:2812/"
    ELSE

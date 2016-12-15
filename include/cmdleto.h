@@ -92,7 +92,7 @@
 /* with ulAreaID        */
 /* a - z    { | } ~     */
 /* 0x61-0x7e   97 -126  */
-/* FREE:  v | } ~ t x   */
+/* FREE:  v | } ~       */
 
 #define LETOCMD_add        'a'
 #define LETOCMD_dbi        'b'
@@ -113,9 +113,11 @@
 #define LETOCMD_sort       'q'
 #define LETOCMD_islock     'r'
 #define LETOCMD_skip       's'
+#define LETOCMD_cmta       't'
 #define LETOCMD_upd        'u' // not bAppend, else +
 // #define LETOCMD_dbeval     'v'
 #define LETOCMD_rela       'w'
+#define LETOCMD_cmtu       'x'
 #define LETOCMD_rcou       'y'
 #define LETOCMD_zap        'z'
 #define LETOCMD_trans      '{'

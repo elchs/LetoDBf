@@ -232,7 +232,7 @@ typedef struct
    HB_USHORT         uiMemoSubtype;           /* DBI_MEMOVERSION */
    HB_USHORT         uiMemoBlocksize;
    char *            szDateFormat;
-   HB_BOOL           bCentury;
+   unsigned int      uiEpoch;
    HB_BOOL           bDeleted;                /* value to spare unnecessary leto_setSetDeleted() calls */
    char              szAccess[ 2 ];
    char              cDopcode[ LETO_DOPCODE_LEN ];   /* random bytes > 0 flexible mixed into LETO_PASSWORD */

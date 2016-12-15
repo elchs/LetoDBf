@@ -899,7 +899,11 @@ static HB_ERRCODE letoFlush( LETOAREAP pArea )
    HB_TRACE( HB_TR_DEBUG, ( "letoFlush(%p)", pArea ) );
 
    if( pTable->uiUpdated )
+   {
+      pTable->uiUpdated |= LETO_FLAG_UPD_FLUSH;
       leto_PutRec( pArea );
+      return HB_SUCCESS;
+   }
 
    if( ! letoGetConnPool( pTable->uiConnection )->fTransActive )
    {
@@ -1065,13 +1069,7 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
          else if( pField->uiLen == 4 )
             hb_itemPutDL( pItem, HB_GET_LE_UINT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] ) );
          else
-         {
-            char szBuffer[ 9 ];
-
-            memcpy( szBuffer, pTable->pRecord + pTable->pFieldOffset[ uiIndex ], 8 );
-            szBuffer[ 8 ] = '\0';
-            hb_itemPutDS( pItem, szBuffer );
-         }
+            hb_itemPutDS( pItem, ( char * ) pTable->pRecord + pTable->pFieldOffset[ uiIndex ] );
          break;
 
       case HB_FT_LOGICAL:

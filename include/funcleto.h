@@ -192,6 +192,7 @@
 #define LETO_FLAG_UPD_CHANGE  2
 #define LETO_FLAG_UPD_DELETE  4
 #define LETO_FLAG_UPD_UNLOCK  8
+#define LETO_FLAG_UPD_FLUSH   16
 
 extern void leto_getLocalIP( HB_SOCKET hSocket, char * szIP );
 extern HB_I64 leto_DeciSec( void );

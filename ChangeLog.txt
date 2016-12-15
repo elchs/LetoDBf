@@ -2,6 +2,30 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-13 12:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+  * include/cmdleto.h
+  * include/funcleto.h
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+    % last dust from early morning
+    + flush() together with append/ update in a smooth kind
+
+  * include/srvleto.h
+  * source/server/letofunc.c
+    ! dateformat ! wrong detected/ not set during first connect;
+      THANKS! goes to Leon for report
+    + add info about CP and DF into server connect log entry, moved that
+    + check dateformat with each opentable/ createtable if its changed
+    + add setting of epoch transmit with initial connect
+
+  * Readme.txt
+  * tests/basic.prg
+    + add info that dateformat shell be set in application before connecting
+      or opening tables
+
 2016-12-13 08:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * letodb.hbp
   * letoaddon.hbp

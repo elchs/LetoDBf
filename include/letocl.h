@@ -216,7 +216,6 @@ typedef struct _LETOCONNECTION_
    char *            szVerHarbour;         /* Harbour version of LetoDB server build */
    char              szAccess[ 8 ];
    char              cDopcode[ LETO_DOPCODE_LEN ];   /* bytes > 0 for mixed into LETO_PASSWORD */
-   HB_BOOL           fCrypt;
    HB_BOOL           fCloseAll;
    PCDPSTRU          pCdpTable;
    HB_BOOL           fTransActive;
