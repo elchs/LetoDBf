@@ -2,10 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-19 15:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+    ! missing file in last commit ;-(
+    * isolate unlocking records in a solely function
+    % formatting
+
+  ; typo in ChangeLog.txt
+
 2016-12-19 11:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
   * source/server/letofunc.c
-    ! fix the path beautifier not wrongly to remove duplicate PS
+    ! fix the path beautyfier not wrongly to remove duplicate PS
     * LETO_MEMOISEMPTY() param order change
     * some comments, temporary '//' --> verified to remain '/* */'
 
