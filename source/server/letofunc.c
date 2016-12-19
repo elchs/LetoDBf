@@ -67,28 +67,28 @@ static const char * szErr101 = "-101";
 static const char * szErrAcc = "-ACC";
 static const char * szErrLck = "-LCK";
 
-static char        s_szDirBase[ HB_PATH_MAX ] = "";  // path of the log files
+static char        s_szDirBase[ HB_PATH_MAX ] = "";  /* log files path, defaults to location executable */
 static DATABASE *  s_pDB = NULL;
 static AVAILAREAID s_AvailIDS = { NULL, 0, 0, 0 };
 
-static PUSERSTRU  s_users = NULL;             // the users array, one entry for each thread2/ threadx
-static HB_USHORT  s_uiUsersAlloc = 99;        // Number of allocated user structures
-static HB_USHORT  s_uiUsersMax = 0;           // Higher index of user structure, which was busy -- now static
-static HB_USHORT  s_uiUsersFree = 0;          // first free connection structure
-static HB_USHORT  s_uiUsersCurr = 0;          // Current number of users  -- now static
-static PTABLESTRU s_tables = NULL;            // now static
-static HB_UINT    s_uiTablesAlloc = 999;      // Number of allocated table structures
-static HB_UINT    s_uiTablesMax = 0;          // Highest index of table structure, which was busy
-static HB_UINT    s_uiTablesCurr = 0;         // Current number of opened tables
-static HB_UINT    s_uiTablesFree = 0;         // first free table structure
-static PGLOBESTRU s_globes = NULL;            // global values for s_tables, n to 1 relation for s_bNoSaveWA
-static HB_UINT    s_uiGlobesCurr = 0;         // used with s_bNoSaveWA: current number of active globes
-static HB_UINT    s_uiIndexMax = 0;           // Higher index of index structure, which was busy
-static HB_UINT    s_uiIndexCurr = 0;          // Current number of opened indexes
+static PUSERSTRU  s_users = NULL;         /* the users array, one entry for each thread2/ threadx */
+static HB_USHORT  s_uiUsersAlloc = 99;    /* Number of allocated user structures */
+static HB_USHORT  s_uiUsersMax = 0;       /* Higher index of user structure, which was busy -- now static */
+static HB_USHORT  s_uiUsersFree = 0;      /* first free connection structure */
+static HB_USHORT  s_uiUsersCurr = 0;      /* Current number of users  -- now static */
+static PTABLESTRU s_tables = NULL;        /* now static */
+static HB_UINT    s_uiTablesAlloc = 999;  /* Number of allocated table structures */
+static HB_UINT    s_uiTablesMax = 0;      /* Highest index of table structure, which was busy */
+static HB_UINT    s_uiTablesCurr = 0;     /* Current number of opened tables */
+static HB_UINT    s_uiTablesFree = 0;     /* first free table structure */
+static PGLOBESTRU s_globes = NULL;        /* global values for s_tables, n to 1 relation for s_bNoSaveWA */
+static HB_UINT    s_uiGlobesCurr = 0;     /* used with s_bNoSaveWA: current number of active globes */
+static HB_UINT    s_uiIndexMax = 0;       /* Higher index of index structure, which was busy */
+static HB_UINT    s_uiIndexCurr = 0;      /* Current number of opened indexes */
 static HB_ULONG   s_ulTimeOut = HB_THREAD_INFINITE_WAIT;
-static HB_ULONG   s_ulStartDateSec;           // server startup time
-static HB_ULONG   s_ulTransAll = 0;           // executed LetoDBf TRANSACTIONs
-static HB_ULONG   s_ulTransOK = 0;
+static HB_ULONG   s_ulStartDateSec;       /* server startup time */
+static HB_ULONG   s_ulTransAll = 0;       /* executed LetoDBf TRANSACTIONs */
+static HB_ULONG   s_ulTransOK = 0;        /* valid LetoDBf TRANSACTIONs of above */
 
 static PHB_ITEM * s_pThxArray = NULL;
 static HB_COND_NEW( s_ThxCond );
@@ -105,7 +105,7 @@ static HB_BOOL   s_bShareTables = HB_FALSE;
 static HB_BOOL   s_bNoSaveWA = HB_FALSE;
 static HB_BOOL   s_bFileFunc = HB_FALSE;
 static HB_BOOL   s_bAnyExt = HB_FALSE;
-static HB_USHORT s_uiLockExtended = HB_FALSE; // change default to extended mode ( DBFLOCK_CLIPPER, DBFLOCK_HB32 )
+static HB_USHORT s_uiLockExtended = HB_FALSE;  /* default versus extended mode ( DBFLOCK_CLIPPER2, DBFLOCK_HB32 ) */
 static HB_BOOL   s_bUdfEnabled = HB_FALSE;
 static HB_USHORT s_uiCacheRecords = 10;
 static HB_BOOL   s_bOptimize = HB_TRUE;
@@ -4201,7 +4201,7 @@ static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
       pRDDNode = hb_rddFindNode( szData, &uiRddID );
       if( pRDDNode )
       {
-         PHB_ITEM pItem = NULL;  // = hb_itemNew( NULL );
+         PHB_ITEM pItem = NULL;
          char     szInfo[ 255 ];
 
          switch( uiIndex )
@@ -8795,13 +8795,8 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                               {
                                  if( uiIndexAll >= ( HB_UINT ) iListStart )
                                  {
-                                    //if( *szTagCompare )
-                                    //   ptr += sprintf( ptr, "%d%s%s;", uiIndexAll, szTagCompare, pIStru->szOrdKey );
-                                    //else
-                                    //{
-                                       ptr += sprintf( ptr, "%d;%s;%s;%s;",
-                                                       uiIndexAll, ( char * ) pIStru->szBagName, pIStru->szTagName, pIStru->szOrdKey );
-                                    //}
+                                    ptr += sprintf( ptr, "%d;%s;%s;%s;",
+                                                    uiIndexAll, ( char * ) pIStru->szBagName, pIStru->szTagName, pIStru->szOrdKey );
                                     uiCount++;
                                     if( iListLen-- < 1 )
                                        break;
@@ -9025,7 +9020,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-/* remove drive letter and doubled path separator at beginning */
+/* remove drive letter and duplicated path separator at beginning */
 static void leto_BeautifyPath( char * szPath )
 {
    char * ptr = szPath;
@@ -9033,10 +9028,13 @@ static void leto_BeautifyPath( char * szPath )
    if( *ptr && ptr[ 1 ] == ':' )  /* C:... */
       memmove( szPath, ptr + 2, strlen( ptr + 2 ) + 1 );  /* including '\0' */
 
-   ptr++;
-   while( *ptr == '/' || *ptr == '\\' )
+   if( *ptr == '/' || *ptr == '\\' )
    {
-      memmove( ptr, ptr + 1, strlen( ptr + 1 ) + 1 );  /* including '\0' */
+      ptr++;
+      while( *ptr == '/' || *ptr == '\\' )
+      {
+         memmove( ptr, ptr + 1, strlen( ptr + 1 ) + 1 );  /* including '\0' */
+      }
    }
 }
 

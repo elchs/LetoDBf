@@ -93,8 +93,8 @@
    static LETOCONNECTION * s_pCurrentConn = NULL;
 #endif
 
-static PHB_ITEM s_pError = NULL;   // elch: the prepared GLOBAL error object from second thread
-static int      s_iSessions = 0;   // a counter to control hb_socketInit()
+static PHB_ITEM s_pError = NULL;   /* elch's prepared GLOBAL error object from second thread */
+static int      s_iSessions = 0;   /* a counter to control hb_socketInit() */
 
 #if defined( HB_SPINLOCK_INIT ) && ! defined( HB_HELGRIND_FRIENDLY )
    static HB_SPINLOCK_T s_ErrorMtx = HB_SPINLOCK_INIT;
@@ -360,7 +360,7 @@ HB_ERRCODE delayedError( void )
    HB_ERRCODE  errCode = 0;
    PHB_ITEM    pError = NULL;
 
-   if( s_pError )  // this hurts mutex, but should be ok for this quick pre-test
+   if( s_pError )  /* this hurts mutex, but should be ok for this quick pre-test */
    {
       HB_GC_LOCKE();
       pError = leto_cloneError( s_pError );
@@ -1051,7 +1051,7 @@ static _HB_INLINE_ long leto_Send( LETOCONNECTION * pConnection, const char * sz
                continue;
             }
             else if( iErr )
-               return 0;  // break;
+               return 0;
          }
       }
       while( ulSent < LETO_MSGSIZE_LEN );
@@ -1279,7 +1279,7 @@ LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort )
           ! strcmp( s_letoConnPool[ i ].pAddr, szAddr ) &&
           s_letoConnPool[ i ].iPort == iPort )
       {
-         s_pCurrentConn = s_letoConnPool + i;  // here new
+         s_pCurrentConn = s_letoConnPool + i;
          return s_pCurrentConn;
       }
    }
@@ -1322,7 +1322,7 @@ const char * leto_RemoveIpFromPath( const char * szPath )
    return szPath;
 }
 
-/* remove drive letter and doubled path separator at beginning */
+/* remove drive letter and duplicated path separator at beginning */
 void leto_BeautifyPath( char * szPath )
 {
    char * ptr = szPath;
@@ -1330,10 +1330,13 @@ void leto_BeautifyPath( char * szPath )
    if( *ptr && ptr[ 1 ] == ':' )  /* C:... */
       memmove( szPath, ptr + 2, strlen( ptr + 2 ) + 1 );  /* including '\0' */
 
-   ptr++;
-   while( *ptr == '/' || *ptr == '\\' )
+   if( *ptr == '/' || *ptr == '\\' )
    {
-      memmove( ptr, ptr + 1, strlen( ptr + 1 ) + 1 );  /* including '\0' */
+      ptr++;
+      while( *ptr == '/' || *ptr == '\\' )
+      {
+         memmove( ptr, ptr + 1, strlen( ptr + 1 ) + 1 );  /* including '\0' */
+      }
    }
 }
 
@@ -1447,7 +1450,7 @@ const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen )
       *pulLen &= 0x7FFFFFFF;
    ptr += 4;
 
-   if( fCompressed )  // pConnection->iZipRecord < 1 && *pulLen > LETO_ZIP_MINLENGTH | LETO_LZ4_COMPRESS_MIN)
+   if( fCompressed )
    {
       HB_SIZE nSize = HB_GET_LE_UINT32( ( HB_BYTE * ) ptr + *pulLen - 8 );
 

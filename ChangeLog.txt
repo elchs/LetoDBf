@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-19 11:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    ! fix the path beautifier not wrongly to remove duplicate PS
+    * LETO_MEMOISEMPTY() param order change
+    * some comments, temporary '//' --> verified to remain '/* */'
+
+  * Readme.txt
+    * other fixes and adds
+
 2016-12-19 02:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * ChangeLog.txt
     ! wrong date ;-)

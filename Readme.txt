@@ -464,8 +464,9 @@ A. Internals
  The last applied dateformat setting during above occasions will keep from then on the active one at server.
 
  All filenames and paths now are relative to the root DataPath in letodb.ini.
- It may look alike:
+ It may look alike: ( to this i refere in the following )
       DataPath = [drive:]\path\to\data_diretory
+
  If none DataPath is given ( ! NOT ! recommended ), it will be the root directory with the server
  executable.
 
@@ -477,24 +478,27 @@ A. Internals
  will point to:
       [drive:]\path\to\data_other\customer.dbf.
 
- If your filenames contain at least one path seperator '/' or '\', they will be treated as with this
- given path relative to <DataPath>
+ If your filenames contain at least one path seperator '/' or '\', they will be treated as relative to
+ <DataPath>.  All path separators in your filenames are converted by LetoDBf server internal to the needed
+ one, no need to take care about as "\" or "/" is equal.
 
- This root path is equal to your SET DEFAULT TO setting, so if your filenames contain no path,
- all new files will be created in <DataPath>
+ This root path is equal a SET DEFAULT TO setting, so if your filenames contain *no path separator,
+ all new files will be created directly in <DataPath>.
  The filenames can have optional OS dependent leading '\' or '/', example: /mydbf.dbf, that will force
- them into the <DatPath> directory.
+ them into the <DatPath> directory, despite a given "SET DEFAULT" to a subdirectory.
 
- For blank, pure filename the "SET DEFAULT TO ... " setting, if set before! Leto_Connect() will name
- an additive sub-directory to <DataPath>. Example, "SET DEFAULT TO data" will put all NEW files into:
+ For blank, pure filename the "SET DEFAULT TO ... " setting, when set *before* Leto_Connect() will name
+ an additive sub-directory to <DataPath>. Example: "SET DEFAULT TO data" will put all NEW files without
+ path separator into:
       [drive:]\path\to\data_diretory\data
- Allowed for "DEFAULT" is only one single path, NOT ENDING WITH ';' or ":" !!
- The example setting of "SET PATH TO system;tmp" will lead to search for these files in:
+ !! Allowed for "DEFAULT" is only one single path, NOT ENDING WITH ';' OR ":" !!
+ The example setting of "SET PATH TO system;tmp" will lead to search for files in:
       [drive:]\path\to\data_diretory\system  and [drive:]\path\to\data_diretory\tmp
- !! Both settings of "DEFAULT" and "PATH" apply only to filenames without any path seperator '\' or '/'.
-
- All path separators in your filenames are converted by LetoDBf server internal to the needed one,
- you need not to take care about. Use of "\" or "/" is equal.
+ If you use: DbUseArea( ,, cFile, .. ) and it is not in the DEFAULT directory, but in one directory given
+ by SET PATH, it will be opened without further needed action from you.
+ Both DEFAULT and PATH recognize the <DataPath>, what means a "SET DEFAULT TO to\data_diretory\data" will
+ lead to a DEFAULT directory: '[drive:]\path\to\data_diretory\data' as given as "SET DEFAULT TO data".
+ !! Again, both settings of "DEFAULT" and "PATH" apply to filenames without any path seperator '\' or '/'.
 
  To check for some first examples, look into the "tests" directory. Build them all at once with: "buildall"
  resp. "-/buildall.sh" for Linux. Add for execution as first param the IP address of the server,
@@ -588,7 +592,7 @@ A. Internals
 
       6. Variables management
 
- Letodb allows to manage variables, which are shared between applications, connected
+ Letodb allows to manage variables, which are shared between applications, connected users
  to the server and with the server itself. All operations on variables are performed consecutively by
  one thread, so the variables may work as semaphores.
 
@@ -715,9 +719,9 @@ A. Internals
 
       LETO_COMMIT()
 
- Deprecated.
- But functionality is still there, it is what a common DbCommit() does.
- It is even allowed to be used during transactions.
+ ! Deprecated !
+ But functionality is still there, it is what a common DbCommit() does. Both commands are allowed to be
+ used during transactions.
 
       LETO_DBEVAL( [ <cBlock> ], [ <cFor> ], [ <cWhile> ], [ nNext ], [ nRecord ], [ lRest ] )
                                                                ==>aResults
@@ -755,24 +759,24 @@ A. Internals
  elements from 2 - sum of comma separated fields or expressions, represented in <cFields>.
  If "#" symbol passed as field name in cFields, leto_groupby return a count of evaluated records in each group
 
-
       LETO_ISFLTOPTIM()                                        ==> lFilterOptimized
   To determine if an active filter in selected workarea is optimized [ aka executed only at server side ]
   or non-opimized [ server send all records to client, which then must decide itself for valid records. ]
   See 5.2 for more info.
 
-      LETO_MEMOISEMPTY()                                       ==> lEmpty
+      LETO_MEMOISEMPTY( cnField, cnAlias )                     ==> lEmpty ( TRUE for not a memofield )
   This is an optimzed function to very fast test, if a memofield of the current record is empty or not.
   The check will be done only at client side, so no network traffic to the server will occure.
   As it else would happen with a test like: EMPTY( FIELD->memofield ), for which the server will send the
   whole content of a memofield to the client, before client can decide if empty or not.
+  <cnField> cFIELDNAME or nFIELDPOS, <cnAlias> cALIAS or nSELECT or active WA if empty. 
 
-      dbInfo( DBI_BUFREFRESHTIME[, nNewVal])                   ==> nOldVal
+      DbInfo( DBI_BUFREFRESHTIME[, nNewVal])                   ==> nOldVal
   Setting new value for only one specific workarea: skip and seek buffers refresh time in 0.01 sec.
   If -1: connection setting is used. If 0 - buffers are used anyway.
 
-      dbInfo( DBI_CLEARBUFFER )
-  This command clears the skip buffer.
+      DbInfo( DBI_CLEARBUFFER )
+  This command clears the skip buffer, to force to get fresh data with next Dbskip( [ 0 ] )/ DbGo*().
 
 
       7.4 Additional rdd functions
@@ -809,7 +813,7 @@ A. Internals
  ! DEPRECATED !
  because of ugly design problems. It is left as dummy function.
  If such functionality is really needed, encapsulate your request in a transaction.
- Or use: LetoCommit() after the record is appended, to spare an tiny unlock request to server.
+ Or use: Leto_Commit() after the record is appended, to spare an tiny unlock request to server.
 
       RddInfo( RDDI_REFRESHCOUNT[, <lSet> ] )
 
