@@ -9061,7 +9061,7 @@ static void leto_PathFinder( char * szOnePath, char * szDataPath )
          ulLenOne = pTmp - szTmpPath;
          if( ! ulLenOne )
             break;
-         memcpy( szTmpPath, szOnePath, uiLenOne );
+         memcpy( szTmpPath, szOnePath, ulLenOne );
          szTmpPath[ ulLenOne ] = '\0';
 
          pContain = strstr( szDataPath, szTmpPath );

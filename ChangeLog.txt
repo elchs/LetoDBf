@@ -2,8 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-19 19:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    ! undeclared var, sigh!
+
 2016-12-19 19:15 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
-  * source/client/letol.c
+  * source/client/leto1.c
   * source/client/letocl.c
   * source/client/letomgmn.c
     + re-activated Leto_[Get|Set]CurrentConnection(); by using connection
@@ -17,7 +21,7 @@
     * msvc 10 warnings
 
 2016-12-19 15:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
-  * source/client/letol.c
+  * source/client/leto1.c
     ! missing file in last commit ;-(
     * isolate unlocking records in a solely function
     % formatting
