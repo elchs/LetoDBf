@@ -187,6 +187,23 @@ LETOCONNECTION * letoGetCurrConn( void )
    return pLetoPool->pCurrentConn;
 }
 
+void letoClearCurrConn( void )
+{
+   LETOPOOL *   pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
+   unsigned int ui;
+
+   pLetoPool->pCurrentConn = NULL;
+
+   for( ui = 0; ui < pLetoPool->uiConnCount; ui++ )
+   {
+      if( pLetoPool->letoConnPool[ ui ].pAddr )
+      {
+         pLetoPool->pCurrentConn = pLetoPool->letoConnPool + ui;
+         break;
+      }
+   }
+}
+
 unsigned int uiGetConnCount( void )
 {
    LETOPOOL * pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
@@ -207,6 +224,11 @@ LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection )
 LETOCONNECTION * letoGetCurrConn( void )
 {
    return s_pCurrentConn;
+}
+
+void letoClearCurrConn( void )
+{
+   s_pCurrentConn = NULL;
 }
 
 HB_USHORT uiGetConnCount( void )
@@ -2976,6 +2998,8 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
    if( pCurrentConn && pCurrentConn == pConnection )
       s_pCurrentConn = NULL;
 #endif
+
+   /* check if there is another possible connection */
 }
 
 static const char * leto_AddFields( LETOTABLE * pTable, HB_USHORT uiFields, const char * szFields )

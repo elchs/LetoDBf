@@ -76,6 +76,7 @@ extern HB_ERRCODE delayedError( void );
 extern HB_USHORT uiGetConnCount( void );
 extern LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
 extern LETOCONNECTION * letoGetCurrConn( void );
+extern void letoClearCurrConn( void );
 
 extern void leto_clientlog( const char * sFile, int n, const char * s, ... );
 
@@ -248,10 +249,11 @@ static int leto_CloseAll( LETOCONNECTION * pConnection )
 
 void leto_ConnectionClose( LETOCONNECTION * pConnection )
 {
-   if( pConnection->pAddr )
+   if( pConnection && pConnection->pAddr )
    {
       leto_CloseAll( pConnection );
       LetoConnectionClose( pConnection );
+      letoClearCurrConn();
    }
 }
 
@@ -5754,15 +5756,16 @@ LETOCONNECTION * leto_getConnection( int iParam )
 
    if( HB_ISCHAR( iParam ) )
    {
-      char * szAddr = ( char * ) hb_xgrabz( 96 );
-      int    iPort = 0;
+      char szAddr[ 96 ];
+      int  iPort = 0;
 
       if( leto_getIpFromPath( hb_parc( iParam ), szAddr, &iPort, NULL ) )
          pConnection = leto_ConnectionFind( szAddr, iPort );
-      hb_xfree( szAddr );
-      if( ! pConnection )
-         pConnection = letoGetCurrConn();
    }
+   else
+      pConnection = letoGetCurrConn();
+
+#if 0  /* !!! this STRONGLY not adviseable !!! -- will be removed */
    else if( HB_ISNUM( iParam ) )
    {
       HB_USHORT uiConn = ( HB_USHORT ) hb_parni( iParam );
@@ -5772,8 +5775,7 @@ LETOCONNECTION * leto_getConnection( int iParam )
       else
          pConnection = letoGetCurrConn();
    }
-   else
-      pConnection = letoGetCurrConn();
+#endif
 
    return pConnection;
 }

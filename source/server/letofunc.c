@@ -1964,7 +1964,7 @@ static void leto_StrTran( char * szText, char cSearch, char cReplace, HB_SIZE nL
    }
 }
 
-static int leto_DataPath( const char * szFilename, char * szBuffer )
+static HB_USHORT leto_DataPath( const char * szFilename, char * szBuffer )
 {
    const char * ptr = szFilename;
    int          iLen = 0;
@@ -2004,7 +2004,7 @@ static int leto_DataPath( const char * szFilename, char * szBuffer )
       leto_StrTran( szBuffer, DEF_CH_SEP, DEF_SEP, iLen );
    }
 
-   return iLen;
+   return ( HB_USHORT ) iLen;
 }
 
 static HB_BOOL leto_ProdIndex( const char * szTable, const char * szBagName )
@@ -9040,14 +9040,14 @@ static void leto_BeautifyPath( char * szPath )
 
 static void leto_PathFinder( char * szOnePath, char * szDataPath )
 {
-   char      szTmpPath[ HB_PATH_MAX ];
-   char *    pContain = strstr( szOnePath, szDataPath );
-   HB_USHORT uiLenOne;
+   char     szTmpPath[ HB_PATH_MAX ];
+   char *   pContain = strstr( szOnePath, szDataPath );
+   HB_ULONG ulLenOne;
 
    if( pContain )
    {
-      uiLenOne = ( pContain - szOnePath ) + strlen( szDataPath );
-      strcpy( szTmpPath, szOnePath + uiLenOne );
+      ulLenOne = ( pContain - szOnePath ) + strlen( szDataPath );
+      strcpy( szTmpPath, szOnePath + ulLenOne );
       leto_BeautifyPath( szTmpPath );
       strcpy( szOnePath, szTmpPath );
    }
@@ -9058,11 +9058,11 @@ static void leto_PathFinder( char * szOnePath, char * szDataPath )
       strcpy( szTmpPath, szOnePath );
       while( ( pTmp = strrchr( szTmpPath, DEF_SEP ) ) != NULL )
       {
-         uiLenOne = pTmp - szTmpPath;
-         if( ! uiLenOne )
+         ulLenOne = pTmp - szTmpPath;
+         if( ! ulLenOne )
             break;
          memcpy( szTmpPath, szOnePath, uiLenOne );
-         szTmpPath[ uiLenOne ] = '\0';
+         szTmpPath[ ulLenOne ] = '\0';
 
          pContain = strstr( szDataPath, szTmpPath );
          if( pContain )
@@ -9212,7 +9212,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                if( ( ptr = strchr( ptr, ';' ) ) != NULL )
                {
                   char *    pEnd = strchr( ++ptr, ';' );
-                  HB_USHORT uiLen = pEnd - ptr;
+                  HB_USHORT uiLen = ( HB_USHORT ) ( pEnd - ptr );
 
                   if( uiLen )
                   {
@@ -9229,7 +9229,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                      leto_BeautifyPath( szOnePath );
                      leto_PathFinder( szOnePath, szDataPath );
 
-                     uiLen = strlen( szOnePath );
+                     uiLen = ( HB_USHORT ) strlen( szOnePath );
                      if( szOnePath[ uiLen - 1 ] == DEF_SEP )
                         szOnePath[ uiLen - 1 ] = '\0';
                      leto_DataPath( szOnePath, szDefaultPath );
@@ -9256,7 +9256,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
 
                   /* search paths */
                   ptr = ++pEnd;
-                  uiLen = strlen( ptr );
+                  uiLen = ( HB_USHORT ) strlen( ptr );
                   if( uiLen )
                   {
                      char      szDataPath[ HB_PATH_MAX ];
@@ -9276,7 +9276,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                      }
                      szSearchPath = ( char * ) hb_xgrab( uPaths-- * HB_PATH_MAX );
                      strcpy( szSearchPath, hb_setGetDefault() );
-                     uiLen = strlen( szSearchPath );
+                     uiLen = ( HB_USHORT ) strlen( szSearchPath );
                      szSearchPath[ uiLen++ ] = DEF_SEPPATH;
                      szSearchPath[ uiLen ] = '\0';
 
@@ -9294,7 +9294,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                         leto_BeautifyPath( szOnePath );
                         leto_PathFinder( szOnePath, szDataPath );
 
-                        uiLenOne = strlen( szOnePath );
+                        uiLenOne = ( HB_USHORT ) strlen( szOnePath );
                         if( szOnePath[ uiLenOne - 1 ] == DEF_SEP )
                            szOnePath[ uiLenOne - 1 ] = '\0';
                         uiLen += leto_DataPath( szOnePath, szSearchPath + uiLen );

@@ -603,8 +603,11 @@ A. Internals
 
       7.1 Connection management functions
 
-      Below is a full ( at least, for the moment I write it ) list of functions,
+ Below is a full ( at least, for the moment I write it ) list of functions,
  available for using in client applications with RDD LETO linked.
+
+ In these functions <cAddress> means the IP-address in format: "//IP:port/".
+ The ":port" part got now optional, if not given it will use ":2812" as default.
 
       LETO_CONNECT( cAddress, [ cUserName ], [ cPassword ],
                     [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck ] )
@@ -624,14 +627,24 @@ A. Internals
  If you use in letodb.ini configuration point: Pass_for_Data = 1, it is advised to
  disable lZombieCheck, aka to set it explicitely to .F.
 
-      LETO_CONNECT_ERR( [ lAsText ])                           ==> nError [ cError ]
 
-      LETO_DISCONNECT( [ cConnString | nConnection ] )         ==> lDisconnect
+      LETO_CONNECT_ERR( [ lAsText ] )                          ==> nError [ cError ]
+
+ Retrieves the last occured error for active connection, not only after connect.
+ With <lAsText> TRUE given a string with an description. 
+
+      LETO_DISCONNECT( [ cAddress ] )                          ==> lDisconnect
  Dis-connnect current connection, returns boolean if a connection is disconnected.
+ With optional param <cAddress> that connection is tried to disconnect.
 
-      Very dangerous functions removed, deprecated
-      [  LETO_SETCURRENTCONNECTION( nConnection )              ==> nil
-         LETO_GETCURRENTCONNECTION()                           ==> nConnection ]
+      LETO_SETCURRENTCONNECTION( cAddress )                    ==> cAddress
+ Returns the <cAddress> of the active connection after a try to change the active one.
+ It is an empty string "" if IP was wrong/ not given.
+
+      LETO_GETCURRENTCONNECTION()                              ==> cAddress
+ Return the <cAddress> of the active connection, EMPTY string "" in case of no active
+ connection. This function can be used together with Leto_SetCurrentConnection() to
+ save/ restore the active connection.
 
       LETO_GETSERVERVERSION( [ lHarbourVersion ] )             ==> cVersion
  Returns version of LetoDBf server, with given .T. boolean parameter the version of Harbour at
@@ -640,7 +653,7 @@ A. Internals
       LETO_GETLOCALIP( [ lLocal ] )                            ==> IP address of client [ server ]
  Returns IP address of first found interface for subnet, which may be the wrong one,
  if you have multiple ( pgysical or logical like bridges ) NICs for that subnet.
- With optional <lLocal> == TRUE ( .T. ) returns IP address of server.
+ With optional <lLocal> == FALSE ( .F. ) returns IP address of server.
 
       LETO_ADDCDPTRANSLATE( cClientCdp, cServerCdp )           ==> nil
  For ugly ;-) xHarbour hackers with different CP names, no comment.

@@ -523,23 +523,53 @@ HB_FUNC( LETO_DISCONNECT )
       hb_retl( HB_FALSE );
 }
 
-#if 0  /* LetoDBf does not support to change the active connection, should be handled automatical ? */
+/* valid "//IP:port/" is needed, else no connection changed */
 HB_FUNC( LETO_SETCURRENTCONNECTION )
 {
-   LETOCONNECTION * pCurrentConn = leto_getConnection( 1 );
-   hb_ret();
-}
-#endif
+   LETOCONNECTION * pConnection = HB_ISCHAR( 1 ) ? leto_getConnection( 1 ) : NULL;
 
-/* in case of no pCurrentConn --> + 1 -1 == 0 correct invalid answer */
+   if( pConnection )
+   {
+      char szAddr[ 96 ];
+      int  iLen;
+
+      szAddr[ 0 ] = '/';  
+      szAddr[ 1 ] = '/';
+      strcpy( szAddr + 2, pConnection->pAddr );
+      iLen = strlen( szAddr );
+      szAddr[ iLen++ ] = ':';
+      iLen += ultostr( pConnection->iPort, szAddr + iLen ); 
+      szAddr[ iLen++ ] = '/';
+      szAddr[ iLen ] = '\0';
+
+      hb_retc( szAddr );
+   }
+   else
+      hb_retc( "" );
+}
+
 HB_FUNC( LETO_GETCURRENTCONNECTION )
 {
    LETOCONNECTION * pConnection = letoGetCurrConn();
 
    if( pConnection )
-      hb_retni( pConnection->iConnection + 1 );
+   {
+      char szAddr[ 96 ];
+      int  iLen;
+
+      szAddr[ 0 ] = '/';  
+      szAddr[ 1 ] = '/';
+      strcpy( szAddr + 2, pConnection->pAddr );
+      iLen = strlen( szAddr );
+      szAddr[ iLen++ ] = ':';
+      iLen += ultostr( pConnection->iPort, szAddr + iLen ); 
+      szAddr[ iLen++ ] = '/';
+      szAddr[ iLen ] = '\0';
+
+      hb_retc( szAddr );
+   }
    else
-      hb_retni( 0 );
+      hb_retc( "" );
 }
 
 HB_FUNC( LETO_SETLOCKTIMEOUT )
@@ -1025,6 +1055,8 @@ HB_FUNC( LETO_PING )
 {
    LETOCONNECTION * pConnection = leto_getConnection( 1 );
 
+   if( ! pConnection )
+      pConnection = letoGetCurrConn();
    if( pConnection )
       hb_retl( leto_Ping( pConnection ) );
    else
