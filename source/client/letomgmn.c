@@ -147,14 +147,34 @@ static LETOCONNECTION * letoParseFile( const char * szSource, char * szFile )
 
    szAddr[ 0 ] = '\0';
 
-   if( leto_getIpFromPath( szSource, szAddr, &iPort, szFile, HB_TRUE ) &&
-       ( ( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) != NULL ) ||
-         ( ( pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE ) ) != NULL ) ) )
+   if( leto_getIpFromPath( szSource, szAddr, &iPort, szFile ) )
    {
-      HB_USHORT uiPathLen = ( HB_USHORT ) strlen( szFile );
-
-      leto_getFileFromPath( szSource, szFile + uiPathLen, HB_PATH_MAX - uiPathLen );
+       if( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) == NULL )
+          pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE );
    }
+   else
+      hb_strncpy( szFile, leto_RemoveIpFromPath( szSource ), HB_PATH_MAX  );
+
+   return pConnection;
+}
+
+static LETOCONNECTION * letoParseParam( const char * szParam, char * szFile )
+{
+   LETOCONNECTION * pConnection;
+
+   if( ! szParam || ! *szParam )
+   {
+      pConnection = letoGetCurrConn();
+      szFile[ 0 ] = '\0';
+   }
+   else if( strlen( szParam ) > 10 && szParam[ 0 ] == '/' && szParam[ 1 ] == '/' )
+      pConnection = letoParseFile( szParam, szFile );
+   else
+   {
+      pConnection = letoGetCurrConn();
+      hb_strncpy( szFile, szParam, HB_PATH_MAX );
+   }
+   leto_BeautifyPath( szFile );
 
    return pConnection;
 }
@@ -162,26 +182,6 @@ static LETOCONNECTION * letoParseFile( const char * szSource, char * szFile )
 HB_FUNC( LETO_FERROR )
 {
    hb_retni( LetoGetError() );
-}
-
-LETOCONNECTION * letoParseParam( const char * szParam, char * szFile )
-{
-   LETOCONNECTION * pConnection;
-
-   if( ! szParam )
-   {
-      pConnection = letoGetCurrConn();
-      szFile[ 0 ] = '\0';
-   }
-   else if( strlen( szParam ) > 2 && szParam[ 0 ] == '/' && szParam[ 1 ] == '/' )
-      pConnection = letoParseFile( szParam, szFile );
-   else
-   {
-      pConnection = letoGetCurrConn();
-      hb_strncpy( szFile, szParam, HB_PATH_MAX - 1 );
-   }
-
-   return pConnection;
 }
 
 HB_FUNC( LETO_FILE )
@@ -471,7 +471,7 @@ HB_FUNC( LETO_CONNECT )
 {
    LETOCONNECTION * pConnection;
    char szAddr[ 96 ];
-   char szPath[ HB_PATH_MAX ];
+   char szPath[ 96 ];
    int  iPort = 0;
    const char * szUser = ( HB_ISCHAR( 2 ) && hb_parclen( 2 ) ) ? hb_parc( 2 ) : NULL;
    const char * szPass = ( HB_ISCHAR( 3 ) && hb_parclen( 3 ) ) ? hb_parc( 3 ) : NULL;
@@ -479,20 +479,31 @@ HB_FUNC( LETO_CONNECT )
    HB_BOOL      fZombieCheck = ( HB_ISLOG( 6 ) ) ? hb_parl( 6 ) : HB_TRUE;
    int          iRet = -1;
 
-   HB_TRACE( HB_TR_DEBUG, ( "LETO_CONNECT()" ) );
+   HB_TRACE( HB_TR_DEBUG, ( "LETO_CONNECT(%s)", hb_parc( 1 ) ) );
 
+   if( ! HB_ISCHAR( 1 ) || ! hb_parclen( 1 ) )
+   {
+      hb_retni( iRet );
+      return;
+   }
    szAddr[ 0 ] = '\0';
-   szPath[ 0 ] = '\0';
+   memset( szPath, 0, 96 );
+   memcpy( szPath, hb_parc( 1 ), HB_MIN( hb_parclen( 1 ), 95 ) );
 
-   if( HB_ISCHAR( 1 ) && leto_getIpFromPath( hb_parc( 1 ), szAddr, &iPort, szPath, HB_FALSE ) &&
+   if( szPath[ 0 ] != '/' )  /* add "//.../" */
+   {
+      memmove( szPath + 2, szPath, 94 );
+      szPath[ 0 ] = '/';
+      szPath[ 1 ] = '/';
+      szPath[ strlen( szPath ) ] = '/';
+   }
+
+   if( HB_ISCHAR( 1 ) && leto_getIpFromPath( szPath, szAddr, &iPort, NULL ) &&
        ( ( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) != NULL ) ||
          ( ( pConnection = LetoConnectionNew( szAddr, iPort, szUser, szPass, iTimeOut, fZombieCheck ) ) != NULL ) ) )
    {
       if( HB_ISNUM( 5 ) )
          pConnection->iBufRefreshTime = hb_parni( 5 );
-
-      if( strlen( szPath ) > 1 && pConnection->szPath == NULL )
-         LetoSetPath( pConnection, szPath );
       iRet = pConnection->iConnection;
    }
 
@@ -504,9 +515,12 @@ HB_FUNC( LETO_DISCONNECT )
    LETOCONNECTION * pConnection = leto_getConnection( 1 );
 
    if( pConnection )
+   {
       leto_ConnectionClose( pConnection );
-
-   hb_ret();
+      hb_retl( HB_TRUE );
+   }
+   else
+      hb_retl( HB_FALSE );
 }
 
 #if 0  /* LetoDBf does not support to change the active connection, should be handled automatical ? */
@@ -558,20 +572,6 @@ HB_FUNC( LETO_GETSERVERVERSION )
 
    if( pCurrentConn )
       hb_retc( ! ( HB_ISLOG( 1 ) && hb_parl( 1 ) ) ? LetoGetServerVer( pCurrentConn ) : pCurrentConn->szVerHarbour );
-   else
-      hb_retc( "" );
-}
-
-HB_FUNC( LETO_PATH )
-{
-   LETOCONNECTION * pCurrentConn = letoGetCurrConn();
-
-   if( pCurrentConn )
-   {
-      hb_retc( pCurrentConn->szPath ? pCurrentConn->szPath : "" );
-      if( HB_ISCHAR( 1 ) )
-         LetoSetPath( pCurrentConn, hb_parc( 1 ) );
-   }
    else
       hb_retc( "" );
 }
@@ -1797,7 +1797,42 @@ HB_FUNC( LETO_GETLOCALIP )
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
 
    if( pCurrentConn )
-      hb_retc( pCurrentConn->pAddr );
+   {
+      if( HB_ISLOG( 1 ) && hb_parl( 1 ) )
+         hb_retc( pCurrentConn->pAddr );
+      else
+      {
+         PHB_ITEM pIFaces = hb_socketGetIFaces( HB_SOCKET_AF_INET, HB_TRUE );
+
+         if( pIFaces && HB_IS_ARRAY( pIFaces ) )
+         {
+            const char * pAddrGroupEnd = strrchr( pCurrentConn->pAddr, '.' );
+            const char * pAddress;
+            HB_SIZE n = 1;
+
+            if( ! pAddrGroupEnd )
+            {
+               hb_retc( "" );
+               return;
+            }
+
+            while( n <=  hb_arrayLen( pIFaces ) )
+            {
+               pAddress = hb_itemGetCPtr( hb_arrayGetItemPtr( hb_arrayGetItemPtr( pIFaces, n ), HB_SOCKET_IFINFO_ADDR ) );
+               if( ! strncmp( pCurrentConn->pAddr, pAddress, pAddrGroupEnd - pCurrentConn->pAddr + 1 ) )
+               {
+                  hb_retc( pAddress );
+                  break;
+               }
+               n++;
+            }
+
+            if( n > hb_arrayLen( pIFaces ) )
+               hb_retc( "" );
+            hb_itemRelease( pIFaces );
+         }
+      }
+   }
    else
       hb_retc( "" );
 }
@@ -1830,17 +1865,17 @@ HB_FUNC( LETO_ADDCDPTRANSLATE )
 HB_FUNC( LETO_UDFEXIST )
 {
    LETOCONNECTION * pConnection = NULL;
-   char szFuncName[ HB_SYMBOL_NAME_LEN + 1 ];
+   char szFuncName[ HB_PATH_MAX ];
 
    if( HB_ISCHAR( 1 ) )
       pConnection = letoParseParam( hb_parc( 1 ), szFuncName );
 
    if( pConnection )
    {
-      char         szData[ HB_SYMBOL_NAME_LEN + 6 ];
+      char         szData[ HB_SYMBOL_NAME_LEN + 9 ];
       const char * ptr = ( szFuncName[ 0 ] == '/' ) ? szFuncName + 1 : szFuncName;
 
-      hb_snprintf( szData, HB_SYMBOL_NAME_LEN + 6, "%c;3;;;%s;", LETOCMD_udf_fun, ptr );
+      hb_snprintf( szData, HB_SYMBOL_NAME_LEN + 9, "%c;3;;;%s;", LETOCMD_udf_fun, ptr );
       if( ! leto_DataSendRecv( pConnection, szData, 0 ) )
          hb_retl( HB_FALSE );
       else
@@ -1857,7 +1892,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
 {
    LETOCONNECTION * pConnection;
    LETOAREAP        pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-   char             szFuncName[ HB_SYMBOL_NAME_LEN + 1 ];
+   char             szFuncName[ HB_PATH_MAX ];
    HB_ULONG         ulMemSize;
    HB_USHORT        uLen;
    /* HB_BOOL          fLeto = leto_CheckArea( pArea ); ==> if( pArea ) */
@@ -1866,7 +1901,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
       pConnection = letoParseParam( hb_parc( 1 ), szFuncName );
    else
    {
-      strncpy( szFuncName, hb_arrayGetCPtr( pArray, 1 ), HB_SYMBOL_NAME_LEN );
+      hb_strncpy( szFuncName, hb_arrayGetCPtr( pArray, 1 ), HB_SYMBOL_NAME_LEN + 1 );
       szFuncName[ hb_arrayGetCLen( pArray, 1 ) ] = '\0';
       pConnection = letoGetCurrConn();
    }

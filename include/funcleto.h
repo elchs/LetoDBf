@@ -68,9 +68,11 @@
 
 #if defined( HB_OS_UNIX )
    #define DEF_SEP               '/'
+   #define DEF_SEPPATH           ':'
    #define DEF_CH_SEP            '\\'
 #else
    #define DEF_SEP               '\\'
+   #define DEF_SEPPATH           ';'
    #define DEF_CH_SEP            '/'
 #endif
 
@@ -194,7 +196,6 @@
 #define LETO_FLAG_UPD_UNLOCK  8
 #define LETO_FLAG_UPD_FLUSH   16
 
-extern void leto_getLocalIP( HB_SOCKET hSocket, char * szIP );
 extern HB_I64 leto_DeciSec( void );
 extern HB_I64 leto_MilliSec( void );
 extern int leto_CPUCores( void );

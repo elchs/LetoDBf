@@ -99,6 +99,7 @@ static int       s_iDebugMode = 1;
 static char *    s_szServerAddr = NULL;
 static int       s_iServerPort = 2812;
 static char *    s_pDataPath = NULL;
+static HB_USHORT s_uiDataPathLen = 0;
 static HB_USHORT s_uiDriverDef = 0;
 static HB_BOOL   s_bShareTables = HB_FALSE;
 static HB_BOOL   s_bNoSaveWA = HB_FALSE;
@@ -1397,6 +1398,7 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
          strcpy( s_pDataPath, hb_parc( 1 ) );
       else
          s_pDataPath[ 0 ] = '\0';
+      s_uiDataPathLen = ( HB_USHORT ) hb_parclen( 1 );
    }
    else   /* security exit cause of wrong param */
    {
@@ -1488,7 +1490,7 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
    {
       s_bLowerPath = hb_parl( 25 );
       if( s_bLowerPath )
-         hb_strLower( s_pDataPath, strlen( s_pDataPath ) );
+         hb_strLower( s_pDataPath, s_uiDataPathLen );
    }
    if( HB_ISCHAR( 26 ) )
    {
@@ -1855,7 +1857,7 @@ static void leto_FreeTag( LETOTAG * pTag )
 HB_FUNC( LETO_N2B )
 {
    HB_U32   n = ( HB_U32 ) hb_parnl( 1 );
-   char     s[ 9 ];  // elch
+   char     s[ 9 ];
    HB_UCHAR uLen = leto_n2b( s, n );
 
    hb_retclen( s, uLen );
@@ -1962,16 +1964,17 @@ static void leto_StrTran( char * szText, char cSearch, char cReplace, HB_SIZE nL
    }
 }
 
-static void leto_DataPath( const char * szFilename, char * szBuffer )
+static int leto_DataPath( const char * szFilename, char * szBuffer )
 {
    const char * ptr = szFilename;
+   int          iLen = 0;
 
    szBuffer[ 0 ] = '\0';
    if( szFilename[ 0 ] )
    {
       HB_BOOL bLeadSep = ( szFilename[ 0 ] == '/' || szFilename[ 0 ] == '\\' );
       HB_BOOL bMemIO;
-      int     iLen = 0;
+
 
       if( ! strncmp( szFilename + ( bLeadSep ? 1 : 0 ), "mem:", 4 ) )  /* e.g. "/mem:"  */
          bMemIO = HB_TRUE;
@@ -1980,7 +1983,7 @@ static void leto_DataPath( const char * szFilename, char * szBuffer )
 
       if( ! bMemIO && s_pDataPath )
       {
-         iLen = strlen( s_pDataPath );
+         iLen = ( int ) s_uiDataPathLen;
          strcpy( szBuffer, s_pDataPath );
          if( iLen > 0 && szBuffer[ iLen - 1 ] != '/' && szBuffer[ iLen - 1 ] != '\\' )
          {
@@ -1997,8 +2000,11 @@ static void leto_DataPath( const char * szFilename, char * szBuffer )
       strcpy( szBuffer + iLen, ptr );
       if( s_bLowerPath )
          hb_strLower( szBuffer + iLen, strlen( szBuffer + iLen ) );
-      leto_StrTran( szBuffer, DEF_CH_SEP, DEF_SEP, strlen( szBuffer ) );
+      iLen += strlen( ptr );
+      leto_StrTran( szBuffer, DEF_CH_SEP, DEF_SEP, iLen );
    }
+
+   return iLen;
 }
 
 static HB_BOOL leto_ProdIndex( const char * szTable, const char * szBagName )
@@ -2167,7 +2173,7 @@ static _HB_INLINE_ HB_ULONG leto_recLen( PTABLESTRU pTStru )
    return pTStru->uiRecordLen + 25 + ( pTStru->uiFields * 3 );
 }
 
-static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char * szData, HB_BOOL fRefr )
+static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char * szData, HB_ULONG * ulRelPos )
 {
    char *    pData = szData + SHIFT_FOR_LEN;
    HB_USHORT uiFieldCount = pArea->uiFieldCount;
@@ -2182,7 +2188,7 @@ static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char 
       SELF_GETREC( pArea, &pRecord );
       ulRecNo = ( ( DBFAREAP ) pArea )->ulRecNo;
       // SELF_RECNO( pArea, &ulRecNo );
-      if( fRefr && s_bShareTables && pAStru->pTStru->bShared )
+      if( ( ! ulRelPos || ! *ulRelPos ) && s_bShareTables && pAStru->pTStru->bShared )
          SELF_RECCOUNT( pArea, &ulRecCount );
       else
          ulRecCount = ( ( DBFAREAP ) pArea )->ulRecCount;
@@ -2411,9 +2417,16 @@ static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char 
          if( pUStru->bBufKeyNo )
          {
             *pData++ = '%';
-            pOrderInfo.itmResult = hb_itemPutNL( NULL, 0 );
-            SELF_ORDINFO( pArea, DBOI_POSITION, &pOrderInfo );
-            HB_PUT_LE_UINT32( ( HB_BYTE * ) pData, hb_itemGetNL( pOrderInfo.itmResult ) );
+            if( ulRelPos && *ulRelPos )
+               HB_PUT_LE_UINT32( ( HB_BYTE * ) pData, *ulRelPos );
+            else
+            {
+               pOrderInfo.itmResult = hb_itemPutNL( NULL, 0 );
+               SELF_ORDINFO( pArea, DBOI_POSITION, &pOrderInfo );
+               HB_PUT_LE_UINT32( ( HB_BYTE * ) pData, hb_itemGetNL( pOrderInfo.itmResult ) );
+               if( ulRelPos )
+                  *ulRelPos = hb_itemGetNL( pOrderInfo.itmResult );
+            }
             pData += 4;
          }
          if( pUStru->bBufKeyCount )
@@ -2458,7 +2471,7 @@ HB_FUNC( LETO_REC )
    ulLen = leto_recLen( pUStru->pCurAStru->pTStru );
    szData = ( char * ) hb_xgrab( ulLen );
 
-   ulLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szData, HB_TRUE );
+   ulLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szData, NULL );
 
    hb_retclen_buffer( szData, ulLen );
 }
@@ -2700,16 +2713,15 @@ static PINDEXSTRU leto_InitIndex( PUSERSTRU pUStru, const char * szTagName, cons
       strcpy( pIStru->szFullPath, hb_itemGetCPtr( pOrderInfo.itmResult ) );
       bProduction = leto_ProdIndex( szTable, pIStru->szFullPath );
 
-      ui = (HB_USHORT ) strlen( s_pDataPath );
+      ui = s_uiDataPathLen;
       if( ! strncmp( pIStru->szFullPath, "mem:", 4 ) )  /* important to check this first */
          ptr = pIStru->szFullPath;
-      //else if( ! ( ui = (HB_USHORT ) strlen( s_pDataPath ) ) )
       else if( ! ui )
          ptr = pIStru->szFullPath + 1;  /* remove leading [back]slash */
       else if( ! strncmp( pIStru->szFullPath, s_pDataPath, ui ) )
          ptr = pIStru->szFullPath + ui + 1;
       else
-         ptr = pIStru->szFullPath;  /* Houston ! */
+         ptr = pIStru->szFullPath + 1;  /* Houston ! */
       pIStru->szBagName = ( char * ) hb_xgrab( strlen( ptr ) + 1 );
       strcpy( pIStru->szBagName, ptr );
 
@@ -2941,6 +2953,11 @@ static void leto_CloseGlobe( PGLOBESTRU pGStru )
       hb_xfree( pGStru->szTable );
       pGStru->szTable = NULL;
    }
+   if( pGStru->szCdp )
+   {
+      hb_xfree( pGStru->szCdp );
+      pGStru->szCdp = NULL;
+   }
    pGStru->uiCrc = 0;
 }
 
@@ -2989,7 +3006,7 @@ static void leto_CloseTable( PTABLESTRU pTStru )
    /* HB_GC_UNLOCKT(); */
 }
 
-static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT uiTable, HB_USHORT uiLen )
+static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT uiTable, HB_USHORT uiLen, const char * szCdp )
 {
    PGLOBESTRU pGStru;
 
@@ -3028,6 +3045,22 @@ static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT ui
       memcpy( pGStru->szTable, szTable, uiLen );
       pGStru->szTable[ uiLen ] = '\0';
       pGStru->uiCrc = uiCrc;
+      if( ! szCdp )
+      {
+         szCdp = hb_cdpID();
+         if( szCdp )
+         {
+            pGStru->szCdp = ( char * ) hb_xgrab( strlen( szCdp ) + 1 );
+            strcpy( pGStru->szCdp, szCdp );
+         }
+         else
+            pGStru->szCdp = NULL;
+      }
+      else
+      {
+         pGStru->szCdp = ( char * ) hb_xgrab( strlen( szCdp ) + 1 );
+         strcpy( pGStru->szCdp, szCdp );
+      }
    }
 
    if( s_bShareTables )
@@ -3044,8 +3077,30 @@ static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT ui
    return pGStru;
 }
 
+static _HB_INLINE_ HB_BOOL leto_InitGlobeValidCP( int iTableStru, const char * szCdp )
+{
+   PTABLESTRU pTStru = s_tables + iTableStru;
+
+   if( ( s_bNoSaveWA && ! pTStru->bMemIO ) ? pTStru->pGlobe->uiAreas > 1 : HB_TRUE )
+   {
+      if( pTStru->pGlobe->szCdp )
+      {
+         if( ! szCdp )
+            szCdp = hb_cdpID();
+         if( ! szCdp )
+            return HB_FALSE;
+         else
+            return ! strcmp( pTStru->pGlobe->szCdp, szCdp );
+      }
+      else
+         return ( ! hb_cdpID() );
+   }
+   else
+      return HB_TRUE;
+}
+
 /* HB_GC_LOCKT() must be ensured by caller ! */
-static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * szDriver, HB_BOOL bShared, const char * szLetoAlias, HB_BOOL bReadonly )
+static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * szDriver, HB_BOOL bShared, const char * szLetoAlias, HB_BOOL bReadonly, const char * szCdp )
 {
    PTABLESTRU pTStru = s_tables + s_uiTablesFree;
    HB_UINT    uiTable = s_uiTablesFree;
@@ -3094,7 +3149,7 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
       s_uiTablesMax = uiTable + 1;
    s_uiTablesCurr++;
 
-   pTStru->pGlobe = leto_InitGlobe( szName, pTStru->uiCrc, uiTable, uiLen );
+   pTStru->pGlobe = leto_InitGlobe( szName, pTStru->uiCrc, uiTable, uiLen, szCdp );
 
    return uiTable;
 }
@@ -4299,12 +4354,18 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
 
       if( pRDDNode )
       {
-         leto_DataPath( szData, szBuf );
+         if( strchr( szData, DEF_SEP ) || strchr( szData, DEF_SEP ) )
+            leto_DataPath( szData, szBuf );
+         else
+            strcpy( szBuf, szData );
          pName1 = hb_itemPutC( NULL, szBuf );
 
          if( *pIFile )
          {
-            leto_DataPath( pIFile, szBuf );
+            if( strchr( pIFile, DEF_SEP ) || strchr( pIFile, DEF_SEP ) )
+               leto_DataPath( pIFile, szBuf );
+            else
+               strcpy( szBuf, pIFile );
             pName2 = hb_itemPutC( NULL, szBuf );
          }
 
@@ -4374,12 +4435,18 @@ static void leto_Exists( PUSERSTRU pUStru, const char * szData )
 
       if( pRDDNode )
       {
-         leto_DataPath( szData, szBuf );
+         if( strchr( szData, DEF_SEP ) || strchr( szData, DEF_CH_SEP ) )
+            leto_DataPath( szData, szBuf );
+         else
+            strcpy( szBuf, szData );
          pName1 = hb_itemPutC( NULL, szBuf );
 
          if( *pIFile )
          {
-            leto_DataPath( pIFile, szBuf );
+            if( strchr( pIFile, DEF_SEP ) || strchr( pIFile, DEF_CH_SEP ) )
+               leto_DataPath( pIFile, szBuf );
+            else
+               strcpy( szBuf, pIFile );
             pName2 = hb_itemPutC( NULL, szBuf );
          }
 
@@ -4556,7 +4623,6 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
       HB_BOOL  bFreeBuf = HB_FALSE;
 
       leto_DataPath( pSrcFile, szFile );
-      /* leto_SetUserEnv( pUStru ); */
 
       if( *szData == '0' )
       {
@@ -5377,7 +5443,7 @@ HB_BOOL leto_BackupTable( PUSERSTRU pUStru, const char * szTargetDir, HB_BOOL bD
                HB_ULONG   ulAreaID = 0;  // ToDo convert to HB_USHORT
                DBFAREAP   pArea = NULL;
                char       szSource[ HB_PATH_MAX ];
-               HB_USHORT  uiLen = ( HB_USHORT ) strlen( s_pDataPath );
+               HB_USHORT  uiLen = s_uiDataPathLen;
                HB_USHORT  uiLen2 = ( HB_USHORT ) strlen( ( const char * ) pTStru->szTable );
                HB_BOOL    bRequested = HB_FALSE;
 
@@ -5477,7 +5543,7 @@ HB_BOOL leto_BackupTable( PUSERSTRU pUStru, const char * szTargetDir, HB_BOOL bD
                         AREAP       pTmpArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
 
                         memset( &pOrderInfo, 0, sizeof( DBORDERINFO ) );
-                        uiLen = ( HB_USHORT ) strlen( s_pDataPath );
+                        uiLen = s_uiDataPathLen;
                         strcpy( szIndexPathSrc, s_pDataPath );
                         if( szIndexPathSrc[ uiLen - 1 ] != '/' && szIndexPathSrc[ uiLen - 1 ] != '\\' )
                         {
@@ -5718,7 +5784,7 @@ static char * leto_recWithAlloc( AREAP pArea, PUSERSTRU pUStru, PAREASTRU pAStru
 
    if( szData )
    {
-      *pulLen = leto_rec( pUStru, pAStru, pArea, szData + 1, HB_TRUE );
+      *pulLen = leto_rec( pUStru, pAStru, pArea, szData + 1, NULL );
       if( *pulLen )
       {
          szData[ 0 ] = '+';
@@ -6801,10 +6867,11 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
       {
          HB_ULONG ulMemSize = leto_recLen( pAStru->pTStru ) * pAStru->uiSkipBuf;
          HB_ULONG ulLenAll;
+         HB_ULONG ulRelPos = 0;
          HB_BOOL  bFlag;
 
          szData1 = ( char * ) hb_xgrab( ulMemSize + 1 );
-         ulLenAll = leto_rec( pUStru, pAStru, pArea, szData1 + 1, HB_TRUE );
+         ulLenAll = leto_rec( pUStru, pAStru, pArea, szData1 + 1, &ulRelPos );
          if( ! ulLenAll )
             pData = szErr2;
          else if( ! pAStru->bUseSkipBuffer )
@@ -6814,6 +6881,7 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
             HB_USHORT i = 1;
             HB_ULONG  ulLen2;
 
+            ulRelPos += lSkip;
             while( i++ < pAStru->uiSkipBuf )
             {
                if( lSkip > 0 )
@@ -6834,7 +6902,8 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
                         if( bFlag )
                            break;
                      }
-                     ulLen2 = leto_rec( pUStru, pAStru, pArea, szData1 + 1 + ulLenAll, HB_FALSE );
+                     ulLen2 = leto_rec( pUStru, pAStru, pArea, szData1 + 1 + ulLenAll, &ulRelPos );
+                     ulRelPos += lSkip;
                      if( ! ulLen2 )
                      {
                         pData = szErr2;
@@ -6886,6 +6955,7 @@ static PHB_ITEM * leto_dbEval( PUSERSTRU pUStru, AREAP pArea, PHB_ITEM * pBlocks
 {
    HB_ULONG   ulRecLen = leto_recLen( pUStru->pCurAStru->pTStru );
    HB_ULONG   ulLen2;
+   HB_ULONG   ulRelPos = 0;
    char *     szData1 = ( char * ) hb_xgrab( ulRecLen );
    HB_BOOL    bFlag;
    PHB_ITEM * pFor = NULL;
@@ -6947,7 +7017,8 @@ static PHB_ITEM * leto_dbEval( PUSERSTRU pUStru, AREAP pArea, PHB_ITEM * pBlocks
       }
       else  // default action: raw record
       {
-         ulLen2 = leto_rec( pUStru, pUStru->pCurAStru, pArea, szData1, i == 1 );
+         ulLen2 = leto_rec( pUStru, pUStru->pCurAStru, pArea, szData1, &ulRelPos );
+         ulRelPos += 1;
          i++;
          if( ! ulLen2 )
             break;
@@ -8147,13 +8218,11 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                            *pTmp++ = ':';
 
                         leto_BufCheck( &pData, &ptr, &ulMemSize, HB_PATH_MAX + HB_RDD_MAX_DRIVERNAME_LEN + 256, 42 );
-                        //ptr += sprintf( ptr, "%d;%s;%s;%s;%" HB_PFS "d;%s;%d;%s;%d;",
                         ptr += sprintf( ptr, "%d;%s;%s;%s;%ld;%s;%d;%s;%d;",
                                         ui,
                                         pUStru1->szAddr    ? ( char * ) pUStru1->szAddr    : szNull,
                                         pUStru1->szNetname ? ( char * ) pUStru1->szNetname : szNull,
                                         *( pUStru1->szExename ) ? ( char * ) pUStru1->szExename : szNull,
-//#if defined( HB_OS_WIN ) && ! defined( HB_OS_WIN_64 )
                                         ( long int ) ( llTimePoint - pUStru1->llLastAct ),
                                         szRequest,
                                         pUStru1->uiDriver,
@@ -8956,6 +9025,59 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
    }
 }
 
+/* remove drive letter and doubled path separator at beginning */
+static void leto_BeautifyPath( char * szPath )
+{
+   char * ptr = szPath;
+
+   if( *ptr && ptr[ 1 ] == ':' )  /* C:... */
+      memmove( szPath, ptr + 2, strlen( ptr + 2 ) + 1 );  /* including '\0' */
+
+   ptr++;
+   while( *ptr == '/' || *ptr == '\\' )
+   {
+      memmove( ptr, ptr + 1, strlen( ptr + 1 ) + 1 );  /* including '\0' */
+   }
+}
+
+static void leto_PathFinder( char * szOnePath, char * szDataPath )
+{
+   char      szTmpPath[ HB_PATH_MAX ];
+   char *    pContain = strstr( szOnePath, szDataPath );
+   HB_USHORT uiLenOne;
+
+   if( pContain )
+   {
+      uiLenOne = ( pContain - szOnePath ) + strlen( szDataPath );
+      strcpy( szTmpPath, szOnePath + uiLenOne );
+      leto_BeautifyPath( szTmpPath );
+      strcpy( szOnePath, szTmpPath );
+   }
+   else
+   {
+      char * pTmp;
+
+      strcpy( szTmpPath, szOnePath );
+      while( ( pTmp = strrchr( szTmpPath, DEF_SEP ) ) != NULL )
+      {
+         uiLenOne = pTmp - szTmpPath;
+         if( ! uiLenOne )
+            break;
+         memcpy( szTmpPath, szOnePath, uiLenOne );
+         szTmpPath[ uiLenOne ] = '\0';
+
+         pContain = strstr( szDataPath, szTmpPath );
+         if( pContain )
+         {
+            strcpy( szTmpPath, szOnePath + ( pTmp - szTmpPath ) );
+            leto_BeautifyPath( szTmpPath );
+            strcpy( szOnePath, szTmpPath );
+            break;
+         }
+      }
+   }
+}
+
 static void leto_Intro( PUSERSTRU pUStru, const char * szData )
 {
    const char * pData = NULL;
@@ -9087,6 +9209,113 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                   hb_setSetItem( HB_SET_EPOCH, pItem );
                   hb_itemRelease( pItem );
                }
+
+               /* one ! default path, not allowed to be terminated with ';' ! */
+               if( ( ptr = strchr( ptr, ';' ) ) != NULL )
+               {
+                  char *    pEnd = strchr( ++ptr, ';' );
+                  HB_USHORT uiLen = pEnd - ptr;
+
+                  if( uiLen )
+                  {
+                     char     szDataPath[ HB_PATH_MAX ];
+                     char     szOnePath[ HB_PATH_MAX ];
+                     char     szDefaultPath[ HB_PATH_MAX ];
+                     PHB_ITEM pItem = hb_itemNew( NULL );
+
+                     hb_strncpy( szDataPath, s_pDataPath, HB_PATH_MAX );
+                     leto_StrTran( szDataPath, DEF_CH_SEP, DEF_SEP, strlen( szDataPath ) );
+
+                     memcpy( szOnePath, ptr, HB_MIN( uiLen, HB_PATH_MAX - 1 ) );
+                     szOnePath[ HB_MIN( uiLen, HB_PATH_MAX - 1 ) ] = '\0';
+                     leto_BeautifyPath( szOnePath );
+                     leto_PathFinder( szOnePath, szDataPath );
+
+                     uiLen = strlen( szOnePath );
+                     if( szOnePath[ uiLen - 1 ] == DEF_SEP )
+                        szOnePath[ uiLen - 1 ] = '\0';
+                     leto_DataPath( szOnePath, szDefaultPath );
+
+                     if( s_iDebugMode > 10 )
+                        leto_writelog( NULL, -1, "DEBUG leto_Intro() DEFAULT path %s", szDefaultPath );
+
+                     hb_itemPutC( pItem, szDefaultPath );
+                     hb_setSetItem( HB_SET_DEFAULT, pItem );
+                     /* hb_setSetItem( HB_SET_PATH, pItem ); */
+                     hb_itemRelease( pItem );
+                  }
+                  else  /* set DEFAULT to DataPath of letodb.ini */
+                  {
+                     PHB_ITEM pItem = hb_itemNew( NULL );
+
+                     if( s_iDebugMode > 10 )
+                        leto_writelog( NULL, -1, "DEBUG leto_Intro() DEFAULTing path %s", s_pDataPath );
+                     hb_itemPutC( pItem, s_pDataPath );
+                     hb_setSetItem( HB_SET_DEFAULT, pItem );
+                     /* hb_setSetItem( HB_SET_PATH, pItem ); */
+                     hb_itemRelease( pItem );
+                  }
+
+                  /* search paths */
+                  ptr = ++pEnd;
+                  uiLen = strlen( ptr );
+                  if( uiLen )
+                  {
+                     char      szDataPath[ HB_PATH_MAX ];
+                     char      szOnePath[ HB_PATH_MAX ];
+                     char *    szSearchPath;
+                     PHB_ITEM  pItem = hb_itemNew( NULL );
+                     HB_UCHAR  uPaths = 2;  /* first is default */
+                     HB_USHORT uiLenOne;
+
+                     pEnd = ptr;
+                     while( ( pEnd = strchr( pEnd, ';' ) ) != NULL )
+                     {
+                        if( pEnd - ptr >= uiLen )
+                           break;
+                        uPaths++;
+                        pEnd++;
+                     }
+                     szSearchPath = ( char * ) hb_xgrab( uPaths-- * HB_PATH_MAX );
+                     strcpy( szSearchPath, hb_setGetDefault() );
+                     uiLen = strlen( szSearchPath );
+                     szSearchPath[ uiLen++ ] = DEF_SEPPATH;
+                     szSearchPath[ uiLen ] = '\0';
+
+                     while( uPaths > 0 )
+                     {
+                        pEnd = strchr( ptr, ';' );
+                        if( ! pEnd )  /* not terminated */
+                           pEnd = ptr + strlen( ptr );
+
+                        hb_strncpy( szDataPath, s_pDataPath, HB_PATH_MAX );
+                        leto_StrTran( szDataPath, DEF_CH_SEP, DEF_SEP, strlen( szDataPath ) );
+
+                        memcpy( szOnePath, ptr, HB_MIN( pEnd - ptr, HB_PATH_MAX - 1 ) );
+                        szOnePath[ HB_MIN( pEnd - ptr, HB_PATH_MAX - 1 ) ] = '\0';
+                        leto_BeautifyPath( szOnePath );
+                        leto_PathFinder( szOnePath, szDataPath );
+
+                        uiLenOne = strlen( szOnePath );
+                        if( szOnePath[ uiLenOne - 1 ] == DEF_SEP )
+                           szOnePath[ uiLenOne - 1 ] = '\0';
+                        uiLen += leto_DataPath( szOnePath, szSearchPath + uiLen );
+                        if( uPaths > 1 )
+                           szSearchPath[ uiLen++ ] = DEF_SEPPATH;
+
+                        ptr = pEnd + 1;
+                        uPaths--;
+                     }
+
+                     hb_itemPutC( pItem, szSearchPath );
+                     hb_setSetItem( HB_SET_PATH, pItem );
+                     hb_itemRelease( pItem );
+                     if( s_iDebugMode > 10 )
+                        leto_writelog( NULL, -1, "DEBUG leto_Intro() search PATH %s", szSearchPath );
+
+                     hb_xfree( szSearchPath );
+                  }
+               }
             }
          }
       }
@@ -9120,7 +9349,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
       leto_wUsLogDelete( pUStru );
 }
 
-static void leto_CloseT( PUSERSTRU pUStru, const char * szData )  //mt
+static void leto_CloseT( PUSERSTRU pUStru, const char * szData )
 {
    const char * pData;
    HB_BOOL      bOk = HB_FALSE;
@@ -10884,7 +11113,7 @@ static void leto_Trans( PUSERSTRU pUStru, const char * szData, HB_BOOL bSort )
 
          if( pUStru->iHbError )
             leto_SendError( pUStru, szErr4, 4 );
-         else if( ! bSort )  // v2.16
+         else if( ! bSort )
          {
             PAREASTRU pAStruDst = leto_FindArea( pUStru, ulAreaDst );
             HB_ULONG  ulLen;
@@ -10896,7 +11125,7 @@ static void leto_Trans( PUSERSTRU pUStru, const char * szData, HB_BOOL bSort )
                szData1 = ( char * ) hb_xgrab( ulLen + 6 );
                memcpy( szData1, szOk, 4 );
                szData1[ 4 ] = ';';
-               ulLen = leto_rec( pUStru, pAStruDst, pAreaDst, szData1 + 5, HB_TRUE ) + 5;
+               ulLen = leto_rec( pUStru, pAStruDst, pAreaDst, szData1 + 5, NULL ) + 5;
 
                leto_SendAnswer( pUStru, szData1, ulLen );
                hb_xfree( szData1 );
@@ -11607,7 +11836,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
    char *       szReply = hb_xgrab( uiReplyBufLen + 1 );
    char *       ptr, * ptr2;
    const char * pData = NULL;
-   const char * pp2, * pp3, * pp4, * pp5;
+   const char * pp2, * pp3, * szCdp, * pp5;
    int          nParam;
    HB_USHORT    uiNtxType;
    AREAP        pArea  = NULL;
@@ -11625,8 +11854,8 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
    szRealAlias[ 0 ] = '\0';
    pUStru->bLastAct = HB_FALSE;
 
-   /* szRawData = filename, pp2 = Alias, pp3 = shared/readonly, pp4 = codepage, pp5 = DBdriver */
-   nParam = leto_GetParam( szRawData, &pp2, &pp3, &pp4, &pp5 );
+   /* szRawData = filename, pp2 = Alias, pp3 = shared/readonly, szCdp = codepage, pp5 = DBdriver */
+   nParam = leto_GetParam( szRawData, &pp2, &pp3, &szCdp, &pp5 );
    nLen = strlen( szRawData );
 
    if( leto_IsServerLock( pUStru ) )
@@ -11686,8 +11915,8 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
       bShared = pp3[ 0 ] == 'T' ? HB_TRUE : HB_FALSE;
       bReadonly = ( pp3[ 1 ] == 'T' ) ? HB_TRUE : HB_FALSE;
 
-      if( ! pp4 || ! *pp4 )  /* important: valid str-len or NULL ! */
-         pp4 = NULL;
+      if( ! szCdp || ! *szCdp )  /* important: valid strlen or NULL ! */
+         szCdp = NULL;
 
       strcpy( szDriver, pp5 );
       if( ! *szDriver )  /* should not happen, client ever transmit driver type */
@@ -11710,6 +11939,17 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
       }
       hb_xfree( pFilePath );
 
+      if( ! bMemIO && ! strchr( szFile, DEF_SEP ) )
+      {
+         char szFilePath[ HB_PATH_MAX ];
+
+         if( hb_fileExists( szFile, szFilePath ) )
+         {
+            strcpy( szFileName, szFilePath );
+            strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
+         }
+      }
+
       pp5 += strlen( pp5 ) + 1;
       if( *pp5 )
          ulSelectID = strtoul( pp5, &ptr2, 10 );
@@ -11723,11 +11963,11 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
          pp5 = ptr2 + 1;
          if( ( ptr2 = strchr( pp5, ';' ) ) != NULL && ptr2 - pp5 > 1 )
          {
-            if( ! pUStru->szDateFormat || strncmp( pUStru->szDateFormat, pp5, ptr2 - pp5 ) || 
+            if( ! pUStru->szDateFormat || strncmp( pUStru->szDateFormat, pp5, ptr2 - pp5 ) ||
                 strlen( pUStru->szDateFormat ) != ( unsigned int ) ( ptr2 - pp5 ) )
             {
                PHB_ITEM pItem = hb_itemNew( NULL );
-   
+
                if( pUStru->szDateFormat )
                   hb_xfree( pUStru->szDateFormat );
                pUStru->szDateFormat = ( char * ) hb_xgrab( ptr2 - pp5 + 1 );
@@ -11838,8 +12078,9 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             errcode = hb_rddOpenTable( szFileName, ( const char * ) szDriver, uiArea, szRealAlias,
                                        ( ( s_bShareTables || s_bNoSaveWA ) && bShared && ! bMemIO ),
                                        ( ( s_bShareTables || s_bNoSaveWA ) && bReadonly ),
-                                       pp4, 0, pStruct, pDelim );
+                                       szCdp, 0, pStruct, pDelim );
             hb_xvmSeqEnd();
+
             if( pUStru->iHbError )
                errcode = HB_FAILURE;
             else
@@ -11869,11 +12110,24 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                if( ! ulSelectID )
                   ulSelectID = hb_rddGetCurrentWorkAreaNumber();
 
-               if( ( iTableStru = leto_InitTable( ulAreaID, szFile, szDriver, bShared, szRealAlias, bReadonly ) ) >= 0 )
+               if( ( iTableStru = leto_InitTable( ulAreaID, szFile, szDriver, bShared, szRealAlias, bReadonly, szCdp ) ) >= 0 )
                {
+                  if( ! leto_InitGlobeValidCP( iTableStru, szCdp ) )
+                  {
+                     /* tried to open with different CP */
+                     ptr = szReply;
+                     strcpy( szReply, szErr4 );
+                     strcpy( szReply + 4, ":21-1055-0-0\t" );  /* EDBF_SIGNATURE */
+                     ptr += 17;
+                     strcpy( ptr, szFile );
+                     errcode = HB_FAILURE;
+
+                     leto_CloseTable( ( s_tables + iTableStru ) );
+                  }
                   HB_GC_UNLOCKT();
                   bUnlocked = HB_TRUE;
-                  leto_InitArea( pUStru, iTableStru, ulAreaID, szAlias, szRealAlias, ulSelectID );
+                  if( errcode == HB_SUCCESS )
+                     leto_InitArea( pUStru, iTableStru, ulAreaID, szAlias, szRealAlias, ulSelectID );
                }
                else
                {
@@ -11896,12 +12150,24 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             }
             else
             {
-               /* ToDo : set pp4 == szCdp */
-               ( s_tables + iTableStru )->uiAreas++;
-               HB_GC_UNLOCKT();
-               bUnlocked = HB_TRUE;
-               leto_InitArea( pUStru, iTableStru, ulAreaID, szAlias, NULL, ulSelectID );
-               leto_SelectArea( pUStru, ulAreaID );
+               if( leto_InitGlobeValidCP( iTableStru, szCdp ) )
+               {
+                  ( s_tables + iTableStru )->uiAreas++;
+                  HB_GC_UNLOCKT();
+                  bUnlocked = HB_TRUE;
+                  leto_InitArea( pUStru, iTableStru, ulAreaID, szAlias, NULL, ulSelectID );
+                  leto_SelectArea( pUStru, ulAreaID );
+               }
+               else
+               {
+                  /* tried to open with different CP */
+                  ptr = szReply;
+                  strcpy( szReply, szErr4 );
+                  strcpy( szReply + 4, ":21-1055-0-0\t" );  /* EDBF_SIGNATURE */
+                  ptr += 17;
+                  strcpy( ptr, szFile );
+                  errcode = HB_FAILURE;
+               }
             }
          }
 
@@ -12048,7 +12314,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             HB_ULONG ulRealLen;
 
             szTmp = ( char * ) hb_xgrab( ulRecLen );
-            ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTmp, HB_TRUE );
+            ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTmp, NULL );
             if( ulRealLen )
             {
                if( ulRealLen + ulLenLen > uiReplyBufLen )
@@ -12076,11 +12342,11 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
       {
          if( errcode == HB_SUCCESS )
             leto_wUsLog( pUStru, -1, "TEST! leto_Opentable( %s, %s, %s, %lu, %s, %d, %d, %d )",
-                         szFileName, szDriver, pp4, ulAreaID, szRealAlias,
+                         szFileName, szDriver, szCdp, ulAreaID, szRealAlias,
                          ( ( s_bShareTables || s_bNoSaveWA ) && bShared ), bReadonly, bMemIO );
          else
             leto_wUsLog( pUStru, -1, "ERROR leto_Opentable( %s | %s | %s | %s | %d ) => %s",
-                         szFileName, szFile, szAlias, pp4, ulAreaID, szReply );
+                         szFileName, szFile, szAlias, szCdp, ulAreaID, szReply );
       }
 #endif
    }
@@ -12346,6 +12612,20 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          errcode = HB_FAILURE;
       hb_xfree( pFilePath );
 
+      if( ! bMemIO && ! strchr( szFile, DEF_SEP ) )
+      {
+         char      szFilePath[ HB_PATH_MAX ];
+         HB_ULONG  uiLen;
+
+         hb_strncpy( szFilePath, hb_setGetDefault(), HB_PATH_MAX );
+         uiLen = strlen( szFilePath );
+         if( szFilePath[ uiLen - 1 ] != DEF_SEP )
+            szFilePath[ uiLen++ ] = DEF_SEP;
+         hb_strncpy( szFilePath + uiLen, szFile, HB_PATH_MAX - uiLen );
+         strcpy( szFileName, szFilePath );
+         strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
+      }
+
       pp4 = pp3 + strlen( pp3 ) + 1;
       iMemoType = ( int ) strtol( pp4, &ptrTmp, 10 );
       pp4 = ++ptrTmp;
@@ -12484,7 +12764,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
 
          hb_xvmSeqBegin();
          errcode = hb_rddCreateTable( szFileName, szDriver, uiArea, szRealAlias, bKeepOpen,
-                                      szCdp, 0 /*ulConnection*/, pFields, pDelim );
+                                                  szCdp, 0 /*ulConnection*/, pFields, pDelim );
          hb_xvmSeqEnd();
          if( pUStru->iHbError )
             errcode = HB_FAILURE;
@@ -12500,7 +12780,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          }
          else
          {
-            int iTableStru = leto_InitTable( ulAreaID, szFile, szDriver, HB_FALSE, szRealAlias, HB_FALSE );
+            int iTableStru = leto_InitTable( ulAreaID, szFile, szDriver, HB_FALSE, szRealAlias, HB_FALSE, szCdp );
 
             if( iTableStru >= 0 )
             {
@@ -12566,7 +12846,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          if( ulRecLen > 0 )
          {
             char *   szTmp = ( char * ) hb_xgrab( ulRecLen );
-            HB_ULONG ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTmp, HB_TRUE );
+            HB_ULONG ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTmp, NULL );
 
             if( ! ulRealLen )
             {
@@ -12812,7 +13092,7 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
       if( ! bMemIO )
       {
          strcpy( ptr, s_pDataPath );
-         ptr += strlen( s_pDataPath );
+         ptr += s_uiDataPathLen;
          *ptr++ = DEF_SEP;
       }
       strcpy( szFile, ptr2 );
@@ -12866,6 +13146,17 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
          leto_RddiGetValue( pUStru->pCurAStru->pTStru->szDriver, RDDI_ORDBAGEXT, szExt );
          strcpy( szFile + strlen( szFile ), szExt );
          strcpy( szFileName + strlen( szFileName ), szExt );
+      }
+
+      if( ! bMemIO && ! strchr( szFile, DEF_SEP ) )
+      {
+         char szFilePath[ HB_PATH_MAX ];
+
+         if( hb_fileExists( szFile, szFilePath ) )
+         {
+            strcpy( szFileName, szFilePath );
+            strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
+         }
       }
 
       pArea = leto_SelectArea( pUStru, ulAreaID );
@@ -12988,7 +13279,7 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
          if( ulRecLen > 0 )
          {
             char *   szTemp = ( char * ) hb_xgrab( ulRecLen );
-            HB_ULONG ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTemp, HB_TRUE );
+            HB_ULONG ulRealLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szTemp, NULL );
 
             if( ulRealLen )
             {
@@ -13100,7 +13391,6 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
          pData = szErr2;
    }
 
-
    if( pData )  /* very early error if ! NULL */
    {
       pArea = NULL;
@@ -13144,7 +13434,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
       if( ! bMemIO )
       {
          strcpy( ptr, s_pDataPath );
-         ptr += strlen( s_pDataPath );
+         ptr += s_uiDataPathLen;
          *ptr++ = DEF_SEP;
       }
       strcpy( szFile, ptr2 );
@@ -13212,6 +13502,20 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
             leto_wUsLog( pUStru, -1, "DEBUG leto_CreateIndex TagName: %s created from BagName", szTagName );
       }
       hb_strUpper( szTagName, strlen( szTagName ) );
+
+      if( ! bMemIO && ! strchr( szFile, DEF_SEP ) )
+      {
+         char      szFilePath[ HB_PATH_MAX ];
+         HB_ULONG  uiLen;
+
+         hb_strncpy( szFilePath, hb_setGetDefault(), HB_PATH_MAX );
+         uiLen = strlen( szFilePath );
+         if( szFilePath[ uiLen - 1 ] != DEF_SEP )
+            szFilePath[ uiLen++ ] = DEF_SEP;
+         hb_strncpy( szFilePath + uiLen, szFile, HB_PATH_MAX - uiLen );
+         strcpy( szFileName, szFilePath );
+         strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
+      }
 
       pp4 = pp3 + strlen( pp3 ) + 1;
       bUnique = ( *pp4 == 'T' ? HB_TRUE : HB_FALSE );
@@ -13661,7 +13965,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
          *szReply = '+';
          strcpy( szReply + 1, szTmp );
          hb_xfree( szTmp );
-         ulLenLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szReply + 1 + ulLen, HB_TRUE ) + 1 + ulLen;
+         ulLenLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szReply + 1 + ulLen, NULL ) + 1 + ulLen;
       }
    }
 

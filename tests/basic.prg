@@ -8,6 +8,9 @@ REQUEST LETO
 
 PROCEDURE main( cAddress )  /* pure IP-address */
 
+   //SET DEFAULT TO data
+   //SET PATH TO system;tmp
+   
    SET( _SET_DATEFORMAT, "dd.mm.yyyy" ) 
    HB_CDPselect( "DE850" )
    
@@ -27,7 +30,7 @@ PROCEDURE main( cAddress )  /* pure IP-address */
       LETO_TOGGLEZIP( 1 )         /* switch compressed network traffic */
    ENDIF
 
-   // DbUseArea( .T., /* LETO */, "test", "TEST", .T. )
+   // DbUseArea( .T., /* "LETO" */, "test", "TEST", .T. )
    // ...
 
    /* no special logout needed, all is automically done */

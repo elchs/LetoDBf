@@ -79,7 +79,6 @@ extern LETOCONNECTION * letoGetCurrConn( void );
 
 extern void leto_clientlog( const char * sFile, int n, const char * s, ... );
 
-extern LETOCONNECTION * letoParseParam( const char * szParam, char * szFile );
 extern void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray );
 
 #if defined( __XHARBOUR__ ) || defined( __HARBOUR30__ )
@@ -355,7 +354,7 @@ static void ScanIndexFields( LETOAREAP pArea, LETOTAGINFO * pTagInfo )
             fFound = HB_TRUE;
             break;
          }
-         pKey = ptr + uiLen; // strlen( szName );
+         pKey = ptr + uiLen;
       }
       if( fFound )
       {
@@ -2026,114 +2025,137 @@ static HB_ERRCODE letoClose( LETOAREAP pArea )
    return HB_SUCCESS;
 }
 
+static LETOCONNECTION * leto_OpenConn( LETOCONNECTION * pConnection, const char * szParam, char * szFile )
+{
+   HB_USHORT        uiPathLen;
+   HB_BOOL          fTwister = HB_FALSE;
+
+   HB_TRACE( HB_TR_DEBUG, ( "leto_OpenConn(%s, szFile)", szParam ) );
+
+   szFile[ 0 ] = '\0';
+
+   if( ! pConnection )
+   {
+      if( ! szParam || ! *szParam )
+         pConnection = letoGetCurrConn();
+      else if( strlen( szParam ) > 10 && szParam[ 0 ] == '/' && szParam[ 1 ] == '/' )
+      {
+         char szAddr[ 96 ];
+         int  iPort = 0;
+
+         szAddr[ 0 ] = '\0';
+         if( leto_getIpFromPath( szParam, szAddr, &iPort, szFile ) )
+         {
+            pConnection = leto_ConnectionFind( szAddr, iPort );
+            if( ! pConnection )
+               pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE );
+         }
+         else
+            pConnection = letoGetCurrConn();
+         szParam = leto_RemoveIpFromPath( szParam );
+      }
+      else
+      {
+         pConnection = letoGetCurrConn();
+         fTwister = HB_TRUE;
+      }
+   }
+   else
+      fTwister = HB_TRUE;
+
+   if( fTwister )
+      strcpy( szFile, leto_RemoveIpFromPath( szParam ) );
+
+   uiPathLen = ( HB_USHORT ) strlen( szFile );
+   if( uiPathLen )
+      leto_BeautifyPath( szFile );  /* possible double action */
+   else
+   {
+      strcpy( szFile, leto_RemoveIpFromPath( szParam ) );
+      leto_BeautifyPath( szFile );
+   }
+
+   return pConnection;
+}
+
 static LETOCONNECTION * leto_OpenConnection( LETOAREAP pArea, LPDBOPENINFO pOpenInfo, char * szFile, HB_BOOL fCreate )
 {
    LETOCONNECTION * pConnection;
-   char *       ptr;
    int          iPort = 0;
-   unsigned int uiLen;
 
    HB_TRACE( HB_TR_DEBUG, ( "leto_OpenConnection(%p, %p, %s, %d)", pArea, pOpenInfo, szFile, ( int ) fCreate ) );
+
+   szFile[ 0 ] = '\0';
 
    if( pOpenInfo->ulConnection > 0 && pOpenInfo->ulConnection <= ( HB_ULONG ) uiGetConnCount() )
    {
       pConnection = letoGetConnPool( ( HB_USHORT ) pOpenInfo->ulConnection - 1 );
 
-      if( pConnection && pConnection->pAddr )
+      if( pConnection )
       {
-         const char * szPath = leto_RemoveIpFromPath( pOpenInfo->abName );
-
-         if( ( ptr = strrchr( szPath, '/' ) ) != NULL ||
-             ( ptr = strrchr( szPath, '\\' ) ) != NULL )
-         {
-            uiLen = HB_MIN( ptr - szPath, HB_PATH_MAX - 1 );
-            memcpy( szFile, szPath, uiLen );
-            szFile[ uiLen ] = '\0';
-         }
-         else if( pConnection->szPath )
-            hb_strncpy( szFile, pConnection->szPath, HB_PATH_MAX );
-         else
-            hb_strncpy( szFile, ( fCreate ? hb_setGetDefault() : hb_setGetPath() ), HB_PATH_MAX );
-
-         uiLen = strlen( szFile );
-         if( ! uiLen )
-            uiLen = 1;
-         if( szFile[ uiLen - 1 ] != '/' && szFile[ uiLen - 1 ] != '\\' )
-         {
-            szFile[ uiLen - 1 ] = HB_OS_PATH_DELIM_CHR;
-            szFile[ uiLen ] = '\0';
-         }
+         strcpy( szFile, leto_RemoveIpFromPath( pOpenInfo->abName ) );
+         leto_BeautifyPath( szFile );
       }
-      else
-         pConnection = NULL;
    }
    else
    {
       char szAddr[ 96 ];
 
       szAddr[ 0 ] = '\0';
-      if( ! leto_getIpFromPath( pOpenInfo->abName, szAddr, &iPort, szFile, HB_TRUE ) &&
-          ! leto_getIpFromPath( ( fCreate ? hb_setGetDefault() : hb_setGetPath() ), szAddr, &iPort, szFile, HB_FALSE ) )
+
+      if( ! leto_getIpFromPath( pOpenInfo->abName, szAddr, &iPort, NULL ) )
+         pConnection = letoGetCurrConn();
+      else
       {
-         LETOCONNECTION * pCurrentConn = letoGetCurrConn();
-
-         if( pCurrentConn )
-         {
-            ptr = strrchr( pOpenInfo->abName, '/' );
-            if( ptr == NULL )
-               ptr = strrchr( pOpenInfo->abName, '\\' );
-            if( ptr )
-            {
-               char * ptrdouble;
-
-               uiLen = HB_MIN( ptr - pOpenInfo->abName + 1, HB_PATH_MAX - 1);
-               memcpy( szFile, pOpenInfo->abName, uiLen );
-               szFile[ uiLen ] = '\0';
-               /* beautify doubled path separator */
-               while( ( ptrdouble = strstr( szFile, "//" ) ) != NULL ||
-                      ( ptrdouble = strstr( szFile, "\\\\" ) ) != NULL )
-               {
-                  memmove( ptrdouble, ptrdouble + 1, strlen( ptrdouble + 1 ) + 1 );
-               }
-            }
-            else if( pCurrentConn->szPath )
-            {
-               ptr = strchr( pCurrentConn->szPath, ',' );
-               if( ptr == NULL )
-                  ptr = strchr( pCurrentConn->szPath, ';' );
-               if( ptr == NULL )
-                  ptr = pCurrentConn->szPath + strlen( pCurrentConn->szPath );
-               uiLen = HB_MIN( ptr - pCurrentConn->szPath, HB_PATH_MAX - 1 );
-               memcpy( szFile, pCurrentConn->szPath, uiLen );
-               if( szFile[ uiLen ] != '/' && szFile[ uiLen ] != '\\' )
-               {
-                  szFile[ uiLen ] = HB_OS_PATH_DELIM_CHR;
-                  szFile[ uiLen + 1 ] = '\0';
-               }
-            }
-            else
-            {
-               szFile[ 0 ] = HB_OS_PATH_DELIM_CHR;
-               szFile[ 1 ] = '\0';
-            }
-            return pCurrentConn;
-         }
-         else
-         {
-            commonError( pArea, EG_OPEN, ( fCreate ? 1 : 101 ), 0, pOpenInfo->abName, 0, NULL );
-            return NULL;
-         }
+         if( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) == NULL )
+            pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE );
       }
-
-      if( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) == NULL &&
-          ( pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE ) ) == NULL )
+      if( pConnection )
       {
-         commonError( pArea, EG_OPEN, ( fCreate ? 1 : 102 ), 0, pOpenInfo->abName, 0, NULL );
-         return NULL;
+         strcpy( szFile, leto_RemoveIpFromPath( pOpenInfo->abName ) );
+         leto_BeautifyPath( szFile );
       }
    }
 
+   if( ! pConnection )
+   {
+      commonError( pArea, EG_OPEN, ( fCreate ? 1 : 101 ), 0, pOpenInfo->abName, 0, NULL );
+      return NULL;
+   }
+
    return pConnection;
+}
+
+static void letoCreateAlias( const char * szFile, char * szAlias )
+{
+   const char * ptrBeg, * ptrEnd;
+   HB_USHORT    uLen;
+
+   ptrEnd = strrchr( szFile, '.' );
+   if( ptrEnd == NULL )
+       ptrEnd = szFile + strlen( szFile );
+
+   ptrBeg = strchr( szFile, ':' );
+   if( ptrBeg )  /* mem:... */
+      ptrBeg++;
+   else
+   {
+      ptrBeg = strrchr( szFile, '/' );
+      if( ! ptrBeg )
+         ptrBeg = strrchr( szFile, '\\' );
+      else
+         ptrBeg++;
+      if( ! ptrBeg )
+         ptrBeg = szFile;
+      else
+         ptrBeg++;
+   }
+   uLen = ( HB_USHORT ) ( ptrEnd - ptrBeg );
+   if( uLen > HB_RDD_MAX_ALIAS_LEN )
+      uLen = HB_RDD_MAX_ALIAS_LEN;
+   strncpy( szAlias, ptrBeg, uLen );
+   szAlias[ uLen ] = '\0';
+   hb_strUpper( szAlias, uLen );
 }
 
 static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
@@ -2141,36 +2163,18 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
    LETOTABLE *      pTable;
    LETOCONNECTION * pConnection;
    LPFIELD          pField;
-   HB_USHORT        uiCount = 0, uiPathLen;
+   HB_USHORT        uiCount = 0;
    char *           szData, * ptr;
    char             szFile[ HB_PATH_MAX ];
-   char             szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
    char             cType;
    const char *     szFieldName;
    HB_ERRCODE       errCode = HB_SUCCESS;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoCreate(%p, %p)", pArea, pCreateInfo ) );
 
-   szFile[ 0 ] = '\0';
    if( ( pConnection = leto_OpenConnection( pArea, pCreateInfo, szFile, HB_TRUE ) ) == NULL )
       return HB_FAILURE;
-   uiPathLen = ( HB_USHORT ) strlen( szFile );
-   /* add filename to path from above */
-   leto_getFileFromPath( pCreateInfo->abName, szFile + uiPathLen, HB_PATH_MAX - uiPathLen );
-   ptr = pArea->szDataFileName = hb_strdup( pCreateInfo->abName );
-   if( strlen( ptr ) >= 2 && *( ptr + 1 ) == ':' )  /* C:\... */
-      ptr += 2;
-   while( *ptr == '/' || *ptr == '\\' )
-   {
-      ptr++;
-   }
-   if( ptr > pArea->szDataFileName )
-      memmove( pArea->szDataFileName, ptr, strlen( ptr ) + 1 );
-   while( ( ptr = strstr( szFile, "//" ) ) != NULL ||
-          ( ptr = strstr( szFile, "\\\\" ) ) != NULL )
-   {
-      memmove( ptr, ptr + 1, strlen( ptr + 1 ) + 1 );
-   }
+   pArea->szDataFileName = hb_strdup( szFile );
 
    /* ( 10 + ';' + 7 [ C:attribute ] + ';' + 5 + ';' + 3 + ';' ) */
    szData = ( char * ) hb_xgrab( ( ( unsigned int ) pArea->area.uiFieldCount * 29 ) + 10 );
@@ -2301,23 +2305,9 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
 
    if( ! pCreateInfo->atomAlias || ! *pCreateInfo->atomAlias )  /* create a missing Alias */
    {
-      char *    ptrBeg, * ptrEnd;
-      HB_USHORT uLen;
+      char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
 
-      ptrEnd = strrchr( szFile, '.' );
-      if( ptrEnd == NULL )
-         ptrEnd = szFile + strlen( szFile );
-      ptrBeg = strchr( szFile + uiPathLen, ':' );
-      if( ptrBeg )  /* mem:... */
-         ptrBeg++;
-      else
-         ptrBeg = szFile + uiPathLen;
-      uLen = ( HB_USHORT ) ( ptrEnd - ptrBeg );
-      if( uLen > HB_RDD_MAX_ALIAS_LEN )
-         uLen = HB_RDD_MAX_ALIAS_LEN;
-      strncpy( szAlias, ptrBeg, uLen );
-      szAlias[ uLen ] = '\0';
-      hb_strUpper( szAlias, uLen );
+      letoCreateAlias( szFile, szAlias );
       pCreateInfo->atomAlias = ( const char * ) szAlias;
    }
 
@@ -2591,57 +2581,23 @@ static HB_ERRCODE letoNewArea( LETOAREAP pArea )
 static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
 {
    LETOCONNECTION * pConnection;
-   HB_USHORT        uiFields, uiCount, uiPathLen;
+   HB_USHORT        uiFields, uiCount;
    DBFIELDINFO      dbFieldInfo;
    LETOTABLE *      pTable;
    LETOFIELD *      pField;
-   char             szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
    char             szFile[ HB_PATH_MAX ];
-   char *           ptrdouble;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOpen(%p, %p)", pArea, pOpenInfo ) );
 
-   if( ! pOpenInfo->atomAlias || ! *pOpenInfo->atomAlias )  /* create a missing Alias */
-   {
-      char *    ptr;
-      HB_USHORT uLen;
-
-      leto_getFileFromPath( pOpenInfo->abName, szFile, HB_PATH_MAX );
-      ptr = strrchr( szFile, '.' );
-      if( ptr )
-         *ptr = '\0';
-      ptr = strchr( szFile, ':' );
-      if( ptr )  /* mem:... */
-         ptr++;
-      else
-         ptr = szFile;
-      uLen = ( HB_USHORT ) strlen( ptr );
-      if( uLen > HB_RDD_MAX_ALIAS_LEN )
-         uLen = HB_RDD_MAX_ALIAS_LEN;
-      strncpy( szAlias, ptr, uLen );
-      szAlias[ uLen ] = '\0';
-      hb_strUpper( szAlias, uLen );
-      pOpenInfo->atomAlias = ( const char * ) szAlias;
-   }
-
-   szFile[ 0 ] = '\0';
    if( ( pConnection = leto_OpenConnection( pArea, pOpenInfo, szFile, HB_FALSE ) ) == NULL )
       return HB_FAILURE;
-   uiPathLen = ( HB_USHORT ) strlen( szFile );
-   leto_getFileFromPath( pOpenInfo->abName, szFile + uiPathLen, HB_PATH_MAX - uiPathLen );
-   ptrdouble = pArea->szDataFileName = hb_strdup( pOpenInfo->abName );
-   if( strlen( ptrdouble ) >= 2 && *( ptrdouble + 1 ) == ':' )  /* C:\... */
-      ptrdouble += 2;
-   while( *ptrdouble == '/' || *ptrdouble == '\\' )
+   pArea->szDataFileName = hb_strdup( pOpenInfo->abName );
+   if( ! pOpenInfo->atomAlias || ! *pOpenInfo->atomAlias )  /* create a missing Alias */
    {
-      ptrdouble++;
-   }
-   if( ptrdouble > pArea->szDataFileName )
-      memmove( pArea->szDataFileName, ptrdouble, strlen( ptrdouble ) + 1 );
-   while( ( ptrdouble = strstr( szFile, "//" ) ) != NULL ||
-          ( ptrdouble = strstr( szFile, "\\\\" ) ) != NULL )
-   {
-      memmove( ptrdouble, ptrdouble + 1, strlen( ptrdouble + 1 ) + 1 );
+      char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
+
+      letoCreateAlias( szFile, szAlias );
+      pOpenInfo->atomAlias = ( const char * ) szAlias;
    }
 
    /* close already used WA before */
@@ -2905,7 +2861,7 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
    ptr = leto_PutTransInfo( pArea, pAreaDst, pTransInfo, pData + 2 );
 
    errCode = ( leto_SendRecv( pConnection, pArea, pData, ptr - pData, 1021 ) ? HB_SUCCESS : HB_FAILURE );
-   if( errCode == HB_SUCCESS )  // v 2.16
+   if( errCode == HB_SUCCESS )
    {
       ptr = leto_firstchar( pConnection );
       if( ! memcmp( ptr, "+++;", 4 ) )
@@ -3138,6 +3094,7 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
    LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    LETOTABLE *      pTable = pArea->pTable;
    char             szData[ HB_PATH_MAX + 16 ], * ptr1;
+   char             szIFileName[ HB_PATH_MAX ];
    const char *     ptr;
    const char *     szBagName;
    LETOTAGINFO *    pTagInfo;
@@ -3148,7 +3105,8 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
    if( pTable->uiUpdated )
       leto_PutRec( pArea );
 
-   szBagName = leto_RemoveIpFromPath( hb_itemGetCPtr( pOrderInfo->atomBagName ) );
+   leto_OpenConn( pConnection, leto_RemoveIpFromPath( hb_itemGetCPtr( pOrderInfo->atomBagName ) ), szIFileName );
+   szBagName = szIFileName;
 
    hb_strncpy( szData, szBagName, HB_PATH_MAX - 1 );
    ptr1 = szData + strlen( szData ) - 1;  /* last char */
@@ -3411,9 +3369,11 @@ static HB_ERRCODE letoOrderListRebuild( LETOAREAP pArea )
 
 static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderInfo )
 {
+   LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    LETOTABLE *   pTable = pArea->pTable;
    const char *  szKey, * szFor, * szBagName;
    char          szTag[ LETO_MAX_TAGNAME + 1 ];
+   char          szIFileName[ HB_PATH_MAX ];
    LETOTAGINFO * pTagInfo;
    unsigned int  uiFlags;
    int           iRes;
@@ -3431,7 +3391,10 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
    szKey = hb_itemGetCPtr( pOrderInfo->abExpr );
 
    if( pOrderInfo->abBagName )
-      szBagName = leto_RemoveIpFromPath( pOrderInfo->abBagName );
+   {
+      leto_OpenConn( pConnection, leto_RemoveIpFromPath( pOrderInfo->abBagName ), szIFileName );
+      szBagName = szIFileName;
+   }
    else
       szBagName = NULL;
 
@@ -4515,11 +4478,8 @@ static HB_ERRCODE letoDrop( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pItemI
    szTableFile = hb_itemGetCPtr( pItemTable );
    szIndexFile = hb_itemGetCPtr( pItemIndex );
 
-   pConnection = letoParseParam( szIndexFile, szIFileName );
-   if( pConnection == NULL )
-      pConnection = letoParseParam( szTableFile, szTFileName );
-   else
-      letoParseParam( szTableFile, szTFileName );
+   pConnection = leto_OpenConn( NULL, szTableFile, szTFileName );
+   pConnection = leto_OpenConn( pConnection, szIndexFile, szIFileName );
 
    hb_rddSetNetErr( HB_FALSE );
    if( pConnection != NULL )
@@ -4556,12 +4516,8 @@ static HB_ERRCODE letoExists( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pIte
    szTableFile = hb_itemGetCPtr( pItemTable );
    szIndexFile = hb_itemGetCPtr( pItemIndex );
 
-   pConnection = letoParseParam( szIndexFile, szIFileName );
-   if( pConnection == NULL )
-      pConnection = letoParseParam( szTableFile, szTFileName );
-   else
-      letoParseParam( szTableFile, szTFileName );
-
+   pConnection = leto_OpenConn( NULL, szTableFile, szTFileName );
+   pConnection = leto_OpenConn( pConnection, szIndexFile, szIFileName );
    if( pConnection != NULL )
    {
       HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;", LETOCMD_exists, szTFileName, szIFileName );
@@ -4596,12 +4552,9 @@ static HB_ERRCODE letoRename( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pIte
    szIndexFile = hb_itemGetCPtr( pItemIndex );
    szNewFile = hb_itemGetCPtr( pItemNew );
 
-   pConnection = letoParseParam( szIndexFile, szIFileName );
-   if( pConnection == NULL )
-      pConnection = letoParseParam( szTableFile, szTFileName );
-   else
-      letoParseParam( szTableFile, szTFileName );
-   letoParseParam( szNewFile, szFileNameNew );
+   pConnection = leto_OpenConn( NULL, szTableFile, szTFileName );
+   pConnection = leto_OpenConn( pConnection, szIndexFile, szIFileName );
+   leto_OpenConn( pConnection, szNewFile, szFileNameNew );
 
    if( pConnection != NULL )
    {
@@ -4675,7 +4628,7 @@ static HB_USHORT leto_MemoType( HB_ULONG ulConnect )
 {
    LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
                                   letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
-   HB_USHORT        uiMemoType = 0;
+   HB_USHORT        uiMemoType;
 
    if( pConnection && pConnection->uiMemoType )
       uiMemoType = pConnection->uiMemoType;
@@ -5269,7 +5222,7 @@ HB_FUNC( LETO_BEGINTRANSACTION )
       LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
 
       hb_rddIterateWorkAreas( leto_UpdArea, ( void * ) pConnection );
-#if 0
+#if 0  /* alternative */
       pConnection->ulTransBlockLen = HB_ISNUM( 1 ) ? hb_parnl( 1 ) : 0;
 #else
       if( ( HB_ISLOG( 1 ) && hb_parl( 1 ) ) )  /* unlock if explicitely given */
@@ -5803,7 +5756,7 @@ LETOCONNECTION * leto_getConnection( int iParam )
       char * szAddr = ( char * ) hb_xgrabz( 96 );
       int    iPort = 0;
 
-      if( leto_getIpFromPath( hb_parc( iParam ), szAddr, &iPort, NULL, HB_FALSE ) )
+      if( leto_getIpFromPath( hb_parc( iParam ), szAddr, &iPort, NULL ) )
          pConnection = leto_ConnectionFind( szAddr, iPort );
       hb_xfree( szAddr );
       if( ! pConnection )

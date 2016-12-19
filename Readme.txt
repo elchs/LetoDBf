@@ -46,6 +46,7 @@ Contents
    8.1 Server Management utility
    8.2 Uhura
 9. Server-side functions
+10 Abbreviations and remarks
 A. Internals
 
 
@@ -460,7 +461,7 @@ A. Internals
  With connection to the server, and later with opening or creating a table, information about codepage
  and dateformat settings are sent to server. This is important for creating index orders containing
  national special characters or index keys containing a date value.
- The last applied dateformat setting will keep from then on the active one at server.
+ The last applied dateformat setting during above occasions will keep from then on the active one at server.
 
  All filenames and paths now are relative to the root DataPath in letodb.ini.
  It may look alike:
@@ -472,15 +473,30 @@ A. Internals
       [drive:]\path\to\data_diretory\test\customer.dbf.
 
  A drive letter in your filenames will be cut away, and only one "..\" directory step up higher than
- the <DataPath> in letodb.ini is allowed.
+ the <DataPath> in letodb.ini is allowed. This means: DbUseArea( .T.,, "..\data_other\customer.dbf" )
+ will point to:
+      [drive:]\path\to\data_other\customer.dbf.
+
+ If your filenames contain at least one path seperator '/' or '\', they will be treated as with this
+ given path relative to <DataPath>
+
  This root path is equal to your SET DEFAULT TO setting, so if your filenames contain no path,
  all new files will be created in <DataPath>
- The filenames can have optional OS dependent leading '\' or '/', example: /mydbf.dbf, it will be
- internally cut away.
+ The filenames can have optional OS dependent leading '\' or '/', example: /mydbf.dbf, that will force
+ them into the <DatPath> directory.
+
+ For blank, pure filename the "SET DEFAULT TO ... " setting, if set before! Leto_Connect() will name
+ an additive sub-directory to <DataPath>. Example, "SET DEFAULT TO data" will put all NEW files into:
+      [drive:]\path\to\data_diretory\data
+ Allowed for "DEFAULT" is only one single path, NOT ENDING WITH ';' or ":" !!
+ The example setting of "SET PATH TO system;tmp" will lead to search for these files in:
+      [drive:]\path\to\data_diretory\system  and [drive:]\path\to\data_diretory\tmp
+ !! Both settings of "DEFAULT" and "PATH" apply only to filenames without any path seperator '\' or '/'.
+
  All path separators in your filenames are converted by LetoDBf server internal to the needed one,
  you need not to take care about. Use of "\" or "/" is equal.
 
- To check for some firsst examples, look into the "tests" directory. Build them all at once with: "buildall"
+ To check for some first examples, look into the "tests" directory. Build them all at once with: "buildall"
  resp. "-/buildall.sh" for Linux. Add for execution as first param the IP address of the server,
  if unknown but at same machine running as the application use loopback network: 127.0.0.1
  At any case you shell try the "test_file" executable, as about a not working "Leto_File() functions exist
@@ -589,6 +605,8 @@ A. Internals
       LETO_CONNECT( cAddress, [ cUserName ], [ cPassword ],
                     [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck ] )
                                                                ==> nConnection, -1 if failed
+ <cAddress> can be given as raw IP-address "127.0.0.1" or "//127.0.0.1/".
+ If the port is omitted ( aka: "//127.0.0.1:2812/" ), the default port number: 2812 is choosen.
  <nTimeOut> defines, how log for an answer from server application will wait, in 0.001 seconds.
  This timeout value is valid for each request to the server, not only for the initial connect.
  Default is 120000 aka 2 minutes. '-1' means infinite wait. After that timespan, application will
@@ -603,7 +621,9 @@ A. Internals
  disable lZombieCheck, aka to set it explicitely to .F.
 
       LETO_CONNECT_ERR( [ lAsText ])                           ==> nError [ cError ]
-      LETO_DISCONNECT( [ cConnString | nConnection ] )         ==> nil
+
+      LETO_DISCONNECT( [ cConnString | nConnection ] )         ==> lDisconnect
+ Dis-connnect current connection, returns boolean if a connection is disconnected.
 
       Very dangerous functions removed, deprecated
       [  LETO_SETCURRENTCONNECTION( nConnection )              ==> nil
@@ -613,9 +633,13 @@ A. Internals
  Returns version of LetoDBf server, with given .T. boolean parameter the version of Harbour at
  compile time.
 
-      LETO_GETLOCALIP()                                        ==> IP address of client station
-      LETO_ADDCDPTRANSLATE(cClientCdp, cServerCdp )            ==> nil
-      LETO_PATH( [<cPath>], [cConnString | nConnection] )      ==> cOldPath
+      LETO_GETLOCALIP( [ lLocal ] )                            ==> IP address of client [ server ]
+ Returns IP address of first found interface for subnet, which may be the wrong one,
+ if you have multiple ( pgysical or logical like bridges ) NICs for that subnet.
+ With optional <lLocal> == TRUE ( .T. ) returns IP address of server.
+
+      LETO_ADDCDPTRANSLATE( cClientCdp, cServerCdp )           ==> nil
+ For ugly ;-) xHarbour hackers with different CP names, no comment.
 
 
       7.2 Transaction functions
@@ -817,7 +841,6 @@ A. Internals
  Alternatively in the OLD style, the <cFileName> parameter of all file functions *can* contain a
  connection string to the letodb server in a format:
  //ip_address:port/[mem:][\]file_name
- !! Known mis-feature !! if you omit the ":port", the request is not! send to server.
 
  If the whole connection prefix "//..:../" is omitted, the currently active connection is used.
  Such an connection is established with recommended: Leto_Connect() -or- after a aingle LetoDbf command
@@ -827,7 +850,8 @@ A. Internals
  Returns an error code of ( some, not for all ) file function.
 
       Leto_File( cFileName )                                   ==> lFileExists
- Determine if file exist at the server, analog of File() function
+ Determine if file exist at the server, analog of File() function.
+ <cFileName> is ever relative to the <DataPath> of letodb.ini.
 
       Leto_FCopy( cFilename, cFileNewName )                    ==> -1 if failed
  Copy a file at the server with a new name at server
@@ -1355,6 +1379,34 @@ A. Internals
 
  ! see explanations for purpose at client side function leto_VarGetCached() !
 
+
+
+      10. Abbreviations and remarks
+
+ Maybe in this text used abbreviations:
+
+    CP    CodePage; a set of characters representing 'normal' and national special chars.
+          Sometimes also abbreviated with CDP.
+    DF    Date Format; a pattern how a "DATE" value is presented, where letters:
+          d == day, m == month, y == year plus extra characters, e.g. "dd.mm/yyyy"
+    IP    Internet Protocol address; IPv4 address
+    RPC   Remote Procedure Call; execution of a procedure not at client machine, but at
+          machine where LetoDBf runs.
+    RTE   RunTime Error; may occure if application developer tried something he better
+          have checked before doing so. Or when something really unexpected happened.
+    TCP   Transmission Control Protocol; packet-based; what E.T. missed
+    UDF   User Defined Function; in opposite to Harbour commands one defined by the user.
+          Commonly containing Harbour commands.
+    WA    work area; a logical environment representing a database table.
+          Commonly the have a name retrievable with ALIAS()
+
+ Here some remarks on the fly, which are waiting for another place to be explained.
+   # It is not possible, to overwrite an used DBF, aka a DbCreate() will fail with RTE
+     if already opened by another user/ connection of other thread.
+   # One database table can be used only with same codepage for all other connections.
+   # ALIAS() names for HbMemIO tables ( these with "mem:" prefix ) are always the same
+     as the name of the DBF itself. It is not possible to give it another ALIAS, so you
+     can open such a table only once per connection.
 
 
 -------------

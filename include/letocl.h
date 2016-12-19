@@ -204,12 +204,11 @@ typedef struct _LETOCONNECTION_
    HB_SOCKET         hSocket;
    HB_SOCKET         hSocketErr;
    PHB_ZNETSTREAM    zstream;
-   char *            pAddr;
+   char *            pAddr;                /* server IP address */
    int               iPort;                /* port at client side */
    int               iServerPort;          /* port at server side */
    int               iTimeOut;
    int               iLockTimeOut;         /* used for rlock and flock, -1 infinite, 0 = none, ms */
-   char *            szPath;
    char              szVersion[ 24 ];
    unsigned int      uiMajorVer;
    unsigned int      uiMinorVer;
@@ -223,7 +222,7 @@ typedef struct _LETOCONNECTION_
    HB_ULONG          ulTransBuffLen;       /* allocated len */
    HB_ULONG          ulTransDataLen;       /* buffered data len */
    HB_ULONG          ulRecsInTrans;        /* count of blocks of Put[memo|record] */
-   HB_ULONG          ulTransBlockLen;      /* step size for [re]alloc */ 
+   HB_ULONG          ulTransBlockLen;      /* step size for [re]alloc */
    TRANSACTLIST *    pTransList;           /* ulRecNo / hTable pairs */
    HB_ULONG          ulTransListLen;       /* allocated pairs */
    HB_ULONG          ulRecsInList;         /* count of filled pairs */
@@ -326,7 +325,8 @@ LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
 LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort );
 /* int LetoCheckServerVer( LETOCONNECTION * pConnection, HB_USHORT uiVer ); */
 const char * leto_RemoveIpFromPath( const char * szPath );
-HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, char * szPath, HB_BOOL fFile );
+void leto_BeautifyPath( char * szPath );
+HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, char * szPath );
 void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMax );
 
 const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen );

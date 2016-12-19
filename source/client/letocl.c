@@ -432,14 +432,6 @@ static HB_BOOL leto_IsRecLocked( LETOTABLE * pTable, unsigned long ulRecNo )
    return HB_FALSE;
 }
 
-HB_EXPORT void LetoSetPath( LETOCONNECTION * pConnection, const char * szPath )
-{
-   if( pConnection->szPath )
-      hb_xfree( pConnection->szPath );
-   pConnection->szPath = ( char * ) hb_xgrab( strlen( szPath ) + 1 );
-   strcpy( pConnection->szPath, szPath );
-}
-
 HB_EXPORT int LetoGetConnectRes( void )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
@@ -447,7 +439,7 @@ HB_EXPORT int LetoGetConnectRes( void )
    if( pCurrentConn )
       return pCurrentConn->iConnectRes;
    else
-      return 0;
+      return 1;
 }
 
 HB_EXPORT int LetoGetError( void )
@@ -1320,102 +1312,97 @@ int LetoCheckServerVer( LETOCONNECTION * pConnection, HB_USHORT uiVer )
 
 const char * leto_RemoveIpFromPath( const char * szPath )
 {
-   if( strlen( szPath ) > 2 && szPath[ 0 ] == '/' && szPath[ 1 ] == '/' )
+   if( strlen( szPath ) >= 10 && szPath[ 0 ] == '/' && szPath[ 1 ] == '/' )
    {
       const char * ptr = strchr( szPath + 2, '/' );
 
-      if( ptr )
+      if( ptr &&  ptr - szPath <= 24 )  /* "//123.123.123.123:12345/" */
          return ptr + 1;
    }
    return szPath;
 }
 
-HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, char * szPath, HB_BOOL fFile )
+/* remove drive letter and doubled path separator at beginning */
+void leto_BeautifyPath( char * szPath )
 {
-   const char * ptrPort;
+   char * ptr = szPath;
+
+   if( *ptr && ptr[ 1 ] == ':' )  /* C:... */
+      memmove( szPath, ptr + 2, strlen( ptr + 2 ) + 1 );  /* including '\0' */
+
+   ptr++;
+   while( *ptr == '/' || *ptr == '\\' )
+   {
+      memmove( ptr, ptr + 1, strlen( ptr + 1 ) + 1 );  /* including '\0' */
+   }
+}
+
+HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, char * szPath )
+{
+   const char * ptrPort = szSource;
    const char * ptr = szSource;
    int          iLen = strlen( ptr );
+   HB_BOOL      fWithPort = HB_TRUE, fWithIP = iLen >= 10 ? HB_TRUE : HB_FALSE;
 
-   while( iLen >= 2 && ( ptr[ 0 ] != '/' || ptr[ 1 ] != '/' ) )
+   while( iLen >= 10 )  /* "//1.1.1.1/" len 10-18 */
    {
-      if( ( ptrPort = strchr( ptr, ',' ) ) == NULL )
-         ptrPort = strchr( ptr, ';' );
-      if( ptrPort != NULL )
+      if( ptr[ 0 ] != '/' || ptr[ 1 ] != '/' )
       {
-         ptr = ptrPort + 1;
-         iLen = strlen( ptr );
+         fWithIP = HB_FALSE;
+         break;
+      }
+      ptr += 2;
+      if( ( ptrPort = strchr( ptr, ':' ) ) == NULL )  /* no port */
+      {
+         if( ( ptrPort = strchr( ptr, '/' ) ) == NULL )
+         {
+            fWithIP = HB_FALSE;
+            break;
+         }
+         else if( ptrPort - ptr > 15 || ptrPort - ptr < 7 )
+         {
+            fWithIP = HB_FALSE;
+            break;
+         }
+         fWithPort = HB_FALSE;
+         if( ! *piPort )
+            *piPort = 2812;
+      }
+      else if( strchr( ptrPort, '/' ) == NULL )  /* no ... / */
+      {
+         fWithIP = HB_FALSE;
+         break;
+      }
+      else if( ptrPort - ptr < 7 )  /* address min len */
+      {
+         fWithIP = HB_FALSE;
+         break;
       }
       else
-         return HB_FALSE;
-   }
-   if( iLen > 2 )
-   {
-      ptr += 2;
-      if( ( ptrPort = strchr( ptr, ':' ) ) == NULL )
-         return HB_FALSE;
-   }
-   else
-      return HB_FALSE;
+         *piPort = atoi( ptrPort + 1 );
 
-   memcpy( szAddr, ptr, ptrPort - ptr );
-   szAddr[ ptrPort - ptr ] = '\0';
-   ptrPort++;
-   *piPort = atoi( ptrPort );
+      memcpy( szAddr, ptr, ptrPort - ptr );
+      szAddr[ ptrPort - ptr ] = '\0';
 
+      if( fWithPort )
+      {
+         ptrPort++;
+         while( *ptrPort && *ptrPort >= '0' && *ptrPort <= '9' )
+            ptrPort++;
+      }
+      ptrPort++;
+
+      break;
+   }
+
+   /* ptrPort positioned after '//IP:port/' or at start of szSource */
    if( szPath )
    {
-      char * ptrw;
-
-      do
-      {
-         ptrPort++;
-      }
-      while( *ptrPort >= '0' && *ptrPort <= '9' );
-
-      ptr = ptrPort;
-      ptrPort = szSource + strlen( szSource ) - 1;  // elch mean to add a '- 1' ...
-      if( fFile )
-      {
-         while( *ptrPort != '/' && *ptrPort != '\\' )
-            ptrPort--;
-      }
-      if( ptrPort < ptr )
-         return HB_FALSE;
-      else if( ptrPort >= ptr )
-      {
-         ptrPort++;
-         if( strlen( ptr ) >= 2 )
-         {
-            char * ptrdouble;
-
-            if( *( ptr + 1 ) == ':' )  /* C:\... */
-               ptr += 2;
-            else if( *ptr == '/' || *ptr == '\\' )
-               ptr++;
-            /* beautify doubled path separator */
-            while( ( ptrdouble = strstr( ptr, "//" ) ) != NULL ||
-                   ( ptrdouble = strstr( ptr, "\\\\" ) ) != NULL )
-            {
-               memmove( ptrdouble, ptrdouble + 1, strlen( ptrdouble + 1 ) + 1 );
-               ptrPort--;
-            }
-         }
-         if( ptrPort - ptr )
-            memcpy( szPath, ptr, ptrPort - ptr );
-      }
-      szPath[ ptrPort - ptr ] = '\0';
-      if( ( ptrw = strchr( szPath, ',' ) ) != NULL || ( ptrw = strchr( szPath, ';' ) ) != NULL )
-         ptrw[ 0 ] = '\0';
-      ptr = szPath;
-      while( ( ptr = strchr( ptr, '.' ) ) != NULL )
-      {
-         ++ptr;
-         if( *ptr == '.' )
-            return HB_FALSE;
-      }
+      if( *ptrPort )
+         strcpy( szPath, ptrPort );
    }
 
-   return HB_TRUE;
+   return fWithIP;
 }
 
 void leto_getFileFromPath( const char * szSource, char * szFile, HB_USHORT uLenMax )
@@ -2708,8 +2695,8 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
             ptr += ulLen * 2;
          }
          *ptr++ = ';';
-         eprintf( ptr, "%s;%s;%d;", leto_GetServerCdp( pConnection, HB_CDP_PAGE()->id ),
-                  hb_setGetDateFormat(), hb_setGetEpoch() );
+         eprintf( ptr, "%s;%s;%d;%s;%s", leto_GetServerCdp( pConnection, HB_CDP_PAGE() ? HB_CDP_PAGE()->id : "" ),
+                  hb_setGetDateFormat(), hb_setGetEpoch(), hb_setGetDefault(), hb_setGetPath() );
 
          ulLen = strlen( szData + LETO_MSGSIZE_LEN );
          HB_PUT_LE_UINT32( szData, ulLen );
@@ -2892,10 +2879,8 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
       hb_xfree( pConnection->pAddr );
       pConnection->pAddr = NULL;
    }
-
    if( pConnection->szVerHarbour )
       hb_xfree( pConnection->szVerHarbour );
-
    if( pConnection->hSocketErr != HB_NO_SOCKET )
    {
       if( pConnection->hSockPipe[ 1 ] != FS_ERROR )  /* wake up leto_elch() */
@@ -2930,10 +2915,6 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
       hb_xfree( pConnection->szBuffer );
       pConnection->szBuffer = NULL;
    }
-
-   if( pConnection->szPath )
-      hb_xfree( pConnection->szPath );
-   pConnection->szPath = NULL;
    if( pConnection->pCdpTable )
    {
       PCDPSTRU pNext = pConnection->pCdpTable, pCdps;
@@ -5038,7 +5019,7 @@ HB_EXPORT const char * LetoMemoRead( LETOCONNECTION * pConnection, const char * 
 
    ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
    hb_xfree( pData );
-   if( ulRes && memcmp( pConnection->szBuffer, "+F;100;", 7 ) )
+   if( ulRes && memcmp( pConnection->szBuffer, "+F;100;", 7 ) && memcmp( pConnection->szBuffer, "-002", 4 ) )
    {
       const char * ptr = leto_DecryptText( pConnection, &ulLen );
 

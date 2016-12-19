@@ -2,7 +2,7 @@
  * This sample tests working with dbf files
  * Just change the cPath value to that one you need.
  */
-REQUEST LETO_CONNECTINFO
+REQUEST LETO_CONNECTINFO, LETO_GETLOCALIP
 REQUEST DBORDERINFO, ORDLISTCLEAR, ORDBAGCLEAR, ORDDESTROY
 REQUEST LETO
 REQUEST DBFCDX
@@ -37,7 +37,7 @@ Function Main( cPath )
          ALERT("NO LETODB SERVER FOUND - Fehler: " + leto_Connect_Err( .T. ) )
          QUIT
       ELSE
-         ? LETO_GetServerVersion()
+         ? LETO_GetServerVersion(), " at address: ", Leto_getLocalIP( .T. )
          // LETO_DBDRIVER( "DBFCDX" )
          // LETO_DBDRIVER( "DBFNTX" )
          ? "DBF DATABASE DRIVER        :", LETO_DBDRIVER()[ 1 ], "MEMOTYPE:", LETO_DBDRIVER()[ 2 ] 
@@ -48,7 +48,7 @@ Function Main( cPath )
 
    ? "DBF DATABASE EXTENSION     :", hb_rddInfo( RDDI_TABLEEXT )
 
-   IF ! DbExists( "test1" )
+   IF ! DbExists( "test1.dbf" )
       IF dbCreate( "test1", { { "NAME",  "C", 10, 0 },;
                               { "NUM",   "N",  4, 0 },;
                               { "INFO",  "C", 32, 0 },;
@@ -94,7 +94,7 @@ Function Main( cPath )
                  INFO  WITH "This is a record number "+Ltrim(Str(i)), ;
                  DINFO WITH Date() + i - 1, ;
                  MINFO WITH "elk test" + STR( i, 10, 0)
-      NEXT
+      NEXT i
       ? LEN( aNames ), "Records has been added"
       INDEX ON NAME TAG NAME
       ? "INDEX KEY 1:", IIF( indexord() == 1, "(ok)", "(fail)" ), indexkey( 1 )
@@ -110,8 +110,16 @@ Function Main( cPath )
       ENDIF
       ?? " with extension: ", RDDInfo( RDDI_ORDEREXT ), ";"
    ELSE
-      ? "File was indexed"
-      DbSetIndex( "test2" )
+      IF ! DbExists( "test2" + RDDInfo( RDDI_ORDEREXT ) )
+         ? "INDEX KEY 2:", IIF( indexord() == 2, "(ok)", "(fail)" ), indexkey( 2 )
+         INDEX ON NUM TAG NUMI TO test2
+         DbSetIndex( "test2" )
+         DbSetIndex( "test1" )
+      ELSE
+         ? "File was indexed"
+         DbSetIndex( "test2" )
+         DbSetIndex( "test1" )
+      ENDIF
    ENDIF
    ?? STR( DBORDERINFO( DBOI_ORDERCOUNT ), 2, 0 )
    ?? " orders active "
@@ -235,7 +243,7 @@ Function Main( cPath )
       ? "Indextype does not support to auto-open index, found:", STR( i, 1, 0 ), " TAGs"
    ENDIF
    OrdListAdd( "test2" )
-   ? "Destroy TAG <NUMI> in BAG <test2>", IIF( OrdDestroy( "NUMI" ) .AND. ! hb_dbExists( "test2.cdx" ), "- Ok","- Failure" )
+   ? "Destroy singular TAG <NUMI> in BAG <test2>", IIF( OrdDestroy( "NUMI" ) .AND. ! hb_dbExists( "test2.cdx" ), "- Ok","- Failure" )
 
    DBCLOSEALL()
 

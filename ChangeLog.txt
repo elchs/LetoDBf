@@ -2,7 +2,42 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
-2016-12-13 12:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
+2016-12-19 02:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * ChangeLog.txt
+    ! wrong date ;-)
+
+  * include/letocl.h
+  * include/srvleto.h
+  * include/funcleto.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    ! hb_vmCDP() theoretical can return NULL
+    ! fix LETO_GETLOCALIP, return also optional server IP
+    ! fix the quick fix in LetoMemoRead(), the ToDo remains
+    + introducing SET DEFAULT/ SET PATH
+    - non existent extern function in funcleto.h
+    - removing the Leto_Path() concept, it disturbed a lot !
+
+  * source/server/letofunc.c
+    + added protection to not open *same* table with different CP, else it
+      will lead to an RTE at client like not allowed shared access
+    + introducing SET DEFAULT/ SET PATH
+    % search for DBOI_POSITION only first time, then calculate up/ down
+      without re-research
+    ; used in conjunction with PRG level rddInfo( RDDI_BUFKEYNO, .T. ),
+      have extreme negative performance effect if OrdKeyNo() is not very often
+      needed, only this case it may improve to buffer value in the skip buffer
+
+  * tests/basic.prg
+  * tests/dbfe.prg
+    ! fix for test run without new file create
+
+  * Readme.txt
+    - LETO_PATH
+    * other fixes and adds
+
+2016-12-15 12:00 UTC+0100 Rolf Beckmann ( elchs users.noreply.github.com )
   * include/cmdleto.h
   * include/funcleto.h
   * include/letocl.h

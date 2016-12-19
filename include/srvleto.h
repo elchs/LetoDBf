@@ -150,6 +150,7 @@ typedef struct
 {
    HB_USHORT         uiAreas;                  /* Number of references */
    HB_BOOL           bLocked;                  /* table filelock [ not reclock ] */
+   char *            szCdp;                    /* CP or NULL for default */
    HB_BYTE *         szTable;                  /* may include leading [back]slash, name of table */
    HB_U32            uiCrc;                    /* hash value for szTable speed search */
    HB_I64            llNanoSecWrite;           /* last write 'time' in ns precision, using special clock source */
