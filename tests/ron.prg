@@ -135,7 +135,7 @@ PROC thFunc(cPath,nHandle)
       nSrvMode := LETO_GETSERVERMODE()
    ENDIF
    
-   testlog(nHandle, "CurrentConnectio:" + STR(LETO_GETCURRENTCONNECTION(),3,0) )
+   testlog(nHandle, "CurrentConnectio: " + LETO_GETCURRENTCONNECTION() )
    dbusearea(.T., ,cPath + "test1", "TEST1",.t.)
    IF nSrvMode == 2 .OR. nSrvMode == 4  // share tables
       dbusearea(.T., ,cPath + "test1", "TESTX",.t.)

@@ -2,8 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-20 23:03 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * tests/ron.prg
+    ! missing file in commit, sigh !
+
 2016-12-20 22:57 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
-  * test/ron.prg
+  * tests/ron.prg
     ! changed Leto_GetCurrentConnection() return type: string!
     ; please verify that also in your sourcecode !
 
