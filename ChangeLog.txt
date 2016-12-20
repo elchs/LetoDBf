@@ -2,6 +2,17 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-20 22:57 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * test/ron.prg
+    ! changed Leto_GetCurrentConnection() return type: string!
+    ; please verify that also in your sourcecode !
+
+  * source/server/letofunc.c
+    - senseless debug message
+    ! add DataPath, not a possible DEFAULT to first search PATH list
+    % harden-ing possible crash if older client lib did not transfer
+      SET DEFAULT/ PATH; leave a note about in letodbf.log
+
 2016-12-19 19:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     ! undeclared var, sigh!
