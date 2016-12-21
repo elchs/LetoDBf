@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-22 11:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * tests/ron.prg
+    % faster run if no log file ( default )
+    % as much threads as CPU cores
+    ! open DBF with different ALIAS after index creation, else LetoDBf will
+      refuse to modify at demo start existing auto-opened index, as then other
+      users have then to reload it.
+    * formatting
+
 2016-12-21 01:35 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
   * source/server/server.prg
