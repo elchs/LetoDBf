@@ -312,47 +312,6 @@ HB_BOOL leto_CheckPass( int iType )
       return HB_FALSE;
 }
 
-#if 0
-/* convert int to string, returns length */
-static unsigned int itostr( int iValue, char * ptr )
-{
-   int t, iRes;
-   int iTmp = iValue;
-   unsigned int uiCount = 0;
-
-   if( ptr == NULL )
-      return 0;
-
-   if( iTmp < 0 )
-   {
-      *ptr = '-';
-      iTmp *= -1;
-      iValue *= -1;
-      uiCount++;
-   }
-   if( iTmp == 0 )
-      uiCount++;
-
-   while( iTmp > 0 )
-   {
-      iTmp = iTmp / 10;
-      uiCount++;
-   }
-
-   ptr += uiCount;
-   *ptr = '\0';
-
-   do
-   {
-      iRes = iValue - 10 * ( t = iValue / 10 );
-      *--ptr = ( char ) ( '0' + iRes );
-   }
-   while( ( iValue = t ) != 0 );
-
-   return uiCount;
-}
-#endif
-
 void leto_writelog( const char * sFile, int n, const char * s, ... )
 {
    HB_FHANDLE handle;
@@ -825,25 +784,11 @@ HB_FUNC( LETO_SETDIRBASE )  /* during server startup */
       strcpy( s_szDirBase, hb_parc( 1 ) );
 }
 
-/* the shorter the faster */
+/* the shorter the faster, formerly it was "LETOxxxxx" --> "Exxxxx" */
 static _HB_INLINE_ void leto_MakeAlias( HB_ULONG ulAreaID, char * szAlias )
 {
-#if 0
-   memcpy( szAlias, "LETO", 4 );
-   ultostr( ulAreaID, szAlias + 4 );  /* sure with '\0' */
-#else
    szAlias[ 0 ] = 'E';
    ultostr( ulAreaID, ++szAlias );  /* sure with '\0' terminated */
-#endif
-}
-
-HB_FUNC( LETO_MAKEALIAS )
-{
-   HB_ULONG ulAreaID = hb_parnl( 1 );
-   char     szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
-
-   leto_MakeAlias( ulAreaID, szAlias );
-   hb_retc( szAlias );
 }
 
 static AREAP leto_RequestArea( HB_ULONG ulAreaID, HB_BOOL bMemIO, const char * szRealAlias )
@@ -1069,11 +1014,6 @@ static AREAP leto_SelectArea( PUSERSTRU pUStru, HB_ULONG ulAreaID )
                   hb_rddSelectWorkAreaNumber( pArea->uiArea );
                   pUStru->ulCurAreaID = ulAreaID;
                   pUStru->pCurAStru = pAStru;
-#if 0
-                  if( s_iDebugMode >= 8 )
-                     leto_wUsLog( pUStru, -1, "DEBUG leto_SelectArea( %s == %lu ( %d == %d ) )",
-                                  pAStru->pTStru->szLetoAlias, ulAreaID, iArea, pArea->uiArea );
-#endif
                }
             }
             else
@@ -1577,9 +1517,9 @@ HB_FUNC( LETO_GETAPPOPTIONS )
       case LETOOPT_bHardCommit:
          hb_retl( s_bHardCommit );
          break;
-      case 42:
+      case 42:  /* what else is the answer to all !? */
       {
-#if 0  /* WILLFUL forced crash test for debug test internal crash log */
+#if 0  /* intentional forced crash test for debug test internal crash log */
          char * pCrash = NULL;
 
          hb_xfree( pCrash );
@@ -1876,33 +1816,6 @@ HB_FUNC( LETO_B2N )
    hb_retnl( n );
 }
 
-#if 0  /* for future, universal use */
-int leto_GetParams( const char * szData, const char ** ppPtr, int nExpect )
-{
-   char * ptr, * ptr2;
-   int    iRes = 0;
-
-   ptr2 = strchr( szData, ';' );
-   if( ptr2 )
-      ptr2 -= ptr2 - szData;
-
-   while( ptr2 && nExpect-- )
-   {
-      if( ( ptr = strchr( ptr2, ';' ) ) != NULL )
-      {
-         *ptr = '\0';
-         ppPtr[ iRes ] = ptr2;
-         ptr2 = ++ptr;
-         iRes++;
-      }
-      else
-         break;
-   }
-
-   return iRes;
-}
-#endif
-
 int leto_GetParam( const char * szData, const char ** pp2, const char ** pp3, const char ** pp4, const char ** pp5 )
 {
    char * ptr;
@@ -2103,17 +2016,13 @@ static _HB_INLINE_ HB_BOOL leto_Updated( PAREASTRU pAStru )
 }
 
 /*
- *  1 if exclusive / file locked  // removed
- *  0 if the record isn't locked by mysel
- *  1 if is locked by myself in given area
- * -1 if is locked by other area  // removed, nowhere used
+ * removed: 1 if exclusive / file locked [ ! pAStru->pTStru->bShared || pAStru->bLocked ]
+ * 0 if the record isn't locked by mysel
+ * 1 if is locked by myself in given area
+ * removed: -1 if is locked by other area [ letoIsRecInListTS( &pAStru->pTStru->LocksList, ulRecNo ) ]
  */
 static int leto_IsRecLocked( PAREASTRU pAStru, HB_ULONG ulRecNo )
 {
-#if 0
-   if( ! pAStru->pTStru->bShared || pAStru->bLocked )
-      return 1;
-#endif
    if( s_bNoSaveWA && ! pAStru->pTStru->bMemIO )
    {
       /* this works as pTStru is thread local workarea in this mode */
@@ -2124,10 +2033,6 @@ static int leto_IsRecLocked( PAREASTRU pAStru, HB_ULONG ulRecNo )
    {
       if( letoIsRecInList( &pAStru->LocksList, ulRecNo ) )
          return 1;
-#if 0
-      if( fCheckForeign && letoIsRecInList( &pAStru->pTStru->LocksList, ulRecNo ) )
-         return -1;
-#endif
    }
 
    return 0;
@@ -2319,12 +2224,7 @@ static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char 
                   }
                   else  /* length 10 */
                   {
-#if 0
-                     ptrEnd = ptr + pField->uiLen - 1;
-                     if( *ptrEnd < '0' || *ptrEnd > '9' )
-#else
                      if( *( ptr + pField->uiLen - 1 ) == ' ' )
-#endif
                         *pData++ = '\0';
                      else
                         *pData++ = '1';  /* was '!'; */
@@ -2457,29 +2357,6 @@ static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char 
       ulRealLen = 0;
 
    return ulRealLen;
-}
-
-/* leto_udf() */
-HB_FUNC( LETO_REC )
-{
-   PUSERSTRU pUStru = letoGetUStru();
-   AREAP     pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   char *    szData;
-   HB_ULONG  ulLen;
-
-   if( ! pArea || ! pUStru || ! pUStru->pCurAStru || ! pUStru->pCurAStru->pTStru )
-   {
-      leto_wUsLog( pUStru, 0, "ERROR LETO_REC() params wrong/ missing !" );
-      hb_retc( "" );
-      return;
-   }
-
-   ulLen = leto_recLen( pUStru->pCurAStru->pTStru );
-   szData = ( char * ) hb_xgrab( ulLen );
-
-   ulLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szData, NULL );
-
-   hb_retclen_buffer( szData, ulLen );
 }
 
 static char leto_OrdKeyType( AREAP pArea, const char * szTagName )
@@ -3124,8 +3001,8 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
       return -1;
    else
       s_uiTablesFree = uiTable + 1;
-#if 0
-   memset( pTStru, 0, sizeof( TABLESTRU ) );  /* clean before re-use */
+#if 0  /* clean before re-use */
+   memset( pTStru, 0, sizeof( TABLESTRU ) );
 #endif
 
    pTStru->ulAreaID = ulAreaID;
@@ -3492,11 +3369,9 @@ static void leto_InitArea( PUSERSTRU pUStru, int iTableStru, HB_ULONG ulAreaID, 
       pAStru->bNotDetached = HB_FALSE;
    }
 
-#if 0
-   if( s_iDebugMode > 10 )
+   if( s_iDebugMode > 20 )
       leto_wUsLog( pUStru, -1, "DEBUG leto_InitArea( connect:%d, area:%lu, alias:%s, not detached:%d -- request:%s)",
                    pUStru->iUserStru, ulAreaID, pAStru->szAlias, pAStru->bNotDetached, szRealAlias );
-#endif
 }
 
 static void leto_CloseAll4Us( PUSERSTRU pUStru )
@@ -5971,7 +5846,7 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
       }
       else
       {
-#if 0
+#if 0  // ToDo verify my else is fine, then remove ultimately
          if( ( ! pTA || ulRecNo ) && pAStru->pTStru->bShared &&
             ! ( pAStru->bLocked || leto_IsRecLocked( pAStru, ulRecNo ) ) )
 #else
@@ -6043,15 +5918,8 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
                case HB_FT_STRING:
                   uLenLen = ( ( HB_UCHAR ) *ptr ) & 0xFF;
                   ptr++;
-                  if( pField->uiLen > 255 )
+                  if( pField->uiLen > 255 )  /* is max limit is 64K ? */
                   {
-#if 0  /*  cannot happen !? */
-                     if( uiLenLen > 6 )
-                     {
-                        iRes = 3;
-                        break;
-                     }
-#endif
                      uiRealLen = ( HB_USHORT ) leto_b2n( ptr, uLenLen );
                      ptr += uLenLen;
                   }
@@ -6922,9 +6790,9 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
                   }
                }
             }
-#if 0
+#if 0  /* re-sync with client ? */
             if( s_bNoSaveWA )
-               leto_GotoIf( pArea, ulRecNo );  /* re-sync with client ? */
+               leto_GotoIf( pArea, ulRecNo );
 #endif
          }
 
@@ -7201,10 +7069,7 @@ static void leto_Goto( PUSERSTRU pUStru, const char * szData )
             errCode = SELF_GOTOP( pArea );
          else
             errCode = SELF_GOBOTTOM( pArea );
-#if 0
-         if( errCode == HB_SUCCESS && pArea->dbfi.fFilter )
-            errCode = SELF_SKIPFILTER( pArea, bTop ? 1 : -1 );
-#endif
+
          if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
             leto_ClearAreaEnv( pArea, pAStru->pTagCurrent );
       }
@@ -8429,7 +8294,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
 
             if( iUser >= 0 && iUser < ( int ) s_uiUsersAlloc )
             {
-#if 0  // user locks list is by intention not mutex secured, temporary outcommented until changed
+#if 0  /*  user locks list is by intention not mutex secured, temporary outcommented until changed */
                PAREASTRU       pAStru;
                PLETO_LIST_ITEM pListItem;
 
@@ -9138,8 +9003,8 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
          }
          if( ! fAccepted )
          {
-#if 0
-            if( s_bPass4L )  /* no answer if Pass wrong, close Connection */
+#if 0  /* no answer if Pass wrong, close Connection */
+            if( s_bPass4L )
             {
                pUStru->bNoAnswer = HB_TRUE;
                pUStru->bCloseConnection = HB_TRUE;
@@ -10749,7 +10614,7 @@ static void leto_Sum( PUSERSTRU pUStru, const char * szData )
             leto_ScopeCommand( pArea, DBOI_SCOPETOP, pTopScope );
          if( pBottomScope )
             leto_ScopeCommand( pArea, DBOI_SCOPEBOTTOM, pBottomScope );
-#if 0   /* ToFix -- this i don't understand */
+#if 0  /* ToFix -- this i don't understand */
          else if( pTopScope )
             leto_ScopeCommand( pArea, DBOI_SCOPEBOTTOM, pTopScope );
 #endif
@@ -11745,7 +11610,7 @@ static void leto_Pong( PUSERSTRU pUStru, const char * szData )
    HB_SYMBOL_UNUSED( pUStru );
    HB_SYMBOL_UNUSED( szData );
 
-#if 0   /* to test the delayed error */
+#if 0  /* to test the delayed error */
    leto_SendAnswer2( pUStru, szErr3, 4, HB_FALSE, 1001 );
 #endif
    leto_SendAnswer( pUStru, "+@;", 3 );
@@ -12348,18 +12213,6 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             hb_xfree( szTmp );
          }
       }
-#if 0
-      if( s_iDebugMode > 20 )
-      {
-         if( errcode == HB_SUCCESS )
-            leto_wUsLog( pUStru, -1, "TEST! leto_Opentable( %s, %s, %s, %lu, %s, %d, %d, %d )",
-                         szFileName, szDriver, szCdp, ulAreaID, szRealAlias,
-                         ( ( s_bShareTables || s_bNoSaveWA ) && bShared ), bReadonly, bMemIO );
-         else
-            leto_wUsLog( pUStru, -1, "ERROR leto_Opentable( %s | %s | %s | %s | %d ) => %s",
-                         szFileName, szFile, szAlias, szCdp, ulAreaID, szReply );
-      }
-#endif
    }
 
    if( ! pUStru->bBeQuiet )
@@ -12888,16 +12741,6 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          hb_itemRelease( pFields );
    }
 
-#if 0
-   if( s_iDebugMode > 20 )
-   {
-      if( errcode == HB_SUCCESS )
-         leto_wUsLog( pUStru, -1, "TEST!  leto_Createtable( %s, %s, %lu, %s, %d, %s )",
-                      szFileName, szDriver, ulAreaID, szRealAlias, bMemIO, szCdp );
-      else
-         leto_wUsLog( pUStru, -1, "TEST! bad: %s | %s | %s | %s", szRawData, pp2, pp3, pp4 );
-   }
-#endif
    if( ! pUStru->bBeQuiet )  /* keep open for UDF */
       leto_SendAnswer( pUStru, szReply, ulLenLen );
    hb_xfree( szReply );
@@ -13311,12 +13154,6 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
          }
       }
    }
-
-#if 0
-   if( s_iDebugMode > 0 )
-      leto_wUsLog( pUStru, -1, "TEST!  leto_OpenIndex( %s, %s, %s, (%d) [%lu] )",
-                   szFileName, szFile, szBagName, errcode, ulLenLen );
-#endif
 
    if( ! pUStru->bBeQuiet )
       leto_SendAnswer( pUStru, szReply, ulLenLen );
@@ -13985,17 +13822,6 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
          ulLenLen = leto_rec( pUStru, pUStru->pCurAStru, pArea, szReply + 1 + ulLen, NULL ) + 1 + ulLen;
       }
    }
-
-#if 0
-   if( s_iDebugMode > 20 )
-   {
-      if( errcode == HB_SUCCESS )
-         leto_wUsLog( pUStru, -1, "FINE!! leto_CreateIndex( %s, %s, %d )",
-                      szFileName, szTagName, bMemIO );
-      else
-         leto_wUsLog( pUStru, -1, "ERROR %s | %s | %s | %s", szRawData, pp2, pp3, szReply );
-   }
-#endif
 
    if( ! pUStru->bBeQuiet )
       leto_SendAnswer( pUStru, szReply, ulLenLen );

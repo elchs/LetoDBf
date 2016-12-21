@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-21 01:35 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+  * source/server/server.prg
+    - clean-ups of remained nonsense, not more needed, #if 0 ...
+
 2016-12-20 23:03 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * tests/ron.prg
     ! missing file in commit, sigh !
