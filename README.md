@@ -22,14 +22,15 @@
  Main goal of this fork is to use LetoDBf with newest Harbour and to max out its possibilities.
 
  Aside a sligthly, but overall rework of the internal communication between Client and Server,
- a bunch of new features and capabilties is added, to let Harbour DBF engine show its' muscles.
+ a bunch of new features and capabilities is added, to let Harbour DBF engine show its' muscles.
  Expect extended locking schemes, share- and lock-able DBF tables in RAM ( HbMemIO ), all DBF on demand
  combine-able with 3 memofield types, new extended field attributes like autoincrement, etc ...
 
  The LetoDBf server file open mode: No_Save_WA is fully reworked: now the workareas are opened in exact
  same workarea-ID and ALIAS as at client side, plus client relations are active at server:
  this will e.g. allow indexing keys/ filtering rules on relationed fields of other workareas in this mode.
- Improved is the use of the server variables system, it allows really tricky filter conditions.
+ Improved and extended is the use of the server variables system, it allows really tricky filter conditions
+ to be evaluated at server side, which leads to very fast 'optimized' filtering records.
  This mode shell be the mode, if you need to execute server side UDF functions, where you now even can
  start an UDF in its own thread, working from then on independent from your connection as a new
  'headless connection'

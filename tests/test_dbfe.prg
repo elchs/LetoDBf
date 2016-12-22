@@ -48,23 +48,26 @@ Function Main( cPath )
 
    ? "DBF DATABASE EXTENSION     :", hb_rddInfo( RDDI_TABLEEXT )
 
+   ? "File test1.dbf"
    IF ! DbExists( "test1.dbf" )
       IF dbCreate( "test1", { { "NAME",  "C", 10, 0 },;
                               { "NUM",   "N",  4, 0 },;
                               { "INFO",  "C", 32, 0 },;
                               { "DINFO", "D",  8, 0 },;
                               { "TINFO", "T", 17, 0 },;
-                              { "MINFO", "M", 10, 0 } } )
-         ? "File has been created"
+                              { "MINFO", "M", 10, 0 } },, .T. )
+         ?? " has been created, left opened"
       ELSE
          ALERT( "DBF CREATE FAILED" + IIF( NetErr(), ", TABLE IN USE BY OTHER", "" ) )
          QUIT
       ENDIF
+   ELSE
+      USE ( "test1" ) SHARED NEW
    ENDIF
 
-   USE ( "test1" ) SHARED NEW
+    
    IF ! NetErr() .AND. ! EMPTY( ALIAS() )
-      ? "File has been opened"
+      ?? " successful in use"
    ELSE
       ? "ERROR opening database! -- press any key to quit"
       Inkey( 0 )

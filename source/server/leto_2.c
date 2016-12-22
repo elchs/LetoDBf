@@ -572,18 +572,10 @@ void leto_SendAnswer2( PUSERSTRU pUStru, char * szData, HB_ULONG ulLen, HB_BOOL 
 
    if( ! pUStru->bNoAnswer )
    {
-      if( pUStru->ulSndBufLen < ulLen + LETO_MSGSIZE_LEN + 1 )
+      if( pUStru->ulSndBufLen < ulLen + LETO_MSGSIZE_LEN )
       {
-         if( ! pUStru->ulSndBufLen || ! pUStru->pSendBuffer )
-         {
-            pUStru->ulSndBufLen = HB_MAX( ulLen + LETO_MSGSIZE_LEN, LETO_SENDRECV_BUFFSIZE );
-            pUStru->pSendBuffer = ( HB_BYTE * ) hb_xgrab( pUStru->ulSndBufLen + 1 );
-         }
-         else
-         {
-            pUStru->ulSndBufLen = ulLen + LETO_MSGSIZE_LEN;
-            pUStru->pSendBuffer = ( HB_BYTE * ) hb_xrealloc( pUStru->pSendBuffer, pUStru->ulSndBufLen + 1 );
-         }
+         pUStru->ulSndBufLen = ulLen + LETO_MSGSIZE_LEN;
+         pUStru->pSendBuffer = ( HB_BYTE * ) hb_xrealloc( pUStru->pSendBuffer, pUStru->ulSndBufLen + 1 );
       }
 
       if( bDelayedError )
@@ -653,7 +645,6 @@ void leto_SendAnswer2( PUSERSTRU pUStru, char * szData, HB_ULONG ulLen, HB_BOOL 
       }
       else
       {
-         /* these minor bytes will ever fit into sendbuffer -- no bufferlen check */
          HB_PUT_LE_UINT32( ( char * ) pUStru->pSendBuffer, ulLen );
          memcpy( ( char * ) pUStru->pSendBuffer + LETO_MSGSIZE_LEN, szData, ulLen );
          ulLen += LETO_MSGSIZE_LEN;
@@ -692,8 +683,8 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
 
    if( iDebugMode() >= 15 )  /* debug feedback */
    {
-      if( iDebugMode() < 20 )
-         leto_wUsLog( pUStru, -1, "DEBUG answer send %lu bytes", ulLen );
+      if( iDebugMode() <= 20 )
+         leto_wUsLog( pUStru, -1, "DEBUG leto_SendAnswer() %lu bytes", ulLen );
       else
       {
          HB_ULONG ulData = ( ulLen > 2048 ) ? 1024 : ulLen;
@@ -702,19 +693,11 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
       }
    }
 
-   /* ensure buffer size for pre-leading LETO_MSGSIZE_LEN plus possible crypt/ compress extras */
-   if( bUseBuffer && pUStru->ulSndBufLen < ulLen + 17 )
+   /* ensure buffer size for LETO_MSGSIZE_LEN(4), possible crypt(8)/ compress(8) plus reserve for non compressable */
+   if( bUseBuffer && pUStru->ulSndBufLen < ulLen + 32 )
    {
-      if( ! pUStru->ulSndBufLen || ! pUStru->pSendBuffer )
-      {
-         pUStru->ulSndBufLen = HB_MAX( ulLen + 17, LETO_SENDRECV_BUFFSIZE );
-         pUStru->pSendBuffer = ( HB_BYTE * ) hb_xgrab( pUStru->ulSndBufLen + 1 );
-      }
-      else
-      {
-         pUStru->ulSndBufLen = ulLen + 17;
-         pUStru->pSendBuffer = ( HB_BYTE * ) hb_xrealloc( pUStru->pSendBuffer, pUStru->ulSndBufLen + 1 );
-      }
+      pUStru->ulSndBufLen = ulLen + 32;
+      pUStru->pSendBuffer = ( HB_BYTE * ) hb_xrealloc( pUStru->pSendBuffer, pUStru->ulSndBufLen + 1 );
    }
 
    hb_vmUnlock();
@@ -725,13 +708,11 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
       HB_PUT_LE_UINT32( pUStru->pSendBuffer, ulLen );
       memcpy( pUStru->pSendBuffer + LETO_MSGSIZE_LEN, szData, ulLen );
       ulLen += LETO_MSGSIZE_LEN;
-      pUStru->ulBytesSend = ulLen;
+      pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, pUStru->zstream, 0 );
 #else
-      pUStru->ulBytesSend = ulLen + LETO_MSGSIZE_LEN;
       ulLen = hb_lz4netEncrypt( pUStru->zstream, ( char ** ) &pUStru->pSendBuffer, ulLen, &pUStru->ulSndBufLen, szData );
+      pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, NULL, 0 );
 #endif
-      if( leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, pUStru->zstream, 0 ) != ulLen )
-         pUStru->ulBytesSend = 0;
    }
    else
    {
@@ -739,16 +720,18 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
       char szMsgSize[ LETO_MSGSIZE_LEN ];
 
       HB_PUT_LE_UINT32( szMsgSize, ulLen );
-      pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, szMsgSize, LETO_MSGSIZE_LEN, pUStru->zstream, MSG_MORE );
-      if( pUStru->ulBytesSend == LETO_MSGSIZE_LEN )
-         pUStru->ulBytesSend += leto_SockSend( pUStru->hSocket, szData, ulLen, pUStru->zstream, 0 );
+      if( leto_SockSend( pUStru->hSocket, szMsgSize, LETO_MSGSIZE_LEN, NULL, MSG_MORE ) == LETO_MSGSIZE_LEN )
+      {
+         pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, szData, ulLen, NULL, 0 ) + 4;
+         ulLen += 4;
+      }
       else
          pUStru->ulBytesSend = 0;
 #else
       HB_PUT_LE_UINT32( pUStru->pSendBuffer, ulLen );
       memcpy( pUStru->pSendBuffer + LETO_MSGSIZE_LEN, szData, ulLen );
       ulLen += LETO_MSGSIZE_LEN;
-      pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, pUStru->zstream, 0 );
+      pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, NULL, 0 );
 #endif
    }
 
@@ -761,6 +744,16 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
       pUStru->ulSndBufLen = LETO_SENDRECV_BUFFSIZE;
       pUStru->pSendBuffer = hb_xrealloc( pUStru->pSendBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
    }
+   if( pUStru->ulBytesSend != ulLen )
+   {
+      leto_wUsLog( pUStru, -1, "ERROR leto_SendAnswer() targeted %lu are %lu bytes, error %d",
+                               ulLen, pUStru->ulSndBufLen, LETO_SOCK_GETERROR() );
+      leto_writelog( NULL, -1, "ERROR %d in leto_SendAnswer() for client %s :%d %s",
+                               LETO_SOCK_GETERROR(), pUStru->szAddr, pUStru->iPort, pUStru->szExename );
+      pUStru->ulBytesSend = 0;
+   }
+   else if( iDebugMode() > 20 )  // ToDo remove this ?
+      leto_wUsLog( pUStru, -1, "DEBUG leto_SendAnswer()%s send %lu bytes", bUseBuffer ? " buffered" : "", ulLen - LETO_MSGSIZE_LEN );
 }
 
 void leto_SendError( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )

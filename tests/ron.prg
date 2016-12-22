@@ -64,22 +64,23 @@ PROCEDURE Main( cPath )
       IF i == 5
          hb_idleSleep( 0.1 )
       ENDIF
-      APPEND BLANK
-      REPLACE NAME WITH aNames[ i ], NUM WITH i + 1000, ;
-         INFO WITH "This is a record number " + LTrim( Str( i ) ), ;
-         DINFO WITH Date() + i - 1, ;
-         STAMP WITH hb_DateTime()
+      IF DbAppend()
+         REPLACE NAME WITH aNames[ i ], NUM WITH i + 1000, ;
+                 INFO WITH "This is a record number " + LTrim( Str( i ) ), ;
+                 DINFO WITH Date() + i - 1, ;
+                 STAMP WITH hb_DateTime()
+      ENDIF
    NEXT
    dbUnlock()
 
-   hb_DispOutAt( 10, 0, "Records have been added" )
+   hb_DispOutAt( 10, 0, hb_nToS( RecCount() ) + " Records have been added" )
    INDEX ON NAME TAG NAME
    INDEX ON Stamp TAG STAMP
    INDEX ON Str( NUM, 4 ) TAG NUM
-   hb_DispOutAt( 11, 0, "File has been indexed" )
+   hb_DispOutAt( 10, 30, ", File has been indexed" )
    IF nSrvMode >= 2 // share tables or No_Save_WA = 1
       IF dbUseArea( .T., , cPath + "test1", "TESTY", .T. )
-         hb_DispOutAt( 12, 0, "DBF opend second time with different ALIAS " + Alias() )
+         hb_DispOutAt( 11, 0, "DBF opend second time with different ALIAS " + Alias() )
       ENDIF
    ENDIF
    ordSetFocus( 2 )
@@ -88,15 +89,16 @@ PROCEDURE Main( cPath )
    dbGoTop()
    dbSeek( tStamp, .T. )
    IF RecNo() == 5
-      hb_DispOutAt( 13, 0, "Timestamp seek successfull" )
+      hb_DispOutAt( 12, 0, "Timestamp seek successfull" )
    ENDIF
    ordSetFocus( 3 )
    ordScope( 1, "1001" )
    ordSetFocus( 1 )
    dbGoTop()
    nCounter := 1
+   hb_DispOutAt( 13, 0, "Main thread running..." )
    DO WHILE LastKey() != 27
-      hb_DispOutAt( 15, 0, name )
+      hb_DispOutAt( 14, 0, name )
       testlog( nHandle, "Main thread at record " + AllTrim( Str( RecNo(), 4 ) ) )
       dbSkip()
       IF Eof()
@@ -119,7 +121,7 @@ PROCEDURE Main( cPath )
       ENDIF
 #endif
       nCounter++
-      IF nCounter <= ( Leto_CPUCores() -1 ) * 10 .AND. nCounter % 10 == 0
+      IF nCounter <= IIF( Leto_CPUCores() < 2, 1, Leto_CPUCores() - 1 )  * 10 .AND. nCounter % 10 == 0
          hb_threadStart( @thFunc(), cPath, nHandle, Int( nCounter / 10 ) + 1 )
       ENDIF
    ENDDO
@@ -145,7 +147,7 @@ PROC thFunc( cPath, nHandle, nCounter )
       cThreadName := hb_ntos( nCounter ) + iif( nCounter < 4, "rd", "th" )
    ENDIF
 
-   hb_DispOutAt( 14 + ( nCounter * 2 ), 0, cThreadName + " thread starting..." )
+   hb_DispOutAt( 13 + ( nCounter * 2 ), 0, cThreadName + " thread starting..." )
    IF rddSetDefault() == "LETO"
       IF leto_Connect( cPath, cThreadName, "anonymous", 42000 /*timeout*/, /*hot buffer*/ ) == -1
          RETURN
@@ -162,7 +164,7 @@ PROC thFunc( cPath, nHandle, nCounter )
       dbUseArea( .T., , cPath + "test1", "TESTX", .T. )
    ENDIF
    DO WHILE LastKey() != 27
-      hb_DispOutAt( 15 + ( nCounter * 2 ), 0, field->name )
+      hb_DispOutAt( 14 + ( nCounter * 2 ), 0, field->name )
       testlog( nHandle, "Secondary thread at record " + AllTrim( Str( RecNo(), 4 ) ) )
       dbSkip( -1 )
       IF Bof()

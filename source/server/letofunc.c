@@ -1326,6 +1326,17 @@ static HB_BOOL leto_ParseFilter( PUSERSTRU pUStru, const char * pNew, HB_ULONG u
    return HB_TRUE;
 }
 
+static void leto_StrTran( char * szText, char cSearch, char cReplace, HB_SIZE nLen )
+{
+   HB_SIZE u;
+
+   for( u = 0; u < nLen; u++ )
+   {
+      if( szText[ u ] == cSearch )
+         szText[ u ] = cReplace;
+   }
+}
+
 HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
 {
    PUSERSTRU pUStru = letoGetUStru();
@@ -1338,6 +1349,7 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
       {
          strcpy( s_pDataPath, hb_parc( 1 ) );
          s_uiDataPathLen = ( HB_USHORT ) hb_parclen( 1 );
+         leto_StrTran( s_pDataPath, DEF_CH_SEP, DEF_SEP, s_uiDataPathLen );
       }
       else  /* ToDo watch and verify if not better throw a warning */
       {
@@ -1872,17 +1884,6 @@ int leto_GetParam( const char * szData, const char ** pp2, const char ** pp3, co
    return iRes;
 }
 
-static void leto_StrTran( char * szText, char cSearch, char cReplace, HB_SIZE nLen )
-{
-   HB_SIZE u;
-
-   for( u = 0; u < nLen; u++ )
-   {
-      if( szText[ u ] == cSearch )
-         szText[ u ] = cReplace;
-   }
-}
-
 static HB_USHORT leto_DataPath( const char * szFilename, char * szBuffer )
 {
    const char * ptr = szFilename;
@@ -1893,7 +1894,6 @@ static HB_USHORT leto_DataPath( const char * szFilename, char * szBuffer )
    {
       HB_BOOL bLeadSep = ( szFilename[ 0 ] == '/' || szFilename[ 0 ] == '\\' );
       HB_BOOL bMemIO;
-
 
       if( ! strncmp( szFilename + ( bLeadSep ? 1 : 0 ), "mem:", 4 ) )  /* e.g. "/mem:"  */
          bMemIO = HB_TRUE;
@@ -3244,10 +3244,10 @@ static HB_BOOL leto_CloseArea( PUSERSTRU pUStru, PAREASTRU pAStru )
          if( s_bNoSaveWA && ! pAStru->pTStru->bMemIO )
             pArea->dbfi.itmCobExpr = NULL;  /* leto_ClearFilter( pArea ); */
          hb_rddReleaseCurrentArea();
-         leto_CloseTable( pTStru );
       }
       else
          bOk = HB_FALSE;
+      leto_CloseTable( pTStru );
 
       HB_GC_UNLOCKT();
    }
@@ -3480,10 +3480,9 @@ void leto_CloseUS( PUSERSTRU pUStru )
    {
       const char * szNull = "(null)";
 
-      leto_writelog( NULL, -1, "DEBUG closing connect %s:%d %s %s users=(%d : %d : %d), tables=(%d : %d)",
+      leto_writelog( NULL, -1, "DEBUG closing connect %s:%d %s users=(%d : %d : %d), tables=(%d : %d)",
                      ( pUStru->szAddr    ? ( char * ) pUStru->szAddr    : szNull ),
                      ( pUStru->iPort     ? ( int ) pUStru->iPort     : 0 ),
-                     ( pUStru->szNetname ? ( char * ) pUStru->szNetname : szNull ),
                      ( *( pUStru->szExename ) ? ( char * ) pUStru->szExename : szNull ),
                      pUStru->iUserStru, s_uiUsersCurr, s_uiUsersMax,
                      s_uiTablesCurr, s_uiTablesMax );
@@ -4233,7 +4232,9 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
 
       if( pRDDNode )
       {
-         if( strchr( szData, DEF_SEP ) || strchr( szData, DEF_SEP ) )
+         //HB_USHORT uiLen = ( HB_USHORT ) strlen( hb_setGetDefault() );
+
+         if( ! strlen( hb_setGetPath() ) || strchr( szData, DEF_SEP ) || strchr( szData, DEF_SEP ) )
             leto_DataPath( szData, szBuf );
          else
             strcpy( szBuf, szData );
@@ -4241,7 +4242,7 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
 
          if( *pIFile )
          {
-            if( strchr( pIFile, DEF_SEP ) || strchr( pIFile, DEF_SEP ) )
+            if( ! strlen( hb_setGetPath() ) ||strchr( pIFile, DEF_SEP ) || strchr( pIFile, DEF_SEP ) )
                leto_DataPath( pIFile, szBuf );
             else
                strcpy( szBuf, pIFile );
@@ -8908,7 +8909,7 @@ static void leto_BeautifyPath( char * szPath )
    }
 }
 
-static void leto_PathFinder( char * szOnePath, char * szDataPath )
+static void leto_PathFinder( char * szOnePath, const char * szDataPath )
 {
    char     szTmpPath[ HB_PATH_MAX ];
    char *   pContain = strstr( szOnePath, szDataPath );
@@ -9088,17 +9089,13 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
 
                   if( uiLen )
                   {
-                     char szDataPath[ HB_PATH_MAX ];
                      char szOnePath[ HB_PATH_MAX ];
                      char szDefaultPath[ HB_PATH_MAX ];
-
-                     hb_strncpy( szDataPath, s_pDataPath, HB_PATH_MAX );
-                     leto_StrTran( szDataPath, DEF_CH_SEP, DEF_SEP, strlen( szDataPath ) );
 
                      memcpy( szOnePath, ptr, HB_MIN( uiLen, HB_PATH_MAX - 1 ) );
                      szOnePath[ HB_MIN( uiLen, HB_PATH_MAX - 1 ) ] = '\0';
                      leto_BeautifyPath( szOnePath );
-                     leto_PathFinder( szOnePath, szDataPath );
+                     leto_PathFinder( szOnePath, s_pDataPath );
 
                      uiLen = ( HB_USHORT ) strlen( szOnePath );
                      if( uiLen > 1 && szOnePath[ uiLen - 1 ] == DEF_SEP )
@@ -9106,19 +9103,13 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                      leto_DataPath( szOnePath, szDefaultPath );
                      pItem = hb_itemPutC( pItem, szDefaultPath );
                      hb_setSetItem( HB_SET_DEFAULT, pItem );
-                     pItem = hb_itemPutC( pItem, szDataPath );
+                     pItem = hb_itemPutC( pItem, s_pDataPath );
                      hb_setSetItem( HB_SET_PATH, pItem );
                      hb_itemRelease( pItem );
                      pItem = NULL;
-                     if( s_iDebugMode > 10 )
-                        leto_writelog( NULL, -1, "DEBUG leto_Intro() DEFAULT path %s", hb_setGetDefault() );
                   }
                   else  /* set DEFAULT to DataPath of letodb.ini */
                   {
-                     PHB_ITEM pItem = hb_itemNew( NULL );
-
-                     if( s_iDebugMode > 10 )
-                        leto_writelog( NULL, -1, "DEBUG leto_Intro() DEFAULT is <DataPath> %s", s_pDataPath );
                      pItem = hb_itemPutC( pItem, s_pDataPath );
                      hb_setSetItem( HB_SET_DEFAULT, pItem );
                      /* hb_setSetItem( HB_SET_PATH, pItem ); */
@@ -9139,10 +9130,9 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                   }
                   if( uiLen )
                   {
-                     char      szDataPath[ HB_PATH_MAX ];
                      char      szOnePath[ HB_PATH_MAX ];
                      char *    szSearchPath;
-                     HB_UCHAR  uPaths = 1;  /* first will become the DEFAULT path */
+                     HB_UCHAR  uPaths = 1;  /* first will become the letodb.ini DataPAth */
                      HB_USHORT uiLenOne;
 
                      pEnd = ptr;
@@ -9156,6 +9146,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                      szSearchPath = ( char * ) hb_xgrab( uPaths-- * HB_PATH_MAX );
                      strcpy( szSearchPath, s_pDataPath );
                      uiLen = ( HB_USHORT ) strlen( szSearchPath );
+                     leto_StrTran( szSearchPath, DEF_CH_SEP, DEF_SEP, uiLen );
                      szSearchPath[ uiLen++ ] = DEF_SEPPATH;
                      szSearchPath[ uiLen ] = '\0';
 
@@ -9165,13 +9156,10 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                         if( ! pEnd )  /* last one not terminated by ';' */
                            pEnd = ptr + strlen( ptr );
 
-                        hb_strncpy( szDataPath, s_pDataPath, HB_PATH_MAX );
-                        leto_StrTran( szDataPath, DEF_CH_SEP, DEF_SEP, strlen( szDataPath ) );
-
                         memcpy( szOnePath, ptr, HB_MIN( pEnd - ptr, HB_PATH_MAX - 1 ) );
                         szOnePath[ HB_MIN( pEnd - ptr, HB_PATH_MAX - 1 ) ] = '\0';
                         leto_BeautifyPath( szOnePath );
-                        leto_PathFinder( szOnePath, szDataPath );
+                        leto_PathFinder( szOnePath, s_pDataPath );
 
                         uiLenOne = ( HB_USHORT ) strlen( szOnePath );
                         if( szOnePath[ uiLenOne - 1 ] == DEF_SEP )
@@ -9187,8 +9175,6 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                      pItem = hb_itemPutC( pItem, szSearchPath );
                      hb_setSetItem( HB_SET_PATH, pItem );
                      hb_itemRelease( pItem );
-                     if( s_iDebugMode > 10 )
-                        leto_writelog( NULL, -1, "DEBUG leto_Intro() search PATH %s", hb_setGetPath() );
                      hb_xfree( szSearchPath );
                   }
                }
@@ -9215,8 +9201,12 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
          pData = pBuf;
 
          if( pUStru->hSocketErr == HB_NO_SOCKET && iDebugMode() > 0 )  /* second socket comes also here */
-            leto_writelog( NULL, -1, "INFO: connected from %s :%d  CP: %s  DF: %s  conn-ID %d",
-                                     pUStru->szAddr, pUStru->iPort, hb_cdpID(), hb_setGetDateFormat(), pUStru->iUserStru - 1 );
+            leto_writelog( NULL, -1, "INFO: connected from %s :%d %s CP: %s  DF: %s  conn-ID %d",
+                                     pUStru->szAddr, pUStru->iPort,
+                                     ( *( pUStru->szExename ) ? ( char * ) pUStru->szExename : "?exe?" ),
+                                     hb_cdpID(), hb_setGetDateFormat(), pUStru->iUserStru - 1 );
+         if( s_iDebugMode > 10 )
+            leto_writelog( NULL, -1, "DEBUG leto_Intro() DEFAULT %s  PATH %s", hb_setGetDefault(), hb_setGetPath() );
       }
    }
 
@@ -11849,7 +11839,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                pUStru->szDateFormat = ( char * ) hb_xgrab( ptr2 - pp5 + 1 );
                memcpy( pUStru->szDateFormat, pp5, ptr2 - pp5 );
                pUStru->szDateFormat[ ptr2 - pp5 ] = '\0';
-               hb_itemPutC( pItem, pUStru->szDateFormat );
+               pItem = hb_itemPutC( pItem, pUStru->szDateFormat );
                hb_setSetItem( HB_SET_DATEFORMAT, pItem );
                hb_itemRelease( pItem );
                if( s_iDebugMode > 10 )
@@ -12571,7 +12561,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
             pUStru->szDateFormat = ( char * ) hb_xgrab( ptrTmp - pp5 + 1 );
             memcpy( pUStru->szDateFormat, pp5, ptrTmp - pp5 );
             pUStru->szDateFormat[ ptrTmp - pp5 ] = '\0';
-            hb_itemPutC( pItem, pUStru->szDateFormat );
+            pItem = hb_itemPutC( pItem, pUStru->szDateFormat );
             hb_setSetItem( HB_SET_DATEFORMAT, pItem );
             hb_itemRelease( pItem );
             if( s_iDebugMode > 10 )

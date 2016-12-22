@@ -2,6 +2,40 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-23 19:09 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * README.md
+    ! typo
+
+  - test/test_max.prg
+    ; that was just elch game play
+
+  * tests/test_dbfe.prg
+    + add test for dbcreate leaving created WA opened
+
+  * tests/ron.prg
+    * use DbAppend() for shared opened tables
+    ! let min two threads run for single core
+
+  * test/runall.bat
+  * test/runall.sh
+    + if no IP is given, take default "127.0.0.1:2812"
+
+  * source/client/letomgmn.c
+    ! fix a hb_snprintf( "%f") crash! in XP64 64bit-Mingw 5.1 TDC
+    ! general fix decimals for LetoVarSet() double values
+
+  * source/server/leto_2.c
+    % pSendBuffer freed/allocated with user [dis]connect, in between re-alloc;
+      optimizing checks about
+    ; size is 1 byte longer as ulSndBufLen for terminating
+    * changing log messages
+
+  * source/server/letofunc.c
+    * remove netname log entry disconnect, add exename log entry conntect
+    ! leto_Drop() use plain filename only with a PATH set
+    % leto_StrTran() s_pDataPath when set with server start, determine length
+    * changing log messages
+
 2016-12-22 11:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * tests/ron.prg
     % faster run if no log file ( default )

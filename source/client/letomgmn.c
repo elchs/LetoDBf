@@ -1395,7 +1395,7 @@ HB_FUNC( LETO_TOGGLEZIP )
          else
             szPass[ 0 ] = '\0';
 
-         hb_snprintf( szData, 95, "%c;%d;%s;", LETOCMD_zip, iZipRecord, szPass );
+         hb_snprintf( szData, 96, "%c;%d;%s;", LETOCMD_zip, iZipRecord, szPass );
          hb_xfree( szPass );
          if( leto_DataSendRecv( pConnection, szData, 0 ) )
          {
@@ -1509,12 +1509,18 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
             if( HB_IS_INTEGER( hb_param( 3, HB_IT_NUMERIC ) ) || HB_IS_LONG( hb_param( 3, HB_IT_NUMERIC ) ) )
             {
                pVarItem = hb_itemPutNL( NULL, hb_parnl( 3 ) );
-               hb_snprintf( szValue, 32, "%ld", hb_parnl( 3 ) );
+               snprintf( szValue, 32, "%ld", hb_parnl( 3 ) );
+               szValue[ 31 ] = '\0';
             }
             else
             {
-               pVarItem = hb_itemPutND( NULL, hb_parnd( 3 ) );
-               hb_snprintf( szValue, 32, "%f", hb_parnd( 3 ) );
+               int iDec;
+
+               pVarItem = hb_itemNew( NULL );
+               hb_itemCopy( pVarItem, hb_param( 3, HB_IT_NUMERIC ) );
+               hb_itemGetNDDec( pVarItem, &iDec );
+               snprintf( szValue, 32, "%.*f", iDec, hb_parnd( 3 ) );
+               szValue[ 31 ] = '\0';
             }
             ulLen = strlen( szValue );
          }
