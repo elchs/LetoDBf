@@ -2,6 +2,10 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-23 21:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letomgmn.c
+    * snprintf() --> sprintf(), buffer enlarged
+    
 2016-12-23 19:09 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * README.md
     ! typo

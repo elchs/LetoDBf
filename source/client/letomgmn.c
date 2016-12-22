@@ -1472,7 +1472,7 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
    char *       ptr;
-   char         szValue[ 32 ];
+   char         szValue[ HB_PATH_MAX ];
    unsigned int uiRes = 0;
    HB_USHORT    uiFlags = ( ! HB_ISNUM( 4 ) ) ? 0 : ( HB_USHORT ) hb_parni( 4 );
    HB_BOOL      fPrev = HB_ISBYREF( 5 );
@@ -1509,8 +1509,7 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
             if( HB_IS_INTEGER( hb_param( 3, HB_IT_NUMERIC ) ) || HB_IS_LONG( hb_param( 3, HB_IT_NUMERIC ) ) )
             {
                pVarItem = hb_itemPutNL( NULL, hb_parnl( 3 ) );
-               snprintf( szValue, 32, "%ld", hb_parnl( 3 ) );
-               szValue[ 31 ] = '\0';
+               sprintf( szValue, "%ld", hb_parnl( 3 ) );
             }
             else
             {
@@ -1519,8 +1518,7 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
                pVarItem = hb_itemNew( NULL );
                hb_itemCopy( pVarItem, hb_param( 3, HB_IT_NUMERIC ) );
                hb_itemGetNDDec( pVarItem, &iDec );
-               snprintf( szValue, 32, "%.*f", iDec, hb_parnd( 3 ) );
-               szValue[ 31 ] = '\0';
+               sprintf( szValue, "%.*f", iDec, hb_parnd( 3 ) );
             }
             ulLen = strlen( szValue );
          }
