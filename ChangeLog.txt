@@ -2,10 +2,33 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-28 11:11 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+    + fExlusive flag for creating index
+    ! fix LetoDbSkip() skipbuffer use
+    ; Thanks! to Itamar for pointig to it
+
+  * source/server/letofunc.c
+    + fExlusive flag for creating index
+    ! fix filename verification for fTemporary index
+
+  * Readme.txt
+  * source/server/leto_lnx.c
+  * source/server/server.prg
+    + adding UID and GID for Linux server to run as daemon
+
+2016-12-23 21:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letomgmn.c
+    ! the missing setting to hb_rddDefaultDrv( "LETO" ) in Leto_Connect()
+    ; add this for now only here, not in LetoConnectionNew() to not disturb
+      intentional used different setup
+
 2016-12-23 21:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     * snprintf() --> sprintf(), buffer enlarged
-    
+
 2016-12-23 19:09 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * README.md
     ! typo

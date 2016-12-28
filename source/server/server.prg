@@ -204,6 +204,8 @@ PROCEDURE Main( cCommand, cData )
 
    ELSE
 
+      PUBLIC oApp := HApp():New()
+
 #ifdef __CONSOLE__
 
       AltD()
@@ -255,7 +257,7 @@ PROCEDURE Main( cCommand, cData )
 
 #ifdef __LINUX_DAEMON__
 
-      IF ! leto_Daemon()
+      IF ! leto_Daemon( oApp:nSUserID, oApp:nSGroupID )
          WrLog( "Can't become a daemon" )
          ErrorLevel( 2 )
       ELSE
@@ -269,8 +271,6 @@ PROCEDURE Main( cCommand, cData )
    RETURN
 
 PROCEDURE StartServer()
-
-   PUBLIC oApp := HApp():New()
 
    /* verify datapath */
    IF ! Empty( oApp:DataPath )
@@ -409,6 +409,8 @@ CLASS HApp
    DATA lPass4L   INIT .F.
    DATA lPass4D   INIT .F.
    DATA cPassName INIT "leto_users"
+   DATA nSUserID  INIT 0
+   DATA nSGroupID INIT 0
    DATA lCryptTraffic INIT .F.
    DATA cTrigger
    DATA cPendingTrigger
@@ -503,6 +505,10 @@ METHOD New() CLASS HApp
                   ::lPass4D := ( aIni[ i, 2, j, 2 ] == '1' )
                ELSEIF aIni[ i, 2, j, 1 ] == "PASS_FILE"
                   ::cPassName := aIni[ i, 2, j, 2 ]
+               ELSEIF aIni[ i, 2, j, 1 ] == "SERVER_UID"
+                  ::nSUserID := Int( Val( aIni[ i, 2, j, 2 ] ) )
+               ELSEIF aIni[ i, 2, j, 1 ] == "SERVER_GID"
+                  ::nSGroupID := Int( Val( aIni[ i, 2, j, 2 ] ) )
                ELSEIF aIni[ i, 2, j, 1 ] == "CRYPT_TRAFFIC"
                   ::lCryptTraffic := ( aIni[ i, 2, j, 2 ] == '1' )
                ELSEIF aIni[ i, 2, j, 1 ] == "MAX_VARS_NUMBER"
@@ -692,7 +698,7 @@ HB_FUNC( MIXKEY )
    unsigned int iZLen  = hb_parni( 3 );
    char pcRet[ 16 ], pNPart[ 16 ], pZPart[ 16 ];
    unsigned int iNPart = 0, iZPart = 0;
-   unsigned int i, y, z = hb_parclen( 1 ); 
+   unsigned int i, y, z = hb_parclen( 1 );
 
    if( iNLen > 16 )
       iNLen = 16;

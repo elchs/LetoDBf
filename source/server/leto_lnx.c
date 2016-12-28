@@ -59,7 +59,6 @@
 
 HB_FUNC( LETO_DAEMON )
 {
-   //int	iPID, stdioFD, i, numFiles, iDupOut, iDupErr;
    int        iPID, i, numFiles;
    HB_FHANDLE hNull;
 
@@ -99,21 +98,28 @@ HB_FUNC( LETO_DAEMON )
    if( hNull != ( HB_FHANDLE ) -1 )
       hb_fsClose( hNull );
 
+   umask( 0x02 );  /* rw-rw-r-- set this to whatever is appropriate for you */
+
 #if defined( __GNUC__ ) && ( ( __GNUC__ * 100 + __GNUC_MINOR__ ) >= 406 )
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wunused-result"
 #endif
 
-   ( void ) setuid( getuid() );
-   ( void ) setgid( getgid() );
+   if( HB_IS_INTEGER( hb_param( 2, HB_IT_NUMERIC ) ) && hb_parni( 2 ) > 0 )
+      ( void ) setgid( hb_parni( 2 ) );
+   else
+      ( void ) setgid( getgid() );
+
+   if( HB_IS_INTEGER( hb_param( 1, HB_IT_NUMERIC ) ) && hb_parni( 1 ) > 0 )
+      ( void ) setuid( hb_parni( 1 ) );
+   else
+      ( void ) setuid( getuid() );
 
 #if defined( __GNUC__ ) && ( ( __GNUC__ * 100 + __GNUC_MINOR__ ) >= 406 )
 #  pragma GCC diagnostic pop
 #endif
 
-   umask( 0x02 );                             /* set this to whatever is appropriate for you */
-
-   setpgrp();
+   /* setpgrp(); */
    hb_retl( HB_TRUE );
    return;
 }

@@ -1598,12 +1598,12 @@ static void leto_refrSkipBuf( LETOTABLE * pTable )  /* set new position in buffe
       memmove( pTable->Buffer.pBuffer, pTable->ptrBuf, pTable->Buffer.ulBufDataLen - ulRemove );
       pTable->Buffer.ulBufDataLen -= ulRemove;
       pTable->ptrBuf = pTable->Buffer.pBuffer;
-      pTable->uiRecInBuf = 0;
 #ifdef LETO_CLIENTLOG
       leto_clientlog( NULL, 0, "DEBUG leto_refrSkipBuf new record %lu restlen %lu (%lu)",
                       HB_GET_LE_UINT32( pTable->ptrBuf + 4 ), pTable->Buffer.ulBufDataLen, ulRemove );
 #endif
    }
+   pTable->uiRecInBuf = 0;
 }
 
 static _HB_INLINE_ HB_ULONG leto_TransBlockLen( LETOCONNECTION * pConnection, HB_ULONG ulLen )
@@ -3762,7 +3762,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
                leto_ParseRecord( pConnection, pTable, ( char * ) pTable->ptrBuf );
             }
 #ifdef LETO_CLIENTLOG
-            leto_clientlog( NULL, 0, "LetoDbGoTo found record %lu in skip buffer" );
+            leto_clientlog( NULL, 0, "LetoDbGoTo found record %lu in skip buffer", pTable->ulRecNo );
 #endif
             pTable->Buffer.ulShoots++;
             fFound = HB_TRUE;
@@ -3790,7 +3790,6 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
                                   ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
          if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
             return 1;
-
          leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
       }
       pTable->ptrBuf = NULL;
@@ -3858,35 +3857,41 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
          {
             while( ul < ulSkips )
             {
-               ul++;  /* increment here ! */
                pTable->ptrBuf += HB_GET_LE_UINT24( pTable->ptrBuf ) + 3;
                if( leto_OutBuffer( &pTable->Buffer, ( char * ) pTable->ptrBuf ) )
                {
                   ul = 0;
                   break;
                }
+               else
+                  ul++;
             }
             pTable->uiRecInBuf += ul;
          }
-         else if( pTable->uiRecInBuf > ulSkips )
+         else if( pTable->uiRecInBuf >= ulSkips )
          {
-            pTable->uiRecInBuf -= ulSkips;
+            HB_BOOL fFound = HB_TRUE;
+
             pTable->ptrBuf = pTable->Buffer.pBuffer;
-            while( ul < pTable->uiRecInBuf )
+            while( ul < pTable->uiRecInBuf - ulSkips )
             {
-               ul++;  /* increment here ! */
                pTable->ptrBuf += HB_GET_LE_UINT24( pTable->ptrBuf ) + 3;
                if( leto_OutBuffer( &pTable->Buffer, ( char * ) pTable->ptrBuf ) )
                {
-                  ul = 0;
+                  fFound = HB_FALSE;
                   break;
                }
+               else
+                  ul++;
             }
-            if( ul && ul == pTable->uiRecInBuf )
+            pTable->uiRecInBuf -= ulSkips;
+            if( fFound )
                ul = ulSkips;
+            else
+               ul = 0;
          }
 
-         if( ul == ulSkips )  /* && HB_GET_LE_UINT24( pTable->ptrBuf ) ) */
+         if( ul == ulSkips )
          {
             leto_ParseRecord( pConnection, pTable, ( char * ) pTable->ptrBuf );
             pTable->Buffer.ulShoots++;
@@ -3908,6 +3913,7 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
    {
       leto_setSkipBuf( pTable, ptr, ulDataLen );
       pTable->BufDirection = ( lToSkip > 0 ? 1 : -1 );
+      pTable->uiRecInBuf = 0;
    }
    else if( pTable->ulRecNo != ulRecNo )  /* active record changed because possible filter active */
       pTable->ptrBuf = NULL;
@@ -4268,7 +4274,7 @@ HB_EXPORT HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagNa
        && ( ! szFor || ! *szFor ) && ( ! szWhile || ! *szWhile ) && ! ulNext )
       uiFlags |= LETO_INDEX_ALL;
 
-   ulLen = eprintf( szData, "%c;%lu;%s;%s;%s;%c;%s;%s;%c;%lu;%lu;%s;%c;%c;%c;%c;%c;%c;", LETOCMD_creat_i,
+   ulLen = eprintf( szData, "%c;%lu;%s;%s;%s;%c;%s;%s;%c;%lu;%lu;%s;%c;%c;%c;%c;%c%c%c;", LETOCMD_creat_i,
                     pTable->hTable,
                     szBagName ? szBagName : "",
                     szTag ? szTag : "",
@@ -4285,6 +4291,7 @@ HB_EXPORT HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagNa
                     ( uiFlags & LETO_INDEX_CUST ) ? 'T' : 'F',
                     ( uiFlags & LETO_INDEX_ADD )  ? 'T' : 'F',
                     ( uiFlags & LETO_INDEX_TEMP ) ? 'T' : 'F',
+                    ( uiFlags & LETO_INDEX_EXCL ) ? 'T' : 'F',
                     ( uiFlags & LETO_INDEX_FILT ) ? 'T' : 'F' );
    if( ( uiFlags & LETO_INDEX_USEI ) && pTable->pTagCurrent )
       ulLen += eprintf( szData + ulLen, "%s;", pTable->pTagCurrent->TagName );

@@ -76,6 +76,7 @@
 #define LETO_INDEX_TEMP    64
 #define LETO_INDEX_FILT    128
 #define LETO_INDEX_USEI    256
+#define LETO_INDEX_EXCL    512
 
 #define leto_firstchar( pConnection )  pConnection->szBuffer + 1
 

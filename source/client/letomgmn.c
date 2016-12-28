@@ -504,6 +504,7 @@ HB_FUNC( LETO_CONNECT )
    {
       if( HB_ISNUM( 5 ) )
          pConnection->iBufRefreshTime = hb_parni( 5 );
+      hb_rddDefaultDrv( "LETO" );
       iRet = pConnection->iConnection;
    }
 

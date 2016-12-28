@@ -2594,6 +2594,7 @@ static PINDEXSTRU leto_InitIndex( PUSERSTRU pUStru, const char * szTagName, cons
 
       pIStru->szFullPath = ( char * ) hb_xgrab( hb_itemGetCLen( pOrderInfo.itmResult ) + 1 );
       strcpy( pIStru->szFullPath, hb_itemGetCPtr( pOrderInfo.itmResult ) );
+      /* ToDo bShared versus bTemporary -- HArbour misses real filename etc. */
       bProduction = leto_ProdIndex( szTable, pIStru->szFullPath );
 
       ui = s_uiDataPathLen;
@@ -13205,7 +13206,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
    AREAP        pArea;
    PHB_FNAME    pFilePath;
    HB_ERRCODE   errcode = HB_SUCCESS;
-   HB_BOOL      bLeadSep, bMemIO, bUnique, bAll, bRest, bDescend, bCustom, bAdditive, bTemporary, bFilter;
+   HB_BOOL      bLeadSep, bMemIO, bUnique, bAll, bRest, bDescend, bCustom, bAdditive, bTemporary, bExclusive, bFilter;
    HB_BOOL      bUseCur = HB_FALSE;
    HB_SIZE      nLen = 0;
    HB_ULONG     ulRecNo, ulNext, ulRecord;
@@ -13393,7 +13394,8 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
          bTemporary = ( *pp4 == 'T' ? HB_TRUE : HB_FALSE );
       else
          bTemporary = HB_FALSE;  /*ToDo better throw an error */
-      pp4 += 2;
+      pp4++;
+      bExclusive = ( *pp4++ == 'T' ? HB_TRUE : HB_FALSE );
       bFilter = ( *pp4 == 'T' ? HB_TRUE : HB_FALSE );
       pp4 += 2;
       ptr3 += 12;
@@ -13423,13 +13425,15 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
          pData = szErr2;
       else
       {
+         LPDBORDERCONDINFO lpdbOrdCondInfo = NULL;
+
          hb_xvmSeqBegin();
          hb_rddSetNetErr( HB_FALSE );
 
          if( *szFor || *szWhile || ulRecNo || ulNext || ulRecord ||
-             bDescend || bAll || bRest || bAdditive || bCustom || bTemporary || bFilter || bUseCur )
+             bDescend || bAll || bRest || bAdditive || bCustom || bTemporary || bExclusive || bFilter || bUseCur )
          {
-            LPDBORDERCONDINFO lpdbOrdCondInfo;
+            //LPDBORDERCONDINFO lpdbOrdCondInfo;
             PHB_ITEM pItem = hb_itemNew( NULL );
 
             lpdbOrdCondInfo = ( LPDBORDERCONDINFO ) hb_xgrab( sizeof( DBORDERCONDINFO ) );
@@ -13481,8 +13485,8 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
             lpdbOrdCondInfo->fCustom = bCustom;
             lpdbOrdCondInfo->fNoOptimize = HB_FALSE;  // determine if RDD supports it
             lpdbOrdCondInfo->fTemporary = bTemporary;
+            lpdbOrdCondInfo->fExclusive = bExclusive;
             lpdbOrdCondInfo->fUseFilter = bFilter;
-            lpdbOrdCondInfo->fExclusive = HB_FALSE;
 
             if( lpdbOrdCondInfo->itmCobWhile )
                lpdbOrdCondInfo->fRest = HB_TRUE;
@@ -13510,6 +13514,8 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
                sprintf( szReply, "%s%s", "-011", pUStru->szHbError + 4 );
             else
                sprintf( szReply, "%s%s%s", szErr4, ":21-1006-0-0\t", szFile );  /* EBDF_CREATE_INDEX */
+            if( lpdbOrdCondInfo )
+               SELF_ORDSETCOND( pArea, NULL );
          }
          else
          {
@@ -13522,7 +13528,13 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
             HB_GC_LOCKT();
 
             /* check if index Bag in use by other -- different check for s_bNoSaveWA */
-            if( ! ( s_bNoSaveWA && ! pTStru->bMemIO ) )
+            if( bTemporary || bExclusive )
+            {
+               if( s_iDebugMode > 10 )
+                  leto_wUsLog( pUStru, -1, "DEBUG leto_CreateIndex %s-index: %s", bExclusive ? "exclusive" : "temporary" , szFileName );
+               /* ToDo  filename wrong for temporary */
+            }
+            else if( ! ( s_bNoSaveWA && ! pTStru->bMemIO ) )
             {
                HB_USHORT uo = 0;
 
@@ -13564,6 +13576,8 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
                   leto_wUsLog( pUStru, -1, "DEBUG leto_CreateIndex Tag: %s %s", szFile, "in use by other" );
                errcode = HB_FAILURE;
                sprintf( szReply, "%s%s%s%s", szErr4, ":21-1006-0-0\t", szFile, " in use by other" );  /* EBDF_CREATE_INDEX */
+               if( lpdbOrdCondInfo )
+                  SELF_ORDSETCOND( pArea, NULL );
             }
 
             if( errcode == HB_SUCCESS )

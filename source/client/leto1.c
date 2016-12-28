@@ -3452,6 +3452,7 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
                  ( lpdbOrdCondInfo->fCustom ? LETO_INDEX_CUST : 0 ) |
                  ( lpdbOrdCondInfo->fAdditive ? LETO_INDEX_ADD : 0 ) |
                  ( lpdbOrdCondInfo->fTemporary ? LETO_INDEX_TEMP : 0 ) |
+                 ( lpdbOrdCondInfo->fExclusive ? LETO_INDEX_EXCL : 0 ) |
                  ( lpdbOrdCondInfo->fUseFilter ? LETO_INDEX_FILT : 0 );
 
    /* close all index order, re-register the orders reported by server after creating the new order */

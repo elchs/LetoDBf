@@ -258,6 +258,9 @@ A. Internals
       Pass_for_Manage = 0      -    if 1, user authentication is necessary to use management functions,
                                     e.g. run the monitor console [ Leto_mggetinfo() ]
       Pass_for_Data = 0        -    if 1, user authentication is necessary to have write access to the data;
+      Server_UID = 0                The User-ID and Group-ID for the Linux server to run as daemon.
+      Server_GID = 0                Your DBF tables will get this IDs, important for choosing the rights access rights.
+                                    Default is empty, then this will be the U-ID and G-ID who started the server.
       Pass_File = "leto_users" -    the path and name of users info file;
       Max_Vars_Number = 1000   -    Maximum number of shared variables
       Max_Var_Size = 67108864  -    Maximim size in sum of all text/ array variables, default 64 MB.
@@ -1424,6 +1427,10 @@ A. Internals
    # ALIAS() names for HbMemIO tables ( these with "mem:" prefix ) are always the same
      as the name of the DBF itself. It is not possible to give it another ALIAS, so you
      can open such a table only once per connection.
+   # You cannot use *in your UDF* in mode No_Save_WA=0 !! [ the very only exception ] ALIAS names
+    "Exxxxx", where "xxxxx" is a numeric value, aka: "E123" :-)
+   # Using temporary index orders [ created in Server OS temporary path ] are only possible in
+     mode: NO_Save_Wa = 1.
 
 
 -------------
