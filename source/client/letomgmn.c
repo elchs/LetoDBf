@@ -153,7 +153,7 @@ static LETOCONNECTION * letoParseFile( const char * szSource, char * szFile )
           pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE );
    }
    else
-      hb_strncpy( szFile, leto_RemoveIpFromPath( szSource ), HB_PATH_MAX  );
+      hb_strncpy( szFile, leto_RemoveIpFromPath( szSource ), HB_PATH_MAX - 1 );
 
    return pConnection;
 }
@@ -172,7 +172,7 @@ static LETOCONNECTION * letoParseParam( const char * szParam, char * szFile )
    else
    {
       pConnection = letoGetCurrConn();
-      hb_strncpy( szFile, szParam, HB_PATH_MAX );
+      hb_strncpy( szFile, szParam, HB_PATH_MAX - 1 );
    }
    leto_BeautifyPath( szFile );
 
@@ -409,14 +409,9 @@ HB_FUNC( LETO_DIRECTORY )  /* ( cPathSpec, cAttributes ) */
             return;
          }
       }
-      else
-      {
-         hb_itemReturnRelease( hb_itemArrayNew( 0 ) );
-         return;
-      }
    }
 
-   hb_ret();
+   hb_itemReturnRelease( hb_itemArrayNew( 0 ) );
 }
 
 HB_FUNC( LETO_MAKEDIR )
@@ -534,12 +529,12 @@ HB_FUNC( LETO_SETCURRENTCONNECTION )
       char szAddr[ 96 ];
       int  iLen;
 
-      szAddr[ 0 ] = '/';  
+      szAddr[ 0 ] = '/';
       szAddr[ 1 ] = '/';
       strcpy( szAddr + 2, pConnection->pAddr );
       iLen = strlen( szAddr );
       szAddr[ iLen++ ] = ':';
-      iLen += ultostr( pConnection->iPort, szAddr + iLen ); 
+      iLen += ultostr( pConnection->iPort, szAddr + iLen );
       szAddr[ iLen++ ] = '/';
       szAddr[ iLen ] = '\0';
 
@@ -558,12 +553,12 @@ HB_FUNC( LETO_GETCURRENTCONNECTION )
       char szAddr[ 96 ];
       int  iLen;
 
-      szAddr[ 0 ] = '/';  
+      szAddr[ 0 ] = '/';
       szAddr[ 1 ] = '/';
       strcpy( szAddr + 2, pConnection->pAddr );
       iLen = strlen( szAddr );
       szAddr[ iLen++ ] = ':';
-      iLen += ultostr( pConnection->iPort, szAddr + iLen ); 
+      iLen += ultostr( pConnection->iPort, szAddr + iLen );
       szAddr[ iLen++ ] = '/';
       szAddr[ iLen ] = '\0';
 
@@ -1574,7 +1569,6 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
             else
                hb_stor( 5 );
          }
-
       }
       else
       {

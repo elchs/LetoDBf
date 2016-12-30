@@ -2728,7 +2728,7 @@ static HB_ERRCODE letoSysName( LETOAREAP pArea, HB_BYTE * pBuffer )
    HB_TRACE( HB_TR_DEBUG, ( "letoSysName(%p, %p)", pArea, pBuffer ) );
 
    HB_SYMBOL_UNUSED( pArea );
-   hb_strncpy( ( char * ) pBuffer, "LETO", HB_RDD_MAX_DRIVERNAME_LEN );
+   hb_strncpy( ( char * ) pBuffer, "LETO", HB_RDD_MAX_DRIVERNAME_LEN - 1 );
    return HB_SUCCESS;
 }
 
@@ -3268,8 +3268,7 @@ static HB_ERRCODE letoOrderListDelete( LETOAREAP pArea, LPDBORDERINFO pOrderInfo
       HB_USHORT uiLen;
       char *    ptr;
 
-      hb_strncpy( szBagName, leto_RemoveIpFromPath( hb_itemGetCPtr( pOrderInfo->atomBagName ) ),
-                  HB_PATH_MAX - 1 );
+      hb_strncpy( szBagName, leto_RemoveIpFromPath( hb_itemGetCPtr( pOrderInfo->atomBagName ) ), HB_PATH_MAX - 1 );
       if( strchr( szBagName, ';' ) != NULL )
          return HB_FAILURE;
       if( ! *szBagName )
@@ -3420,7 +3419,7 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
       szBagName = NULL;
 
    if( pOrderInfo->atomBagName && *pOrderInfo->atomBagName )
-      hb_strncpy( szTag, pOrderInfo->atomBagName, LETO_MAX_TAGNAME + 1 );
+      hb_strncpy( szTag, pOrderInfo->atomBagName, LETO_MAX_TAGNAME );
    else if( szBagName && ! pTable->uiDriver )  /* for NTX create a TAG from BAG */
    {
       PHB_FNAME    pFilePath = hb_fsFNameSplit( szBagName );
@@ -3435,7 +3434,7 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
          if( ptr2 )
             ptr = ptr2 + 1;
       }
-      hb_strncpy( szTag, ptr, LETO_MAX_TAGNAME + 1 );
+      hb_strncpy( szTag, ptr, LETO_MAX_TAGNAME );
       hb_xfree( pFilePath );
       szTag[ LETO_MAX_TAGNAME ] = '\0';
    }
@@ -5932,7 +5931,7 @@ HB_FUNC( LETO_MEMOISEMPTY )
 {
    HB_BOOL   fEmpty = HB_TRUE;  /* return HB_TRUE for all param errors and also not memofields */
    int       iArea = 0;
-   LETOAREAP pArea = NULL;
+   LETOAREAP pArea;
 
    if( HB_ISCHAR( 2 ) )
    {

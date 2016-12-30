@@ -2,6 +2,26 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-30 10:11 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/server/letovars.c
+    * some BCC warnings
+    ! too long ? value for hb_snprintf
+
+  * source/client/letomgmn.c
+    * return in any case of error an [empty] array for LETO_DIRECTORY()
+
+  * source/server/letofunc.c
+    ! FIX for older compiler, too much alloc at stack, put at heap
+    * cleaning homebrew conversions for FT_FLOAT and FT_LONG
+    + add fExlusive in LETO_ORDCREATE()
+    ; ToDo same param order as in Harbour
+
+  * utils/backup/letobackup.prg
+  * utils/manager/console.prg
+    ! == comparison
+    * refresh in case of no input
+
 2016-12-28 11:11 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/leto1.c

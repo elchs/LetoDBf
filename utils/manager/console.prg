@@ -111,13 +111,13 @@ FUNCTION Main( cAddress, cUser, cPasswd )
 
    if ! Empty(aIni)
       for each ai in aIni[1, 2]
-         if ai[1] = "SERVER"
+         if ai[1] == "SERVER"
             cAddress := ai[2]
-         elseif ai[1] = "PORT"
+         elseif ai[1] == "PORT"
             cPort := ai[2]
-         elseif ai[1] = "USER"
+         elseif ai[1] == "USER"
             cUser := ai[2]
-         elseif ai[1] = "PASSWORD"
+         elseif ai[1] == "PASSWORD"
             cPasswd := ai[2]
          endif
       next
@@ -891,13 +891,13 @@ FUNCTION memologger( nMode, nLine, nCol )
    DO CASE
       CASE nMode == ME_IDLE
          nKey := INKEY( ( s_nRefresh / 1000 ) ) 
-         IF hb_MilliSeconds() - nUpTime > s_nRefresh
+         IF nKey == 0 .AND. hb_MilliSeconds() - nUpTime > s_nRefresh
             hb_keyPut( K_CTRL_W )
          ELSE
             hb_keyPut( nKey )
          ENDIF
       CASE nMode == ME_INIT
-         nUpTime := hb_MilliSeconds() 
+         nUpTime := hb_MilliSeconds()
          hb_keyPut( K_CTRL_PGDN )
       CASE nMode == ME_UNKEY
          nKey := LASTKEY()
@@ -920,7 +920,7 @@ STATIC FUNCTION ViewLogs( nConnection )
    ELSE
       cSave := SAVESCREEN( 8, 0, MAXROW(), MAXCOL() )
       DO WHILE .T.
-         memoedit( cText, 8, 0, MAXROW(), MAXCOL(), .F.,"memologger",1024 )
+         memoedit( cText, 8, 0, MAXROW(), MAXCOL(), .F.,"memologger", 1024 )
          IF LASTKEY() != K_ESC
             IF ! BasicInfo()  /* server down */
                EXIT

@@ -496,7 +496,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
             leto_SendAnswer( pUStru, szErr3, 4 );
          else
          {
-            if( ! pItem && ( *pp3 < LETOVAR_STR || ( pValLength <= s_ulVarLenAllMax >> 2 &&
+            if( ! pItem && ( *pp3 < LETOVAR_STR || ( pValLength <= ( s_ulVarLenAllMax >> 2 ) &&
                              s_ulVarLenAll + pValLength <= s_ulVarLenAllMax ) ) )
                pItem = leto_var_create( pUStru, pGroup, pVarGroup, pVar, cFlag1 );
             if( ! pItem )
@@ -507,7 +507,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                leto_SendAnswer( pUStru, szErrAcc, 4 );
             else
             {
-               if( *pp3 >= LETOVAR_STR && ( pValLength > s_ulVarLenAllMax >> 2 ||
+               if( *pp3 >= LETOVAR_STR && ( pValLength > ( s_ulVarLenAllMax >> 2 ) ||
                    s_ulVarLenAll + pValLength - pItem->item.asString.length > s_ulVarLenAllMax ) )
                   leto_SendAnswer( pUStru, szErr3, 4 );
                else
@@ -917,7 +917,7 @@ HB_FUNC( LETO_VARSET )
          }
          else if( HB_ISCHAR( 3 ) )
          {
-           if( hb_parclen( 3 ) <= s_ulVarLenAllMax >> 2 &&
+           if( hb_parclen( 3 ) <= ( s_ulVarLenAllMax >> 2 ) &&
                s_ulVarLenAll + hb_parclen( 3 ) - pItem->item.asString.length <= s_ulVarLenAllMax )
               leto_var_set_str( pItem, hb_parc( 3 ), hb_parclen( 3 ) );
            pItem->type = LETOVAR_STR;
@@ -927,7 +927,7 @@ HB_FUNC( LETO_VARSET )
             HB_SIZE nSize = 0;
             char *  pArr = hb_itemSerialize( hb_param( 3, HB_IT_ARRAY ), HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
 
-            if( nSize <= s_ulVarLenAllMax >> 2 &&
+            if( nSize <= ( s_ulVarLenAllMax >> 2 ) &&
                 s_ulVarLenAll + nSize - pItem->item.asString.length <= s_ulVarLenAllMax )
                leto_var_set_str( pItem, pArr, nSize );
             pItem->type = LETOVAR_ARR;

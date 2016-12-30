@@ -112,31 +112,31 @@ Function Main( cAddress, cUser, cPasswd )
 
    if ! Empty(aIni)
       for each ai in aIni[1, 2]
-         if ai[1] = "SERVER"
+         if ai[1] == "SERVER"
             cAddress := ai[2]
-         elseif ai[1] = "PORT"
+         elseif ai[1] == "PORT"
             cPort := ai[2]
-         elseif ai[1] = "USER"
+         elseif ai[1] == "USER"
             cUser := ai[2]
-         elseif ai[1] = "PASSWORD"
+         elseif ai[1] == "PASSWORD"
             cPasswd := ai[2]
-         elseif ai[1] = "DATAPATH"
+         elseif ai[1] == "DATAPATH"
             cDB := ai[2]
-         elseif ai[1] = "DATABASE"
+         elseif ai[1] == "DATABASE"
             cDir := ai[2]
-         elseif ai[1] = "DEFAULT_DRIVER"
+         elseif ai[1] == "DEFAULT_DRIVER"
             cDriver := "DBF" + ai[2]
-         elseif ai[1] = "BACKUP"
+         elseif ai[1] == "BACKUP"
             cOutDir := ai[2]
-         elseif ai[1] = "MASK"
+         elseif ai[1] == "MASK"
             cMask := ai[2]
-         elseif ai[1] = "LOCK"
+         elseif ai[1] == "LOCK"
             lLock := ( IniParam(ai[2]) = "1")
-         elseif ai[1] = "SECONDS"
+         elseif ai[1] == "SECONDS"
             nSecs := Val(ai[2])
-         elseif ai[1] = "WAIT"
+         elseif ai[1] == "WAIT"
             lWait := ( IniParam(ai[2]) = "1")
-         elseif ai[1] = "ARCCMD"
+         elseif ai[1] == "ARCCMD"
             cArc := ai[2]
          endif
       next
