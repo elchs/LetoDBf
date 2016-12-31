@@ -313,7 +313,12 @@ void leto_SrvShutDown( unsigned int uiWait )
 #  define LETO_SOCK_IS_EINTR( err )  ( ( err ) == EINTR )
 #endif
 
+
+#if defined( __BORLANDC__ )
 static HB_ULONG leto_SockSend( HB_SOCKET hSocket, const char * pBuf, HB_ULONG ulLen, PHB_ZNETSTREAM zstream, int flags )
+#else
+static _HB_INLINE_ HB_ULONG leto_SockSend( HB_SOCKET hSocket, const char * pBuf, HB_ULONG ulLen, PHB_ZNETSTREAM zstream, int flags )
+#endif
 {
    HB_ULONG ulSend = 0;
    long     lTmp;
@@ -339,7 +344,6 @@ static HB_ULONG leto_SockSend( HB_SOCKET hSocket, const char * pBuf, HB_ULONG ul
       else
 #endif
       {
-#if 1
          lTmp = send( hSocket, ( const char * ) ( pBuf + ulSend ), ulLen - ulSend, flags );
          if( lTmp < 1 )
          {
@@ -347,10 +351,6 @@ static HB_ULONG leto_SockSend( HB_SOCKET hSocket, const char * pBuf, HB_ULONG ul
                continue;
             lTmp = 0;
          }
-#else
-         /* attention: hb_socketSend() leaves with with hb_vmlock() */
-         lTmp = lLast = hb_socketSend( hSocket, pBuf + ulSend, ulLen - ulSend, flags, s_iTimeOut );
-#endif
       }
 
       if( lTmp > 0 )
@@ -370,11 +370,11 @@ static HB_ULONG leto_SockSend( HB_SOCKET hSocket, const char * pBuf, HB_ULONG ul
 #ifndef USE_LZ4
    if( zstream && lLast > 0 )
    {
-#if defined( __HARBOUR30__ )  /* 26.08.2015 new param --> hb_sockexFlush() */
+   #if defined( __HARBOUR30__ )  /* 26.08.2015 new param --> hb_sockexFlush() */
       if( hb_znetFlush( zstream, hSocket, -1 ) != 0 )
-#else
+   #else
       if( hb_znetFlush( zstream, hSocket, -1, HB_FALSE ) != 0 )
-#endif
+   #endif
       {
          leto_writelog( NULL, 0, "DEBUG not flushed" );
          if( hb_znetError( zstream ) != 0 )
@@ -674,7 +674,11 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
 #if ! defined( MSG_MORE )
    HB_BOOL bUseBuffer = HB_TRUE;
 #else
-   HB_BOOL bUseBuffer = pUStru->zstream ? HB_TRUE : HB_FALSE;
+   #ifdef USE_LZ4
+      HB_BOOL bUseBuffer = pUStru->zstream ? hb_lz4netEncryptTest( pUStru->zstream, ulLen ) : HB_FALSE;
+   #else
+      HB_BOOL bUseBuffer = pUStru->zstream ? HB_TRUE : HB_FALSE;
+   #endif
 #endif
 
    /* free the area before sending the answer */
@@ -702,16 +706,16 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
 
    hb_vmUnlock();
 
-   if( pUStru->zstream )
+   if( pUStru->zstream && bUseBuffer )
    {
-#ifndef USE_LZ4
+#ifdef USE_LZ4
+      ulLen = hb_lz4netEncrypt( pUStru->zstream, ( char ** ) &pUStru->pSendBuffer, ulLen, &pUStru->ulSndBufLen, szData );
+      pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, NULL, 0 );
+#else
       HB_PUT_LE_UINT32( pUStru->pSendBuffer, ulLen );
       memcpy( pUStru->pSendBuffer + LETO_MSGSIZE_LEN, szData, ulLen );
       ulLen += LETO_MSGSIZE_LEN;
       pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, pUStru->zstream, 0 );
-#else
-      ulLen = hb_lz4netEncrypt( pUStru->zstream, ( char ** ) &pUStru->pSendBuffer, ulLen, &pUStru->ulSndBufLen, szData );
-      pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, NULL, 0 );
 #endif
    }
    else

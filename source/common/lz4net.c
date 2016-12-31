@@ -71,7 +71,7 @@
 #include <lz4hc.h>
 #endif
 
-#define LZ4_COMPRESS_MINLENGTH  64     /* 5 is logical minimum: min. +1 LZ4 overhead, +4 for uncomp. length */
+#define LZ4_COMPRESS_MINLENGTH  384    /* 5 is logical minimum: min. +1 LZ4 overhead, +4 for uncomp. length */
 #define LZ4_BUFFER_DEFSIZE      65536  /* min default buffer size, alloc + 1 */
 
 typedef struct _HB_LZ4NET

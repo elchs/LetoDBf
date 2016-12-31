@@ -74,8 +74,11 @@
 #include "rddleto.ch"
 
 #if defined( HB_OS_UNIX )
+   #if defined( HB_OS_LINUX ) && ! defined( __USE_GNU )
+      #define __USE_GNU
+   #endif
    #include <unistd.h>
-   #include <sys/socket.h>   // MSG_MORE
+   #include <sys/socket.h>   /* only with above __USE_GNU: MSG_MORE flag */
    #if defined( _POSIX_C_SOURCE ) && _POSIX_C_SOURCE >= 200112L
       #define HB_HAS_POLL
       #include <poll.h>
@@ -236,7 +239,7 @@ typedef struct
    unsigned int      uiEpoch;
    HB_BOOL           bDeleted;                /* value to spare unnecessary leto_setSetDeleted() calls */
    char              szAccess[ 2 ];
-   char              cDopcode[ LETO_DOPCODE_LEN ];   /* random bytes > 0 flexible mixed into LETO_PASSWORD */
+   char              cDopcode[ LETO_DOPCODE_LEN + 1 ];   /* random bytes > 0 flexible mixed into LETO_PASSWORD */
    HB_BOOL           bLastAct;                /* temporary value, internal used as replace for void return value */
    HB_I64            llLastAct;               /* seconds ago of last activity */
    HB_U64            ullCPULoad;              /* milliseconds sum of server CPU load for requests except network time */

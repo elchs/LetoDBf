@@ -2576,7 +2576,15 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
          int iBufRefreshTime = pTable->iBufRefreshTime;
 
          if( HB_IS_NUMERIC( pItem ) )
-            pTable->iBufRefreshTime = hb_itemGetNI( pItem );
+         {
+            if( hb_itemGetNI( pItem ) < -1 )
+               pTable->iBufRefreshTime = -2;
+            else
+               pTable->iBufRefreshTime = hb_itemGetNI( pItem );
+         }
+
+         if( iBufRefreshTime < -1 )
+             iBufRefreshTime = pConnection->iBufRefreshTime;
          hb_itemPutNI( pItem, iBufRefreshTime );
          break;
       }
@@ -2728,7 +2736,7 @@ static HB_ERRCODE letoSysName( LETOAREAP pArea, HB_BYTE * pBuffer )
    HB_TRACE( HB_TR_DEBUG, ( "letoSysName(%p, %p)", pArea, pBuffer ) );
 
    HB_SYMBOL_UNUSED( pArea );
-   hb_strncpy( ( char * ) pBuffer, "LETO", HB_RDD_MAX_DRIVERNAME_LEN - 1 );
+   strcpy( ( char * ) pBuffer, "LETO" );
    return HB_SUCCESS;
 }
 
@@ -3436,7 +3444,6 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
       }
       hb_strncpy( szTag, ptr, LETO_MAX_TAGNAME );
       hb_xfree( pFilePath );
-      szTag[ LETO_MAX_TAGNAME ] = '\0';
    }
    else
       szTag[ 0 ] = '\0';

@@ -57,8 +57,11 @@
 #include "rddleto.h"
 
 #if defined( HB_OS_UNIX )
+   #if defined( HB_OS_LINUX ) && ! defined( __USE_GNU )
+      #define __USE_GNU
+   #endif
    #include <unistd.h>
-   #include <sys/socket.h>   /* MSG_MORE */
+   #include <sys/socket.h>   /* only with above __USE_GNU: MSG_MORE flag */
    #if defined( _POSIX_C_SOURCE ) && _POSIX_C_SOURCE >= 200112L
       #define HB_HAS_POLL
       #include <poll.h>
@@ -1565,9 +1568,9 @@ static _HB_INLINE_ void leto_AllocBuf( LETOBUFFER * pLetoBuf, unsigned long ulDa
    /* pLetoBuf->fSetDeleted = hb_setGetDeleted(); */
 }
 
-static HB_BOOL leto_HotBuffer( LETOTABLE * pTable, LETOBUFFER * pLetoBuf, int iBufRefreshTime )
+static _HB_INLINE_ HB_BOOL leto_HotBuffer( LETOTABLE * pTable, LETOBUFFER * pLetoBuf, int iBufRefreshTime )
 {
-   if( pTable->iBufRefreshTime >= 0 )
+   if( pTable->iBufRefreshTime >= -1 )
       iBufRefreshTime = pTable->iBufRefreshTime;
 
    /* REMOVED: .. && ( pLetoBuf->fSetDeleted == hb_setGetDeleted() ); */
@@ -3230,7 +3233,7 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
 
    pTable = ( LETOTABLE * ) hb_xgrabz( sizeof( LETOTABLE ) );
    pTable->uiConnection = pConnection->iConnection;
-   pTable->iBufRefreshTime = -1;
+   pTable->iBufRefreshTime = -2;
    pTable->fShared = pTable->fReadonly = pTable->fEncrypted = HB_FALSE;
 
    pTable->pLocksPos = NULL;
@@ -3298,7 +3301,7 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    pTable->fShared = fShared;
    pTable->fReadonly = fReadOnly;
    pTable->fEncrypted = HB_FALSE;
-   pTable->iBufRefreshTime = -1;
+   pTable->iBufRefreshTime = -2;
 
    pTable->pLocksPos = NULL;
    pTable->ulLocksMax = pTable->ulLocksAlloc = 0;
@@ -3840,6 +3843,7 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
    HB_ULONG         ulDataLen, ulRecNo = pTable->ulRecNo;
+   HB_BOOL          fHotBuffer;
    const char *     ptr;
    char             sData[ 42 ];
 
@@ -3900,9 +3904,14 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
       }
    }
 
+   if( pTable->iBufRefreshTime >= -1 )
+      fHotBuffer = pTable->iBufRefreshTime >= 0;
+   else
+      fHotBuffer = pConnection->iBufRefreshTime >= 0;
    /* fetch fresh data, if lToSkip == 0 will fetch only one */
-   ulDataLen = eprintf( sData, "%c;%lu;%ld;%lu;%c;", LETOCMD_skip, pTable->hTable, lToSkip,
-                        pTable->ulRecNo, ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
+   ulDataLen = eprintf( sData, "%c;%lu;%ld;%lu;%c;%c;", LETOCMD_skip, pTable->hTable, lToSkip,
+                        pTable->ulRecNo, ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ),
+                        fHotBuffer ? 'T' : 'F'  );
    ulDataLen = leto_SendRecv( pConnection, sData, ulDataLen, 1020 );
    if( ! ulDataLen-- )  /* first char is '+' */
       return 1;

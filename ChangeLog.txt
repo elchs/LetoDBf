@@ -2,6 +2,34 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2016-12-31 15:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/rddleto.ch
+  * include/funcleto.
+    * move 4 DBI_* constants into user space
+
+  * include/srvleto.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/leto_2.c
+  * source/common/lz4net.c
+    + possible disabling skipbuffer per table, new default '-2' == no specific
+      timeout per table; transfer disabled skipbuffer setting to server
+    * increase min size to compress
+    % reactivate the use of MSG_MORE flag for Linux! machines
+    ; this maybe don't increase network performance, but will significant
+      lower CPU load as no extra buffer/ memcpy() is needed to compose message
+
+  * source/server/letofunc.c
+    * transfer only one record in case of disabled skipbuffer
+    % minors
+
+  * Readme.txt
+    + adding commands to manually start/ stop LetoDBf as service, thanks Leon
+    + comments on BCC, Variables, use of table specific skipbuffer timeout
+
+  ; had found the correct place of earlier problems with BCC and MsVc,
+    but analyse result was wrong: it was a stack variable buffer overflow :-(
+
 2016-12-30 10:11 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/server/letovars.c

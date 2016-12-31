@@ -6699,13 +6699,12 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
    PAREASTRU    pAStru = pUStru->pCurAStru;
    char *       szData1 = NULL;
    const char * pData = NULL;
-   const char * pRecNo, * pFlags;
+   const char * pRecNo, * pFlags, * pHotBuffer;
    HB_ULONG     ulRecNo;
    HB_ULONG     ulLen = 4;
    HB_LONG      lSkip;
-   HB_BOOL      bMutex;
-   HB_ERRCODE   errCode;
-   int          nParam = leto_GetParam( szData, &pRecNo, &pFlags, NULL, NULL );
+   HB_BOOL      bMutex, bHotBuffer;
+   int          nParam = leto_GetParam( szData, &pRecNo, &pFlags, &pHotBuffer, NULL );
 
    if( nParam < 3 || ! pArea )
       pData = szErr2;
@@ -6718,6 +6717,10 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
          pUStru->bDeleted = ( *pFlags & 0x01 );
          leto_setSetDeleted( pUStru->bDeleted );
       }
+      if( pHotBuffer )
+         bHotBuffer = *pHotBuffer == 'T';
+      else
+         bHotBuffer = HB_TRUE;
       bMutex = ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO && pAStru->itmFltExpr );
 
       if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
@@ -6741,8 +6744,7 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
        * it drastically improves performance to NOT let them do that simultanous */
       if( bMutex )
          HB_GC_LOCKA();
-      errCode = SELF_SKIP( pArea, lSkip );
-      if( errCode == HB_SUCCESS )
+      if( SELF_SKIP( pArea, lSkip ) == HB_SUCCESS )
       {
          HB_ULONG ulMemSize = leto_recLen( pAStru->pTStru ) * pAStru->uiSkipBuf;
          HB_ULONG ulLenAll;
@@ -6755,7 +6757,7 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
             pData = szErr2;
          else if( ! pAStru->bUseSkipBuffer )
             pAStru->bUseSkipBuffer = HB_TRUE;
-         else if( lSkip )
+         else if( lSkip && bHotBuffer )
          {
             HB_USHORT i = 1;
             HB_ULONG  ulLen2;
@@ -6772,8 +6774,7 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
                   break;
                else
                {
-                  errCode = SELF_SKIP( pArea, lSkip );
-                  if( errCode == HB_SUCCESS )
+                  if( SELF_SKIP( pArea, lSkip ) == HB_SUCCESS )
                   {
                      if( lSkip < 0 )
                      {
@@ -12927,6 +12928,7 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
    else
    {
       HB_ULONG ulRawLen = pUStru->ulDataLen - 2 - ( ptr - szRawData );
+
       szRawData = ( const char * ) ptr;
       pp1 = szRawData;
       while( ( HB_ULONG ) ( pp1 - szRawData ) < ulRawLen && *pp1 != ';' )
@@ -13219,6 +13221,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
    char *       szFileName = ( char * ) hb_xgrab( HB_PATH_MAX );
    char *       szFile = ( char * ) hb_xgrab( HB_PATH_MAX );
    char         szTagName[ LETO_MAX_TAGNAME + 1 ];
+   char         szDefaultExt[ HB_MAX_FILE_EXT + 1 ];
    unsigned int uiReplyBufLen = 1023;
    char *       szReply = hb_xgrab( uiReplyBufLen + 1 );
    char *       ptr, * ptr2, * ptr3;
@@ -13273,8 +13276,6 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
 
    if( errcode == HB_SUCCESS )
    {
-      char * szDefaultExt = ( char * ) hb_xgrab( HB_MAX_FILE_EXT + 1 );
-
       if( nLen )
          memcpy( szFileRaw, szRawData, nLen );
       else  /* derive production index filename from tablename */
@@ -13326,15 +13327,13 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
       {
          if( s_bLowerPath )
             hb_strLower( szDefaultExt, strlen( szDefaultExt ) );
-         pFilePath->szExtension = ( const char * ) szDefaultExt;
+         pFilePath->szExtension = szDefaultExt;
          strcpy( szFile + strlen( szFile ), szDefaultExt );
          strcpy( szFileName + strlen( szFileName ), szDefaultExt );
       }
-
       /* non default file extensions allowed ? */
       if( ! s_bAnyExt && leto_stricmp( pFilePath->szExtension, szDefaultExt ) )
          errcode = HB_FAILURE;
-      hb_xfree( szDefaultExt );
 
       if( s_bLowerPath )
       {

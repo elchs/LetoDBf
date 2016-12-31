@@ -79,6 +79,11 @@
 #define RDDI_VERSION          104
 #define RDDI_DEBUGLEVEL       110
 
+#define DBI_BUFREFRESHTIME    1001
+#define DBI_CLEARBUFFER       1002
+#define DBI_DBS_COUNTER       1003
+#define DBI_DBS_STEP          1004
+
 /* server config options */
 #define LETOOPT_cDataPath      1
 #define LETOOPT_nIndexType     2

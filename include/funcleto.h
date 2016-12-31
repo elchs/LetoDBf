@@ -107,11 +107,6 @@
 #define LETO_CDX                0
 #define LETO_NTX                1
 
-#define DBI_BUFREFRESHTIME      1001
-#define DBI_CLEARBUFFER         1002
-#define DBI_DBS_COUNTER         1003
-#define DBI_DBS_STEP            1004
-
 #if defined( __XHARBOUR__ )
    typedef unsigned char HB_BYTE;
    typedef int HB_BOOL;

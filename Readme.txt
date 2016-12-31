@@ -126,8 +126,15 @@ A. Internals
       2.2 Borland Win32 C++ compiler
       2.3 MS Visual C compiler
 
- For these both exists a make_b32.bat and a make_vc.bat. Look into, maybe adapt paths.
- You will know what to do, are on your own. I use them only for sporadic tests.
+ If the above described way to compile with ".hbp" files does not work:
+ for BCC and old older MsVc exists a make_b32.bat and a make_vc.bat. Look into, adapt OS search
+ paths to point to Harbour and your C-compiler executable. Further important is to set: "HB_PATH"
+ to point to the base directory of Harbour, e.g. "C:\harbour"
+ You will know what to do, are on your own. I use them only for sporadic compile tests.
+
+ BCC55 and maybe also newer ones have a problem with compiling LZ4 compression library, you will
+ get this case slower ZLib compression. This must fit together for client lib and server.
+ It is configured by this "{!bcc}" at top in the ".hbp" files.
 
 
       3. Running and stopping server
@@ -163,12 +170,15 @@ A. Internals
       letodb.exe install
 
  Verify in letodbf.log that the service was successful installed.
- With next Windows start, or after manually with the service management, LetoDBf server shell be active.
- Look again into log file.
+ With next Windows start, or by using GUI service management, or by shell command line:
+      net start LetoDbf_Service
+ the LetoDBf server shell get active. Look again into the log file.
+ Manually stopping the server should be possible at command line with:
+      net start LetoDbf_Service
 
  To deinstall service, run letodb with 'uninstall' parameter:
       letodb.exe uninstall
- and restart your Windows machine.
+ then restart your Windows machine.
 
 
       4. Server configuration
@@ -622,9 +632,9 @@ A. Internals
  Default is 120000 aka 2 minutes. '-1' means infinite wait. After that timespan, application will
  break with an error if no answer from server had been send.
  <nBufRefreshTime> defines the time interval in 0.01 second units. After this time is up,
- the records buffer will be refreshed, 100 by default (100/100 == 1 sec).
- Value zero (0) means infinite! caching, -1 will disable using the skip buffer. These extreme values
- should be applied only at special occasion and need.
+ the records skipbuffer will be refreshed, 100 by default ( 100/100 == 1 sec ).
+ Value zero (0) means infinite! caching, -1 will disable using the skip buffer. These both extreme
+ values should be applied only at very special! occasion and need.
  lZombieCheck = .F. disable check for dead connection and also the second socket
  for faster communication with the server. Default is .T.
  If you use in letodb.ini configuration point: Pass_for_Data = 1, it is advised to
@@ -634,7 +644,7 @@ A. Internals
       LETO_CONNECT_ERR( [ lAsText ] )                          ==> nError [ cError ]
 
  Retrieves the last occured error for active connection, not only after connect.
- With <lAsText> TRUE given a string with an description. 
+ With <lAsText> TRUE given a string with an description.
 
       LETO_DISCONNECT( [ cAddress ] )                          ==> lDisconnect
  Dis-connnect current connection, returns boolean if a connection is disconnected.
@@ -776,28 +786,38 @@ A. Internals
  If "#" symbol passed as field name in cFields, leto_groupby return a count of evaluated records in each group
 
       LETO_ISFLTOPTIM()                                        ==> lFilterOptimized
+
   To determine if an active filter in selected workarea is optimized [ aka executed only at server side ]
   or non-opimized [ server send all records to client, which then must decide itself for valid records. ]
   See 5.2 for more info.
 
       LETO_MEMOISEMPTY( cnField, cnAlias )                     ==> lEmpty ( TRUE for not a memofield )
+
   This is an optimzed function to very fast test, if a memofield of the current record is empty or not.
   The check will be done only at client side, so no network traffic to the server will occure.
   As it else would happen with a test like: EMPTY( FIELD->memofield ), for which the server will send the
   whole content of a memofield to the client, before client can decide if empty or not.
-  <cnField> cFIELDNAME or nFIELDPOS, <cnAlias> cALIAS or nSELECT or active WA if empty. 
+  <cnField> cFIELDNAME or nFIELDPOS, <cnAlias> cALIAS or nSELECT or active WA if empty.
 
-      DbInfo( DBI_BUFREFRESHTIME[, nNewVal])                   ==> nOldVal
-  Setting new value for only one specific workarea: skip and seek buffers refresh time in 0.01 sec.
-  If -1: connection setting is used. If 0 - buffers are used anyway.
+      DbInfo( DBI_BUFREFRESHTIME[, nNewSetting  ] )            ==> nOldVal
+
+ This returns the timeout value for the skipbuffer guilty for the this table, before an optional
+ new setting is applied with <nNewSetting>.
+ Default is no specific timeou to a table, aka to use the general connection timeout value.
+ With optional <nNewSetting> it can be applied a new setting only guilty for this specific table.
+ "-1 " == skipbuffer disabled, "0" == infinite skipbuffer, nHotBuffer > 0 == nHotBuffer / 100 seconds.
+ Above is also the possible range for <nNewSetting>, plus a value < -1 will disable again a specific
+ setting for this table. For the general timeout value see: Leto_Connect() function.
 
       DbInfo( DBI_CLEARBUFFER )
+
   This command clears the skip buffer, to force to get fresh data with next Dbskip( [ 0 ] )/ DbGo*().
 
 
       7.4 Additional rdd functions
 
       leto_CloseAll( [ cConnString | nConnection ] )           ==> nil
+
  Close all workareas for specified or default connection
 
       leto_DbDriver( [ "cNewDriver" ], [ "cMemoType" ], [ nBlocksize ] )
@@ -813,7 +833,8 @@ A. Internals
 
       7.5 Setting client paramenter
 
-      LETO_SETSKIPBUFFER( nSkip )                          ==> nSet (buffer statistic using)
+      LETO_SETSKIPBUFFER( nSkip )                              ==> nSet (buffer statistic using)
+
  This buffer is intended for optimization of multiple calls of skip.
  This function set size of cached records in a skip buffer for current workarea.
  By default, the size of skip buffer is CACHE_RECORDS server config value. Skip buffer is bidirectional.
@@ -821,11 +842,12 @@ A. Internals
  Minimum value is 1.
  If parameter <nSkip> is absent, function returns buffer statistic ( number of buffer hits )
  with given numeric value effective set size or 0 if no workarea was selected.
+ Related to the skipbuffer timeout see also 7.3: DbInfo( DBI_BUFREFRESHTIME ).
 
-      LETO_SETSEEKBUFFER( nRecsInBuf )                     ==> 0
+      LETO_SETSEEKBUFFER( nRecsInBuf )                         ==> 0
  ! DEPRECATED !
 
-      LETO_SETFASTAPPEND( lFastAppend )                    ==> .F.
+      LETO_SETFASTAPPEND( lFastAppend )                        ==> .F.
  ! DEPRECATED !
  because of ugly design problems. It is left as dummy function.
  If such functionality is really needed, encapsulate your request in a transaction.
@@ -1041,28 +1063,33 @@ A. Internals
 
       7.9 Server variable functions
 
+ Like a PUBLIC variable is for an application, this is something alike a public variable to all
+ the connections/ applications/ and the server itself to exchange/ access/ modify content of that.
+ The variables can be 'group-ed' into groups of variables, as example a group of variables used by
+ one specicfic application, or a group of variables only for the server itself.
+
       LETO_VARSET( cGroupName, cVarName, xValue [, nFlags [, @xRetValue]] )
                                                                ==> lSuccess
 
  This function assign value <xValue> to variable <cVarName> from group <cGroupName>.
- xValue can be:
+ <xValue> can be:
    boolean ( .T., .F. )
    integer ( without decimals, can be incremented and decremented )
-   decimal ( integer with decimals: 4.2 )
+   decimal ( integer with decimals, e.g. 4.321 )
    limited in size !:
    string  ( [NEW] also binary string, means containg any char like e.g. CHR( 0 ) )
-   array   ( [NEW] { ... } with any item type, unlimited in size )
+   array   ( [NEW] { ... } with any item type, limited in size )
 
  String/ array are limited by default to be all in sum max 64 MB, maximum can be changed in
  letodb.ini with config option "Max_Var_Size". A single string/ array limits to 1/4 of total
  maximum ( default 16 MB ).
  This is for security reasons, so that crazy users cannot fill up the whole server memory.
- It is only allowed to assign new value of same type to an existing variable.
+ It is only allowed to assign a new value of same type to an existing variable.
  Group- and Var- names are NOT trimmed of white spaces, but char: ';' is an invalid char.
 
  Optional parameter <nFlags> defines the variable create mode/ limitations.
- These flags can be combined by aggregating the constants:
- LETO_VCREAT    - if variable doesn't exist, it's created
+ These flags can be combined by aggregating ( + ) the constants:
+ LETO_VCREAT    - if variable doesn't exist, it is created
  LETO_VOWN      - own user variable (deleted after user disconnect)
  LETO_VDENYWR   - write deny for other users
  LETO_VDENYRD   - read deny for other users
@@ -1076,7 +1103,7 @@ A. Internals
       LETO_VARINCR( cGroupName, cVarName, nFlags )             ==> nValue
       LETO_VARDECR( cGroupName, cVarName, nFlags )             ==> nValue
 
- Function increments/ decrements integer value of variable <cVarName> of group <cGroupName>.
+ Function increment/ decrement integer value of variable <cVarName> of group <cGroupName>.
  ! Only allowed for integer [ INT() ] variables without decimals!
  Remark that e.g. a result of a division: 'x / y' is ever a decimal value.
  So if in doubt use INT( value ) when you want to create/ update such a variable.
@@ -1133,7 +1160,6 @@ A. Internals
  optional contains a server connection string, minimum is udf function name:
  [ //ip_address:port/ ]funcname
  A <funcname> function should be defined on the letodb server.
- The first parameter of udf function is nUserStru.
  Udf function can return result (any type) to client.
  Examples of udf-functions are in the tests/letoudf.prg
 
