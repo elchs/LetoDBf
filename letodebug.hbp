@@ -1,12 +1,10 @@
 #-env:__BM=yes
--env:__LZ4=yes
+{!bcc}-env:__LZ4=yes
 -env:__PMURHASH=yes
 
 # experimental !, only used only LETO_BACKUPTABLES()
 #{linux}-env:__SPLICE=yes
 
-
-#-inc
 -gc3
 -debug
 -obin/letodb
@@ -18,28 +16,35 @@
 -es0
 -mt
 #-plugin=plugrand.hb
-#{!win}-static
+{!win}-static
 {win}-fullstatic
 
 hbmemio.hbc
 hbct.hbc
--cflag=-g
+{__BM}rddbm.hbc
+
+#-warn=max
+
+# experimental for gcc >= 4.8 and clang >= 3.4
+#-cflag=-O1
+#-cflag=-fsanitize=address
+#-cflag=-fno-omit-frame-pointer
+#-ldflag=-fsanitize=address
+#-ldflag=-fno-omit-frame-pointer
+
 #-cflag=-DLETO_HBNONCONFORM=1
--cflag={win}-DHB_HELGRIND_FRIENDLY=1
+#-cflag={win}-DHB_HELGRIND_FRIENDLY=1
 #-prgflag={unix}-D__LINUX_DAEMON__
 -prgflag={unix}-D__CONSOLE__
--prgflag={unix}-D__LINUX__
-{__BM}-prgflag=-D__BM
-#-prgflag={win}-D__WIN_DAEMON__
--prgflag={win}-D__WIN_SERVICE__
+-prgflag={win}-D__WIN_DAEMON__
+#-prgflag={win}-D__WIN_SERVICE__
+#-cflag={win}-D__WIN_SERVICE__
 -cflag={allmsvc}-D_CRT_SECURE_NO_DEPRECATE
--cflag={win}-D__WIN_SERVICE__
+# if missing use {__BM}-lrddbm
+{__BM}-prgflag=-D__BM
 {__BM}-cflag=-D__BM
 {__LZ4}-cflag=-DUSE_LZ4
 {__PMURHASH}-cflag=-DUSE_PMURHASH=1
-#-gui
-# if missing use {__BM}-lrddbm
-{__BM}rddbm.hbc
 
 source/server/server.prg
 source/server/errorsys.prg
@@ -59,3 +64,4 @@ source/common/common.prg
 {__LZ4}source/3rd/lz4/lib/lz4.c
 {__LZ4}source/common/lz4net.c
 {__PMURHASH}source/common/PMurHash.c
+

@@ -30,29 +30,24 @@
 -es0
 -rebuild
 
-#-warn=max
+hbmemio.hbc
+hbct.hbc
+{__BM}rddbm.hbc
+
 -prgflag={unix}-D__LINUX_DAEMON__
 #-prgflag={unix}-D__CONSOLE__
--prgflag={unix}-D__LINUX__
-{__BM}-prgflag=-D__BM
 -prgflag={win}-D__WIN_DAEMON__
-#-prgflag={win}-D__WIN_SERVICE__
 #-cflag={win}-D__WIN_SERVICE__
+#-prgflag={win}-D__WIN_SERVICE__
 -cflag={allmsvc}-D_CRT_SECURE_NO_DEPRECATE
 -cflag={clang}-W
 -cflag={clang}-Wall
 -cflag={clang}-pedantic
 #-cflag={win}-DHB_HELGRIND_FRIENDLY=1
+{__BM}-prgflag=-D__BM
 {__BM}-cflag=-D__BM=1
 {__LZ4}-cflag=-DUSE_LZ4=1
 {__PMURHASH}-cflag=-DUSE_PMURHASH=1
-{__SPLICE}-cflag=-DUSE_SPLICE=1
-#-gui
--mt
-hbmemio.hbc
-hbct.hbc
-# if missing use {__BM}-lrddbm
-{__BM}rddbm.hbc
 
 source/server/server.prg
 source/server/errorsys.prg
@@ -73,6 +68,7 @@ source/common/common.prg
 {__LZ4}source/common/lz4net.c
 {__PMURHASH}source/common/PMurHash.c
 
+# move exectuable and ini file
 -instfile=misc:bin/letodb.ini
 {win}-instpath=misc:${hb_bin}/
 {unix}-instpath=misc:/etc/

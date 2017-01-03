@@ -74,10 +74,7 @@ REQUEST HB_MEMIO
    REQUEST BM_DBSEEKWILD
 #endif
 
-
-MEMVAR oApp
-
-#ifdef __LINUX__
+#if ! defined( __PLATFORM__WINDOWS )
    #ifndef __CONSOLE__
       ANNOUNCE HB_GTSYS
       REQUEST HB_GT_STD_DEFAULT
@@ -154,6 +151,8 @@ REQUEST LBM_DbSetFilterArrayDel, LBM_DbSetFilter
 
 #include "cmdleto.h"
 
+MEMVAR oApp
+
 STATIC s_cDirBase
 STATIC s_pHrb
 
@@ -208,10 +207,9 @@ PROCEDURE Main( cCommand, cData )
 
 #ifdef __CONSOLE__
 
-      AltD()
       CLS
-      @ 1, 5 SAY "Server listening ..."
-      @ 2, 5 SAY "Press [ESC] to terminate the program"
+      ? "Server up and listening ..."
+      ? "for shutdown call me again with param: stop"
       StartServer()
 
 #endif
@@ -439,7 +437,7 @@ METHOD New() CLASS HApp
    LOCAL lUDFEnabled := .F.
    LOCAL lSetTrigger := .F.
 
-#ifdef __LINUX__
+#if ! defined( __PLATFORM__WINDOWS )
 
    IF File( "/etc/" + cIniName )
       aIni := rdIni( "/etc/" + cIniName )

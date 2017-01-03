@@ -126,7 +126,7 @@ A. Internals
       2.2 Borland Win32 C++ compiler
       2.3 MS Visual C compiler
 
- If the above described way to compile with ".hbp" files does not work:
+ If the above described way to compile with ".hbp" files does not work ( wrong setup ?, no hbmk2 ),
  for BCC and old older MsVc exists a make_b32.bat and a make_vc.bat. Look into, adapt OS search
  paths to point to Harbour and your C-compiler executable. Further important is to set: "HB_PATH"
  to point to the base directory of Harbour, e.g. "C:\harbour"
@@ -269,7 +269,7 @@ A. Internals
                                     e.g. run the monitor console [ Leto_mggetinfo() ]
       Pass_for_Data = 0        -    if 1, user authentication is necessary to have write access to the data;
       Server_UID = 0                The User-ID and Group-ID for the Linux server to run as daemon.
-      Server_GID = 0                Your DBF tables will get this IDs, important for choosing the rights access rights.
+      Server_GID = 0                Your DBF tables will get this IDs, important for choosing the correct access rights.
                                     Default is empty, then this will be the U-ID and G-ID who started the server.
       Pass_File = "leto_users" -    the path and name of users info file;
       Max_Vars_Number = 1000   -    Maximum number of shared variables
@@ -1066,7 +1066,7 @@ A. Internals
  Like a PUBLIC variable is for an application, this is something alike a public variable to all
  the connections/ applications/ and the server itself to exchange/ access/ modify content of that.
  The variables can be 'group-ed' into groups of variables, as example a group of variables used by
- one specicfic application, or a group of variables only for the server itself.
+ one specific application, or a group of variables only for the server itself.
 
       LETO_VARSET( cGroupName, cVarName, xValue [, nFlags [, @xRetValue]] )
                                                                ==> lSuccess
@@ -1110,22 +1110,21 @@ A. Internals
 
       LETO_VARDEL( cGroupName[, cVarName ] )                   ==> lSuccess
 
- Without <cVarName>, all variable members of <cGroupName> and the group itself is deleted.
+ Without <cVarName>, all variable members of <cGroupName> and the group itself are deleted.
  With given <cVarName>, variable <cVarName> is deleted from group <cGroupName>.
 
       LETO_VARGETLIST( [cGroupName [, nMaxLen]] )              ==> aList
 
  Function return two-dimensional array with variables: { {<cVarName>, <value>}, ...}
  Array variables are displayed symbolic with a: "{ ... }".
+ <nMaxLen> relates to string variables, will cut them off at the given value.
 
-
- special:
       LETO_VARGETCACHED()                                      ==> xValue [NIL]
 
  It is an optimized form of LETO_VARGET( ... ) and like this can be used excellent in filter
  expressions. It returns the *last changed* LETO_VAR[SET|INCR|DECR]() variable *value*.
  ! To be used with care !
- When one *connection/user* set a variable, it will change the last cached value.
+ When one specific connection set a variable, it will change the last cached value.
  If then used in a filter condition, and type of value [ string, numeric, .. ] changed,
  the filter gets invalid !
  If none variable was set before by this connection, NIL value is returned.
@@ -1444,7 +1443,7 @@ A. Internals
     UDF   User Defined Function; in opposite to Harbour commands one defined by the user.
           Commonly containing Harbour commands.
     WA    work area; a logical environment representing a database table.
-          Commonly the have a name retrievable with ALIAS()
+          Commonly they have a name retrievable with ALIAS()
 
  Here some remarks on the fly, which are waiting for another place to be explained.
    # It is not possible, to overwrite an used DBF, aka a DbCreate() will fail with RTE
@@ -1457,6 +1456,8 @@ A. Internals
     "Exxxxx", where "xxxxx" is a numeric value, aka: "E123" :-)
    # Using temporary index orders [ created in Server OS temporary path ] are only possible in
      mode: NO_Save_Wa = 1.
+   # maximum numeric value for a field: "N", 20, 0 is: +/- 9223372036854775807
+     one more (or less) and rounding will occure with trailing zeroes
 
 
 -------------

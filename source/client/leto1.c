@@ -1040,11 +1040,9 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
       case HB_FT_LONG:
       {
          HB_MAXINT lVal;
-#ifdef _MSC_VER
          HB_BOOL fDbl;
          double  dVal;
 
-         /* elch to fix with faster version */
          fDbl = hb_strnToNum( ( const char * ) pTable->pRecord + pTable->pFieldOffset[ uiIndex ],
                               pField->uiLen, &lVal, &dVal );
          if( pField->uiDec )
@@ -1055,32 +1053,6 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
             hb_itemPutNDLen( pItem, dVal, ( int ) pField->uiLen, 0 );
          else
             hb_itemPutNIntLen( pItem, lVal, ( int ) pField->uiLen );
-#else    /* elch version with replace of hb_strnToNum() -> faster strtold()/ strtol()  */
-         char        szTmp[ 21 ];
-
-         memcpy( szTmp, pTable->pRecord + pTable->pFieldOffset[ uiIndex ], pField->uiLen );
-         szTmp[ pField->uiLen ] = '\0';
-         if( pField->uiDec )
-         {
-            long double ldVal;
-
-#ifdef __BORLANDC__
-            ldVal = _strtold( szTmp, NULL );
-#elif defined( __WATCOMC__ )
-            ldVal = ( long double ) strtod( szTmp, NULL );
-#else
-            ldVal = strtold( szTmp, NULL );
-#endif
-            hb_itemPutNDLen( pItem, ( double ) ldVal,
-                             ( int ) ( pField->uiLen - pField->uiDec - 1 ),
-                             ( int ) pField->uiDec );
-         }
-         else
-         {
-            lVal = strtol( szTmp, NULL, 10 );
-            hb_itemPutNIntLen( pItem, lVal, ( int ) pField->uiLen );
-         }
-#endif
          break;
       }
 
@@ -1124,7 +1096,7 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
          break;
       }
 
-      case HB_FT_FLOAT:  /* or treat it alike HB_FT_LONG ? */
+      case HB_FT_FLOAT:
       {
          char *  pszVal = ( char * ) pTable->pRecord + pTable->pFieldOffset[ uiIndex ];
          double  dVal = hb_strVal( pszVal, pField->uiLen );

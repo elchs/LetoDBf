@@ -2,6 +2,28 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-12-31 14:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * letodb.hbp
+  * letodbaddon.hbp
+  * letodebug.hbp
+  * rddleto.hbp
+  * rddletodebug.hbp
+  * source/server/server.prg
+    * removing __LINUX__ define, hbp cleanups
+    * change comment to stop server in Linux console mode
+
+  * source/client/leto1.c
+    * remove homebrew, back for all to use hb_strnToNum()
+
+  * source/server/letofunc.c
+    % spare 2 variables, formatting
+    * compiler warnings
+
+  * bin/letodb.ini
+    * better default setup for newbies
+
+  * Readme.txt
+
 2016-12-31 15:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/rddleto.ch
   * include/funcleto.
