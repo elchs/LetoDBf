@@ -1015,7 +1015,7 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
    switch( pField->uiType )
    {
       case HB_FT_STRING:
-         if( pArea->area.cdPage != HB_CDP_PAGE() )
+         if( ! pField->uiFlags && pArea->area.cdPage != HB_CDP_PAGE() )
          {
 #if defined ( __XHARBOUR__ )
             char * pVal = ( char * ) hb_xgrab( pField->uiLen + 1 );
@@ -1310,7 +1310,7 @@ static HB_ERRCODE letoPutRec( LETOAREAP pArea, HB_BYTE * pBuffer )
    return HB_SUCCESS;
 }
 
-static HB_ERRCODE leto_PutMemoValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem, HB_USHORT uiType )
+static HB_ERRCODE leto_PutMemoValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem, HB_USHORT uiFlags )
 {
    const char * ptr = hb_itemGetCPtr( pItem );
    char *       pBuff = NULL;
@@ -1321,7 +1321,7 @@ static HB_ERRCODE leto_PutMemoValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITE
    HB_SIZE      ulLenMemo = hb_itemGetCLen( pItem );
 #endif
 
-   if( uiType == HB_FT_MEMO && pArea->area.cdPage != HB_CDP_PAGE() )
+   if( ! uiFlags && pArea->area.cdPage != HB_CDP_PAGE() )  /* only possible for HB_FT_MEMO without field flags */
    {
 #if defined ( __XHARBOUR__ )
       pBuff = ( char * ) hb_xgrab( ulLenMemo + 1 );
@@ -1386,7 +1386,7 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
 #else
             HB_SIZE ulLen1 = hb_itemGetCLen( pItem );
 
-            if( pArea->area.cdPage != HB_CDP_PAGE() )
+            if( ! pField->uiFlags && pArea->area.cdPage != HB_CDP_PAGE() )
             {
                pBuff = hb_cdpnDup( hb_itemGetCPtr( pItem ), &ulLen1, HB_CDP_PAGE(), pArea->area.cdPage );
                if( ulLen1 > ( HB_SIZE ) pField->uiLen )
@@ -1475,7 +1475,7 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
             if( fEmpty && hb_itemGetCLen( pItem ) == 0 )
                return HB_SUCCESS;
             else
-               return leto_PutMemoValue( pArea, uiIndex, pItem, pField->uiType );
+               return leto_PutMemoValue( pArea, uiIndex, pItem, pField->uiType == HB_FT_MEMO ? pField->uiFlags : HB_FF_BINARY );
          }
          else
             fTypeError = HB_TRUE;
@@ -1732,7 +1732,7 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
             {
                /* memo not buffered */
                *pData = '!';
-               return leto_PutMemoValue( pArea, uiIndex, pItem, HB_FT_MEMO );
+               return leto_PutMemoValue( pArea, uiIndex, pItem, 0 );
             }
          }
          break;
@@ -2157,7 +2157,8 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
    LETOCONNECTION * pConnection;
    LPFIELD          pField;
    HB_USHORT        uiCount = 0;
-   char *           szData, * ptr;
+   HB_ULONG         ulFieldDups;
+   char *           szData, * ptr, * szFieldDup;
    char             szFile[ HB_PATH_MAX ];
    char             cType;
    const char *     szFieldName;
@@ -2171,13 +2172,34 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
 
    /* ( 10 + ';' + 7 [ C:attribute ] + ';' + 5 + ';' + 3 + ';' ) */
    szData = ( char * ) hb_xgrab( ( ( unsigned int ) pArea->area.uiFieldCount * 29 ) + 10 );
+   szFieldDup = ( char * ) hb_xgrab( ( ( unsigned int ) pArea->area.uiFieldCount * 12 ) + 1 );
+   szFieldDup[ 0 ] = ';';
+   szFieldDup[ 1 ] = '\0';
+   ulFieldDups = 1;
    ptr = szData;
    pField = pArea->area.lpFields;
    while( uiCount++ < pArea->area.uiFieldCount && errCode == HB_SUCCESS )
    {
       szFieldName = hb_dynsymName( ( PHB_DYNS ) pField->sym );
-      if( ! szFieldName || szFieldName[ 0 ] == '\0' )
+      if( ! szFieldName )
          errCode = HB_FAILURE;
+      else
+      {
+         int          iFieldNameLen = strlen( szFieldName );
+         const char * ptrDouble = strstr( szFieldDup, szFieldName );
+
+         if( ! iFieldNameLen || iFieldNameLen > 10 )
+            errCode = HB_FAILURE;
+         else if( ptrDouble != NULL && *( ptrDouble - 1 ) == ';' && *( ptrDouble + iFieldNameLen ) == ';' )
+            errCode = HB_FAILURE;
+         else
+         {
+            memcpy( szFieldDup + ulFieldDups, szFieldName, iFieldNameLen );
+            ulFieldDups += iFieldNameLen;
+            szFieldDup[ ulFieldDups++ ] = ';';
+            szFieldDup[ ulFieldDups ] = '\0';
+         }
+      }
 
       switch( pField->uiType )
       {
@@ -2289,36 +2311,38 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
       pField++;
    }
 
-   /* search for free Area, as info for server */
-   if( pCreateInfo->uiArea == 0 )
-   {
-      hb_rddSelectWorkAreaNumber( 0 );
-      pCreateInfo->uiArea = ( HB_USHORT ) hb_rddGetCurrentWorkAreaNumber();
-   }
-
-   if( ! pCreateInfo->atomAlias || ! *pCreateInfo->atomAlias )  /* create a missing Alias */
-   {
-      char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
-
-      letoCreateAlias( szFile, szAlias );
-      pCreateInfo->atomAlias = ( const char * ) szAlias;
-   }
-
    if( errCode == HB_SUCCESS )
+   {
+      if( pCreateInfo->uiArea == 0 )  /* search for free Area, as info for server */
+      {
+         hb_rddSelectWorkAreaNumber( 0 );
+         pCreateInfo->uiArea = ( HB_USHORT ) hb_rddGetCurrentWorkAreaNumber();
+      }
+      if( ! pCreateInfo->atomAlias || ! *pCreateInfo->atomAlias )  /* create a missing Alias */
+      {
+         char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
+
+         letoCreateAlias( szFile, szAlias );
+         pCreateInfo->atomAlias = ( const char * ) szAlias;
+      }
+
       pTable = LetoDbCreateTable( pConnection, szFile, pCreateInfo->atomAlias, szData,
                                   pCreateInfo->uiArea, pCreateInfo->cdpId );
+   }
    else
       pTable = NULL;
+
+   hb_xfree( szFieldDup );
    hb_xfree( szData );
 
    if( ! pTable )
    {
-      if( LetoGetError() == 1023 )  /* NetErr() */
-         commonError( pArea, EG_OPEN, 1023, 32, pArea->szDataFileName, EF_CANDEFAULT, NULL );
+      if( LetoGetError() == EDBF_SHARED )  /* NetErr() */
+         commonError( pArea, EG_OPEN, EDBF_SHARED, 32, pArea->szDataFileName, EF_CANDEFAULT, NULL );
       else if( LetoGetError() == 1 || LetoGetError() == 1000 )
          commonError( pArea, EG_DATATYPE, LetoGetError(), 0, NULL, 0, NULL );
-      else
-         leto_CheckError( pArea );
+      else if( ! leto_CheckError( pArea ) )
+         commonError( pArea, EG_CREATE, EDBF_CORRUPT, 0, szFile, 0, NULL );
       return HB_FAILURE;
    }
 

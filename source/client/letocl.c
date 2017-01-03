@@ -3536,7 +3536,6 @@ HB_EXPORT unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, ch
 {
    LETOFIELD * pField;
    HB_UCHAR *  ptr;
-   char *      ptrv;
 
    if( pTable->fReadonly )
       return 10;
@@ -3546,15 +3545,17 @@ HB_EXPORT unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, ch
 
    uiIndex--;
    pField = pTable->pFields + uiIndex;
-   if( ! uiLen || uiLen > pField->uiLen )
+   if( ! uiLen || uiLen > pField->uiLen || uiLen > ( HB_USHORT ) strlen( szValue ) )
       return 2;
 
    ptr = pTable->pRecord + pTable->pFieldOffset[ uiIndex ];
 
    if( pField->uiType == HB_FT_DATE )
    {
-      /* elch: removed leto_dateEncStr( szValue ), we habe to find something better */
-      if( uiLen != pField->uiLen || strtoul( szValue, NULL, 10 ) < 101 )
+      char * ptrv = szValue;
+
+      /* removed leto_dateEncStr( szValue ) -- no verification for valid date */
+      if( uiLen != pField->uiLen || strtoul( szValue, &ptrv, 10 ) < 101 || ptrv - szValue != pField->uiLen )
          return 2;
       memcpy( ptr, szValue, uiLen );
    }
@@ -3567,9 +3568,11 @@ HB_EXPORT unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, ch
    else if( pField->uiType == HB_FT_LONG )
    {
       unsigned int uiDot = 0;
+      char *       ptrv = szValue;
 
-      ptrv = szValue;
       while( ( ( HB_USHORT ) ( ptrv - szValue ) ) < uiLen && *ptrv == ' ' )
+         ptrv++;
+      if( *ptrv == '-' || *ptrv == '+' )
          ptrv++;
       if( ( ( HB_USHORT ) ( ptrv - szValue ) ) < uiLen )
       {
@@ -3577,9 +3580,9 @@ HB_EXPORT unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, ch
          {
             if( *ptrv == '.' )
             {
-               uiDot = 1;
-               if( ! pField->uiDec || szValue + uiLen - pField->uiDec - 1 != ptrv )
+               if( uiDot || ! pField->uiDec || szValue + uiLen - pField->uiDec - 1 != ptrv )
                   return 2;
+               uiDot = 1;
             }
             else if( *ptrv < '0' || *ptrv > '9' )
                return 2;
@@ -4067,7 +4070,7 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
    {
       LETOFIELD *  pField;
       HB_BOOL      fTwoBytes = ( pTable->uiFieldExtent > 255 );
-      unsigned int uiRealLen, uiLen;
+      unsigned int uiLen, uiRealLen;
       char *       ptrEnd;
 
       for( ui = 0; ui < pTable->uiFieldExtent; ui++ )
@@ -4088,11 +4091,15 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
             switch( pField->uiType )
             {
                case HB_FT_STRING:
-                  ptrEnd = ptr + pField->uiLen - 1;
-                  while( ptrEnd > ptr && *ptrEnd == ' ' )
-                     ptrEnd--;
-                  uiRealLen = ptrEnd - ptr + ( *ptrEnd == ' ' ? 0 : 1 );
-                  /* Trimmed field length */
+                  if( pField->uiFlags )  /* binary, compressed, encrypted, ... */
+                     uiRealLen = pField->uiLen;
+                  else  /* Trimmed field length */
+                  {
+                     ptrEnd = ptr + pField->uiLen - 1;
+                     while( ptrEnd > ptr && *ptrEnd == ' ' )
+                        ptrEnd--;
+                     uiRealLen = ptrEnd - ptr + ( *ptrEnd == ' ' ? 0 : 1 );
+                  }
                   if( pField->uiLen < 256 )
                   {
                      *pData = ( HB_BYTE ) uiRealLen & 0xFF;

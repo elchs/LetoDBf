@@ -2,7 +2,20 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
-2017-12-31 14:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+2017-01-03 20:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * ChangeLog.txt
+    !! date :-) -- happy new year to all
+
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    + strengthen protection against invalid fieldnames ( e.g. duplicated ) for
+      creating tables
+    + respect field flags for HB_FT_STRING, example: binary: then not trim to
+      send and not CDP translate
+    + not CDP translate memo-fields with field flags, and only HB_FT_MEMO
+
+2017-01-03 14:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * letodb.hbp
   * letodbaddon.hbp
   * letodebug.hbp

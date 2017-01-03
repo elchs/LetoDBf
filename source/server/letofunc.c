@@ -2156,14 +2156,15 @@ static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char 
             switch( pField->uiType )
             {
                case HB_FT_STRING:
-                  /* ToDo: HB_FF_COMPRESSED || HB_FF_ENCRYPTED => binary content */
-                  ptrEnd = ptr + pField->uiLen - 1;
-                  while( ptrEnd > ptr && *ptrEnd == ' ' )
-                     ptrEnd--;
-                  ulRealLen = ptrEnd - ptr + 1;
-                  if( ulRealLen == 1 && *ptr == ' ' )
-                     ulRealLen = 0;
-                  /* Trimmed field length */
+                  if( pField->uiFlags )  /* binary, compressed, encrypted, ... */
+                     ulRealLen = pField->uiLen;
+                  else  /* Trimmed field length */
+                  {
+                     ptrEnd = ptr + pField->uiLen - 1;
+                     while( ptrEnd > ptr && *ptrEnd == ' ' )
+                        ptrEnd--;
+                     ulRealLen = ptrEnd - ptr + ( *ptrEnd == ' ' ? 0 : 1 );
+                  }
                   if( pField->uiLen < 256 )
                   {
                      pData[ 0 ] = ( HB_BYTE ) ulRealLen & 0xFF;
