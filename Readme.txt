@@ -70,7 +70,7 @@ A. Internals
 
       2. Building binaries
 
- Get an build the fantastic Harbour:
+ Get and build the fantastic Harbour:
     The letodb server and client library can be compiled only by the Harbour compiler >= V3.0.
     It is strong recommended to download and build Harbour from the fresh 3.2 source:
        git clone https://github.com/harbour/core.git
@@ -99,7 +99,7 @@ A. Internals
     -- all OS:          hbmk2 rddleto
  Recommended is to integrate LetoDbf client library into your Harbour environment as an 'addon':
     If Linux user have 'installed' Harbour, you need root rights to also install LetoDBf as 'addon':
-    -- Linux:           sudo hbmk2 rddletoaddon
+    -- Linux:           [ sudo ] hbmk2 rddletoaddon
     -- all OS:          hbmk2 rddletoaddon
 
  Resulting server executable will be found in the "bin" directory, library will be in "lib".
@@ -345,7 +345,7 @@ A. Internals
 
       4.2.1 UDF support
 
- Aside calling single Harbour command with leto_UDF( "cCommand"[, xParam] ), you can load your own
+ Aside calling single Harbour command with leto_UDF( "cCommand"[, xParam] ), you can load your own PRG-level
  functions with a <HRB> file also during the server is running.
  A very basic example is found in: tests/letoudf.prg.
  How to compile a PRG to a HRB, look into letoudf.hbp. This is called with: hbmk2 letoudf.
@@ -356,7 +356,7 @@ A. Internals
  For the execution of single Harbour functions at server side, or when your functions in the HRB file
  need Harbour commands ( like "STR", "DTOC" ), these Harbour functions must during compile process linked into
  executable.
- There are already very many! available. If really one is missing, it must be added at top in:
+ There are already very !many! available. If really one is missing, it must be added at top in:
  source/server/server.prg, done like the others there with a: REQUEST <cFunction>
 
  You can enable also the full set of all basic Harbour commands to be available at server runtime.

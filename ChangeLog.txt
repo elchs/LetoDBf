@@ -2,6 +2,17 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-03 23:35 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    * remove return; in the middle of function letoCreate(), leaving a missed
+      new var to hb_xfree()
+    * clean up/ solve more ToDo's
+
+  * Readme.txt
+    * typo
+
 2017-01-03 20:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * ChangeLog.txt
     !! date :-) -- happy new year to all

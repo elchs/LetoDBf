@@ -1387,11 +1387,13 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
    if( HB_ISNUM( 12 ) && HB_ISNUM( 13 ) )
       leto_setVarsMax( hb_parnl( 12 ), ( HB_USHORT ) hb_parni( 13 ) );
 
-   if( HB_ISNUM( 14 ) )  // ToDo: maximum value
+   if( HB_ISNUM( 14 ) )
    {
       s_uiCacheRecords = ( HB_USHORT ) hb_parni( 14 );
       if( s_uiCacheRecords < 1 )
          s_uiCacheRecords = 10;
+      else if( s_uiCacheRecords > 1000 )
+         s_uiCacheRecords = 1000;
    }
    if( HB_ISNUM( 15 ) )
    {
@@ -4110,7 +4112,7 @@ static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
                   }
                   pItem = hb_itemPutNI( NULL, iOldDebugMode );
                }
-               else  // ToDo
+               else
                {
                   if( ! bSet )
                      pItem = hb_itemPutNI( NULL, 0 );
@@ -5781,6 +5783,7 @@ static void leto_Unlock( PUSERSTRU pUStru, const char * szData )
    }
 }
 
+/* ToDo a bad admin can jump in the way of a running transaction and lock the server */
 static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppend, HB_ULONG * pRecNo, TRANSACTSTRU * pTA, AREAP pArea )
 {
    PAREASTRU    pAStru = pUStru->pCurAStru;
@@ -6224,7 +6227,7 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
       pData = szErrAcc;
       iRes = 1025;
    }
-   else  /* ToDo ? when server is locked */
+   else
    {
       iRes = leto_UpdateRecord( pUStru, szData, bAppend, &ulRecNo, NULL, NULL );
       switch( iRes )
@@ -6953,7 +6956,7 @@ static PHB_ITEM leto_mkCodeBlock( const char * szExp, HB_ULONG ulLen, HB_BOOL bS
       hb_vmPushString( szMacro, ulLen );
 
       if( bSecured )
-         hb_xvmSeqBegin();  // ToDo -- understand why crash if this is second call
+         hb_xvmSeqBegin();
       pFreshBlock = hb_stackItemFromTop( -1 );
       if( pFreshBlock )
       {
@@ -11130,7 +11133,6 @@ static HB_THREAD_STARTFUNC( threadX )
    HB_THREAD_END
 }
 
-/* ToDo detect if UDF changed WA or active order */
 static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
 {
    const char * pp2 = NULL, * pp3 = NULL, * pp4 = NULL, * pp5 = NULL, * pp6 = NULL;

@@ -910,7 +910,7 @@ static long leto_Recv( LETOCONNECTION * pConnection )
 #ifndef USE_LZ4
       if( pConnection->zstream )
          lRet = hb_znetRead( pConnection->zstream, pConnection->hSocket, pConnection->szBuffer + ulRead, LETO_MSGSIZE_LEN - ulRead, -1 );
-      else  /*ToDo : make our own hb_socketRecv() */
+      else
 #endif
       {
          lRet = recv( pConnection->hSocket, pConnection->szBuffer + ulRead, LETO_MSGSIZE_LEN - ulRead, 0 );
@@ -1156,7 +1156,7 @@ static _HB_INLINE_ long leto_Send( LETOCONNECTION * pConnection, const char * sz
 #ifndef USE_LZ4
    if( pConnection->zstream && lLast > 0 && ! iErr )
    {
-   #if defined( __HARBOUR30__ )  // ToDo: 26.08.2015 new param --> hb_sockexFlush()
+   #if defined( __HARBOUR30__ )  // 26.08.2015 new param --> hb_sockexFlush()
       if( ( lTmp = hb_znetFlush( pConnection->zstream, pConnection->hSocket, iTimeOut ) ) != 0 )
    #else
       if( ( lTmp = hb_znetFlush( pConnection->zstream, pConnection->hSocket, iTimeOut, HB_FALSE ) ) != 0 )
@@ -2558,7 +2558,6 @@ static HB_THREAD_STARTFUNC( leto_elch )
    HB_THREAD_END
 }
 
-/* ToDo -- rewrite this ugly function */
 HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck )
 {
 #ifdef LETO_MT
@@ -2953,7 +2952,7 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
          hb_xfree( pCdps->szClientCdp );
          hb_xfree( pCdps->szServerCdp );
          pNext = pCdps->pNext;
-         hb_xfree( pCdps );  // ToDo ?: pCdps is freed
+         hb_xfree( pCdps );
       }
       pConnection->pCdpTable = NULL;
    }
@@ -4145,7 +4144,7 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
                case HB_FT_TIME:
                case HB_FT_MODTIME:
                case HB_FT_TIMESTAMP:
-               case HB_FT_AUTOINC:  /* ToDo never update autoinc fields at server */
+               case HB_FT_AUTOINC:
                case HB_FT_ROWVER:
                   memcpy( pData, ptr, pField->uiLen );
                   pData += pField->uiLen;

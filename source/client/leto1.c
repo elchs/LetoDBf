@@ -2272,9 +2272,9 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
             cType = 'Q';
             break;
          default:
-            // commonError( pArea, EG_DATATYPE, 1000, 0, NULL, 0, NULL );
-            hb_xfree( szData );
-            return HB_FAILURE;
+            cType = '?';
+            errCode = HB_FAILURE;
+            break;
       }
 
       if( pField->uiFlags )
@@ -2359,7 +2359,6 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
    return SUPER_CREATE( ( AREAP ) pArea, pCreateInfo );
 }
 
-/* ToDo is a valid pArea with e.g. pArea->szDataFileName ensured ? */
 static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
 {
    LETOTABLE *      pTable = pArea->pTable;
@@ -2626,7 +2625,7 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    }
 
    /* close already used WA before */
-   if( pOpenInfo->uiArea && pArea->pTable )  // ToDo verify as untested
+   if( pOpenInfo->uiArea && pArea->pTable )
       SELF_CLOSE( ( AREAP ) pArea );
 
    /* sets pTable->pTagCurrent */
@@ -3602,7 +3601,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
    LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    LETOTABLE *      pTable = pArea->pTable;
    LETOTAGINFO *    pTagInfo = NULL;
-   char             szData[ 256 ]; /* was much too short DBOI_SKIPWILD */
+   char             szData[ LETO_MAX_TAGNAME + LETO_MAX_KEY + 54 ];
    HB_USHORT        uiTag = 0;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderInfo(%p, %hu, %p)", pArea, uiIndex, pOrderInfo ) );
@@ -3984,16 +3983,21 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
 
          if( pTagInfo && pOrderInfo->itmNewVal && HB_IS_STRING( pOrderInfo->itmNewVal ) )
          {
-            HB_ULONG     ulLen;
+            HB_ULONG ulLen = hb_itemGetCLen( pOrderInfo->itmNewVal );
+            char *   szData2 = ( char * ) hb_xgrab( ulLen + LETO_MAX_TAGNAME + 64 );
 
-            ulLen = eprintf( szData, "%c;%lu;07;%s;%lu;%c;%d;%lu;%s;", LETOCMD_ord, pTable->hTable,
+            ulLen = eprintf( szData2, "%c;%lu;07;%s;%lu;%c;%d;%lu;%s;", LETOCMD_ord, pTable->hTable,
                              pTagInfo->TagName,
                              pTable->ulRecNo, ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ), uiIndex,
-                             ( HB_ULONG ) hb_itemGetCLen( pOrderInfo->itmNewVal ),  // ToDo limit length
-                             hb_itemGetCPtr( pOrderInfo->itmNewVal ) );
+                             ulLen, hb_itemGetCPtr( pOrderInfo->itmNewVal ) );
 
-            if( ! leto_SendRecv( pConnection, pArea, szData, ulLen, 1021 ) )
+            if( ! leto_SendRecv( pConnection, pArea, szData2, ulLen, 1021 ) )
+            {
+               hb_xfree( szData2 );
                return HB_FAILURE;
+            }
+            else
+               hb_xfree( szData2 );
 
             leto_ParseRec( pConnection, pArea, leto_firstchar( pConnection ) );
             pTable->ptrBuf = NULL;
@@ -4168,9 +4172,8 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
       {
          char *    ptr;
          PHB_ITEM  pItem = pOrderInfo->itmNewVal ? pOrderInfo->itmNewVal : leto_KeyEval( pArea, pTagInfo );
-         char      szData1[ LETO_MAX_KEY + LETO_MAX_TAGNAME + 56 ];
          char      cType;
-         char *    pData = szData1 + 4;
+         char *    pData = szData + 4;
          HB_USHORT uiKeyLen;
          HB_ULONG  ulLen;
 
@@ -4179,7 +4182,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
 
          if( pItem && ( cType = leto_ItemType( pItem ) ) == pTagInfo->cKeyType )
          {
-            char szKey[ LETO_MAX_KEY ];
+            char szKey[ LETO_MAX_KEY + 1 ];
 
             uiKeyLen = leto_KeyToStr( pArea, szKey, cType, pItem, pTagInfo->uiKeySize );
             leto_AddKeyToBuf( pData, szKey, uiKeyLen, &ulLen );
@@ -5289,7 +5292,7 @@ HB_FUNC( LETO_ROLLBACK )
    }
 }
 
-/* if NOT fUnlockAll, client would not know about append RLocks, ToDo: diasble ? */
+/* if NOT fUnlockAll, client will not know about append RLocks */
 HB_FUNC( LETO_COMMITTRANSACTION )
 {
    LETOAREAP        pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
@@ -5326,7 +5329,7 @@ HB_FUNC( LETO_COMMITTRANSACTION )
 
    if( pConnection->szTransBuffer && ( pConnection->ulTransDataLen > ( HB_ULONG ) pConnection->uiTBufOffset ) )
    {
-      HB_BOOL fUnlockAll = ( HB_ISLOG( 1 ) ) ? hb_parl( 1 ) : HB_TRUE;  /* ToDo: should be ever lUnlockAll */
+      HB_BOOL fUnlockAll = ( HB_ISLOG( 1 ) ) ? hb_parl( 1 ) : HB_TRUE;
 
       HB_PUT_LE_UINT32( pConnection->szTransBuffer + 2, pConnection->ulRecsInTrans );
       pConnection->szTransBuffer[ pConnection->uiTBufOffset - 1 ] = ( HB_BYTE ) ( ( fUnlockAll ) ? 0x41 : 0x40 );
