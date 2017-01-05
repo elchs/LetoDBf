@@ -3562,6 +3562,9 @@ static HB_ERRCODE letoOrderDestroy( LETOAREAP pArea, LPDBORDERINFO pOrderInfo ) 
          pTagPrev = pTagInfo;
          pTagInfo = pTagInfo->pNext;
       }
+
+      if( ! pTable->pTagCurrent )
+         LetoDbOrderFocus( pTable, NULL, 0 );
    }
 
    return HB_SUCCESS;

@@ -157,8 +157,6 @@ REQUEST LBM_DbSetFilterArrayDel, LBM_DbSetFilter
 
 #include "cmdleto.h"
 
-MEMVAR oApp
-
 STATIC s_cDirBase
 STATIC s_pHrb
 
@@ -170,13 +168,15 @@ THREAD STATIC xOldScopeBottom
 
 PROCEDURE Main( cCommand, cData )
 
+   LOCAL oApp
+
    s_cDirBase := hb_DirBase()
    leto_setDirBase( s_cDirBase )
 
    IF cCommand != NIL .AND. Lower( cCommand ) == "stop"
 
       /* connect and send QUIT */
-      PUBLIC oApp := HApp():New()
+      oApp := HApp():New()
 
       IF leto_SendMessage( oApp:nPort, LETOCMD_stop, oApp:cAddr )
 #ifdef __CONSOLE__
@@ -196,8 +196,7 @@ PROCEDURE Main( cCommand, cData )
    ELSEIF cCommand != NIL .AND. Left( Lower( cCommand ), 6 ) == "reload"
 
       /* send message to reload letoudf.hrb */
-      PUBLIC oApp := HApp():New()
-
+      oApp := HApp():New()
       IF ! leto_SendMessage( oApp:nPort, LETOCMD_udf_rel, , cData )
 #ifdef __CONSOLE__
          ? "Can't reload letoudf.hrb"
@@ -260,6 +259,7 @@ PROCEDURE Main( cCommand, cData )
 
 #ifdef __LINUX_DAEMON__
 
+      oApp := HApp():New()
       IF ! leto_Daemon( oApp:nSUserID, oApp:nSGroupID )
          WrLog( "Can't become a daemon" )
          ErrorLevel( 2 )
@@ -275,7 +275,7 @@ PROCEDURE Main( cCommand, cData )
 
 PROCEDURE StartServer()
 
-   PUBLIC oApp := HApp():New()
+   LOCAL oApp := HApp():New()
 
    /* verify datapath */
    IF ! Empty( oApp:DataPath )

@@ -2,10 +2,17 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
-2017-01-05 19:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+2017-01-05 21:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/server.prg
+    ! missing oApp for  __LINUX_DAEMON__, change to LOCAL var
+
+  * source/client/leto1.c
+    * change to order 0 if OrdDestroy() the active one
+
+2017-01-05 19:58 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * letodb.hbp
   * letodbsvc.hbp
-    * hack for bcc to use hbct, hbmemio and rddbm libs without hbc files
+    * hack for BCC to use hbct, hbmemio and rddbm libs without hbc files
 
 2017-01-05 18:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
