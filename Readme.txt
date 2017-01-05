@@ -111,7 +111,8 @@ A. Internals
     hbmk2 your_application ../letodb.hbc
 
  For first testing purpose it is recommended to let the server executable remain in the "bin"
- directory of your LetoDBf package.
+ directory of your LetoDBf package. The following will just copy the executable and letodb.ini
+ to another place, you may know a better place for them and do that manually.
  To install LetoDBf server into your OS system search paths:
  -- Linux with Harbour 'installed':
                         sudo hbmk2 letodbaddon.hbp
@@ -128,21 +129,21 @@ A. Internals
 
  If the above described way to compile with ".hbp" files does not work ( wrong setup ?, no hbmk2 ),
  for BCC and old older MsVc exists a make_b32.bat and a make_vc.bat. Look into, adapt OS search
- paths to point to Harbour and your C-compiler executable. Further important is to set: "HB_PATH"
- to point to the base directory of Harbour, e.g. "C:\harbour"
+ paths to point to Harbour and your C-compiler executable. Further important is to set:
+ "HB_PATH" to point to the base! directory of Harbour, e.g. "C:\harbour"
  You will know what to do, are on your own. I use them only for sporadic compile tests.
 
  BCC55 and maybe also newer ones have a problem with compiling LZ4 compression library, you will
- get this case slower ZLib compression. This must fit together for client lib and server.
- It is configured by this "{!bcc}" at top in the ".hbp" files.
+ get this case slower ZLib compression. This must fit together for client lib and server when you
+ want to use network traffic compression. It is configured by this "{!bcc}" at top in the ".hbp" files.
 
 
       3. Running and stopping server
 
- Before you do so, adapt the "DataPath" in letodb.ini, the most important setting.
+ Before you do so, adapt the "DataPath" in letodb.ini, the most important setting, see 4.1
  If this path does not exist or is invalid, the server will not start !
- If you 'installed' the server or use it as service, also adapt the LogPath where the log
- files will go. If LogPath is not set, they go into directory of server executable.
+ If you 'installed' the server or use it as service, also outcomment and adapt the LogPath,
+ where the log files will go. If LogPath is not set, they go into directory of server executable.
  For both directories user needs write rights granted by the OS.
 
 
@@ -164,20 +165,21 @@ A. Internals
 
       3.2  Run as Windows@ service
 
- For use as "Windows service" server must be compiled as Windows service, see 2.1
+ For use as "Windows service" server executable must be compiled for this task, see 2.1
  To install LetoDbf as service, the executable must be placed in a directory covered by the OS
  system search paths to be found from any place. Then run letodb with 'install' parameter:
       letodb.exe install
 
  Verify in letodbf.log that the service was successful installed and started.
- To check the state of a Windows service use the GUI service management for services.
+ To check the state of a Windows service use the GUI management for services.
  Alternatively at command line can be used to start/ stop the service:
-      net start LetoDbf_Service
-      net stop LetoDbf_Service
+      net start LetoDBf_Service
+      net stop LetoDBf_Service
 
- To deinstall service, run letodb with 'uninstall' parameter:
+ To deinstall service again, run letodb with 'uninstall' parameter:
       letodb.exe uninstall
- then restart your Windows machine.
+ It possible may need to restart your Windows machine. You can check beforehand if the service is
+ still listed in the GUI management for services, else it is not needed.
 
 
       4. Server configuration

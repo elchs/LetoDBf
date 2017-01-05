@@ -179,16 +179,14 @@ PROCEDURE Main( cCommand, cData )
       oApp := HApp():New()
 
       IF leto_SendMessage( oApp:nPort, LETOCMD_stop, oApp:cAddr )
-#ifdef __CONSOLE__
-         ? "Send SToP to server..."
-#else
          WrLog( "Have send STOP to server, soon should go down ..." )
+#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
+         ? "Send SToP to server..."
 #endif
       ELSE
-#ifdef __CONSOLE__
-         ? "Can't STOP the server (not started?)..."
-#else
          WrLog( "Can't STOP the server (not started?)..." )
+#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
+         ? "Can't STOP the server (not started?)..."
 #endif
       ENDIF
       RETURN
@@ -198,10 +196,9 @@ PROCEDURE Main( cCommand, cData )
       /* send message to reload letoudf.hrb */
       oApp := HApp():New()
       IF ! leto_SendMessage( oApp:nPort, LETOCMD_udf_rel, , cData )
-#ifdef __CONSOLE__
-         ? "Can't reload letoudf.hrb"
-#else
          WrLog( "Can't reload letoudf.hrb" )
+#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
+         ? "Can't reload letoudf.hrb"
 #endif
       ENDIF
       RETURN
@@ -229,9 +226,12 @@ PROCEDURE Main( cCommand, cData )
          IF Lower( cCommand ) == "install"
             IF leto_serviceInstall()
                WrLog( "LetoDB service has been successfully installed" )
-               __RUN( "net start LetoDbf_Service" )
+               __RUN( "net start LetoDBf_Service" )
             ELSE
                WrLog( "Error installing LetoDB service: " + Str( letowin_GetLastError() ) )
+               IF letowin_GetLastError() == 1073
+                  WrLog( "LetoDBf service is already installed, uninstall before" )
+               ENDIF
             ENDIF
             RETURN
          ELSEIF Lower( cCommand ) == "uninstall"
@@ -281,7 +281,7 @@ PROCEDURE StartServer()
    IF ! Empty( oApp:DataPath )
       IF ! hb_DirExists( oApp:DataPath )
          WrLog( "LetoDBf Server: DataPath '" + oApp:DataPath + "' does not exists .." )
-#ifdef __CONSOLE__
+#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
          ? "LetoDBf Server: DataPath '" + oApp:DataPath + "' does not exists .."
 #endif
          ErrorLevel( 2 )
@@ -308,8 +308,8 @@ PROCEDURE StartServer()
 
    IF ! leto_Server( oApp:nPort, oApp:cAddr, oApp:nTimeOut, oApp:nZombieCheck )
       WrLog( "Socket error " + hb_socketErrorString( hb_socketGetError() ) )
-#ifdef __CONSOLE__
-      ? "error starting LetoDBf ..."
+#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
+      ? "Socket error starting LetoDBf ..."
 #endif
       ErrorLevel( 1 )
    ENDIF

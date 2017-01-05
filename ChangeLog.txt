@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-05 22:58 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/server.prg
+    % improve feedback in case of problems
+
+  * Readme.txt
+    * improve notes about Win service use, BCC compile ...
+
 2017-01-05 21:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/server.prg
     ! missing oApp for  __LINUX_DAEMON__, change to LOCAL var
