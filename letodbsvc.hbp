@@ -30,11 +30,13 @@
 -q0
 -es0
 
-# if missing use -lhbmemio
-hbmemio.hbc
-hbct.hbc
-# if missing use {__BM}-lrddbm
-{__BM}rddbm.hbc
+{bcc}-lhbmemio
+{bcc}-lhbct
+{!bcc}hbmemio.hbc
+{!bcc}hbct.hbc
+
+{bcc&__BM}-lrddbm
+{!bcc&__BM}rddbm.hbc
 
 -prgflag={unix}-D__LINUX_DAEMON__
 #-prgflag={unix}-D__CONSOLE__

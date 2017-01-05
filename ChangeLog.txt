@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-05 19:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * letodb.hbp
+  * letodbsvc.hbp
+    * hack for bcc to use hbct, hbmemio and rddbm libs without hbc files
+
 2017-01-05 18:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     ! one byte more for an empty field array
