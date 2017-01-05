@@ -52,11 +52,11 @@
 #define _SERVICE_NAME          "LetoDBf_Service"
 #define _SERVICE_DISPLAY_NAME  "LetoDBf Service"
 
-static SERVICE_STATUS_HANDLE hServiceHandle = 0;
-static char     ServiceEntryFunc[ HB_SYMBOL_NAME_LEN + 1 ];
-static TCHAR    ServiceName[] = _SERVICE_NAME;
-static TCHAR    ServiceDisplayName[] = _SERVICE_DISPLAY_NAME;
-static HB_ULONG ulSvcError = 0;
+static SERVICE_STATUS_HANDLE s_hServiceHandle = 0;
+static char     s_ServiceEntryFunc[ HB_SYMBOL_NAME_LEN + 1 ];
+static TCHAR    s_ServiceName[] = _SERVICE_NAME;
+static TCHAR    s_ServiceDisplayName[] = _SERVICE_DISPLAY_NAME;
+static HB_ULONG s_ulSvcError = 0;
 
 extern void leto_SrvShutDown( unsigned int uiWait );
 
@@ -72,25 +72,67 @@ void leto_SetServiceStatus( DWORD State )
    SrvStatus.dwCheckPoint = 0;
    SrvStatus.dwWaitHint = 0;
 
-   if( hServiceHandle )
-      SetServiceStatus( hServiceHandle, &SrvStatus );
+   if( s_hServiceHandle )
+      SetServiceStatus( s_hServiceHandle, &SrvStatus );
+}
+
+DWORD WINAPI leto_GetServiceStatus( void )
+{
+   DWORD State = 0;
+   SC_HANDLE schSCM;
+
+   schSCM = OpenSCManager( NULL, NULL, SC_MANAGER_CONNECT );
+
+   if( schSCM )
+   {
+      SC_HANDLE schSrv;
+
+      schSrv = OpenService( schSCM, s_ServiceName, SERVICE_QUERY_STATUS);
+      if( schSrv )
+      {
+         SERVICE_STATUS ss;
+
+         if( QueryServiceStatus( schSrv, &ss ) )
+            State = ss.dwCurrentState;
+         CloseServiceHandle( schSrv );
+      }
+      else
+         s_ulSvcError = ( HB_ULONG ) GetLastError();
+
+      CloseServiceHandle( schSCM );
+   }
+   else
+      s_ulSvcError = ( HB_ULONG ) GetLastError();
+
+   return State;
 }
 
 void WINAPI leto_ServiceControlHandler( DWORD dwCtrlCode )
 {
    DWORD State = SERVICE_RUNNING;
+   double dExtraWait = 5.0;
 
    switch( dwCtrlCode )
    {
       case SERVICE_CONTROL_STOP:
-         //State = SERVICE_STOPPED;
-         leto_SrvShutDown( 5 );
-         return;
+         State = SERVICE_STOPPED;
+         leto_SrvShutDown( 1 );
+         while( dExtraWait > 0 && leto_GetServiceStatus() != SERVICE_STOPPED )
+         {
+            hb_idleSleep( 1 );
+            dExtraWait -= 1;
+         }
+         break;
 
       case SERVICE_CONTROL_SHUTDOWN:
-         //State = SERVICE_STOPPED;
-         leto_SrvShutDown( 5 );
-         return;
+         State = SERVICE_STOPPED;
+         leto_SrvShutDown( 1 );
+         while( dExtraWait > 0 && leto_GetServiceStatus() != SERVICE_STOPPED )
+         {
+            hb_idleSleep( 1 );
+            dExtraWait -= 1;
+         }
+         break;
    }
 
    leto_SetServiceStatus( State );
@@ -101,9 +143,9 @@ void WINAPI leto_ServiceMainFunction( DWORD dwArgc, LPTSTR * lpszArgv )
    HB_SYMBOL_UNUSED( dwArgc );
    HB_SYMBOL_UNUSED( lpszArgv );
 
-   hServiceHandle = RegisterServiceCtrlHandler( ServiceName, ( LPHANDLER_FUNCTION ) leto_ServiceControlHandler );
+   s_hServiceHandle = RegisterServiceCtrlHandler( s_ServiceName, ( LPHANDLER_FUNCTION ) leto_ServiceControlHandler );
 
-   if( hServiceHandle != ( SERVICE_STATUS_HANDLE ) 0 )
+   if( s_hServiceHandle != ( SERVICE_STATUS_HANDLE ) 0 )
    {
       PHB_DYNS pDynSym;
 
@@ -111,7 +153,7 @@ void WINAPI leto_ServiceMainFunction( DWORD dwArgc, LPTSTR * lpszArgv )
 
       hb_vmThreadInit( NULL );
 
-      pDynSym = hb_dynsymFindName( ServiceEntryFunc );
+      pDynSym = hb_dynsymFindName( s_ServiceEntryFunc );
 
       if( pDynSym )
       {
@@ -134,18 +176,19 @@ void WINAPI leto_ServiceMainFunction( DWORD dwArgc, LPTSTR * lpszArgv )
 HB_FUNC( LETO_SERVICESTART )
 {
    HB_BOOL bRetVal = HB_FALSE;
-   SERVICE_TABLE_ENTRY lpServiceTable[ 2 ] = { { ServiceName, ( LPSERVICE_MAIN_FUNCTION ) leto_ServiceMainFunction },
+   SERVICE_TABLE_ENTRY lpServiceTable[ 2 ] = { { s_ServiceName, ( LPSERVICE_MAIN_FUNCTION ) leto_ServiceMainFunction },
                                                { NULL,        NULL                                                 } };
 
-   hb_strncpy( ServiceEntryFunc, hb_parcx( 1 ), HB_SIZEOFARRAY( ServiceEntryFunc ) - 1 );
+   hb_strncpy( s_ServiceEntryFunc, hb_parc( 1 ), HB_SYMBOL_NAME_LEN );
 
    if( StartServiceCtrlDispatcher( lpServiceTable ) )
       bRetVal = HB_TRUE;
    else
-      ulSvcError = ( HB_ULONG ) GetLastError();
+      s_ulSvcError = ( HB_ULONG ) GetLastError();
 
    hb_retl( bRetVal );
 }
+
 
 HB_FUNC( LETO_SERVICEINSTALL )
 {
@@ -160,8 +203,8 @@ HB_FUNC( LETO_SERVICEINSTALL )
       if( schSCM )
       {
          schSrv = CreateService( schSCM,
-                                 ServiceName,
-                                 ServiceDisplayName,
+                                 s_ServiceName,
+                                 s_ServiceDisplayName,
                                  SERVICE_ALL_ACCESS,
                                  SERVICE_WIN32_OWN_PROCESS,
                                  SERVICE_AUTO_START,        //SERVICE_DEMAND_START,
@@ -176,16 +219,21 @@ HB_FUNC( LETO_SERVICEINSTALL )
          }
          else
          {
-            ulSvcError = ( HB_ULONG ) GetLastError();
+            s_ulSvcError = ( HB_ULONG ) GetLastError();
          }
 
          CloseServiceHandle( schSCM );
       }
       else
-         ulSvcError = ( HB_ULONG ) GetLastError();
+         s_ulSvcError = ( HB_ULONG ) GetLastError();
    }
 
    hb_retl( bRetVal );
+}
+
+HB_FUNC( LETO_GETSERVICESTATE )
+{
+   hb_retni( leto_GetServiceStatus() );
 }
 
 HB_FUNC( LETO_SERVICEDELETE )
@@ -202,7 +250,7 @@ HB_FUNC( LETO_SERVICEDELETE )
       DWORD dwBytesNeeded;
 
       // check and stop
-      schService = OpenService( schSCM, ServiceName, SERVICE_STOP | SERVICE_QUERY_STATUS );
+      schService = OpenService( schSCM, s_ServiceName, SERVICE_STOP | SERVICE_QUERY_STATUS );
       if( schService )
       {
          dwStartTime = GetTickCount();
@@ -268,18 +316,18 @@ HB_FUNC( LETO_SERVICEDELETE )
       }
 
       // delete
-      schService = OpenService( schSCM, ServiceName, DELETE );
+      schService = OpenService( schSCM, s_ServiceName, DELETE );
       if( schService )
       {
          bRetVal = ( HB_BOOL ) DeleteService( schService );
          CloseServiceHandle( schService );
          if( ! bRetVal )
          {
-            ulSvcError = ( HB_ULONG ) GetLastError();
+            s_ulSvcError = ( HB_ULONG ) GetLastError();
          }
       }
       else
-         ulSvcError = ( HB_ULONG ) GetLastError();
+         s_ulSvcError = ( HB_ULONG ) GetLastError();
 
       CloseServiceHandle( schSCM );
    }
@@ -289,7 +337,7 @@ HB_FUNC( LETO_SERVICEDELETE )
 
 HB_FUNC( LETOWIN_GETLASTERROR )
 {
-   hb_retnl( ulSvcError );
+   hb_retnl( s_ulSvcError );
 }
 
 #endif

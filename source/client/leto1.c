@@ -2172,7 +2172,7 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
 
    /* ( 10 + ';' + 7 [ C:attribute ] + ';' + 5 + ';' + 3 + ';' ) */
    szData = ( char * ) hb_xgrab( ( ( unsigned int ) pArea->area.uiFieldCount * 29 ) + 10 );
-   szFieldDup = ( char * ) hb_xgrab( ( ( unsigned int ) pArea->area.uiFieldCount * 12 ) + 1 );
+   szFieldDup = ( char * ) hb_xgrab( ( ( unsigned int ) pArea->area.uiFieldCount * 12 ) + 2 );
    szFieldDup[ 0 ] = ';';
    szFieldDup[ 1 ] = '\0';
    ulFieldDups = 1;

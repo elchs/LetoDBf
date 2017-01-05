@@ -169,12 +169,11 @@ A. Internals
  system search paths to be found from any place. Then run letodb with 'install' parameter:
       letodb.exe install
 
- Verify in letodbf.log that the service was successful installed.
- With next Windows start, or by using GUI service management, or by shell command line:
+ Verify in letodbf.log that the service was successful installed and started.
+ To check the state of a Windows service use the GUI service management for services.
+ Alternatively at command line can be used to start/ stop the service:
       net start LetoDbf_Service
- the LetoDBf server shell get active. Look again into the log file.
- Manually stopping the server should be possible at command line with:
-      net start LetoDbf_Service
+      net stop LetoDbf_Service
 
  To deinstall service, run letodb with 'uninstall' parameter:
       letodb.exe uninstall

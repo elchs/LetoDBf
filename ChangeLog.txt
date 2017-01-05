@@ -2,6 +2,24 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-05 18:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    ! one byte more for an empty field array
+
+  * source/server/leto_win.c
+  * source/server/server.prg
+    ! fix to start server: missing public 'oApp' in StartServer() :-(
+    * start server after successful Win service install
+    % check for service state to faster end
+    * GTNUL default for __LINUX_DAEMON and __WIN_SERVICE__
+    * cleanup, formatting
+
+  * letodb.hbp
+  * letodbsvc.hbp
+    * link no default GT for __LINUX_DAEMON and __WIN_SERVICE__
+
+  * Readme.txt
+
 2017-01-03 23:35 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/client/letocl.c
