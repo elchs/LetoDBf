@@ -59,7 +59,9 @@
 #include "hbthread.h"
 #include "hbatomic.h"
 #include "hbsocket.h"
-#include "hbzlib.h"
+#ifndef USE_LZ4
+   #include "hbzlib.h"
+#endif
 #include "hbznet.h"
 #include "math.h"
 
@@ -68,7 +70,11 @@
 
 #include "dbinfo.ch"
 #include "hbmemory.ch"
-#include "hbserial.ch"
+#ifdef __HARBOUR30__
+   #define HB_SERIALIZE_NUMSIZE   HB_TRUE
+#else
+   #include "hbserial.ch"
+#endif
 #include "hbzlib.ch"
 
 #include "rddleto.ch"

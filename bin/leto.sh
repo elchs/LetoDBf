@@ -1,19 +1,18 @@
 #!/bin/bash
 
-#CMD=`letodb`
-#./letodb stop
 rm letodbf.log
 
-ss -tan state time-wait > ss.log
-while grep -q 281 ss.log
+while ss -tan state time-wait | grep -q 281
 do
     sleep 3s
-    ss -tan state time-wait > ss.log
 done
 
-rm ss.log
+while ss -tan state last-ack | grep -q 281
+do
+    sleep 3s
+done
+
 ./letodb
 
-reset
-beep -f 2500 -l 1000
+# beep -f 2500 -l 1000
 echo "LetoDB runs"

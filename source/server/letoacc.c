@@ -130,7 +130,7 @@ HB_BOOL leto_memowrite( const char * szFilename, const char * pBuffer, HB_ULONG 
 
 HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG ulStart, HB_ULONG * pulLen )
 {
-#if ! defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
    HB_FHANDLE fhnd;
 #else
    PHB_FILE   pFile;
@@ -143,7 +143,7 @@ HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG u
       return bRes;
    }
 
-#if ! defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
    fhnd = hb_fsOpen( szFilename, FO_READ | FO_SHARED | FO_PRIVATE );
    if( fhnd != FS_ERROR )
    {
@@ -174,7 +174,7 @@ HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG u
 HB_BOOL leto_filewrite( const char * szFilename, const char * pBuffer, const HB_ULONG ulStart, HB_ULONG ulLen )
 {
    HB_BOOL bRetVal = HB_FALSE;
-#if ! defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
    HB_FHANDLE fhnd;
 
    if( ( fhnd = hb_fsOpen( szFilename, FO_CREAT | FO_WRITE ) ) != FS_ERROR )
@@ -201,7 +201,7 @@ HB_BOOL leto_filesize( const char * szFilename, HB_ULONG * pulLen )
 {
    HB_BOOL bRes = HB_FALSE;
 
-#if ! defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
    HB_FHANDLE fhnd;
 
    if( szFilename )

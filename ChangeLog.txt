@@ -2,6 +2,30 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-06 19:09 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/leto_win.c
+  * source/server/server.prg
+    ! fix timeout for deleting service
+    % increase granularity for service shutdown, use Windows API
+    * formatting
+    + add a description for the service, shown in GUI management for services
+    ; description for now in english, easy to adopt in server.prg
+
+  * include/rddleto.h
+  * include/srvleto.h
+  * source/common/blowfish.c
+  * source/client/leto1.c
+  * source/server/letoacc.c
+  * source/server/letofunc.c
+  * utils/manager/console.prg
+    ! fixes for __HARBOUR30__
+    ; we need to SET __LZ4 and __PMURHASH environment variables, as hbmk2 v3.0
+      can not use "-env"; encryption for network is different, so can not mix
+      Harbour 3.2 clients with 3.0 compiled server and vice versa
+
+  * bin/leto.sh
+    % without temp file
+
 2017-01-05 22:58 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/server.prg
     % improve feedback in case of problems

@@ -233,6 +233,14 @@ void leto_cryptReset( HB_BOOL fGlobal )
 
 void leto_random_block( char * sBuf, HB_USHORT uLen, HB_I32 llSeed )
 {
+#if defined( __HARBOUR30__ )
+   HB_SYMBOL_UNUSED( llSeed );
+
+   while( uLen-- )
+   {
+      sBuf[ uLen ] = 1 + ( rand() % 254 );
+   }
+#else
    hb_random_seed( llSeed );
    hb_random_block( sBuf, uLen );
 
@@ -241,6 +249,7 @@ void leto_random_block( char * sBuf, HB_USHORT uLen, HB_I32 llSeed )
       if( sBuf[ uLen ] == '\0' )
          sBuf[ uLen ] = '\1';
    }
+#endif
 }
 
 /* generation of the local key */

@@ -132,7 +132,7 @@ REQUEST LETO_SELECT, LETO_SELECTAREA, LETO_ALIAS, LETO_AREAID, LETO_SELECTAREA
 REQUEST LETO_RECLOCK, LETO_RECLOCKLIST, LETO_RECUNLOCK, LETO_TABLELOCK, LETO_TABLEUNLOCK
 REQUEST LETO_DBUSEAREA, LETO_DBCLOSEAREA, LETO_ORDLISTADD
 REQUEST LETO_DBCREATE, LETO_ORDCREATE
-REQUEST LETO_DBEVAL, LETO_BACKUPTABLES
+REQUEST LETO_DBEVAL
 
 REQUEST LETO_IDLESLEEP
 REQUEST LETO_UDFMUSTQUIT
@@ -224,7 +224,7 @@ PROCEDURE Main( cCommand, cData )
 
       IF cCommand != NIL
          IF Lower( cCommand ) == "install"
-            IF leto_serviceInstall()
+            IF leto_serviceInstall( "The famous LetoDBf database server for data in DBF tables" )
                WrLog( "LetoDB service has been successfully installed" )
                __RUN( "net start LetoDBf_Service" )
             ELSE

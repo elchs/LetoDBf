@@ -869,6 +869,7 @@ static HB_ERRCODE letoFieldInfo( LETOAREAP pArea, HB_USHORT uiIndex, HB_USHORT u
    if( ! uiIndex || uiIndex > pTable->uiFieldExtent )
       return HB_FAILURE;
 
+#ifndef __HARBOUR30__
    if( pTable->fHaveAutoinc && ( uiType == DBS_COUNTER || uiType == DBS_STEP ) )
    {
       LETOFIELD * pField = pTable->pFields + uiIndex - 1;
@@ -908,6 +909,7 @@ static HB_ERRCODE letoFieldInfo( LETOAREAP pArea, HB_USHORT uiIndex, HB_USHORT u
       return HB_FAILURE;
    }
    else
+#endif
       return SUPER_FIELDINFO( &pArea->area, uiIndex, uiType, pItem );
 }
 

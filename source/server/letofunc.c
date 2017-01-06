@@ -4675,6 +4675,9 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
             }
 
             case '2':  /* Directory */
+#if defined( __HARBOUR30__ )
+               strcpy( szData1, szErr2 );
+#else
                if( nParam < 3 )
                   strcpy( szData1, szErr2 );
                else
@@ -4689,11 +4692,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                   {
                      HB_FATTR ulAttr = 0;
 
-#if defined( __HARBOUR30__ )
-                     if( ! ulLen || hb_fsGetAttr( szFile, &ulAttr ) )
-#else
                      if( ! ulLen || hb_fileAttrGet( szFile, &ulAttr ) )
-#endif
                      {
                         if( ! ulLen || ( ulAttr & HB_FA_DIRECTORY ) )
                         {
@@ -4709,11 +4708,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                   }
 
                   if( ulLen )
-#if defined( __HARBOUR30__ )
-                     pDir = hb_fsDirectory( szFile, ( pp2 && *pp2 ) ? pp2 : "", HB_TRUE );
-#else
                      pDir = hb_fileDirectory( szFile, pp2 );
-#endif
                   if( ! pDir )
                      pDir = hb_itemArrayNew( 0 );
 
@@ -4726,6 +4721,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                      hb_xfree( pParam );
                }
                break;
+#endif  /* ! __HARBOUR30__ */
 
             case '3':  /* memowrite */
                if( nParam < 4 )
@@ -5129,6 +5125,7 @@ HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs )
    return bRet;
 }
 
+#ifndef __HARBOUR30__
 static HB_BOOL leto_dbfCopy( PHB_FILE pSrcFile, const char * pszDest, HB_NHANDLE hSrcFile )
 {
    HB_ERRCODE errCode;
@@ -5517,13 +5514,13 @@ HB_BOOL leto_BackupTable( PUSERSTRU pUStru, const char * szTargetDir, HB_BOOL bD
    return bOk;
 }
 
-
 HB_FUNC( LETO_BACKUPTABLES )
 {
    PUSERSTRU pUStru = letoGetUStru();
 
    leto_BackupTable( pUStru, hb_parc( 1 ), hb_parl( 2 ) );
 }
+#endif  /* ! __HARBOUR30__ */
 
 /* leto_udf() */
 HB_FUNC( LETO_TABLELOCK )
@@ -7001,17 +6998,17 @@ HB_FUNC( LETO_DBEVAL )
 
    if( HB_ISCHAR( 1 ) )
       pBlocks[ 0 ] = leto_mkCodeBlock( hb_parc( 1 ), hb_parclen( 1 ), HB_FALSE );
-   else if( HB_ISEVALITEM( 1 ) )
+   else if( ( ( HB_ITEM_TYPE( 1 ) & HB_IT_EVALITEM ) != 0 ) )
       pBlocks[ 0 ] = hb_itemClone( hb_param( 1, HB_IT_EVALITEM ) );
 
    if( HB_ISCHAR( 2 ) )
       pBlocks[ 1 ] = leto_mkCodeBlock( hb_parc( 2 ), hb_parclen( 2 ), HB_FALSE );
-   else if( HB_ISEVALITEM( 2 ) )
+   else if( ( ( HB_ITEM_TYPE( 2 ) & HB_IT_EVALITEM ) != 0 ) )
       pBlocks[ 1 ] = hb_itemClone( hb_param( 2, HB_IT_EVALITEM ) );
 
    if( HB_ISCHAR( 3 ) )
       pBlocks[ 2 ] = leto_mkCodeBlock( hb_parc( 3 ), hb_parclen( 3 ), HB_FALSE );
-   else if( HB_ISEVALITEM( 3 ) )
+   else if( ( ( HB_ITEM_TYPE( 3 ) & HB_IT_EVALITEM ) != 0 ) )
       pBlocks[ 2 ] = hb_itemClone( hb_param( 3, HB_IT_EVALITEM ) );
 
    if( pArea && pUStru )
@@ -11490,6 +11487,7 @@ static void leto_Info( PUSERSTRU pUStru, const char * szData )
             break;
          }
 
+#ifndef __HARBOUR30__
          case DBI_DBS_COUNTER:
          case DBI_DBS_STEP:
          {
@@ -11520,6 +11518,7 @@ static void leto_Info( PUSERSTRU pUStru, const char * szData )
             hb_itemRelease( pItem );
             break;
          }
+#endif
 
          default:
             leto_SendAnswer( pUStru, szErr4, 4 );

@@ -63,14 +63,20 @@
 #include "hbatomic.h"
 #include "hbvm.h"
 #include "hbsetup.h"
-#include "hbzlib.h"
+#ifndef USE_LZ4
+   #include "hbzlib.h"
+#endif
 
 #include "cmdleto.h"
 #include "funcleto.h"
 #include "letocl.h"
 
 #include "dbinfo.ch"
-#include "hbserial.ch"
+#ifdef __HARBOUR30__
+   #define HB_SERIALIZE_NUMSIZE   HB_TRUE
+#else
+   #include "hbserial.ch"
+#endif
 #include "rddsys.ch"
 
 #include "rddleto.ch"
