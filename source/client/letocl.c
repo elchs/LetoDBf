@@ -1462,6 +1462,16 @@ static _HB_INLINE_ void leto_lz4Uncompress( char * pDst, HB_SIZE * pnDst, const 
    if( LZ4_decompress_safe( pSrc, pDst, nSrc, *pnDst ) <= 0 )
       *pnDst = 0;
 }
+
+static _HB_INLINE_ void leto_lz4Compress( char * pDst, HB_SIZE * pnDst, const char * pSrc, HB_SIZE nLen, int iLevel )
+{
+   *pnDst = ( HB_SIZE ) LZ4_compress_fast( pSrc, pDst, nLen, *pnDst, iLevel );
+}
+
+static _HB_INLINE_ HB_SIZE leto_lz4CompressBound( HB_ULONG ulLen )
+{
+   return ( HB_SIZE ) LZ4_compressBound( ulLen );
+}
 #endif
 
 const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen )
@@ -1500,6 +1510,81 @@ const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen )
 
    ptr[ *pulLen ] = '\0';
    return ptr;
+}
+
+HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead )
+{
+   HB_ULONG ulBufLen;
+   HB_SIZE  nDest;
+   HB_BOOL  fCompress;
+
+#ifdef USE_LZ4
+   fCompress = ( pConnection->iZipRecord < 1 && ulLen > LETO_LZ4_COMPRESS_MIN ) ? HB_TRUE : HB_FALSE;
+   if( fCompress )
+   {
+      nDest = leto_lz4CompressBound( ulLen );
+      if( ! nDest )  /* too big > 0x7E000000 */
+      {
+         pConnection->iError = 1021;
+         ulLen = 0;
+         ulBufLen = 5 + ulPrelead;
+      }
+      else
+         ulBufLen = nDest + 21 + ulPrelead;  /* encrypt +8, zip-lengths +8, length +4, termination + 1  */
+   }
+#else
+   fCompress = ( pConnection->iZipRecord < 1 && ulLen > LETO_ZIP_MINLENGTH ) ? HB_TRUE : HB_FALSE;
+   if( fCompress )
+   {
+      nDest = hb_zlibCompressBound( ulLen );
+      ulBufLen = nDest + 21 + ulPrelead;  /* encrypt +8, zip-lengths +8, length +4, termination + 1  */
+   }
+#endif
+   else
+   {
+      nDest = 0;
+      ulBufLen = ulLen + 21 + ulPrelead;
+   }
+
+   if( ulBufLen > pConnection->ulBufCryptLen )
+   {
+      if( ! pConnection->ulBufCryptLen )
+         pConnection->pBufCrypt = ( char * ) hb_xgrab( ulBufLen + 1 );
+      else
+         pConnection->pBufCrypt = ( char * ) hb_xrealloc( pConnection->pBufCrypt, ulBufLen + 1 );
+      pConnection->ulBufCryptLen = ( HB_ULONG ) ulBufLen;
+   }
+
+   if( ulLen )
+   {
+      /* compress here, if not later done by compressed traffic */
+      if( fCompress )
+      {
+#ifdef USE_LZ4
+         leto_lz4Compress( ( char * ) pConnection->pBufCrypt + 4 + ulPrelead, &nDest, ( const char * ) pData, ulLen,
+                          HB_ZLIB_COMPRESSION_SPEED );
+#else
+         hb_zlibCompress( ( char * ) pConnection->pBufCrypt + 4 + ulPrelead, &nDest, ( const char * ) pData, ulLen,
+                          HB_ZLIB_COMPRESSION_SPEED );  // == HB_ZLIB_RES_OK
+#endif
+         HB_PUT_LE_UINT32( pConnection->pBufCrypt + 4 + nDest + ulPrelead, nDest );
+         HB_PUT_LE_UINT32( pConnection->pBufCrypt + 4 + nDest + 4 + ulPrelead, ulLen );
+         ulLen = ( nDest + 8 );
+         HB_PUT_LE_UINT32( pConnection->pBufCrypt + ulPrelead, ulLen | 0x80000000 );
+      }
+      else
+      {
+         memcpy( pConnection->pBufCrypt + 4 + ulPrelead, pData, ulLen );
+         HB_PUT_LE_UINT32( pConnection->pBufCrypt + ulPrelead, ulLen );
+      }
+   }
+   else  /* ulLen == 0 */
+      memset( pConnection->pBufCrypt + ulPrelead, '\0', 4 );
+
+   ulLen += 4;
+   pConnection->pBufCrypt[ ulLen + ulPrelead ] = '\0';
+
+   return ulLen;
 }
 
 static _HB_INLINE_ unsigned int leto_IsBinaryField( unsigned int uiType, unsigned int uiLen )
@@ -5088,17 +5173,34 @@ HB_EXPORT HB_BOOL LetoMemoWrite( LETOCONNECTION * pConnection, const char * szFi
 {
    char *        pData;
    unsigned long ulRes;
+   HB_ULONG      ulBufLen = 32 + strlen( szFile ) + ulLen;
 
-   pConnection->iError = -1;
+   if( ulBufLen > pConnection->ulBufCryptLen )
+   {
+      if( ! pConnection->ulBufCryptLen )
+         pConnection->pBufCrypt = ( char * ) hb_xgrab( ulBufLen + 1 );
+      else
+         pConnection->pBufCrypt = ( char * ) hb_xrealloc( pConnection->pBufCrypt, ulBufLen + 1 );
+      pConnection->ulBufCryptLen = ( HB_ULONG ) ulBufLen;
+   }
+   pData = pConnection->pBufCrypt;
 
-   pData = ( char * ) hb_xgrab( 32 + strlen( szFile ) + ulLen );
-   ulRes = eprintf( pData, "%c;13;%s;;;", LETOCMD_file, szFile );
-   HB_PUT_LE_UINT32( pData + ulRes, ulLen );
-   memcpy( pData + ulRes + 4, szValue, ulLen );
-   ulRes += 4 + ulLen;
+   pConnection->iError = 0;
+   ulRes = eprintf( pData, "%c;13;%s;;0;", LETOCMD_file, szFile );
+   ulRes += leto_CryptText( pConnection, szValue, ulLen, ulRes );
+   pData = pConnection->pBufCrypt;
 
-   ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
-   hb_xfree( pData );
+   if( pConnection->iError )
+      ulRes = 0;
+   else
+      ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
+   if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
+   {
+       hb_xfree( pConnection->pBufCrypt );
+       pConnection->pBufCrypt = NULL;
+       pConnection->ulBufCryptLen = 0;
+   }
+
    if( ulRes )
    {
       const char * ptr = leto_firstchar( pConnection );
@@ -5169,18 +5271,34 @@ HB_EXPORT HB_BOOL LetoFileWrite( LETOCONNECTION * pConnection, const char * szFi
 {
    char *        pData;
    unsigned long ulRes;
+   HB_ULONG      ulBufLen = 48 + strlen( szFile ) + ulLen;
+
+   if( ulBufLen > pConnection->ulBufCryptLen )
+   {
+      if( ! pConnection->ulBufCryptLen )
+         pConnection->pBufCrypt = ( char * ) hb_xgrab( ulBufLen + 1 );
+      else
+         pConnection->pBufCrypt = ( char * ) hb_xrealloc( pConnection->pBufCrypt, ulBufLen + 1 );
+      pConnection->ulBufCryptLen = ( HB_ULONG ) ulBufLen;
+   }
+   pData = pConnection->pBufCrypt;
 
    pConnection->iError = 0;
+   ulRes = eprintf( pData, "%c;14;%s;%lu;", LETOCMD_file, szFile, ulStart );
+   ulRes += leto_CryptText( pConnection, szValue, ulLen, ulRes );
+   pData = pConnection->pBufCrypt;
 
-   pData = ( char * ) hb_xgrabz( 48 + strlen( szFile ) + ulLen );
-   ulRes = eprintf( pData, "%c;14;%s;%lu;%lu;", LETOCMD_file, szFile, ulStart, ulLen );
-   HB_PUT_LE_UINT32( pData + ulRes, ulLen );
-   ulRes += 4;
-   memcpy( pData + ulRes, szValue, ulLen );
-   ulRes += ulLen;
+   if( pConnection->iError )
+      ulRes = 0;
+   else
+      ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
+   if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
+   {
+       hb_xfree( pConnection->pBufCrypt );
+       pConnection->pBufCrypt = NULL;
+       pConnection->ulBufCryptLen = 0;
+   }
 
-   ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
-   hb_xfree( pData );
    if( ulRes )
    {
       const char * ptr = leto_firstchar( pConnection );

@@ -162,6 +162,11 @@ A. Internals
       letodb.exe reload             ( Windows )
       ./letodb reload               ( Linux )
 
+ Linux: it needs a pause of 1-2 minute before you can restart server after a shutdown.
+ To automate that, use bash script: 'leto.sh' in "bin" directory, it will start the server
+ when it is again possible. It is about the time that must elapse before TCP/IP can release a
+ closed connection and reuse its resources. This is known as TIME_WAIT state.
+
 
       3.2  Run as Windows@ service
 

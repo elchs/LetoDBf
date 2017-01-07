@@ -3972,6 +3972,13 @@ static HB_ERRCODE leto_GotoIf( AREAP pArea, HB_ULONG ulRecNo )
 }
 
 #ifdef USE_LZ4
+static _HB_INLINE_ void leto_lz4Uncompress( char * pDst, HB_SIZE * pnDst, const char * pSrc, HB_SIZE nSrc )
+{
+   /* basically we can verify decompression with: return length == *pnDst */
+   if( LZ4_decompress_safe( pSrc, pDst, nSrc, *pnDst ) <= 0 )
+      *pnDst = 0;
+}
+
 static _HB_INLINE_ void leto_lz4Compress( char * pDst, HB_SIZE * pnDst, const char * pSrc, HB_SIZE nLen, int iLevel )
 {
    *pnDst = ( HB_SIZE ) LZ4_compress_fast( pSrc, pDst, nLen, *pnDst, iLevel );
@@ -3983,19 +3990,70 @@ static _HB_INLINE_ HB_SIZE leto_lz4CompressBound( HB_ULONG ulLen )
 }
 #endif
 
-static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG ulLen )
+static const char * leto_DecryptText( PUSERSTRU pUStru, HB_ULONG * pulLen, char * ptr )
 {
-   HB_ULONG  ulBufLen;
-   HB_SIZE   nDest;
+   //char *  ptr = ( char * ) pUStru->pBuffer;
+   HB_BOOL fCompressed;
+
+   *pulLen = HB_GET_LE_UINT32( ( HB_BYTE * ) ptr );
+   fCompressed = ( *pulLen & 0x80000000 );
+   if( fCompressed )
+      *pulLen &= 0x7FFFFFFF;
+   ptr += 4;
+
+   if( fCompressed )
+   {
+      HB_SIZE nSize = HB_GET_LE_UINT32( ( HB_BYTE * ) ptr + *pulLen - 8 );
+
+      *pulLen = HB_GET_LE_UINT32( ( HB_BYTE * ) ptr + *pulLen - 4 );
+      if( *pulLen > pUStru->ulBufCryptLen )
+      {
+         if( ! pUStru->ulBufCryptLen )
+         {
+            pUStru->ulBufCryptLen = HB_MAX( *pulLen, LETO_SENDRECV_BUFFSIZE );
+            pUStru->pBufCrypt = ( HB_BYTE * ) hb_xgrab( pUStru->ulBufCryptLen + 1 );
+         }
+         else
+         {
+            pUStru->ulBufCryptLen = *pulLen;
+            pUStru->pBufCrypt = ( HB_BYTE * ) hb_xrealloc( pUStru->pBufCrypt, *pulLen + 1 );
+         }
+      }
 
 #ifdef USE_LZ4
-   if( pUStru->iZipRecord < 1 && ulLen > LETO_LZ4_COMPRESS_MIN )
+      leto_lz4Uncompress( ( char * ) pUStru->pBufCrypt, ( HB_SIZE * ) pulLen, ( const char * ) ptr, nSize );
+#else
+      hb_zlibUncompress( ( char * ) pUStru->pBufCrypt, ( HB_SIZE * ) pulLen, ( const char * ) ptr, nSize );
+#endif
+      ptr = ( char * ) pUStru->pBufCrypt;
+   }
+
+   ptr[ *pulLen ] = '\0';
+   return ptr;
+}
+
+static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG ulLen )
+{
+   HB_ULONG ulBufLen;
+   HB_SIZE  nDest;
+   HB_BOOL  fCompress;
+
+#ifdef USE_LZ4
+   fCompress = ( pUStru->iZipRecord < 1 && ulLen > LETO_LZ4_COMPRESS_MIN ) ? HB_TRUE : HB_FALSE;
+   if( fCompress )
    {
       nDest = leto_lz4CompressBound( ulLen );
-      ulBufLen = nDest + 21;  /* encrypt +8, zip-lengths +8, length +4, termination + 1  */
+      if( ! nDest )  /* too big > 0x7E000000 */
+      {
+         ulBufLen = 5;
+         ulLen = 0;
+      }
+      else
+         ulBufLen = nDest + 21;  /* encrypt +8, zip-lengths +8, length +4, termination + 1  */
    }
 #else
-   if( pUStru->iZipRecord < 1 && ulLen > LETO_ZIP_MINLENGTH )
+   fCompress = ( pUStru->iZipRecord < 1 && ulLen > LETO_ZIP_MINLENGTH ) ? HB_TRUE : HB_FALSE;
+   if( fCompress )
    {
       nDest = hb_zlibCompressBound( ulLen );
       ulBufLen = nDest + 21;  /* encrypt +8, zip-lengths +8, length +4, termination + 1  */
@@ -4024,11 +4082,7 @@ static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG u
    if( ulLen )
    {
       /* compress here, if not later done by compressed traffic */
-#ifdef USE_LZ4
-      if( pUStru->iZipRecord < 1 && ulLen > LETO_LZ4_COMPRESS_MIN )
-#else
-      if( pUStru->iZipRecord < 1 && ulLen > LETO_ZIP_MINLENGTH )
-#endif
+      if( fCompress )
       {
 #ifdef USE_LZ4
          leto_lz4Compress( ( char * ) pUStru->pBufCrypt + 4, &nDest, ( const char * ) pData, ulLen,
@@ -4551,9 +4605,17 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                pBuffer = leto_memoread( szFile, &ulLen );
                if( pBuffer )
                {
+                  HB_ULONG ulLenOrg = ulLen;
+
                   ulLen = leto_CryptText( pUStru, pBuffer, ulLen );
                   hb_xfree( pBuffer );
-                  pBuffer = ( char * ) pUStru->pBufCrypt;
+                  if( ulLen == 4 && ulLenOrg )
+                  {
+                     pBuffer = NULL;
+                     strcpy( szData1, szErr2 );
+                  }
+                  else
+                     pBuffer = ( char * ) pUStru->pBufCrypt;
                }
                else
                   strcpy( szData1, szErr2 );
@@ -4632,9 +4694,17 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                   pBuffer = ( char * ) hb_xgrab( ulLen + 1 );
                   if( leto_fileread( szFile, pBuffer, ulStart, &ulLen ) && ulLen )
                   {
+                     HB_ULONG ulLenOrg = ulLen;
+
                      ulLen = leto_CryptText( pUStru, pBuffer, ulLen );
                      hb_xfree( pBuffer );
-                     pBuffer = ( char * ) pUStru->pBufCrypt;
+                     if( ulLen == 4 && ulLenOrg )
+                     {
+                        pBuffer = NULL;
+                        sprintf( szData1, "+F;%d;", hb_fsError() );                     
+                     }
+                     else
+                        pBuffer = ( char * ) pUStru->pBufCrypt;
                   }
                   else
                   {
@@ -4728,9 +4798,14 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                   strcpy( szData1, szErr2 );
                else
                {
-                  const char * pBuf = pp3 + strlen( pp3 ) + 1;
-                  ulLen = HB_GET_LE_UINT32( pBuf );
-                  if( leto_memowrite( szFile, pBuf + 4, ulLen ) )
+                  char *       ptr;
+                  const char * pBuf;
+
+                  ulLen = strtoul( pp3, &ptr, 10 );
+                  ptr++;
+
+                  pBuf = leto_DecryptText( pUStru, &ulLen, ptr );
+                  if( leto_memowrite( szFile, pBuf, ulLen ) )
                      strcpy( szData1, "+T;0;" );
                   else
                      sprintf( szData1, "+F;%d;", hb_fsError() );
@@ -4738,20 +4813,19 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                break;
 
             case '4':  /* FileWrite */
-               if( nParam < 4 )
+               if( nParam < 3 )
                   strcpy( szData1, szErr2 );
                else
                {
                   HB_ULONG     ulStart;
+                  char *       ptr;
                   const char * pBuf;
 
-                  ulStart = strtoul( pp2, NULL, 10 );
-                  ulLen = strtoul( pp3, NULL, 10 );
-
-                  pBuf = pp3 + strlen( pp3 ) + 1;
-                  ulLen = HB_GET_LE_UINT32( pBuf );
-
-                  if( leto_filewrite( szFile, pBuf + 4, ulStart, ulLen ) )
+                  ulStart = strtoul( pp2, &ptr, 10 );
+                  ptr++;
+                  
+                  pBuf = leto_DecryptText( pUStru, &ulLen, ptr );
+                  if( leto_filewrite( szFile, pBuf, ulStart, ulLen ) )
                      strcpy( szData1, "+T;0;" );
                   else
                      sprintf( szData1, "+F;%d;", hb_fsError() );

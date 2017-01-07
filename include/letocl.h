@@ -215,7 +215,7 @@ typedef struct _LETOCONNECTION_
    unsigned int      uiMinorVer;
    char *            szVerHarbour;         /* Harbour version of LetoDB server build */
    char              szAccess[ 8 ];
-   char              cDopcode[ LETO_DOPCODE_LEN ];   /* bytes > 0 for mixed into LETO_PASSWORD */
+   char              cDopcode[ LETO_DOPCODE_LEN + 1 ];   /* bytes > 0 for mixed into LETO_PASSWORD */
    HB_BOOL           fCloseAll;
    PCDPSTRU          pCdpTable;
    HB_BOOL           fTransActive;
@@ -331,6 +331,7 @@ HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, c
 void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMax );
 
 const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen );
+HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead );
 
 const char * LetoMgGetInfo( LETOCONNECTION * pConnection );
 const char * LetoMgSysInfo( LETOCONNECTION * pConnection );

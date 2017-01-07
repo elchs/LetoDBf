@@ -91,7 +91,8 @@
 #define LETO_MAX_KEYLENGTH      32
 #define LETO_DOPCODE_LEN        7
 
-#define LETO_MAX_RECV_BLOCK     0xFFFFFFF  /* 268.435.455, or 16777215  FFFFFF == 16 MB */
+/* 0xFFFFFFF  268 435 455 */
+#define LETO_MAX_RECV_BLOCK     0x7FFFFFFF  /* 2 147 483 647  ( 2GB - 1 ) */
 /* In the absolute worst case of a single-byte input stream,
  * the overhead  is eleven bytes of overhead, includes one byte of actual data
  * plus LetoDBf 8 bytes for two 32 bit lengths  */

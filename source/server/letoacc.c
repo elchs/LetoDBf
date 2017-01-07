@@ -136,12 +136,13 @@ HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG u
    PHB_FILE   pFile;
 #endif
    HB_BOOL    bRes = HB_FALSE;
+   HB_ULONG   ulLen = *pulLen;
 
-   if( ! *pulLen )
-   {
-      pBuffer[ 0 ] = '\0';
+   pBuffer[ 0 ] = '\0';
+   *pulLen = 0;
+
+   if( ! ulLen )
       return bRes;
-   }
 
 #if defined( __HARBOUR30__ )
    fhnd = hb_fsOpen( szFilename, FO_READ | FO_SHARED | FO_PRIVATE );
@@ -149,22 +150,22 @@ HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG u
    {
       if( ( HB_ULONG ) hb_fsSeekLarge( fhnd, ulStart, FS_SET ) == ulStart )
       {
-         *pulLen = hb_fsReadLarge( fhnd, ( void * ) pBuffer, *pulLen );
+         *pulLen = hb_fsReadLarge( fhnd, ( void * ) pBuffer, ulLen );
+         pBuffer[ *pulLen ] = '\0';
          bRes = HB_TRUE;
       }
       hb_fsClose( fhnd );
-      pBuffer[ *pulLen ] = '\0';
    }
 #else
    if( ( pFile = hb_fileExtOpen( szFilename, NULL, FO_READ | FO_SHARED | FO_PRIVATE, NULL, NULL ) ) != NULL )
    {
       if( ( HB_ULONG ) hb_fileSeek( pFile, ulStart, FS_SET ) == ulStart )
       {
-         *pulLen = hb_fileRead( pFile, ( void * ) pBuffer, *pulLen, -1 );
+         *pulLen = hb_fileRead( pFile, ( void * ) pBuffer, ulLen, -1 );
+         pBuffer[ *pulLen ] = '\0';
          bRes = HB_TRUE;
       }
       hb_fileClose( pFile );
-      pBuffer[ *pulLen ] = '\0';
    }
 #endif
 
@@ -186,10 +187,17 @@ HB_BOOL leto_filewrite( const char * szFilename, const char * pBuffer, const HB_
 #else
    PHB_FILE pFile;
 
-   if( ( pFile = hb_fileExtOpen( szFilename, NULL, FO_CREAT | FO_WRITE, NULL, NULL ) ) != NULL )
+   if( ( pFile = hb_fileExtOpen( szFilename, NULL, FXO_APPEND | FO_WRITE | FXO_SHARELOCK, NULL, NULL ) ) != NULL )
    {
+#if 0  /* alternative */
       if( ( HB_ULONG ) hb_fileSeek( pFile, ulStart, FS_SET ) == ulStart )
          bRetVal = ( hb_fileWrite( pFile, pBuffer, ulLen, -1 ) == ulLen );
+#else
+      HB_SIZE nLen = hb_fileWriteAt( pFile, pBuffer, ulLen, ( HB_FOFFSET ) ulStart );
+
+      if( nLen != ( HB_SIZE ) FS_ERROR && nLen == ulLen )
+         bRetVal = HB_TRUE;
+#endif
       hb_fileClose( pFile );
    }
 #endif

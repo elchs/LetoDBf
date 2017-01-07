@@ -2,6 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-07 17:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letoacc.c
+    ! fix filwrite, wrong attribute
+
+  * include/letocl.h
+  * include/funcleto.h
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    + compression for LetoFileWrite() and LetoMemoWrite()
+    % increase max receive block size: 0x7FFFFFFF aka 2GB - 32MB
+    ; may test such big blocks handles
+
+  * Readme.txt
+    * comment about leto.sh and Linux time-wait
+
 2017-01-06 19:09 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/leto_win.c
   * source/server/server.prg
