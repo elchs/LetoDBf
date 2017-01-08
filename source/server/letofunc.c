@@ -180,7 +180,7 @@ extern void leto_SrvShutDown( unsigned int uiWait );
 
 extern char * leto_memoread( const char * szFilename, HB_ULONG * pulLen );
 extern HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG ulStart, HB_ULONG * ulLen );
-extern HB_BOOL leto_filewrite( const char * szFilename, const char * pBuffer, const HB_ULONG ulStart, HB_ULONG ulLen );
+extern HB_BOOL leto_filewrite( const char * szFilename, const char * pBuffer, const HB_ULONG ulStart, HB_ULONG ulLen, HB_BOOL bTrunc );
 extern HB_BOOL leto_memowrite( const char * szFilename, const char * pBuffer, HB_ULONG ulLen );
 
 extern void leto_acc_release( void );
@@ -3992,7 +3992,6 @@ static _HB_INLINE_ HB_SIZE leto_lz4CompressBound( HB_ULONG ulLen )
 
 static const char * leto_DecryptText( PUSERSTRU pUStru, HB_ULONG * pulLen, char * ptr )
 {
-   //char *  ptr = ( char * ) pUStru->pBuffer;
    HB_BOOL fCompressed;
 
    *pulLen = HB_GET_LE_UINT32( ( HB_BYTE * ) ptr );
@@ -4032,7 +4031,7 @@ static const char * leto_DecryptText( PUSERSTRU pUStru, HB_ULONG * pulLen, char 
    return ptr;
 }
 
-static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG ulLen )
+static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead )
 {
    HB_ULONG ulBufLen;
    HB_SIZE  nDest;
@@ -4045,7 +4044,7 @@ static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG u
       nDest = leto_lz4CompressBound( ulLen );
       if( ! nDest )  /* too big > 0x7E000000 */
       {
-         ulBufLen = 5;
+         ulBufLen = 5 + ulPrelead;
          ulLen = 0;
       }
       else
@@ -4056,13 +4055,13 @@ static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG u
    if( fCompress )
    {
       nDest = hb_zlibCompressBound( ulLen );
-      ulBufLen = nDest + 21;  /* encrypt +8, zip-lengths +8, length +4, termination + 1  */
+      ulBufLen = nDest + 21 + ulPrelead;  /* encrypt +8, zip-lengths +8, length +4, termination + 1  */
    }
 #endif
    else
    {
       nDest = 0;
-      ulBufLen = ulLen + 21;
+      ulBufLen = ulLen + 21 + ulPrelead;
    }
 
    if( ulBufLen > pUStru->ulBufCryptLen )
@@ -4085,28 +4084,28 @@ static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG u
       if( fCompress )
       {
 #ifdef USE_LZ4
-         leto_lz4Compress( ( char * ) pUStru->pBufCrypt + 4, &nDest, ( const char * ) pData, ulLen,
+         leto_lz4Compress( ( char * ) pUStru->pBufCrypt + 4 + ulPrelead, &nDest, ( const char * ) pData, ulLen,
                           HB_ZLIB_COMPRESSION_SPEED );
 #else
-         hb_zlibCompress( ( char * ) pUStru->pBufCrypt + 4, &nDest, ( const char * ) pData, ulLen,
+         hb_zlibCompress( ( char * ) pUStru->pBufCrypt + 4 + ulPrelead, &nDest, ( const char * ) pData, ulLen,
                           HB_ZLIB_COMPRESSION_SPEED );  // == HB_ZLIB_RES_OK
 #endif
-         HB_PUT_LE_UINT32( pUStru->pBufCrypt + 4 + nDest, nDest );
-         HB_PUT_LE_UINT32( pUStru->pBufCrypt + 4 + nDest + 4, ulLen );
+         HB_PUT_LE_UINT32( pUStru->pBufCrypt + 4 + nDest + ulPrelead, nDest );
+         HB_PUT_LE_UINT32( pUStru->pBufCrypt + 4 + nDest + 4 + ulPrelead, ulLen );
          ulLen = ( nDest + 8 );
-         HB_PUT_LE_UINT32( pUStru->pBufCrypt, ulLen | 0x80000000 );
+         HB_PUT_LE_UINT32( pUStru->pBufCrypt + ulPrelead, ulLen | 0x80000000 );
       }
       else
       {
-         memcpy( pUStru->pBufCrypt + 4, pData, ulLen );
-         HB_PUT_LE_UINT32( pUStru->pBufCrypt, ulLen );
+         memcpy( pUStru->pBufCrypt + 4 + ulPrelead, pData, ulLen );
+         HB_PUT_LE_UINT32( pUStru->pBufCrypt + ulPrelead, ulLen );
       }
    }
    else  /* ulLen == 0 */
-      memset( pUStru->pBufCrypt, '\0', 4 );
+      memset( pUStru->pBufCrypt + ulPrelead, '\0', 4 );
 
    ulLen += 4;
-   pUStru->pBufCrypt[ ulLen ] = '\0';
+   pUStru->pBufCrypt[ ulLen + ulPrelead ] = '\0';
 
    return ulLen;
 }
@@ -4607,18 +4606,22 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                {
                   HB_ULONG ulLenOrg = ulLen;
 
-                  ulLen = leto_CryptText( pUStru, pBuffer, ulLen );
+                  ulLen = leto_CryptText( pUStru, pBuffer, ulLen, 3 );
                   hb_xfree( pBuffer );
                   if( ulLen == 4 && ulLenOrg )
                   {
                      pBuffer = NULL;
-                     strcpy( szData1, szErr2 );
+                     strcpy( szData1, "+F;1;" );
                   }
                   else
+                  {
                      pBuffer = ( char * ) pUStru->pBufCrypt;
+                     memcpy( pBuffer, "+T;", 3 );
+                     ulLen += 3;
+                  }
                }
                else
-                  strcpy( szData1, szErr2 );
+                  strcpy( szData1, "+F;2;" );
                break;
 
             case '5':  /* MkDir */
@@ -4664,10 +4667,11 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                   strcpy( szData1, szErr2 );
                else
                {
-                  HB_ULONG ulStart;
+                  HB_ULONG ulStart = strtoul( pp2, NULL, 10 );
+                  HB_BOOL  bFound;
 
-                  ulStart = strtoul( pp2, NULL, 10 );
                   ulLen = strtoul( pp3, NULL, 10 );
+                  bFound = ulLen ? HB_TRUE : HB_FALSE;
                   if( ! ulLen )  /* whole file, determine size */
                   {
 
@@ -4683,7 +4687,10 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                            PHB_ITEM pFileArr = hb_itemArrayGet( pArray, 1 );
 
                            if( pFileArr && HB_IS_ARRAY( pFileArr ) && hb_arrayLen( pFileArr ) > 1 )
+                           {
                               ulLen = hb_arrayGetNL( pFileArr, 2 );
+                              bFound = HB_TRUE;
+                           }
                            if( pArray )
                               hb_itemRelease( pFileArr );
                         }
@@ -4691,28 +4698,39 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                      }
 #endif
                   }
-                  pBuffer = ( char * ) hb_xgrab( ulLen + 1 );
-                  if( leto_fileread( szFile, pBuffer, ulStart, &ulLen ) && ulLen )
+                  if( bFound )
                   {
-                     HB_ULONG ulLenOrg = ulLen;
-
-                     ulLen = leto_CryptText( pUStru, pBuffer, ulLen );
-                     hb_xfree( pBuffer );
-                     if( ulLen == 4 && ulLenOrg )
+                     pBuffer = ( char * ) hb_xgrab( ulLen + 1 );
+                     if( leto_fileread( szFile, pBuffer, ulStart, &ulLen ) )
                      {
-                        pBuffer = NULL;
-                        sprintf( szData1, "+F;%d;", hb_fsError() );                     
+                        HB_ULONG ulLenOrg = ulLen;
+
+                        ulLen = leto_CryptText( pUStru, pBuffer, ulLen, 3 );
+                        hb_xfree( pBuffer );
+                        if( ulLen == 4 && ulLenOrg )
+                        {
+                           pBuffer = NULL;
+                           strcpy( szData1, "+F;1;" );
+                        }
+                        else
+                        {
+                           pBuffer = ( char * ) pUStru->pBufCrypt;
+                           memcpy( pBuffer, "+T;", 3 );
+                           ulLen += 3;
+                        }
                      }
                      else
-                        pBuffer = ( char * ) pUStru->pBufCrypt;
+                     {
+                        hb_xfree( pBuffer );
+                        pBuffer = NULL;
+                        if( hb_fsError() )
+                           sprintf( szData1, "+F;%d;", hb_fsError() );
+                        else
+                           strcpy( szData1, "+F;2;" );
+                     }
                   }
                   else
-                  {
-                     if( pBuffer )
-                        hb_xfree( pBuffer );
-                     pBuffer = NULL;
-                     sprintf( szData1, "+F;%d;", hb_fsError() );
-                  }
+                     strcpy( szData1, "+F;2;" );
                }
                break;
 
@@ -4783,7 +4801,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                      pDir = hb_itemArrayNew( 0 );
 
                   pParam = hb_itemSerialize( pDir, HB_SERIALIZE_NUMSIZE, &nSize );
-                  ulLen = leto_CryptText( pUStru, pParam, nSize );
+                  ulLen = leto_CryptText( pUStru, pParam, nSize, 0 );
                   pBuffer = ( char * ) pUStru->pBufCrypt;
                   if( pDir )
                      hb_itemRelease( pDir );
@@ -4823,9 +4841,9 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
 
                   ulStart = strtoul( pp2, &ptr, 10 );
                   ptr++;
-                  
+
                   pBuf = leto_DecryptText( pUStru, &ulLen, ptr );
-                  if( leto_filewrite( szFile, pBuf, ulStart, ulLen ) )
+                  if( leto_filewrite( szFile, pBuf, ulStart, ulLen, HB_FALSE ) )
                      strcpy( szData1, "+T;0;" );
                   else
                      sprintf( szData1, "+F;%d;", hb_fsError() );
@@ -7283,7 +7301,7 @@ static int leto_Memo( PUSERSTRU pUStru, const char * szData, TRANSACTSTRU * pTA,
             else
             {
                SELF_GETVALUE( pArea, uiField, pMemoText );
-               ulLen = leto_CryptText( pUStru, hb_itemGetCPtr( pMemoText ), hb_itemGetCLen( pMemoText ) );
+               ulLen = leto_CryptText( pUStru, hb_itemGetCPtr( pMemoText ), hb_itemGetCLen( pMemoText ), 0 );
                pData = ( char * ) pUStru->pBufCrypt;
             }
             hb_itemRelease( pMemoText );
@@ -11359,7 +11377,7 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
                {
                   char *   pParam = hb_itemSerialize( hb_param( -1, HB_IT_ANY ),
                                                       HB_SERIALIZE_NUMSIZE, &nSize );
-                  HB_ULONG ulLen = leto_CryptText( pUStru, pParam, nSize );
+                  HB_ULONG ulLen = leto_CryptText( pUStru, pParam, nSize, 0 );
 
                   leto_SendAnswer( pUStru, ( char * ) pUStru->pBufCrypt, ulLen );
                   if( pParam )

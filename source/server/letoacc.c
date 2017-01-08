@@ -93,24 +93,26 @@ char * leto_memoread( const char * szFilename, HB_ULONG * pulLen )
    if( fhnd != FS_ERROR )
    {
       *pulLen = hb_fsSeek( fhnd, 0, FS_END );
-      if( *pulLen != 0 )
-      {
-         pBuffer = ( char * ) hb_xgrab( *pulLen + 1 );
+      pBuffer = ( char * ) hb_xgrab( *pulLen + 1 );
 
-         hb_fsSeek( fhnd, 0, FS_SET );
-         if( hb_fsReadLarge( fhnd, pBuffer, *pulLen ) != *pulLen )
-         {
-            hb_xfree( pBuffer );
-            *pulLen = 0;
-            pBuffer = NULL;
-         }
-         else
-            pBuffer[ *pulLen ] = '\0';
+      hb_fsSeek( fhnd, 0, FS_SET );
+      if( hb_fsReadLarge( fhnd, pBuffer, *pulLen ) != *pulLen )
+      {
+         hb_xfree( pBuffer );
+         *pulLen = 0;
+         pBuffer = NULL;
+      }
+      else
+      {
+         if( *pulLen && pBuffer[ *pulLen - 1 ] == 26 )
+            *pulLen -= 1;
+         pBuffer[ *pulLen ] = '\0';
       }
       hb_fsClose( fhnd );
    }
    else
       *pulLen = 0;
+
    return pBuffer;
 }
 
@@ -119,9 +121,16 @@ HB_BOOL leto_memowrite( const char * szFilename, const char * pBuffer, HB_ULONG 
    HB_FHANDLE fhnd;
    HB_BOOL    bRetVal = HB_FALSE;
 
-   if( ( fhnd = hb_fsCreate( szFilename, FC_NORMAL ) ) != FS_ERROR )
+   if( ulLen && ( fhnd = hb_fsCreate( szFilename, FC_NORMAL ) ) != FS_ERROR )
    {
       bRetVal = ( hb_fsWriteLarge( fhnd, pBuffer, ulLen ) == ulLen );
+      if( bRetVal )
+      {
+         char cStrgZ[ 1 ];
+
+         cStrgZ[ 0 ] = 26;
+         bRetVal = ( hb_fsWriteLarge( fhnd, cStrgZ, 1 ) == 1 );
+      }
       hb_fsClose( fhnd );
    }
 
@@ -142,7 +151,7 @@ HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG u
    *pulLen = 0;
 
    if( ! ulLen )
-      return bRes;
+      return HB_TRUE;
 
 #if defined( __HARBOUR30__ )
    fhnd = hb_fsOpen( szFilename, FO_READ | FO_SHARED | FO_PRIVATE );
@@ -172,13 +181,18 @@ HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG u
    return bRes;
 }
 
-HB_BOOL leto_filewrite( const char * szFilename, const char * pBuffer, const HB_ULONG ulStart, HB_ULONG ulLen )
+HB_BOOL leto_filewrite( const char * szFilename, const char * pBuffer, const HB_ULONG ulStart, HB_ULONG ulLen, HB_BOOL bTrunc )
 {
    HB_BOOL bRetVal = HB_FALSE;
+
 #if defined( __HARBOUR30__ )
    HB_FHANDLE fhnd;
+   HB_USHORT  uiFlags = FO_CREAT | FO_WRITE;
 
-   if( ( fhnd = hb_fsOpen( szFilename, FO_CREAT | FO_WRITE ) ) != FS_ERROR )
+   if( bTrunc )
+      uiFlags |= FO_TRUNC;
+
+   if( ( fhnd = hb_fsOpen( szFilename, uiFlags ) ) != FS_ERROR )
    {
       if( ( HB_ULONG ) hb_fsSeekLarge( fhnd, ulStart, FS_SET ) == ulStart )
          bRetVal = ( hb_fsWriteLarge( fhnd, pBuffer, ulLen ) == ulLen );
@@ -186,18 +200,19 @@ HB_BOOL leto_filewrite( const char * szFilename, const char * pBuffer, const HB_
    }
 #else
    PHB_FILE pFile;
+   HB_FATTR nMode = FO_READWRITE | FO_DENYNONE | FO_PRIVATE | FXO_SHARELOCK;
 
-   if( ( pFile = hb_fileExtOpen( szFilename, NULL, FXO_APPEND | FO_WRITE | FXO_SHARELOCK, NULL, NULL ) ) != NULL )
+   if( bTrunc )
+      nMode |= FXO_TRUNCATE;
+   else
+      nMode |= FXO_APPEND;
+
+   if( ( pFile = hb_fileExtOpen( szFilename, NULL, nMode, NULL, NULL ) ) != NULL )
    {
-#if 0  /* alternative */
-      if( ( HB_ULONG ) hb_fileSeek( pFile, ulStart, FS_SET ) == ulStart )
-         bRetVal = ( hb_fileWrite( pFile, pBuffer, ulLen, -1 ) == ulLen );
-#else
       HB_SIZE nLen = hb_fileWriteAt( pFile, pBuffer, ulLen, ( HB_FOFFSET ) ulStart );
 
       if( nLen != ( HB_SIZE ) FS_ERROR && nLen == ulLen )
          bRetVal = HB_TRUE;
-#endif
       hb_fileClose( pFile );
    }
 #endif
@@ -714,7 +729,7 @@ static HB_BOOL leto_acc_flush( void )
          leto_encrypt( ( const char * ) pData, ( HB_ULONG ) ulLenLen, pData, &ulLenLen, __RANDOM_STRING__, HB_TRUE );
          leto_cryptReset( HB_TRUE );
 
-         fRes = leto_filewrite( s_pAccPath, pData, 0, ulLenLen );
+         fRes = leto_filewrite( s_pAccPath, pData, 0, ulLenLen, HB_TRUE );
          hb_xfree( pData );
       }
 

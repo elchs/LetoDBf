@@ -330,7 +330,7 @@ void leto_BeautifyPath( char * szPath );
 HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, char * szPath );
 void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMax );
 
-const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen );
+const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen, char * ptr );
 HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead );
 
 const char * LetoMgGetInfo( LETOCONNECTION * pConnection );

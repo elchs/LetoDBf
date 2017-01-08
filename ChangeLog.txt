@@ -2,6 +2,28 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-08 17:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/letocl.c
+  * source/server/letoacc.c
+  * source/server/letofunc.c
+    + truncate/ append mode param
+    * new param for leto_DecryptText
+    ! changing communication protocol for leto_filewrite() and leto_memoread(),
+      fix of ToDo from 2016-12-12
+    ; CHECK you recompiled both client lib  and server
+    ! add strg-z to content in leto_memowrite(), remove in leto_memoread() if
+      last char is strg-z ( char 26 )
+    ; CHECK if you used these functions, change is to be MemoRead()/ MemoWrit()
+      conform; if behaviour is unwanted, use Leto_FileRead()/ Leto_FileWrite()
+
+  * Readme.txt
+  * tests/test_file.prg
+  * source/client/letomgmn.c
+    * new param for leto_DecryptText
+    + add new client functions Leto_FCopyToSrv()/ Leto_FCopyFromSrv()
+    ; in new Harbour file API with possible redirectors, dummies for HB3.0
+
 2017-01-07 17:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letoacc.c
     ! fix filwrite, wrong attribute

@@ -1474,9 +1474,8 @@ static _HB_INLINE_ HB_SIZE leto_lz4CompressBound( HB_ULONG ulLen )
 }
 #endif
 
-const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen )
+const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen, char * ptr )
 {
-   char *  ptr = pConnection->szBuffer;
    HB_BOOL fCompressed;
 
    *pulLen = HB_GET_LE_UINT32( ( HB_BYTE * ) ptr );
@@ -3610,7 +3609,7 @@ HB_EXPORT const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, 
    ulLen = eprintf( szData, "%c;%lu;%c;%lu;%d;",
                     LETOCMD_memo, pTable->hTable, LETOSUB_get, pTable->ulRecNo, uiIndex + 1 );
    if( leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
-      return leto_DecryptText( pConnection, ulLenMemo );
+      return leto_DecryptText( pConnection, ulLenMemo, pConnection->szBuffer );
    else
       return NULL;
 }
@@ -5034,8 +5033,6 @@ HB_EXPORT HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFi
    char *        pData;
    unsigned int  uiRes;
 
-   pConnection->iError = -1;
-
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;01;%s;", LETOCMD_file, szFile );
 
@@ -5052,6 +5049,8 @@ HB_EXPORT HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFi
       }
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return HB_FALSE;
 }
@@ -5061,8 +5060,6 @@ HB_EXPORT HB_BYTE LetoFileErase( LETOCONNECTION * pConnection, const char * szFi
    unsigned long ulLen = 24 + strlen( szFile );
    char *        pData;
    unsigned int  uiRes;
-
-   pConnection->iError = -1;
 
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;02;%s;", LETOCMD_file, szFile );
@@ -5080,6 +5077,8 @@ HB_EXPORT HB_BYTE LetoFileErase( LETOCONNECTION * pConnection, const char * szFi
       }
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return 0;
 }
@@ -5089,8 +5088,6 @@ HB_EXPORT HB_BYTE LetoFileRename( LETOCONNECTION * pConnection, const char * szF
    unsigned long ulLen = 24 + strlen( szFile ) + strlen( szFileNew );
    char *        pData;
    unsigned int  uiRes;
-
-   pConnection->iError = -1;
 
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;03;%s;%s;", LETOCMD_file, szFile, szFileNew );
@@ -5108,6 +5105,8 @@ HB_EXPORT HB_BYTE LetoFileRename( LETOCONNECTION * pConnection, const char * szF
       }
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return 0;
 }
@@ -5117,8 +5116,6 @@ HB_EXPORT HB_BYTE LetoFileCopy( LETOCONNECTION * pConnection, const char * szFil
    unsigned long ulLen = 24 + strlen( szFile ) + strlen( szFileNew );
    char *        pData;
    unsigned int  uiRes;
-
-   pConnection->iError = -1;
 
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;17;%s;%s;", LETOCMD_file, szFile, szFileNew );
@@ -5136,6 +5133,8 @@ HB_EXPORT HB_BYTE LetoFileCopy( LETOCONNECTION * pConnection, const char * szFil
       }
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return 0;
 }
@@ -5146,24 +5145,19 @@ HB_EXPORT const char * LetoMemoRead( LETOCONNECTION * pConnection, const char * 
    char *        pData;
    unsigned long ulRes;
 
-   pConnection->iError = -1;
+   pConnection->iError = 0;
 
    pData = ( char * ) hb_xgrab( ulLen );
    ulRes = eprintf( pData, "%c;04;%s;", LETOCMD_file, szFile );
 
    ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
    hb_xfree( pData );
-   if( ulRes && memcmp( pConnection->szBuffer, "+F;100;", 7 ) && memcmp( pConnection->szBuffer, "-002", 4 ) )
-   {
-      const char * ptr = leto_DecryptText( pConnection, &ulLen );
-
-      if( ulLen && ptr )
-      {
-         pConnection->iError = 0;
-         *ulMemoLen = ulLen;
-         return ptr;
-      }
-   }
+   if( ulRes > 3 && ! memcmp( pConnection->szBuffer, "+F;", 3 ) )
+      pConnection->iError = atoi( pConnection->szBuffer + 3 );
+   else if( ulRes > 3 )
+      return leto_DecryptText( pConnection, ulMemoLen, pConnection->szBuffer + 3 );
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    *ulMemoLen = 0;
    return NULL;
@@ -5223,7 +5217,6 @@ HB_EXPORT HB_BOOL LetoMemoWrite( LETOCONNECTION * pConnection, const char * szFi
 HB_EXPORT const char * LetoFileRead( LETOCONNECTION * pConnection, const char * szFile, unsigned long ulStart, unsigned long * ulLen )
 {
    char *        pData;
-   const char *  ptr;
    unsigned long ulRes;
 
    pConnection->iError = 0;
@@ -5233,34 +5226,11 @@ HB_EXPORT const char * LetoFileRead( LETOCONNECTION * pConnection, const char * 
 
    ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
    hb_xfree( pData );
-   /* ToDo rework -- countercheck result is not error number */
-   if( ulRes > 4 && ulRes < 10 && ! strncmp( pConnection->szBuffer, "+F;", 3 ) &&
-       pConnection->szBuffer[ 3 ] >= '0' && pConnection->szBuffer[ 3 ] <= '9' &&
-       strchr( pConnection->szBuffer + 4, ';' ) != NULL )
-   {
+   if( ulRes > 3 && ! memcmp( pConnection->szBuffer, "+F;", 3 ) )
       pConnection->iError = atoi( pConnection->szBuffer + 3 );
-      if( ! pConnection->iError )
-      {
-         pConnection->szBuffer[ 0 ] = '\0';
-         ptr = pConnection->szBuffer;
-      }
-      else
-         ptr = NULL;
-
-      *ulLen = 0;
-      return ptr;
-   }
-   else if( ulRes )
-   {
-
-      ptr = leto_DecryptText( pConnection, ulLen );
-      if( ulLen )
-      {
-         pConnection->iError = 0;
-         return ptr;
-      }
-   }
-   else
+   else if( ulRes > 3 )
+      return leto_DecryptText( pConnection, ulLen, pConnection->szBuffer + 3 );
+   else if( ! pConnection->iError )
       pConnection->iError = -1;
 
    *ulLen = 0;
@@ -5325,8 +5295,6 @@ HB_EXPORT long LetoFileSize( LETOCONNECTION * pConnection, const char * szFile )
    char *        pData;
    unsigned long ulRes;
 
-   pConnection->iError = -1;
-
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;11;%s;", LETOCMD_file, szFile );
 
@@ -5348,6 +5316,8 @@ HB_EXPORT long LetoFileSize( LETOCONNECTION * pConnection, const char * szFile )
             pConnection->iError = atoi( ptr + 2 );
       }
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return -1;
 }
@@ -5357,8 +5327,6 @@ HB_EXPORT const char * LetoFileAttr( LETOCONNECTION * pConnection, const char * 
    unsigned long ulLen = 25 + strlen( szFile ) + ( szAttr ? strlen( szAttr ) : 0 );
    char *        pData;
    unsigned long ulRes;
-
-   pConnection->iError = -1;
 
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;15;%s;%s;", LETOCMD_file, szFile, ( szAttr ? szAttr : "" ) );
@@ -5386,6 +5354,8 @@ HB_EXPORT const char * LetoFileAttr( LETOCONNECTION * pConnection, const char * 
             pConnection->iError = atoi( ptr + 2 );
       }
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return "";
 }
@@ -5399,7 +5369,6 @@ HB_EXPORT const char * LetoDirectory( LETOCONNECTION * pConnection, const char *
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;12;%s;%s;", LETOCMD_file, szDir, ( ( szAttr ) ? szAttr : "" ) );
 
-   pConnection->iError = -1;
    ulRes = leto_DataSendRecv( pConnection, pData, ulLen );
    hb_xfree( pData );
    if( ulRes )
@@ -5416,6 +5385,8 @@ HB_EXPORT const char * LetoDirectory( LETOCONNECTION * pConnection, const char *
          return ptr;
       }
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return NULL;
 }
@@ -5444,6 +5415,8 @@ HB_EXPORT HB_BYTE LetoDirMake( LETOCONNECTION * pConnection, const char * szFile
       }
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return 0;
 }
@@ -5472,6 +5445,8 @@ HB_EXPORT HB_BYTE LetoDirExist( LETOCONNECTION * pConnection, const char * szFil
       }
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return 0;
 }
@@ -5481,8 +5456,6 @@ HB_EXPORT HB_BYTE LetoDirRemove( LETOCONNECTION * pConnection, const char * szFi
    unsigned long ulLen = 24 + strlen( szFile );
    char *        pData;
    unsigned int  uiRes;
-
-   pConnection->iError = -1;
 
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;07;%s;", LETOCMD_file, szFile );
@@ -5500,6 +5473,8 @@ HB_EXPORT HB_BYTE LetoDirRemove( LETOCONNECTION * pConnection, const char * szFi
       }
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return 0;
 }

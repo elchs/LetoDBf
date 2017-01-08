@@ -63,7 +63,7 @@ extern HB_USHORT uiGetConnCount( void );
 extern void leto_ConnectionClose( LETOCONNECTION * pConnection );
 extern LETOCONNECTION * leto_getConnection( int iParam );
 
-extern const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen );
+extern const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen, char * ptr );
 extern void leto_clientlog( const char * sFile, int n, const char * s, ... );
 extern HB_BOOL leto_Ping( LETOCONNECTION * pConnection );
 
@@ -189,11 +189,8 @@ HB_FUNC( LETO_FILE )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
-   {
-      pConnection->iError = -10;
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
       hb_retl( LetoFileExist( pConnection, szFile ) );
-   }
    else
       hb_retl( HB_FALSE );
 }
@@ -203,9 +200,8 @@ HB_FUNC( LETO_FERASE )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      pConnection->iError = -10;
       if( LetoFileErase( pConnection, szFile ) )
          hb_retni( 0 );
       else
@@ -220,9 +216,9 @@ HB_FUNC( LETO_FRENAME )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) &&
+       ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      pConnection->iError = -10;
       if( LetoFileRename( pConnection, szFile, leto_RemoveIpFromPath( hb_parc( 2 ) ) ) )
          hb_retni( 0 );
       else
@@ -237,9 +233,9 @@ HB_FUNC( LETO_FCOPY )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) &&
+       ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      pConnection->iError = -10;
       if( LetoFileCopy( pConnection, szFile, leto_RemoveIpFromPath( hb_parc( 2 ) ) ) )
          hb_retni( 0 );
       else
@@ -255,7 +251,7 @@ HB_FUNC( LETO_MEMOREAD )
    char szFile[ HB_PATH_MAX ];
    unsigned long ulMemoLen = 0;
 
-   if( HB_ISCHAR( 1 ) )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
    {
       pConnection = letoParseParam( hb_parc( 1 ), szFile );
       if( ! pConnection )
@@ -264,7 +260,6 @@ HB_FUNC( LETO_MEMOREAD )
       {
          const char * ptr;
 
-         pConnection->iError = -10;
          if( ( ptr = LetoMemoRead( pConnection, szFile, &ulMemoLen ) ) != NULL && ulMemoLen )
             hb_retclen( ptr, ulMemoLen );
          else
@@ -287,24 +282,23 @@ HB_FUNC( LETO_MEMOREAD )
    hb_retc( "" );
 }
 
-/* leto_FileRead( cFile, nStart, nLen [ 0 == whole , @cBuf ) */
-HB_FUNC( LETO_FILEREAD )
+HB_FUNC( LETO_FILEREAD )  /* ( cFile, 0 [ nStart ], 0 == all [ nLen ], @cBuf ) */
 {
-   LETOCONNECTION * pConnection;
-   char szFile[ HB_PATH_MAX ];
-   unsigned long ulLen = hb_parnl( 3 );
-
-   if( HB_ISCHAR( 1 ) && HB_ISBYREF( 4 ) )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISBYREF( 4 ) )
    {
+      LETOCONNECTION * pConnection;
+      char szFile[ HB_PATH_MAX ];
+
       pConnection = letoParseParam( hb_parc( 1 ), szFile );
       if( ! pConnection )
          pConnection = letoGetCurrConn();
       if( pConnection )
       {
          const char * ptr;
+         HB_ULONG ulStart = HB_ISNUM( 2 ) && hb_parnl( 2 ) > 0 ? hb_parnl( 2 ) : 0;
+         HB_ULONG ulLen = HB_ISNUM( 3 ) && hb_parnl( 3 ) > 0 ? hb_parnl( 3 ) : 0;
 
-         pConnection->iError = -10;
-         if( ( ptr = LetoFileRead( pConnection, szFile, hb_parnl( 2 ), &ulLen ) ) != NULL )
+         if( ( ptr = LetoFileRead( pConnection, szFile, ulStart, &ulLen ) ) != NULL )
          {
             hb_storclen( ptr, ulLen, 4 );
             hb_retnl( ulLen );
@@ -321,8 +315,15 @@ HB_FUNC( LETO_FILEREAD )
             }
             return;
          }
+         else
+         {
+            hb_storclen( "", 0, 4 );
+            hb_retnl( -1 );
+            return;
+         }
       }
    }
+
    hb_retnl( -1 );
 }
 
@@ -331,29 +332,183 @@ HB_FUNC( LETO_MEMOWRITE )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) &&
+       ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      pConnection->iError = -10;
       hb_retl( LetoMemoWrite( pConnection, szFile, hb_parc( 2 ), hb_parclen( 2 ) ) );
+      if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
+      {
+          pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
+          pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
+      }
    }
    else
       hb_retl( HB_FALSE );
 }
 
-HB_FUNC( LETO_FILEWRITE )  /* ( cFile, nStart, cBuf ) */
+HB_FUNC( LETO_FILEWRITE )  /* ( cFile, 0 [ nStart ], cBuf ) */
 {
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
    unsigned long ulBufLen = hb_parclen( 3 );
 
-   if( HB_ISCHAR( 1 ) && HB_ISCHAR( 3 ) && ulBufLen > 0 && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 3 ) && ulBufLen &&
+       ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      pConnection->iError = -10;
-      hb_retl( LetoFileWrite( pConnection, szFile, hb_parc( 3 ), hb_parnl( 2 ), ulBufLen ) );
+      HB_ULONG ulStart = HB_ISNUM( 2 ) && hb_parnl( 2 ) > 0 ? hb_parnl( 2 ) : 0;
+
+      hb_retl( LetoFileWrite( pConnection, szFile, hb_parc( 3 ), ulStart, ulBufLen ) );
+      if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
+      {
+          pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
+          pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
+      }
    }
    else
       hb_retl( HB_FALSE );
 }
+
+#if ! defined( __HARBOUR30__ )
+
+HB_FUNC( LETO_FCOPYTOSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
+{
+   HB_BOOL fSuccess = HB_FALSE;
+
+   if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 1 ) && hb_parclen( 2 ) )
+   {
+      char szFile[ HB_PATH_MAX ];
+      LETOCONNECTION * pConnection = letoParseParam( hb_parc( 2 ), szFile );
+
+      if( pConnection )
+      {
+         HB_BOOL  fError = HB_FALSE;
+         PHB_FILE pFile;
+         HB_SIZE  nStepSize = HB_ISNUM( 3 ) && hb_parni( 3 ) > 0 ? hb_parni( 3 ) : 0x100000;
+
+         if( ! hb_fileExists( hb_parc( 1 ), NULL ) )
+            fError = HB_TRUE;
+         if( ! fError && LetoFileExist( pConnection, szFile ) )
+            fError = ! LetoFileErase( pConnection, szFile );
+
+         if( ! fError && ( pFile = hb_fileExtOpen( hb_parc( 1 ), NULL, FO_READ | FO_SHARED | FO_PRIVATE, NULL, NULL ) ) != NULL )
+         {
+            HB_USHORT uStep = 0;
+            HB_SIZE   nRead;
+            char *    pBuffer = ( char * ) hb_xgrab( nStepSize );  /* 1MB */
+
+            while( 1 )
+            {
+               nRead = hb_fileRead( pFile, ( void * ) pBuffer, nStepSize, -1 );
+               if( nRead )
+               {
+                  fSuccess = HB_FALSE;
+                  if( ! LetoFileWrite( pConnection, szFile, pBuffer, uStep * nStepSize, nRead ) )
+                     break;
+                  fSuccess = HB_TRUE;
+                  uStep++;
+               }
+               if( nRead < nStepSize )
+                  break;
+            }
+            hb_fileClose( pFile );
+
+            hb_xfree( pBuffer );
+            if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
+            {
+               hb_xfree( pConnection->pBufCrypt );
+               pConnection->pBufCrypt = NULL;
+               pConnection->ulBufCryptLen = 0;
+            }
+            if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
+            {
+               pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
+               pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
+            }
+         }
+      }
+   }
+
+   hb_retl( fSuccess );
+}
+
+HB_FUNC( LETO_FCOPYFROMSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
+{
+   HB_BOOL fSuccess = HB_FALSE;
+
+   if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 1 ) && hb_parclen( 2 ) )
+   {
+      char szFile[ HB_PATH_MAX ];
+      LETOCONNECTION * pConnection = letoParseParam( hb_parc( 2 ), szFile );
+
+      if( pConnection )
+      {
+         PHB_FILE pFile;
+         HB_SIZE  nStepSize = HB_ISNUM( 3 ) && hb_parni( 3 ) > 0 ? hb_parni( 3 ) : 0x100000;
+         HB_FATTR nMode = FO_READWRITE | FO_DENYNONE | FO_PRIVATE | FXO_TRUNCATE | FXO_SHARELOCK;
+
+         if( ! LetoFileExist( pConnection, szFile ) )
+            hb_fsSetFError( 2 );
+         else
+         {
+            hb_fsSetFError( 0 );
+            if( hb_fileExists( hb_parc( 1 ), NULL ) )
+               hb_fileDelete( hb_parc( 1 ) );
+         }
+         if( ! hb_fsError() && ( pFile = hb_fileExtOpen( hb_parc( 1 ), NULL, nMode, NULL, NULL ) ) != NULL )
+         {
+            HB_USHORT    uStep = 0;
+            HB_ULONG     ulLen;
+            HB_SIZE      nWrite = 0;
+            const char * ptr;
+
+            while( 1 )
+            {
+               fSuccess = HB_FALSE;
+               ulLen = nStepSize;
+               if( ( ptr = LetoFileRead( pConnection, szFile, uStep * nStepSize, &ulLen ) ) != NULL )
+               {
+                  nWrite = hb_fileWrite( pFile, ptr, ulLen, -1 );
+                  if( nWrite == ( HB_SIZE ) FS_ERROR || nWrite != ulLen )
+                     break;
+                  fSuccess = HB_TRUE;
+               }
+               if( nWrite < nStepSize )
+                  break;
+               uStep++;
+            }
+            hb_fileClose( pFile );
+
+            if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
+            {
+               hb_xfree( pConnection->pBufCrypt );
+               pConnection->pBufCrypt = NULL;
+               pConnection->ulBufCryptLen = 0;
+            }
+            if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
+            {
+               pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
+               pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
+            }
+         }
+      }
+   }
+
+   hb_retl( fSuccess );
+}
+
+#else  /* dummies for v3.0 */
+
+HB_FUNC( LETO_FCOPYTOSRV )
+{
+   hb_retl( HB_FALSE );
+}
+
+HB_FUNC( LETO_FCOPYFROMSRV )
+{
+   hb_retl( HB_FALSE );
+}
+
+#endif  /* __HARBOUR30__ */
 
 
 HB_FUNC( LETO_FILESIZE )  /* ( cFile ) */
@@ -361,9 +516,8 @@ HB_FUNC( LETO_FILESIZE )  /* ( cFile ) */
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      pConnection->iError = -10;
       hb_retnl( LetoFileSize( pConnection, szFile ) );
       return;
    }
@@ -377,9 +531,8 @@ HB_FUNC( LETO_FILEATTR )  /* ( cFile [, cNewAttr ] ) */
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      pConnection->iError = -10;
       hb_retc( LetoFileAttr( pConnection, szFile, HB_ISCHAR( 2 ) ? hb_parc( 2 ) : NULL ) );
       return;
    }
@@ -398,11 +551,10 @@ HB_FUNC( LETO_DIRECTORY )  /* ( cPathSpec, cAttributes ) */
    {
       if( ! *szFile )
          strcpy( szFile, "." );
-      pConnection->iError = -10;
       ptr = LetoDirectory( pConnection, szFile, HB_ISCHAR( 2 ) ? hb_parc( 2 ) : NULL );
       if( ptr != NULL )
       {
-         ptr = leto_DecryptText( pConnection, &ulLen );
+         ptr = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer );
          if( ulLen )
          {
             hb_itemReturnRelease( hb_itemDeserialize( &ptr, ( HB_SIZE * ) &ulLen ) );
@@ -419,9 +571,8 @@ HB_FUNC( LETO_MAKEDIR )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      pConnection->iError = -10;
       if( LetoDirMake( pConnection, szFile ) )
          hb_retni( 0 );
       else
@@ -436,11 +587,8 @@ HB_FUNC( LETO_DIREXIST )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
-   {
-      pConnection->iError = -10;
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
       hb_retl( LetoDirExist( pConnection, szFile ) );
-   }
    else
       hb_retl( HB_FALSE );
 }
@@ -450,9 +598,8 @@ HB_FUNC( LETO_DIRREMOVE )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      pConnection->iError = -10;
       if( LetoDirRemove( pConnection, szFile ) )
          hb_retni( 0 );
       else
@@ -2033,7 +2180,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
          else
          {
             HB_ULONG     ulLen;
-            const char * ptrTmp = leto_DecryptText( pConnection, &ulLen );
+            const char * ptrTmp = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer );
 
             if( ulLen )
                hb_itemReturnRelease( hb_itemDeserialize( &ptrTmp, ( HB_SIZE * ) &ulLen ) );

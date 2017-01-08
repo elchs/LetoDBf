@@ -911,13 +911,15 @@ A. Internals
  Rename a file: <cFileName> ==> <cFileNewName>. <cFileNewName> should be without
  connection string.
 
-      Leto_MemoRead( cFileName )                               ==> cStr
+      Leto_MemoRead( cFileName )                               ==> cString
  Returns the contents of file at the server as character string, analog of
  MemoRead() function.
+ ! FIXED ! If last character in file is character 26 == strg-z, it is removed.
 
       Leto_MemoWrite( cFileName, cBuf )                        ==> lSuccess
- Writes a character string into a file at the server, analog of
+ Writes a character string in <cBuf> into a file at the server, analog of
  MemoWrit() function.
+ ! FIXED ! Notice, that character '26' == 'strg-z' is appened to <cBuf>.
 
       Leto_DirExist( cPath )                                   ==> lDirExists
  Determine if cirectory exist at the server, analog of Leto_File() function, but
@@ -929,12 +931,26 @@ A. Internals
       Leto_DirRemove( cPath )                                  ==> -1 if failed
  Deletes a directory at the server
 
-      Leto_FileRead( cFileName, nStart, nLen, @cBuf )          ==> -1 if failed
+      Leto_FileRead( cFileName, [ nStart ], [ nLen ], @cBuf )  ==> -1 if failed
  Read a content of file at the server from <nStart> offset and max <nLen> length.
- Given nLen == 0 means the whole file.
+ Defaults for <nStart> and <nLen> are 0, and nLen == 0 means the whole file.
 
-      Leto_FileWrite( cFileName, nStart, cBuf )                ==> lSuccess
- Write <cBuf> character string to a file at the server from <nStart> offset and <nLen> length
+      Leto_FileWrite( cFileName, [ nStart ], cBuf )            ==> lSuccess
+ Write <cBuf> character string to a file at the server from <nStart> offset.
+ Default for <nStart> is 0, means at beginning of file.
+
+      Leto_FCopyToSrv( cLocalFileName, sServerFileName[, nStepSize ] )
+                                                               ==> lSuccess
+      Leto_FCopyFromSrv( cLocalFileName, sServerFileName[, nStepSize ] )
+                                                               ==> lSuccess
+ Copy a file from/ to client to/ from server, where:
+ <cLocalFileName> is filename at client side,
+ <sServerFileName> is filename at server which can contain connection info "//IP:port/".
+ Optional <nStepSize> determine the size of bytes to be copied with one step, default if
+ not given is 1 MB.
+ <sServerFileName> can contain prefix: "mem:" for files in RAM,
+ <cLocalFileName> can contain any prefix known by Harbour.
+ For example: Leto_FCopyToSrv( "net:hbnetio.txt", "mem:RAMfile.txt" )
 
       Leto_FileSize( cFileName )                               ==> -1 if failed
  Returns a length of file at the server
