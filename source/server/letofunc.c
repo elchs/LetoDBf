@@ -1991,7 +1991,7 @@ static HB_ULONG leto_GetOrdInfoNL( AREAP pArea, HB_USHORT uiCommand )
 
 static HB_I64 leto_timeCounter( void )
 {
-#if defined( HB_OS_UNIX ) && ( defined( CLOCK_MONOTONIC_RAW ) | defined( CLOCK_MONOTONIC ) )
+#if defined( HB_OS_UNIX ) && ( defined( CLOCK_MONOTONIC_RAW ) || defined( CLOCK_MONOTONIC ) )
    struct timespec ts;
 
    #if defined( CLOCK_MONOTONIC_RAW )   /* without NTP changes, _RAW kernel >= 2.6.28 */

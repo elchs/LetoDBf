@@ -117,8 +117,12 @@ Public oApp, oSayServer, cRes
 Return Nil
 
 Static Function onComboChg()
-   oApp:nItemCurr := hwg_SendMessage( oApp:oCombo:handle,CB_GETCURSEL,0,0 ) + 1
-   oApp:oGetPort:SetText( oApp:aParams[oApp:nItemCurr,1] )
+   oApp:nItemCurr := MIN( LEN( oApp:aParams ), hwg_SendMessage( oApp:oCombo:handle,CB_GETCURSEL,0,0 ) + 1 )
+   IF oApp:nItemCurr > 0
+      oApp:oGetPort:SetText( oApp:aParams[oApp:nItemCurr,1] )
+   ELSE
+      oApp:oGetPort:SetText( "2812" )
+   ENDIF
 Return .T.
 
 Static Function LoginInfo( cu )

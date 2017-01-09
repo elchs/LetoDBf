@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-09 20:27 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    ! typo: plus '|' versus and '||' :-(
+
+  * utils/manage/manage.prg
+    ! try to hack a not reliable working GUI, resulting in array bounds fail
+
 2017-01-09 13:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/funcleto.h
     % increase min size to start compress
