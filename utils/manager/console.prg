@@ -60,11 +60,15 @@
 #include "hbgtinfo.ch"
 #include "memoedit.ch"
 
+#define CHR_HEADSEP   CHR( 205 ) + CHR( 203 ) + CHR( 205 )
+#define CHR_FOOTSEP   CHR( 205 ) + CHR( 202 ) + CHR( 205 )
+#define CHR_COLSEP    " " + CHR( 186 ) + " "
+
 REQUEST LETO
 REQUEST RDDInfo
 
 
-STATIC s_nUpTime
+STATIC s_nLastKeyType
 STATIC s_nRefresh := 5000  /* 5 seconds default */
 STATIC s_myConn := -1
 
@@ -91,7 +95,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
  LOCAL cMode
  LOCAL nTmp
 
-   s_nUpTime := hb_MilliSeconds()
+   s_nLastKeyType := hb_MilliSeconds()
    IF VALTYPE( cAddress ) != "C"
       cAddress := ""
    ENDIF
@@ -102,7 +106,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    IF EMPTY( cAddress )
       IF File( cDirBase + cIniName )
          aIni := rdIni( cDirBase + cIniName )
-#ifdef __LINUX__
+#ifdef HB_OS_UNIX
       ELSEIF File( "/etc/" + cIniName )
          aIni := rdIni( "/etc/" + cIniName )
 #endif
@@ -138,7 +142,9 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    hb_GtInfo( HB_GTI_CLOSABLE, .T. )
    hb_GtInfo( HB_GTI_ALTENTER, .T.)
    IF HB_GtVersion() == "WVT"
+#if ! defined( __HARBOUR30__ )
       hb_GtInfo( HB_GTI_FONTATTRIBUTE, HB_GTI_FONTA_FIXMETRIC + HB_GTI_FONTA_CLRBKG + HB_GTI_FONTA_DRAWBOX )
+#endif
    ENDIF
    IF MPresent()
       MDblClk( 421 )
@@ -151,7 +157,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
       TimedALERT( leto_Connect_Err( .T. ), 3 )
       RETURN Nil
    ELSE
-      /* activate compression */
+      /* activate compression with encryption */
       leto_togglezip( 1, "encrypted" )
    ENDIF
    cVersion := leto_GetServerVersion()
@@ -166,9 +172,9 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):GoTopBlock := { || aPos[ 1 ] := 1 }
    ATAIL( aBrows ):GoBottomBlock := { || aPos[ 1 ] := IIF( EMPTY( aBrows[ 1 ]:cargo ), 1, LEN( aBrows[ 1 ]:cargo ) ) }
    ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 1 ]:cargo, @aPos[ 1 ], nSkip) }
-   ATAIL( aBrows ):headSep   := "ÍËÍ"
-   //ATAIL( aBrows ):footSep   := "ÍÊÍ"
-   ATAIL( aBrows ):colSep    := " º "
+   ATAIL( aBrows ):headSep   := CHR_HEADSEP
+   //ATAIL( aBrows ):footSep   := CHR_FOOTSEP
+   ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "No", ArrBlock( ATAIL( aBrows ), 1, @aPos[ 1 ] ) )
    oColumn:width := 4
    oColumn:defcolor := { 1, 2 }
@@ -208,8 +214,8 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):GoTopBlock := { || aPos[ 2 ] := 1 }
    ATAIL( aBrows ):GoBottomBlock := { || aPos[ 2 ] := IIF( EMPTY( aBrows[ 2 ]:cargo ), 1, LEN( aBrows[ 2 ]:cargo ) ) }
    ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 2 ]:cargo, @aPos[ 2 ], nSkip) }
-   ATAIL( aBrows ):headSep   := "ÍËÍ"
-   ATAIL( aBrows ):colSep    := " º "
+   ATAIL( aBrows ):headSep   := CHR_HEADSEP
+   ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "Area", ArrBlock( ATAIL( aBrows ), 3, @aPos[ 2 ] ) )
    oColumn:width := 5
    oColumn:defcolor := { 1, 2 }
@@ -238,8 +244,8 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):GoTopBlock := { || aPos[ 3 ] := 1 }
    ATAIL( aBrows ):GoBottomBlock := { || aPos[ 3 ] := IIF( EMPTY( aBrows[ 3 ]:cargo ), 1, LEN( aBrows[ 3 ]:cargo ) ) }
    ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 3 ]:cargo, @aPos[ 3 ], nSkip) }
-   ATAIL( aBrows ):headSep   := "ÍËÍ"
-   ATAIL( aBrows ):colSep    := " º "
+   ATAIL( aBrows ):headSep   := CHR_HEADSEP
+   ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "Tagname", ArrBlock( ATAIL( aBrows ), 3, @aPos[ 3 ] ) )
    oColumn:width := 11
    oColumn:defcolor := { 1, 2 }
@@ -264,8 +270,8 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):GoTopBlock := { || aPos[ 4 ] := 1 }
    ATAIL( aBrows ):GoBottomBlock := { || aPos[ 4 ] := IIF( EMPTY( aBrows[ 4 ]:cargo ), 1, LEN( aBrows[ 4 ]:cargo ) ) }
    ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 4 ]:cargo, @aPos[ 4 ], nSkip) }
-   ATAIL( aBrows ):headSep   := "ÍËÍ"
-   ATAIL( aBrows ):colSep    := " º "
+   ATAIL( aBrows ):headSep   := CHR_HEADSEP
+   ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "    Record Lock    ", ArrBlock( ATAIL( aBrows ), 2, @aPos[ 4 ] ) )
    oColumn:width := 19
    oColumn:defcolor := { 1, 2 }
@@ -435,14 +441,18 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          nKey := INKEY( ( s_nRefresh / 1000 ) )
          IF nKey == 0
             /* dynamical reduce number of request if constant running */
-            nTmp := ( hb_MilliSeconds() - s_nUpTime ) / 1000 / 60  /* minutes up time */
-            IF nTmp > 15
-               s_nRefresh := 10000
-            ELSEIF nTmp > 60
-               s_nRefresh := 30000
+            nTmp := ( hb_MilliSeconds() - s_nLastKeyType ) / 1000 / 60  /* minutes up time */
+            IF nTmp <= 15
+               s_nRefresh := 3000
             ELSEIF nTmp > 720
                s_nRefresh := 60000  /* one per minute after 12 hours */
+            ELSEIF nTmp > 60
+               s_nRefresh := 30000
+            ELSE
+               s_nRefresh := 10000
             ENDIF
+         ELSE
+            s_nLastKeyType := hb_MilliSeconds()
          ENDIF
       ENDIF
 
@@ -644,37 +654,20 @@ STATIC FUNCTION BasicInfo()
    @ 2, MAXCOL() / 2 TO 6,MAXCOL() / 2 DOUBLE
    @ 1, 2 SAY "[ Statistics ]"
 
-#if 0
-   IF EMPTY( aCpuLoads )
-      aCpuLoads := hb_CPULoad( .T. )
-   ELSE
-      aCpuLoads := hb_CPULoad( aCpuLoads )
-      IF ! EMPTY( aCpuLoads ) .AND. LEN( aCpuLoads ) > 4
-         @ 6, MAXCOL() / 2 + 27 SAY STR( aCpuLoads[ 5 ] * 100, 3, 0 ) + " %"
-      ENDIF
-   ENDIF
-#else
-   // ToFix VAL() ????
    @ 2, MAXCOL() / 2 + 25 SAY "Load: " + STR( VAL( aInfo[ 18 ] ), 3, 0 ) + " %"
-#endif
 
-#if 0
-      // LOCAL aInfo2 := leto_ConnectInfo()
-      IIF( aInfo2[1] == LETO_CDX, "DBFCDX", "DBFNTX" ) + " LockScheme: " + STR( aInfo2[ 2 ], 1,0 )
-#endif
-
-   IF LEN( aInfo3) >= 3
-      @ 2,  2 SAY "Server MB disk:" + STR( VAL( aInfo4[1] ) / 1024 / 1024, 8, 0 )
-      @ 2, 26 SAY "RAM: " + STR( VAL( aInfo4[4] ) / 1024, 7, 0)
+   IF LEN( aInfo3 ) >= 3
+      @ 2,  2 SAY "Server MB disk:" + STR( VAL( aInfo4[ 1 ] ) / 1024 / 1024, 8, 0 )
+      @ 2, 26 SAY "RAM: " + STR( VAL( aInfo4[ 4 ] ) / 1024, 7, 0)
    ELSE
       @ 2,  2 SAY "Server memory :" + STR( VAL( aInfo[16] ) / 1024, 7, 0 )
    ENDIF
-   @ 3,  2 SAY "Users  current: " + Padl( aInfo[1],7 )
-   @ 3, 26 SAY "Max: " + Padl( aInfo[2], 7 )
-   @ 4,  2 SAY "Tables current: " + Padl( aInfo[3],7 )
-   @ 4, 26 SAY "Max: " + Padl( aInfo[4], 7 )
-   @ 5,  2 SAY "Indexs current: " + Padl( aInfo[9],7 )
-   @ 5, 26 SAY "Max: " + Padl( aInfo[10], 7 )
+   @ 3,  2 SAY "Users  current: " + Padl( aInfo[ 1 ],7 )
+   @ 3, 26 SAY "Max: " + Padl( aInfo[ 2 ], 7 )
+   @ 4,  2 SAY "Tables current: " + Padl( aInfo[ 3 ],7 )
+   @ 4, 26 SAY "Max: " + Padl( aInfo[ 4 ], 7 )
+   @ 5,  2 SAY "Indexs current: " + Padl( aInfo[ 9 ],7 )
+   @ 5, 26 SAY "Max: " + Padl( aInfo[ 10 ], 7 )
 
    IF LEN( aInfo3 ) >= 3
       nSec := aInfo3[ 3 ]
@@ -1052,7 +1045,7 @@ FUNCTION MyChoice( nStatus )  /* must be a public FUNCTION */
    ENDIF
    DO CASE
       CASE nStatus == AC_EXCEPT
-         cKey := Upper( hb_keyChar( nKey ) )
+         cKey := Upper( CHR( nKey ) )  // hb_keyChar( nKey )
          DO CASE
             CASE cKey >= "0" .AND. cKey <= "9"
                hb_keyPut( K_ENTER )

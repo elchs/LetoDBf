@@ -1258,30 +1258,37 @@ A. Internals
  There are two management utilities, Windows GUI and all OS console.
  Sources lay in the utils/manage directory.
 
+      8.1.1 All OS console
+
  For all OS, also Windows, there is a ! NEW ! console utility to be found in:
  utils/manager/console.prg. Easily build it with just a:
     hbmk2 console
  The executable will be found afterwards in the "bin" directory.
 
- Run the console executable with a IP[:port] as first parameter.
- This can be also set in letodb.ini with option: <Server> for running it local at server.
- But as this is a OS independent remote console, you can watch the server from any station.
+ Full parameter set is: console[.exe] [ IP[:port ] ] [ username ] [ password ]
+ These params can be set in letodb.ini with option: <Server> for running it local at server.
+ But as this is a OS independent remote console, you can watch the server from any station,
+ so you commonly will give IP address as first param.
 
- Full parameter set is: console[.exe] IP[:port] [username] [password]
-
- Displayed information refreshes automatically, as longer the console is up the greater this
+ ! Note the resizeable window, the browses will dynamical stretch into given screen size.
+ Displayed information refreshes automatically, as longer you typed no key the greater this
  interval will get, to less interfere server activity.
  If no more needed, end it and restart it by occasion. It will end automatic with shutting down
  LetoDBf server.
- Surfing in the four Browses' is done with mouse[wheel] or keyboard.
- Also note this "Menu" button top left on screen for further actions, like killing connections,
- adding users to the authentication system, ...
+ Surfing in the four Browses' is done with mouse-clicks/-wheel or keyboard ( TAB, cursor key )
+ Also note this "Menu" button top-left on screen for further actions, like killing connections,
+ adding users to the authentication system. For some actions you have to scroll to the wanted
+ connection, then to change into that menu. Positioned at console connection shows a summary in
+ the other browses, positioned at a specific connection gives detailed informantion about which
+ WA is just selected and what index order is active.
 
+      8.1.2 Window GUI management console
 
- *LetoDBf note* : the GUI version is untested, not guaranteed to work.
- Windows only GUI utility, manage.prg, is made with the HwGUI library. If you have HwGUI,
- just write in the line 'set HWGUI_INSTALL=' in utils/manage/bld.bat a path
- to your HwGUI directory and run the bld.bat, it will build manage.exe for you.
+ The GUI version builds with help of HwGUI library, so you need that package ready compiled.
+ Adapt in the manage.hbp file at top the path to your HwGUI package root directory.
+ Then build the executable with:
+    hbmk2 manage
+ The executable will be found afterwards in the "bin" directory.
 
 
       8.2 Uhura

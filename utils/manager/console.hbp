@@ -1,26 +1,23 @@
 -o../../bin/console
--i../../include
--L../../lib
+
 -n
 -w3
 -q0
 -es0
-#-warn=max
 -mt
 -strip
--gc3
+
 {!win}-static
 {win}-fullstatic
 {mingw64}-pic
--prgflag={unix}-D__LINUX__
+
 {linux}-gtxwc
 {win}-gtwvt
 
-hbct.hbc
-{bcc}-l../../lib/${hb_plat}/${hb_comp}/rddleto
-{!bcc}../../letodb.hbc
+{bcc}-lhbct
+{!bcc}hbct.hbc
+../../letodb.hbc
 
 console.prg
 ../../source/common/common.prg
 
-#$pkg_inst.hbm

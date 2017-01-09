@@ -1,19 +1,22 @@
--inc
--o../../bin/${hb_plat}/${hb_comp}/manage
--i../../include;${hwgui_dir}include
--n -w -q0 -es2
-#-warn=max
+# adapt path to base directory of HwGUI
+-env:HWGUI_DIR=D:\hwgui
+
+-o../../bin/manage
+-n
+-w
+-q0
+-es2
+
 -gui
 -mt
+-strip
 
-{bcc}-l../../lib/${hb_plat}/${hb_comp}/rddleto
-{bcc}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/hwgui
-{bcc}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/procmisc
-{bcc}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/hbxml
-
-{mingw|mingw64}-l../../lib/${hb_plat}/${hb_comp}/librddleto.a
-{mingw|mingw64}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/libhwgui.a
-{mingw|mingw64}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/libprocmisc.a
-{mingw|mingw64}-l${hwgui_dir}lib/${hb_plat}/${hb_comp}/libhbxml.a
+-i${HWGUI_DIR}/include
+-L${HWGUI_DIR}/lib
+-lhbxml
+-lhwgui
+-lprocmisc
+../../letodb.hbc
 
 manage.prg
+{win}-manifest=${HWGUI_DIR}/image/WindowsXP.Manifest

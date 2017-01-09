@@ -292,7 +292,7 @@ HB_I64 leto_MilliSec( void )
       return ( HB_I64 ) timeGetTime() / 10;  /* 32bit => overflow after 49.7 days */
    }
 #elif defined( HB_OS_UNIX ) && \
-      ( defined( CLOCK_MONOTONIC_COARSE ) | defined( CLOCK_MONOTONIC_RAW ) | defined( CLOCK_MONOTONIC ) )
+      ( defined( CLOCK_MONOTONIC_COARSE ) || defined( CLOCK_MONOTONIC_RAW ) || defined( CLOCK_MONOTONIC ) )
    struct timespec ts;
 
    #if defined( CLOCK_MONOTONIC_COARSE )  /* fast!, but not as precises as _RAW; kernel >= 2.6.32 */
@@ -667,7 +667,7 @@ int eprintf( char * d, const char * fmt, ... )
                      *--ptrr = ( char ) ( '0' + ( lValue - 10 * ( lRemain = lValue / 10 ) ) );
                   }
                   while( ( lValue = lRemain ) > 0 );
-            
+
                   uiCount = buf + 20 - ptrr;
                   memcpy( d, ptrr, uiCount );
                   d += uiCount;

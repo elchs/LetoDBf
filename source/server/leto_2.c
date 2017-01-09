@@ -1558,6 +1558,8 @@ static HB_THREAD_STARTFUNC( thread2 )
       s_ullBytesRead += ulRecvLen + LETO_MSGSIZE_LEN;
       s_ullBytesSend += pUStru->ulBytesSend;
       s_ullCPULoad += ullTimeElapse;  /* result in seconds, but we can't / 1000 here => + 0 */
+      if( ( s_ullOperations & 0x1F ) == 0 )  /* a hack: a common request is faster than a millisecond */
+         s_ullCPULoad++;
       HB_GC_UNLOCKS();
 
       if( pUStru->bGCCollect )

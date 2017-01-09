@@ -237,7 +237,9 @@ Return Nil
 Static Function BasicInfo()
 Local aInfo, nSec, nDay, nHour
 Local nOpers, nSent, nRead
-Local nSec1
+Local nSec1, nCpu
+Local aInfo3
+Local aInfo4
 Static lReady := .F., nCurIndex := 1, nCurSec := 0, nLastOpers := 0, nLastSent := 0, nLastRead := 0
 
    oApp:oBtnKill:Hide()
@@ -252,6 +254,8 @@ Static lReady := .F., nCurIndex := 1, nCurSec := 0, nLastOpers := 0, nLastSent :
       Disconnect()
       Return .F.
    ENDIF
+   aInfo3 := Leto_MgGetTime()
+   aInfo4 := Leto_MgSysInfo()
    oApp:lSend := .F.
 
    IF oApp:nInfoType != 1
@@ -265,8 +269,8 @@ Static lReady := .F., nCurIndex := 1, nCurSec := 0, nLastOpers := 0, nLastSent :
       oApp:oBrw1:aArray[7,1] := "KBytes sent"
       oApp:oBrw1:aArray[8,1] := "KBytes read"
       oApp:oBrw1:aArray[9,1] := "Transactions"
-      oApp:oBrw1:aArray[10,1] := "Waiting"
-      oApp:oBrw1:aArray[11,1] := "Memory used"
+      oApp:oBrw1:aArray[10,1] := "CPU time"
+      oApp:oBrw1:aArray[11,1] := "Mem HD/RAM"
       oApp:oBrw1:aArray[5,3] := ""
    ENDIF
 
@@ -280,7 +284,11 @@ Static lReady := .F., nCurIndex := 1, nCurSec := 0, nLastOpers := 0, nLastSent :
    ELSE
       oApp:oBrw1:aArray[3,2] := oApp:oBrw1:aArray[3,3] := ""
    ENDIF
-   nSec := Val( aInfo[5] )
+   IF LEN( aInfo3 ) >= 3
+      nSec := aInfo3[3]
+   ELSE
+      nSec := Val( aInfo[5] )
+   ENDIF
    nOpers := Val( aInfo[6] )
    nSent  := Val( aInfo[7] )
    nRead  := Val( aInfo[8] )
@@ -313,10 +321,19 @@ Static lReady := .F., nCurIndex := 1, nCurSec := 0, nLastOpers := 0, nLastSent :
    ELSE
       oApp:oBrw1:aArray[9,2] := oApp:oBrw1:aArray[9,3] := ""
    ENDIF
-   oApp:oBrw1:aArray[10,2] := aInfo[13]
-   oApp:oBrw1:aArray[10,3] := aInfo[12]
-   oApp:oBrw1:aArray[11,2] := aInfo[16]
-   oApp:oBrw1:aArray[11,3] := aInfo[17]
+   nCpu := VAL( aInfo[12] )
+   nDay := Int(nCpu/86400)
+   nHour := Int((nCpu%86400)/3600)
+   oApp:oBrw1:aArray[10,2] := Ltrim(Str(nDay)) + Iif(nDay==1," day "," days ") + ;
+               Ltrim(Str(nHour))+Iif(nHour==1," hour "," hours ") + ;
+               Ltrim(Str(Int((nCpu%3600)/60))) + " min"
+   oApp:oBrw1:aArray[10,3] := aInfo[13]  // CPU Cores
+   IF LEN( aInfo3 ) >= 3
+      oApp:oBrw1:aArray[11,2] := STR( VAL( aInfo4[1] ) / 1024 / 1024, 8, 0 ) + " MB"
+      oApp:oBrw1:aArray[11,3] := STR( VAL( aInfo4[4] ) / 1024, 7, 0) + " MB"
+   ELSE
+      oApp:oBrw1:aArray[11,2] := aInfo[16]
+   ENDIF
    nDay := Int(nSec/86400)
    nHour := Int((nSec%86400)/3600)
    oApp:oBrw1:aArray[5,2] := Ltrim(Str(nDay)) + Iif(nDay==1," day "," days ") + ;
