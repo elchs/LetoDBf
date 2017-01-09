@@ -97,7 +97,7 @@
  * the overhead  is eleven bytes of overhead, includes one byte of actual data
  * plus LetoDBf 8 bytes for two 32 bit lengths  */
 #define LETO_ZIP_MINLENGTH      18
-#define LETO_LZ4_COMPRESS_MIN   64     /* 5 is logical minimum: min. +1 LZ4 overhead, +4 for uncomp. length */
+#define LETO_LZ4_COMPRESS_MIN   512    /* 5 is logical minimum: min. +1 LZ4 overhead, +4 for uncomp. length */
 
 #define LETO_RDD_MAX_ALIAS_LEN  7      /* server internal alias Exxxxx */
 #define LETO_MAX_TAGNAME        10     /* ?? - CDX allows 10 ? */

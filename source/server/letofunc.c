@@ -4546,7 +4546,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
    if( ! s_bFileFunc )
       leto_SendAnswer( pUStru, "+F;100;", 7 );
    else if( nParam < 2 || *( szData + 2 ) != '\0' || ! *pSrcFile || ! leto_FilePathChk( pSrcFile ) )
-      leto_SendAnswer( pUStru, szErr2, 4 );
+      leto_SendAnswer( pUStru, "+F;1;", 5 );
    else
    {
       HB_ULONG ulLen = 0;
@@ -4560,14 +4560,14 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
          switch( *( szData + 1 ) )
          {
             case '1':  /* fexists */
-               szData1[ 0 ] = '+';
 #if defined( __HARBOUR30__ )
-               szData1[ 1 ] = ( hb_fsFileExists( szFile ) ) ? 'T' : 'F';
+               if( hb_fsFileExists( szFile ) )
 #else
-               szData1[ 1 ] = ( hb_fileExists( szFile, NULL ) ) ? 'T' : 'F';
+               if( hb_fileExists( szFile, NULL ) )
 #endif
-               szData1[ 2 ] = ';';
-               szData1[ 3 ] = '\0';
+                  strcpy( szData1, "+T;0;" );
+               else
+                  strcpy( szData1, "+F;2;" );
                break;
 
             case '2':  /* ferase */
@@ -4583,7 +4583,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
 
             case '3':  /* frename */
                if( nParam < 3 )
-                  strcpy( szData1, szErr2 );
+                  strcpy( szData1, "+F;1;" );
                else
                {
                   char szDest[ HB_PATH_MAX ];
@@ -4654,7 +4654,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                break;
 
             default:
-               strcpy( szData1, szErr2 );
+               strcpy( szData1, "+F;1;" );
                break;
          }
       }
@@ -4664,7 +4664,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
          {
             case '0':  /* FileRead */
                if( nParam < 4 )
-                  strcpy( szData1, szErr2 );
+                  strcpy( szData1, "+F;1;" );
                else
                {
                   HB_ULONG ulStart = strtoul( pp2, NULL, 10 );
@@ -4691,7 +4691,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                               ulLen = hb_arrayGetNL( pFileArr, 2 );
                               bFound = HB_TRUE;
                            }
-                           if( pArray )
+                           if( pFileArr )
                               hb_itemRelease( pFileArr );
                         }
                         hb_itemRelease( pArray );
@@ -4764,10 +4764,10 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
 
             case '2':  /* Directory */
 #if defined( __HARBOUR30__ )
-               strcpy( szData1, szErr2 );
+               strcpy( szData1, "+F;1;" );
 #else
                if( nParam < 3 )
-                  strcpy( szData1, szErr2 );
+                  strcpy( szData1, "+F;1;" );
                else
                {
                   PHB_ITEM pDir = NULL;
@@ -4785,7 +4785,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                         if( ! ulLen || ( ulAttr & HB_FA_DIRECTORY ) )
                         {
 #if defined( HB_OS_WIN )
-                           strcpy( szFile + ulLen + 1, "\\*.*" );
+                           strcpy( szFile + ulLen, "\\*.*" );
                            ulLen += 4;
 #else
                            strcpy( szFile + ulLen, "/*" );
@@ -4813,7 +4813,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
 
             case '3':  /* memowrite */
                if( nParam < 4 )
-                  strcpy( szData1, szErr2 );
+                  strcpy( szData1, "+F;1;" );
                else
                {
                   char *       ptr;
@@ -4832,7 +4832,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
 
             case '4':  /* FileWrite */
                if( nParam < 3 )
-                  strcpy( szData1, szErr2 );
+                  strcpy( szData1, "+F;1;" );
                else
                {
                   HB_ULONG     ulStart;
@@ -4906,7 +4906,7 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                HB_BOOL fResult;
 
                if( nParam < 3 || ! pp2 )
-                  strcpy( szData1, szErr2 );
+                  strcpy( szData1, "+F;1;" );
                else
                {
 #if defined( __HARBOUR30__ )
@@ -4923,12 +4923,12 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
             }
 
             default:
-               strcpy( szData1, szErr2 );
+               strcpy( szData1, "+F;1;" );
                break;
          }
       }
       else
-         strcpy( szData1, szErr2 );
+         strcpy( szData1, "+F;1;" );
 
       if( pBuffer )
       {

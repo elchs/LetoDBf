@@ -2,13 +2,25 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-09 13:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/funcleto.h
+    % increase min size to start compress
+
+  * source/server/letofunc.c
+  * tests/test_file.prg
+    ! file mask for Windows and directory request, one typo
+    * harmonize feedback from server for all file functions
+
+  * Readme.txt
+    * minor
+
 2017-01-09 05:20 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/common/common_c.c
     ! typo: plus '|' versus and '||'
 
   * source/server/leto_2.c
     * a hack to show more CPU load
-    ; would need at least micro-seconds granularity to be more precise 
+    ; would need at least micro-seconds granularity to be more precise
 
   * Readme.txt
   * utils/manage/console.hbp

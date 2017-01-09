@@ -9,7 +9,7 @@ REQUEST Leto_MakeDir, Leto_DirExist, Leto_DirRemove
 REQUEST hb_vfExists, hb_vfOpen, hb_vfClose
 
 Function Main( cPath )
- LOCAL cBuf, arr, i
+ LOCAL cBuf, arr, i, lTmp
  LOCAL nPort := 2812
 
    ALTD()
@@ -36,10 +36,11 @@ Function Main( cPath )
    /* No more cPath needed after Leto_connect() */
 
    ? 'leto_file( "test1.txt" ) - '
-   ?? Iif( leto_file( "test1.txt" ), "Ok", "No" )
+   lTmp := leto_file( "test1.txt" )
+   ?? Iif( lTmp, "Ok", "No" )
    i := Leto_fError()
    ? 'file functions working ? - ' + Iif( i == 100, "disabled",;
-      Iif( i == 0, "well well", "ups, error: " + STR( leto_fError(), 5, 0 ) ) ) 
+      Iif( i == IIF( lTmp, 0, 2 ), "well well", "ups, error: " + STR( leto_fError(), 5, 0 ) ) ) 
 
    ? 'leto_memowrite( "test1.txt", "A test N1" ) - '
    ?? Iif( leto_memowrite( "test1.txt", "A test N1" ), "Ok", "Failure" )
@@ -54,19 +55,26 @@ Function Main( cPath )
    ?? Iif( leto_frename( "test1.txt","test2.txt" ) == 0, "Ok", "Failure" )
 
    ? 'leto_file( "test1.txt" ) - '
-   ?? Iif( leto_file( "test1.txt" ), "Ok", "No" )
+   lTmp := leto_file( "test1.txt" )
+   ?? Iif( lTmp, "Ok", "No" )
+   ?? Iif( ! lTmp, "!", " Failure" )
 
    ? 'leto_file( "test2.txt" ) - '
+   lTmp := leto_file( "test2.txt" )
    ?? Iif( leto_file( "test2.txt" ), "Ok", "No" )
+   ?? Iif( lTmp, "!", " Failure" )
 
    ? 'leto_fileread( "test2.txt", 7, 2 ) - '
-   ?? Iif( leto_fileread( "test2.txt", 7, 2, @cBuf ) > 0, cBuf, "Failure" )
+   ?? Iif( leto_fileread( "test2.txt", 7, 2, @cBuf ) > 0, "'" + cBuf + "'", "Failure" )
+   ?? Iif( cBuf == "N1", " - Ok", " - Failure" )
 
    ? 'leto_filewrite( "test2.txt", 7, "N2" ) - '
    ?? Iif( leto_filewrite( "test2.txt", 7, "N2" ), "Ok", "Failure" )
 
    ? 'leto_memoread( "test2.txt" ) - '
-   ?? leto_memoread( "test2.txt" )
+   cBuf := leto_memoread( "test2.txt" )
+   ?? "'" + cBuf + "' - "
+   ?? Iif( cBuf == "A test N2", "Ok", "Failure" )
 
    ? 'leto_filesize( "test2.txt" ) - '
    ?? leto_filesize( "test2.txt" )
@@ -103,12 +111,13 @@ Function Main( cPath )
       ?? " wrong"
    ENDIF
 
-   arr := leto_directory( "\" )
+   arr := leto_directory( "*" )
    ? 'leto_directory(): (' + Ltrim(Str(Len(arr))) + ")"
    ? "Press any key to continue..."
    Inkey( 0 )
+   ? "found files: "
    FOR i := 1 TO Len( arr )
-      ? arr[i,1]
+      ?? arr[i,1] + "; "
    NEXT
    ? "----------"
 

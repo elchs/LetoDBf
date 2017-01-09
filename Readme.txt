@@ -948,9 +948,13 @@ A. Internals
  <sServerFileName> is filename at server which can contain connection info "//IP:port/".
  Optional <nStepSize> determine the size of bytes to be copied with one step, default if
  not given is 1 MB.
- <sServerFileName> can contain prefix: "mem:" for files in RAM,
- <cLocalFileName> can contain any prefix known by Harbour.
- For example: Leto_FCopyToSrv( "net:hbnetio.txt", "mem:RAMfile.txt" )
+ <sServerFileName> can only contain prefix: "mem:" for files in RAM,
+ <cLocalFileName> can contain any redirector prefix known by Harbour.
+ A simple backup:
+    aArr := Leto_Directory( "*" )
+    AEval( aArr, { |aItem| Leto_FCopyFromSrv( aItem[1], aItem[1] } )
+ Copy to a logged into HbNetIO server a file located in LetoDBf RAM:
+    Leto_FCopyToSrv( "net:hbnetio.txt", "mem:RAMfile.txt" )
 
       Leto_FileSize( cFileName )                               ==> -1 if failed
  Returns a length of file at the server
