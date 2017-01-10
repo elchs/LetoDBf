@@ -194,6 +194,7 @@
 
 extern HB_I64 leto_DeciSec( void );
 extern HB_I64 leto_MilliSec( void );
+extern HB_I64 leto_MicroSec( void );
 extern int leto_CPUCores( void );
 extern int leto_CPULoad( void );
 extern HB_UCHAR leto_n2b( char * s, HB_U32 n );

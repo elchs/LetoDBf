@@ -64,6 +64,7 @@ extern void leto_ConnectionClose( LETOCONNECTION * pConnection );
 extern LETOCONNECTION * leto_getConnection( int iParam );
 
 extern const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen, char * ptr );
+extern void leto_CryptBuffReset( LETOCONNECTION * pConnection );
 extern void leto_clientlog( const char * sFile, int n, const char * s, ... );
 extern HB_BOOL leto_Ping( LETOCONNECTION * pConnection );
 
@@ -264,17 +265,7 @@ HB_FUNC( LETO_MEMOREAD )
             hb_retclen( ptr, ulMemoLen );
          else
             hb_retc( "" );
-         if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
-         {
-            hb_xfree( pConnection->pBufCrypt );
-            pConnection->pBufCrypt = NULL;
-            pConnection->ulBufCryptLen = 0;
-         }
-         if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
-         {
-            pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
-            pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
-         }
+         leto_CryptBuffReset( pConnection );
          return;
       }
    }
@@ -302,17 +293,7 @@ HB_FUNC( LETO_FILEREAD )  /* ( cFile, 0 [ nStart ], 0 == all [ nLen ], @cBuf ) *
          {
             hb_storclen( ptr, ulLen, 4 );
             hb_retnl( ulLen );
-            if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
-            {
-               hb_xfree( pConnection->pBufCrypt );
-               pConnection->pBufCrypt = NULL;
-               pConnection->ulBufCryptLen = 0;
-            }
-            if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
-            {
-               pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
-               pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
-            }
+            leto_CryptBuffReset( pConnection );
             return;
          }
          else
@@ -336,11 +317,7 @@ HB_FUNC( LETO_MEMOWRITE )
        ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       hb_retl( LetoMemoWrite( pConnection, szFile, hb_parc( 2 ), hb_parclen( 2 ) ) );
-      if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
-      {
-          pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
-          pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
-      }
+      leto_CryptBuffReset( pConnection );
    }
    else
       hb_retl( HB_FALSE );
@@ -358,11 +335,7 @@ HB_FUNC( LETO_FILEWRITE )  /* ( cFile, 0 [ nStart ], cBuf ) */
       HB_ULONG ulStart = HB_ISNUM( 2 ) && hb_parnl( 2 ) > 0 ? hb_parnl( 2 ) : 0;
 
       hb_retl( LetoFileWrite( pConnection, szFile, hb_parc( 3 ), ulStart, ulBufLen ) );
-      if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
-      {
-          pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
-          pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
-      }
+      leto_CryptBuffReset( pConnection );
    }
    else
       hb_retl( HB_FALSE );
@@ -413,17 +386,7 @@ HB_FUNC( LETO_FCOPYTOSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
             hb_fileClose( pFile );
 
             hb_xfree( pBuffer );
-            if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
-            {
-               hb_xfree( pConnection->pBufCrypt );
-               pConnection->pBufCrypt = NULL;
-               pConnection->ulBufCryptLen = 0;
-            }
-            if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
-            {
-               pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
-               pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
-            }
+            leto_CryptBuffReset( pConnection );
          }
       }
    }
@@ -477,18 +440,7 @@ HB_FUNC( LETO_FCOPYFROMSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
                uStep++;
             }
             hb_fileClose( pFile );
-
-            if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
-            {
-               hb_xfree( pConnection->pBufCrypt );
-               pConnection->pBufCrypt = NULL;
-               pConnection->ulBufCryptLen = 0;
-            }
-            if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
-            {
-               pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
-               pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
-            }
+            leto_CryptBuffReset( pConnection );
          }
       }
    }

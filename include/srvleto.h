@@ -162,7 +162,6 @@ typedef struct
    char *            szCdp;                    /* CP or NULL for default */
    HB_BYTE *         szTable;                  /* may include leading [back]slash, name of table */
    HB_U32            uiCrc;                    /* hash value for szTable speed search */
-   HB_I64            llNanoSecWrite;           /* last write 'time' in ns precision, using special clock source */
    HB_ULONG          ulRecCount;               /* Count of records in table */
 #if defined( HB_SPINLOCK_INIT ) && ! defined( HB_HELGRIND_FRIENDLY )
    HB_SPINLOCK_T     pMutex;
@@ -209,7 +208,6 @@ typedef struct
    HB_BOOL           bNotDetached;             /* Detached */
    HB_ULONG          ulUdf;                    /* pUStru->iUserStru ID if table was new opened/ created in UDP mode */
    HB_BOOL           bUseSkipBuffer;           /* for temporary disable uiSkipBuf */
-   HB_I64            llNanoSecRead;            /* timer value for hot buffer refresh validating */
 #ifdef __BM
    void *            pBM;
 #endif

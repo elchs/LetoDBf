@@ -1989,34 +1989,6 @@ static HB_ULONG leto_GetOrdInfoNL( AREAP pArea, HB_USHORT uiCommand )
    return ulResult;
 }
 
-static HB_I64 leto_timeCounter( void )
-{
-#if defined( HB_OS_UNIX ) && ( defined( CLOCK_MONOTONIC_RAW ) || defined( CLOCK_MONOTONIC ) )
-   struct timespec ts;
-
-   #if defined( CLOCK_MONOTONIC_RAW )   /* without NTP changes, _RAW kernel >= 2.6.28 */
-      clock_gettime( CLOCK_MONOTONIC_RAW, &ts );
-   #elif defined( CLOCK_MONOTONIC )       /* only forwarding clock */
-      clock_gettime( CLOCK_MONOTONIC, &ts );
-   #endif
-
-   return ( HB_I64 ) ( ( ts.tv_sec * 1000000000 ) + ts.tv_nsec );
-#elif defined( HB_OS_WIN )
-   LARGE_INTEGER llNanoSec;
-
-   QueryPerformanceCounter( &llNanoSec );
-   return ( HB_I64 ) ( llNanoSec.QuadPart );
-#endif
-}
-
-/* in shared mode foreign software may change/ add records,
- * only in non shared mode we can buffer record data */
-static _HB_INLINE_ HB_BOOL leto_Updated( PAREASTRU pAStru )
-{
-   return ( ! s_bShareTables || ! pAStru->pTStru->bShared ) ?
-          ( HB_I64 ) ( pAStru->pTStru->pGlobe->llNanoSecWrite - pAStru->llNanoSecRead ) > 0 : HB_TRUE;
-}
-
 /*
  * removed: 1 if exclusive / file locked [ ! pAStru->pTStru->bShared || pAStru->bLocked ]
  * 0 if the record isn't locked by mysel
@@ -2105,10 +2077,6 @@ static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char 
          SELF_RECCOUNT( pArea, &ulRecCount );
       else
          ulRecCount = ( ( DBFAREAP ) pArea )->ulRecCount;
-
-      /* set time for hotbuffer BEFORE we read data, to be very sure to don't miss a change */
-      if( s_bShareTables )
-         pAStru->llNanoSecRead = leto_timeCounter();
 
       *pData = 0x40;
       if( pArea->fBof )
@@ -2950,10 +2918,6 @@ static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT ui
       }
    }
 
-   if( s_bShareTables )
-      pGStru->llNanoSecWrite = leto_timeCounter();
-   else
-      pGStru->llNanoSecWrite = 2;
    pGStru->ulRecCount = 0;
    pGStru->bLocked = HB_FALSE;
 
@@ -3357,7 +3321,6 @@ static void leto_InitArea( PUSERSTRU pUStru, int iTableStru, HB_ULONG ulAreaID, 
    hb_strUpper( pAStru->szAlias, uLen );
    pAStru->uiCrc = leto_hash( pAStru->szAlias, uLen );
    letoListInit( &pAStru->LocksList, sizeof( HB_ULONG ) );
-   pAStru->llNanoSecRead = 1;  /* for initial refresh */
    pAStru->pTagCurrent = NULL;
 
    if( szRealAlias )
@@ -5766,48 +5729,31 @@ static char * leto_recWithAlloc( AREAP pArea, PUSERSTRU pUStru, PAREASTRU pAStru
    return szData;
 }
 
-static void leto_SendRecWithOk( PUSERSTRU pUStru, PAREASTRU pAStru, HB_ULONG ulRecNo )
-{
-   AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-
-   if( leto_GotoIf( pArea, ulRecNo ) == HB_SUCCESS )
-   {
-      HB_ULONG ulLen;
-      char * szData = leto_recWithAlloc( pArea, pUStru, pAStru, &ulLen );
-
-      if( szData )
-      {
-         leto_SendAnswer( pUStru, szData, ulLen );
-         hb_xfree( szData );
-      }
-      else
-         leto_SendAnswer( pUStru, szErr1, 4 );
-   }
-   else
-   {
-      char szData[ 5 ];
-
-      strcpy( szData, szErr1 );
-      leto_SendAnswer( pUStru, szData, 4 );
-   }
-}
-
 static void leto_Lock( PUSERSTRU pUStru, const char * szData )
 {
-   PAREASTRU pAStru = pUStru->pCurAStru;
-   char *    pTimeOut = NULL;
-   HB_ULONG  ulRecNo = strtoul( szData + 2, &pTimeOut, 10 );
+   AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+   char *   pTimeOut = NULL;
+   HB_ULONG ulRecNo = strtoul( szData + 2, &pTimeOut, 10 );
 
-   switch( *szData )
+   if( ulRecNo ? ( leto_GotoIf( pArea, ulRecNo ) == HB_SUCCESS ) : HB_TRUE )
    {
-      case 'r':  /* reclock */
+      PAREASTRU pAStru = pUStru->pCurAStru;
+      HB_ULONG  ulLen;
+      char *    szData1;
+
+      if( *szData == 'r' )  /* reclock */
+      {
          if( ulRecNo && leto_RecLock( pUStru, pAStru, ulRecNo, HB_FALSE,
                                       ( s_bNoSaveWA && pTimeOut && *pTimeOut++ ) ? atoi( pTimeOut ) : 0 ) )
          {
-            if( leto_Updated( pAStru ) )
-               leto_SendRecWithOk( pUStru, pAStru, ulRecNo );
+            szData1 = leto_recWithAlloc( pArea, pUStru, pAStru, &ulLen );
+            if( szData1 )
+            {
+               leto_SendAnswer( pUStru, szData1, ulLen );
+               hb_xfree( szData1 );
+            }
             else
-               leto_SendAnswer( pUStru, szOk, 4 );
+               leto_SendAnswer( pUStru, szErr1, 4 );
          }
          else
          {
@@ -5815,29 +5761,30 @@ static void leto_Lock( PUSERSTRU pUStru, const char * szData )
             if( ! ulRecNo )
                leto_wUsLog( pUStru, 0, "ERROR leto_Lock() missing RecNo! for Rlock" );
          }
-         break;
-
-      case 'f':  /* filelock */
+      }
+      else /* 'f' == filelock */
+      {
          if( leto_IsServerLock( pUStru ) )
-         {
             leto_SendAnswer( pUStru, szErr2, 4 );
-            break;
-         }
-         if( ! leto_TableLock( pAStru, ( s_bNoSaveWA && pTimeOut && *pTimeOut++ ) ? atoi( pTimeOut ) : 0 ) )
-         {
+         else if( ! leto_TableLock( pAStru, ( s_bNoSaveWA && pTimeOut && *pTimeOut++ ) ? atoi( pTimeOut ) : 0 ) )
             leto_SendAnswer( pUStru, szErr4, 4 );
-            break;
+         else if( ulRecNo )
+         {
+            szData1 = leto_recWithAlloc( pArea, pUStru, pAStru, &ulLen );
+            if( szData1 )
+            {
+               leto_SendAnswer( pUStru, szData1, ulLen );
+               hb_xfree( szData1 );
+            }
+            else
+               leto_SendAnswer( pUStru, szErr1, 4 );
          }
-
-         if( ulRecNo && leto_Updated( pAStru ) )
-            leto_SendRecWithOk( pUStru, pAStru, ulRecNo );
          else
             leto_SendAnswer( pUStru, szOk, 4 );
-         break;
-
-      default:  /* should never happen */
-         leto_SendAnswer( pUStru, szErr1, 4 );
+      }
    }
+   else
+      leto_SendAnswer( pUStru, szErr1, 4 );
 }
 
 static void leto_Unlock( PUSERSTRU pUStru, const char * szData )
@@ -6286,8 +6233,6 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
                }
             }
          }
-         if( s_bShareTables )
-            pAStru->llNanoSecRead = pAStru->pTStru->pGlobe->llNanoSecWrite = leto_timeCounter();
 
          hb_itemRelease( pItem );
       }
@@ -7294,9 +7239,6 @@ static int leto_Memo( PUSERSTRU pUStru, const char * szData, TRANSACTSTRU * pTA,
                      pData = szOk;
                   }
                }
-               /* reset timer for hotbuffer cache */
-               if( s_bShareTables )
-                  pAStru->llNanoSecRead = pAStru->pTStru->pGlobe->llNanoSecWrite = leto_timeCounter();
             }
             else
             {

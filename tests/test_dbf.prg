@@ -13,13 +13,13 @@ Function Main( cPath )
                   "Konstantin", "Vladimir", "Nikolay", "Andrey", "Dmitry", "Sergey" }
  LOCAL i, aStru, aServerDriver
  LOCAL nPort := 2812
- FIELD NAME, NUM, INFO, DINFO, MINFO
+ FIELD NAME, NUM, INFO, DINFO, MINFO, TINFO
 
    ALTD()
    SET DATE FORMAT "dd/mm/yy"
 
    IF Empty( cPath )
-      //cPath := "//127.0.0.1:2812/temp/"
+      //cPath := "//127.0.0.1:2812/"
       cPath := ""
       RDDSETDEFAULT( "DBFCDX" )
    ELSE
@@ -32,6 +32,7 @@ Function Main( cPath )
                                    { "NUM" ,  "N",  4, 0 },;
                                    { "INFO",  "C", 32, 0 },;
                                    { "DINFO", "D",  8, 0 },;
+                                   { "TINFO", "T", 17, 0 },;
                                    { "MINFO", "M", 10, 0 } } )
       ? "File has been created"
    ENDIF
@@ -63,10 +64,12 @@ Function Main( cPath )
    ? "INDEX KEY 1:", indexkey( 1 )
    INDEX ON Str(NUM,4) TAG NUM
    ? "INDEX KEY 2:", indexkey( 2 )
+   INDEX ON TINFO TAG TS
+   ? "INDEX KEY 3:", indexkey( 3 )
    ? "File has been indexed, "
    ?? DBORDERINFO( DBOI_ORDERCOUNT )
    ?? " active orders "
-   ?? Iif( DBORDERINFO( DBOI_ORDERCOUNT ) == 2, "- Ok","- Failure" )
+   ?? Iif( DBORDERINFO( DBOI_ORDERCOUNT ) == 3, "- Ok","- Failure" )
 
    ?
    ? "Press any key to continue..."
@@ -98,10 +101,38 @@ Function Main( cPath )
    SKIP -1
    ? "skip -1", NUM, NAME, DINFO, Iif( NUM == 1012, "- Ok","- Failure" )
 
-   SEEK "Petr"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
-   SEEK "Andre"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+   DBGOBOTTOM()
+   DBSEEK( "Petr", .F. )
+   ? "DbSeek( 'Petr',.F. )  ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
+
+   DBGOBOTTOM()
+   DBSEEK( "Petr", .T. )
+   ? "DbSeek( 'Petr',.F. )  ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
+
+   DBGOBOTTOM()
+   DBSEEK( "Pe", .T. )
+   ? "DbSeek( 'Pe',.T. )    ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
+
+   DBGOBOTTOM()
+   DBSEEK( "Andre", .F. )
+   ? "DbSeek( 'Andre',.F. ) ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+
+   DBGOBOTTOM()
+   DBSEEK( "Andre", .T. )
+   ? "DbSeek( 'Andre',.T. ) ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+
+   DBGOTOP()
+   DBSEEK( "Sergey", .F. )
+   ? "DbSeek( 'Sergey',.F. )", NUM, NAME, DINFO, Iif( NUM == 1012, "- Ok","- Failure" )
+
+   DBGOTOP()
+   DBSEEK( "Ser", .T. )
+   ? "DbSeek( 'Sergey',.T. )", NUM, NAME, DINFO, Iif( NUM == 1012, "- Ok","- Failure" )
+
+   DBGOTOP()
+   DBSEEK( "Sergez", .F. )
+   ? "DbSeek( 'Sergez',.F. )", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+
 
    SET FILTER TO NUM >= 1004 .AND. NUM <= 1010
    ?
@@ -165,6 +196,9 @@ Function Main( cPath )
       DO WHILE ! Empty( Ordkey( ++i ) )
          ? i, ordKey( i )
       ENDDO
+      OrdSetFocus( 3 )
+      OrdDestroy( "TS" )
+      ? INDEXORD()
    ENDIF
 
    dbCloseAll()

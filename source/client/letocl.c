@@ -1586,6 +1586,22 @@ HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_UL
    return ulLen;
 }
 
+void leto_CryptBuffReset( LETOCONNECTION * pConnection )
+{
+   if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
+   {
+      hb_xfree( pConnection->pBufCrypt );
+      pConnection->pBufCrypt = NULL;
+      pConnection->ulBufCryptLen = 0;
+   }
+
+   if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
+   {
+      pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
+      pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
+   }
+}
+
 static _HB_INLINE_ unsigned int leto_IsBinaryField( unsigned int uiType, unsigned int uiLen )
 {
    return ( ( uiType == HB_FT_MEMO || uiType == HB_FT_BLOB ||
@@ -4503,12 +4519,9 @@ HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
       return 1;
 
    ptr = leto_firstchar( pConnection );
-   if( *( ptr + 2 ) != '+' )  /* "+++" as ACK indicates no new record data to read, else it is a LE_UINT24 */
-   {
-      leto_ParseRecord( pConnection, pTable, ptr );
-      if( pTable->ptrBuf )
-         leto_refrSkipBuf( pTable );
-   }
+   leto_ParseRecord( pConnection, pTable, ptr );
+   if( pTable->ptrBuf )
+      leto_refrSkipBuf( pTable );
 
    if( ulRecNo == pTable->ulRecNo )
       pTable->fRecLocked = HB_TRUE;
@@ -5188,13 +5201,6 @@ HB_EXPORT HB_BOOL LetoMemoWrite( LETOCONNECTION * pConnection, const char * szFi
       ulRes = 0;
    else
       ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
-   if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
-   {
-       hb_xfree( pConnection->pBufCrypt );
-       pConnection->pBufCrypt = NULL;
-       pConnection->ulBufCryptLen = 0;
-   }
-
    if( ulRes )
    {
       const char * ptr = leto_firstchar( pConnection );
@@ -5262,13 +5268,6 @@ HB_EXPORT HB_BOOL LetoFileWrite( LETOCONNECTION * pConnection, const char * szFi
       ulRes = 0;
    else
       ulRes = leto_DataSendRecv( pConnection, pData, ulRes );
-   if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
-   {
-       hb_xfree( pConnection->pBufCrypt );
-       pConnection->pBufCrypt = NULL;
-       pConnection->ulBufCryptLen = 0;
-   }
-
    if( ulRes )
    {
       const char * ptr = leto_firstchar( pConnection );

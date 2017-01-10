@@ -2,6 +2,35 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-10 16:17 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    * centralize reallocating buffers to standard size
+    - above not needed for common memofields, they should be of moderate size
+    ! missing buffer dealloc after big transaction
+
+  * source/server/leto_2.c
+    + adding microseconds precision for server statistics;
+      CLOCK_MONOTONIC_COARSE had too low resolution ( 4 ms );
+
+  * include/funcleto.h
+  * include/srvleto.h
+  * source/client/letocl.c
+  * source/common/common_c.c
+  * source/server/letofunc.c
+    * dissolve leto_sendRecWithOk() into leto_Lock()
+    - complete remove of leto_Updated() logic, only used in leto_lock()
+    ; will force record data to be re-send/refreshed at client after R|Flocks
+
+  * utils/manage/console.prg
+    ! fix a browse refresh problem
+    + add descriptions for last action
+    * cleanup
+
+  * tests/test_dbf.prg
+    + adding test for SbSeek() with/ without softseek
+
 2017-01-09 20:27 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     ! typo: plus '|' versus and '||' :-(

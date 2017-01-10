@@ -963,8 +963,6 @@ static HB_ERRCODE leto_GetMemoValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITE
       hb_itemPutC( pItem, "" );
    else
    {
-      LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
-
 #if defined ( __XHARBOUR__ )
       if( uiType == HB_FT_MEMO && pArea->area.cdPage != HB_CDP_PAGE() )
          hb_cdpnTranslate( ptr, pArea->area.cdPage, HB_CDP_PAGE(), ulLen - 1 );  // ToFix const char *
@@ -982,16 +980,6 @@ static HB_ERRCODE leto_GetMemoValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITE
       else
          hb_itemPutCL( pItem, ptr, ulLen );
 #endif
-      if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
-      {
-         hb_xfree( pConnection->pBufCrypt );
-         pConnection->ulBufCryptLen = 0;
-      }
-      if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
-      {
-         pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
-         pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
-      }
    }
    return HB_SUCCESS;
 }
@@ -5262,6 +5250,12 @@ static void leto_ClearTransBuffers( LETOCONNECTION * pConnection )
    {
       hb_xfree( pConnection->pTransAppend );
       pConnection->pTransAppend = NULL;
+   }
+
+   if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
+   {
+      pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
+      pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
    }
 
    pConnection->pRecsNotList.ulRecNo = pConnection->pRecsNotList.hTable = 0;

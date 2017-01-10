@@ -47,10 +47,9 @@
  *
  */
 
-// ToDo -- menu change server debug level
-
 #include "hbclass.ch"
 #include "rddleto.ch"
+#include "cmdleto.h"
 
 #include "inkey.ch"
 #include "box.ch"
@@ -69,7 +68,7 @@ REQUEST RDDInfo
 
 
 STATIC s_nLastKeyType
-STATIC s_nRefresh := 5000  /* 5 seconds default */
+STATIC s_nRefresh := 1000  /* 1 seconds default */
 STATIC s_myConn := -1
 
 FUNCTION Main( cAddress, cUser, cPasswd )
@@ -86,7 +85,8 @@ FUNCTION Main( cAddress, cUser, cPasswd )
  LOCAL cPort := "2812"
  LOCAL cVersion
  LOCAL oColumn
- LOCAL nLastRefresh := 0, nLastLen
+ LOCAL nLastRefresh := 0
+ LOCAL nLastLen, nNewLen
  LOCAL nBrowTmp
  LOCAL lHaveFocus := .T.
  LOCAL lReconfigure := .T.
@@ -135,7 +135,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    SET SCOREBOARD OFF
    SET CONFIRM ON
    SET CURSOR OFF
-   SET(_SET_EVENTMASK, INKEY_ALL - INKEY_MOVE + HB_INKEY_GTEVENT )   // 234 ohne LbUP  RbUp
+   SET(_SET_EVENTMASK, INKEY_ALL - INKEY_MOVE + HB_INKEY_GTEVENT )   /* 234 ohne LbUP  RbUp */
    hb_GtInfo( HB_GTI_WINTITLE, "LetoDBf monitor" )
    hb_GtInfo( HB_GTI_RESIZABLE, .T.)
    hb_GtInfo( HB_GTI_RESIZEMODE,  HB_GTI_RESIZEMODE_ROWS )
@@ -163,7 +163,6 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    cVersion := leto_GetServerVersion()
    cMode := Leto_MgSysInfo()[ 5 ]
 
-   // std, hilight, rand,back,unselect
    /* connections */
    AADD( aPos, 1 )
    AADD( aBrows, TBrowseNew( 9, 0, 12, MAXCOL() ) )
@@ -173,7 +172,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):GoBottomBlock := { || aPos[ 1 ] := IIF( EMPTY( aBrows[ 1 ]:cargo ), 1, LEN( aBrows[ 1 ]:cargo ) ) }
    ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 1 ]:cargo, @aPos[ 1 ], nSkip) }
    ATAIL( aBrows ):headSep   := CHR_HEADSEP
-   //ATAIL( aBrows ):footSep   := CHR_FOOTSEP
+   /* ATAIL( aBrows ):footSep   := CHR_FOOTSEP */
    ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "No", ArrBlock( ATAIL( aBrows ), 1, @aPos[ 1 ] ) )
    oColumn:width := 4
@@ -377,7 +376,13 @@ FUNCTION Main( cAddress, cUser, cPasswd )
             ENDCASE
 
             EVAL( aBlocks[ nBrow ], aBrows[ nBrow ] )
+            nNewLen := IIF( EMPTY( aBrows[ nBrow ]:cargo ), 0, LEN( aBrows[ nBrow ]:cargo ) )
+            IF aBrows[ nBrow ]:RowPos > nNewLen
+               aBrows[ nBrow ]:RowPos := MAX( nNewLen, 1 )
+               aPos[ nBrow ] := MAX( nNewLen, 1 )
+            ENDIF
             aBrows[ nBrow ]:configure()
+            aBrows[ nBrow ]:refreshAll()
 
             DO WHILE .NOT. aBrows[ nBrow ]:Stabilize()
                nKey := INKEY()
@@ -391,7 +396,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          aLastPos[ nBrow ] := aPos[ nBrow ]
       ENDIF
 
-      IF aBrows[ nBrow ]:stable .AND. nKey == 0  // .AND. lHaveFocus
+      IF aBrows[ nBrow ]:stable .AND. nKey == 0
          nBrowTmp := nBrow
          nBrow := 1
          DO WHILE nBrow <= LEN( aBrows )
@@ -416,11 +421,16 @@ FUNCTION Main( cAddress, cUser, cPasswd )
             IF hb_MilliSeconds() - nLastRefresh > s_nRefresh
                nLastLen := IIF( EMPTY( aBrows[ nBrow ]:cargo ), -1, LEN( aBrows[ nBrow ]:cargo ) )
                EVAL( aBlocks[ nBrow ], aBrows[ nBrow ] )
-               IF nLastLen != IIF( EMPTY( aBrows[ nBrow ]:cargo ), 0, LEN( aBrows[ nBrow ]:cargo ) )
+               nNewLen := IIF( EMPTY( aBrows[ nBrow ]:cargo ), -1, LEN( aBrows[ nBrow ]:cargo ) )
+               IF aBrows[ nBrow ]:RowPos > nNewLen
+                  aBrows[ nBrow ]:RowPos := MAX( nNewLen, 1 )
+                  aPos[ nBrow ] := MAX( nNewLen, 1 )
                   aBrows[ nBrow ]:configure()
-               ELSE
-                  aBrows[ nBrow ]:refreshAll()
                ENDIF
+               IF nLastLen != nNewLen
+                  aBrows[ nBrow ]:configure()
+               ENDIF
+               aBrows[ nBrow ]:refreshAll()
             ENDIF
 
             DO WHILE .NOT. aBrows[ nBrow ]:Stabilize()
@@ -441,18 +451,21 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          nKey := INKEY( ( s_nRefresh / 1000 ) )
          IF nKey == 0
             /* dynamical reduce number of request if constant running */
-            nTmp := ( hb_MilliSeconds() - s_nLastKeyType ) / 1000 / 60  /* minutes up time */
-            IF nTmp <= 15
-               s_nRefresh := 3000
-            ELSEIF nTmp > 720
+            nTmp := INT( ( hb_MilliSeconds() - s_nLastKeyType ) / 1000 / 60 )  /* minutes up time */
+            IF nTmp > 720
                s_nRefresh := 60000  /* one per minute after 12 hours */
             ELSEIF nTmp > 60
                s_nRefresh := 30000
-            ELSE
+            ELSEIF nTmp > 15
                s_nRefresh := 10000
+            ELSEIF nTmp > 1
+               s_nRefresh := 3000
+            ELSEIF nTmp > 0
+               s_nRefresh := 2000
             ENDIF
          ELSE
             s_nLastKeyType := hb_MilliSeconds()
+            s_nRefresh := 1000
          ENDIF
       ENDIF
 
@@ -564,15 +577,133 @@ FUNCTION Main( cAddress, cUser, cPasswd )
 
 RETURN Nil
 
+STATIC FUNCTION SecToTimestring( nSec )
+ LOCAL cTime
+
+   cTime := Padl( Ltrim( Str( Int( ( nSec % 86400 ) / 3600 ) ) ), 3, '0') + ":" +;
+            Padl( Ltrim( Str( Int( ( nSec % 3600 ) / 60 ) ) ), 2, '0') + ":" + ;
+            Padl( Ltrim( Str( Int( nSec % 60 ) ) ), 2, '0' )
+RETURN cTime
+
+STATIC FUNCTION ActionDecode( cAction )
+ LOCAL cCode := LEFT( cAction, 1 )
+ LOCAL cHaveDone
+
+   DO CASE
+      CASE cCode == LETOCMD_admin
+         cHaveDone := "admin    "
+      CASE cCode == LETOCMD_creat_i
+         cHaveDone := "ordcreat "
+      CASE cCode == LETOCMD_close
+         cHaveDone := "close    "
+      CASE cCode == LETOCMD_drop
+         cHaveDone := "drop     "
+      CASE cCode == LETOCMD_exists
+         cHaveDone := "exists   "
+      CASE cCode == LETOCMD_file
+         cHaveDone := "file     "
+      CASE cCode == LETOCMD_open_i
+         cHaveDone := "ordadd   "
+      CASE cCode == LETOCMD_intro
+         cHaveDone := "intro    "
+      CASE cCode == LETOCMD_udf_rel
+         cHaveDone := "relation "
+      CASE cCode == LETOCMD_closall
+         cHaveDone := "closeall "
+      CASE cCode == LETOCMD_mgmt
+         cHaveDone := "manage   "
+      CASE cCode == LETOCMD_creat
+         cHaveDone := "create   "
+      CASE cCode == LETOCMD_open
+         cHaveDone := "dbopen   "
+      CASE cCode == LETOCMD_ping
+         cHaveDone := "ping     "
+      CASE cCode == LETOCMD_quit
+         cHaveDone := "quit     "
+      CASE cCode == LETOCMD_rename
+         cHaveDone := "rename   "
+      CASE cCode == LETOCMD_sql
+         cHaveDone := "SQL      "
+      CASE cCode == LETOCMD_ta
+         cHaveDone := "transact "
+      CASE cCode == LETOCMD_udf_fun
+         cHaveDone := "udf-fun  "
+      CASE cCode == LETOCMD_var
+         cHaveDone := "variable "
+      CASE cCode == LETOCMD_set
+         cHaveDone := "set      "
+      CASE cCode == LETOCMD_stop
+         cHaveDone := "stop     "
+      CASE cCode == LETOCMD_rddinfo
+         cHaveDone := "rddinfo  "
+      CASE cCode == LETOCMD_zip
+         cHaveDone := "togglzip "
+
+      CASE cCode == LETOCMD_add
+         cHaveDone := "append   "
+      CASE cCode == LETOCMD_dbi
+         cHaveDone := "dbinfo   "
+      CASE cCode == LETOCMD_dboi
+         cHaveDone := "ordinfo  "
+      CASE cCode == LETOCMD_scop
+         cHaveDone := "scope    "
+      CASE cCode == LETOCMD_seek
+         cHaveDone := "seek     "
+      CASE cCode == LETOCMD_flush
+         cHaveDone := "dbcommit "
+      CASE cCode == LETOCMD_goto
+         cHaveDone := "goto     "
+      CASE cCode == LETOCMD_group
+         cHaveDone := "group    "
+      CASE cCode == LETOCMD_filt
+         cHaveDone := "dbfilter "
+      CASE cCode == LETOCMD_sum
+         cHaveDone := "sum      "
+      CASE cCode == LETOCMD_unlock
+         cHaveDone := "unlock   "
+      CASE cCode == LETOCMD_lock
+         cHaveDone := "lock     "
+      CASE cCode == LETOCMD_memo
+         cHaveDone := "memo     "
+      CASE cCode == LETOCMD_udf_dbf
+         cHaveDone := "udf      "
+      CASE cCode == LETOCMD_ord
+         cHaveDone := "ordfocus "
+      CASE cCode == LETOCMD_pack
+         cHaveDone := "pack     "
+      CASE cCode == LETOCMD_sort
+         cHaveDone := "sort     "
+      CASE cCode == LETOCMD_islock
+         cHaveDone := "islocked "
+      CASE cCode == LETOCMD_skip
+         cHaveDone := "skip     "
+      CASE cCode == LETOCMD_cmta
+         cHaveDone := "append+  "
+      CASE cCode == LETOCMD_upd
+         cHaveDone := "replace  "
+      CASE cCode == LETOCMD_rela
+         cHaveDone := "relation "
+      CASE cCode == LETOCMD_cmtu
+         cHaveDone := "replace+ "
+      CASE cCode == LETOCMD_rcou
+         cHaveDone := "reccount "
+      CASE cCode == LETOCMD_zap
+         cHaveDone := "zap      "
+      CASE cCode == LETOCMD_trans
+         cHaveDone := "dbcopy   "
+      OTHERWISE
+         cHaveDone := "???      "
+   ENDCASE         
+RETURN cHaveDone + cAction
+
 STATIC FUNCTION GetAllConnections( oBrow )
    oBrow:cargo := leto_MgGetUsers()
    IF EMPTY( oBrow:cargo )
       oBrow:cargo := {}  /* can be NIL */
    ELSE
-      AEVAL( @oBrow:cargo, {|aConn| aConn[ 7 ] := IIF( aConn[ 7 ] == "0", "CDX", "NTX" ) } )
-      AEVAL( @oBrow:cargo, {|aConn| aConn[ 8 ] := Padl(Ltrim(Str(Int((Val(aConn[5])%86400)/3600))),3,'0') + ":";
-                                                  + Padl(Ltrim(Str(Int((Val(aConn[5])%3600)/60))),2,'0') + ":";
-                                                  + Padl(Ltrim(Str(Int(Val(aConn[5])%60))),2,'0') } )
+      AEVAL( @oBrow:cargo, { | aConn | aConn[ 7 ] := IIF( aConn[ 7 ] == "0", "CDX", "NTX" ) } )
+      AEVAL( @oBrow:cargo, { | aConn | aConn[ 8 ] := SecToTimestring( Val( aConn[ 5 ] ) ) } )
+      AEVAL( @oBrow:cargo, { | aConn | aConn[ 6 ] := ActionDecode( aConn[ 6 ] ) } )
    ENDIF
 RETURN .T.
 
@@ -617,16 +748,10 @@ RETURN cBase
 
 STATIC FUNCTION ServerInfo( cAddress, cVersion, cMode )
  LOCAL cText
- //LOCAL aInfo
-
-   //IF ( aInfo := leto_MgGetInfo() ) == Nil
-   //   RETURN .F.
-   //ENDIF
 
    SETCOLOR( "W+/R" )
    @ 0, 0 CLEAR TO 0, MAXCOL()
    cText := cVersion + " mode " + cMode + " at " + cAddress
-   // cText := aInfo[13] + " CPU core " + cVersion + " at " + cAddress
    @ 0, ( MAXCOL() - LEN( cText ) ) / 2 SAY cText
 
    SETCOLOR( "W+/G" )
@@ -695,7 +820,7 @@ STATIC FUNCTION BasicInfo()
    ELSE
       @ 3, MAXCOL() / 2 + 2 SAY "Requests: " + Padl( aInfo[ 6 ], 12 )
    ENDIF
-   // @ 3, MAXCOL() / 2 + 25 SAY "Rate: " + STR( VAL( aInfo[ 6 ] ) / aInfo3[ 3 ], 3, 0 )
+
    nTmp := Int( Val( aInfo[ 7 ] ) / 1024 )
    IF nTmp > 1024 * 10
       cTmp := "M"
@@ -721,7 +846,6 @@ STATIC FUNCTION BasicInfo()
       @ 4, MAXCOL() / 2 + 25 SAY "Rate: " + STR( nTmp, 3, 0 )  + " MB/s"
    ELSE
       @ 4, MAXCOL() / 2 + 25 SAY "Rate:" + STR( nTmp, 4, 0 )  + " KB/s"
-      //@ 4, MAXCOL() / 2 + 25 SAY "Rate: " + STR( ( VAL( aInfo[ 7 ] ) / ( 1024 * 1024 ) ) / aInfo3[ 3 ], 3, 0 )  + " MB/s"
    ENDIF
 
    nTmp := Int( Val( aInfo[ 8 ] ) / 1024 )
@@ -747,7 +871,6 @@ STATIC FUNCTION BasicInfo()
    IF nTmp >= 1024
       nTmp /= 1024
       @ 5, MAXCOL() / 2 + 25 SAY "Rate: " +  STR( nTmp, 3, 0 ) + " MB/s"
-      //@ 5, MAXCOL() / 2 + 25 SAY "Rate: " +  STR( ( VAL( aInfo[ 8 ] ) / ( 1024 * 1024 ) ) / aInfo3[ 3 ], 3, 0 ) + " MB/s"
    ELSE
       @ 5, MAXCOL() / 2 + 25 SAY "Rate:" +  STR( nTmp, 4, 0 ) + " KB/s"
    ENDIF
@@ -829,7 +952,7 @@ STATIC FUNCTION KillActiveUsers( nConnection )
          ENDIF
          FOR i := 1 TO LEN( aUser )
             nKillId := VAL( aUser[ i, 1 ] )
-            IF ! lOpen .AND. nKillId == s_myConn  // myself
+            IF ! lOpen .AND. nKillId == s_myConn  /* can not kill myself ;-) */
                LOOP
             ENDIF
             IF( leto_MgKill( nKillID ) == nKillID )
@@ -840,7 +963,7 @@ STATIC FUNCTION KillActiveUsers( nConnection )
                @ 5, 2 SAY " closing connection: " + aUser[ i, 1 ] + " failed"
             ENDIF
          NEXT i
-         INKEY( 2 )  // let the connection(s) close
+         INKEY( 2 )  /* wait for the connection(s) to close */
       ENDDO
    ELSEIF lOk
       IF nConnection == -1
@@ -1045,7 +1168,7 @@ FUNCTION MyChoice( nStatus )  /* must be a public FUNCTION */
    ENDIF
    DO CASE
       CASE nStatus == AC_EXCEPT
-         cKey := Upper( CHR( nKey ) )  // hb_keyChar( nKey )
+         cKey := Upper( CHR( nKey ) )  /* hb_keyChar( nKey ) */
          DO CASE
             CASE cKey >= "0" .AND. cKey <= "9"
                hb_keyPut( K_ENTER )

@@ -75,7 +75,6 @@
 #endif
 
 #define GC_RATE   0xFFF
-#define LETO_CPU_STATISTIC  1
 
 static const char * szOk = "++++";
 static const char * szErr1 = "-001";
@@ -92,7 +91,7 @@ static HB_U64 s_ullOperations = 0;
 static HB_U64 s_ullUDFOps = 0;
 static HB_U64 s_ullBytesRead = 0;
 static HB_U64 s_ullBytesSend = 0;
-static HB_U64 s_ullCPULoad = 0;          /* sum in ms of CPU load for requests */
+static HB_U64 s_ullCPULoad = 0;          /* sum in us of CPU load for requests */
 
 
 extern HB_USHORT leto_ActiveUser( void );
@@ -118,6 +117,7 @@ extern void leto_FreeCurrArea( PUSERSTRU pUStru );
 extern void leto_CommandSetInit( void );
 
 extern HB_I64 leto_MilliSec( void );
+extern HB_I64 leto_MicroSec( void );
 extern void leto_setTimeout( HB_ULONG iTimeOut );
 
 
@@ -133,7 +133,7 @@ HB_U64 leto_Statistics( int iEntry )
    else if( iEntry == 3 )
       ullRet = s_ullBytesSend;
    else if( iEntry == 4 )
-      ullRet = s_ullCPULoad / 1000;
+      ullRet = s_ullCPULoad / 1000000;
    else
       ullRet = 0;
    HB_GC_UNLOCKS();
@@ -1454,6 +1454,8 @@ static HB_THREAD_STARTFUNC( thread2 )
       }
 #endif
 
+      llTimePoint = leto_MicroSec();
+
       if( ! ulRecvLen )
       {
          hb_vmLock();
@@ -1504,7 +1506,6 @@ static HB_THREAD_STARTFUNC( thread2 )
       }
 
       pUStru->ulDataLen = ulRecvLen;
-      llTimePoint = leto_MilliSec();
 
       if( iDebugMode() >= 15 )
       {
@@ -1539,13 +1540,16 @@ static HB_THREAD_STARTFUNC( thread2 )
       /* Note: LetoDB monitor <read> these two values, maybe in a race condition with wrong content,
        *       but leto_Mgmt() ever ensures a zero terminated copy of this buffer;
        *       further these values are just used for 'fancy info' */
-      pUStru->llLastAct = llTimePoint / 1000;
+      pUStru->llLastAct = llTimePoint / 1000000;
       memcpy( pUStru->szLastRequest, pUStru->pBuffer, ulRecvLen > 63 ? 63 : ulRecvLen );
       pUStru->szLastRequest[ ulRecvLen > 63 ? 63 : ulRecvLen ] = '\0';
-
-      ullTimeElapse = LETO_CPU_STATISTIC ? ( HB_U64 ) ( leto_MilliSec() - llTimePoint ) : 0;
-      pUStru->ullCPULoad += ullTimeElapse;
       pUStru->iHbError = 0;  /* leave the pUStru->szHbError description for e.g. console monitor */
+      /* resize to default size if last request needed big buffer */
+      if( pUStru->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
+         leto_ReallocUSbuff( pUStru, 0 );  /* '0' means default size */
+
+      ullTimeElapse = ( HB_U64 ) ( leto_MicroSec() - llTimePoint );
+      pUStru->ullCPULoad += ullTimeElapse;
 
       HB_GC_LOCKS();
       s_ullOperations++;
@@ -1558,20 +1562,14 @@ static HB_THREAD_STARTFUNC( thread2 )
       s_ullBytesRead += ulRecvLen + LETO_MSGSIZE_LEN;
       s_ullBytesSend += pUStru->ulBytesSend;
       s_ullCPULoad += ullTimeElapse;  /* result in seconds, but we can't / 1000 here => + 0 */
-      if( ( s_ullOperations & 0x1F ) == 0 )  /* a hack: a common request is faster than a millisecond */
-         s_ullCPULoad++;
       HB_GC_UNLOCKS();
 
+      pUStru->ulBytesSend = 0;
       if( pUStru->bGCCollect )
       {
          hb_gcCollectAll( HB_FALSE );
          pUStru->bGCCollect = HB_FALSE;
       }
-
-      /* resize to default size if last request needed big buffer */
-      if( pUStru->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
-         leto_ReallocUSbuff( pUStru, 0 );  /* '0' means default size */
-      pUStru->ulBytesSend = 0;
    }
 
    leto_CloseUS( pUStru );

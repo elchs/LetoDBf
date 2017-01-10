@@ -274,6 +274,38 @@ HB_UINT leto_CPULoad( void )
 
 #endif  /* leto_CPULoad() */
 
+HB_I64 leto_MicroSec( void )
+{
+#if defined( HB_OS_WIN )
+   LARGE_INTEGER liFrequency;
+
+   if( QueryPerformanceFrequency( &liFrequency ) )
+   {
+      LARGE_INTEGER liCounter;
+
+      QueryPerformanceCounter( &liCounter );
+      return ( HB_I64 ) ( liCounter.QuadPart / ( double ) ( liFrequency.QuadPart / 1000000 ) );
+   }
+   else
+   {
+      return 0;
+   }
+#elif defined( HB_OS_UNIX ) && \
+      ( defined( CLOCK_MONOTONIC_RAW ) || defined( CLOCK_MONOTONIC ) )
+   struct timespec ts;
+
+   #if defined( CLOCK_MONOTONIC_RAW )   /* without NTP changes, _RAW kernel >= 2.6.28 */
+      clock_gettime( CLOCK_MONOTONIC_RAW, &ts );
+   #elif defined( CLOCK_MONOTONIC )       /* only forwarding clock */
+      clock_gettime( CLOCK_MONOTONIC, &ts );
+   #endif
+
+   return ( HB_I64 ) ( ts.tv_sec * 1000000 ) + ( ts.tv_nsec / 1000 );
+#else
+   return 0;
+#endif
+}
+
 /* use of signed to be able to handle overflows */
 HB_I64 leto_MilliSec( void )
 {
