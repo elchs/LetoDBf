@@ -557,7 +557,7 @@ static HB_USHORT leto_KeyToStr( LETOAREAP pArea, char * szKey, char cType, PHB_I
 
       case 'T':
          hb_itemGetTS( pKey, szKey );
-         uiKeyLen = ( HB_USHORT ) strlen( szKey ); // 17 ?;
+         uiKeyLen = ( HB_USHORT ) strlen( szKey );  /* 23 + '\0' */
          break;
 
       default:  /* means error in type */
@@ -656,11 +656,10 @@ static HB_ERRCODE letoSeek( LETOAREAP pArea, HB_BOOL fSoftSeek, PHB_ITEM pKey, H
       return HB_FAILURE;
    }
 
-   if( ( cType = leto_ItemType( pKey ) ) != pTagInfo->cKeyType )
-   {
-      commonError( pArea, EG_DATATYPE, EDBF_DATATYPE, 0, NULL, EF_CANDEFAULT, NULL );
-      return HB_FAILURE;
-   }
+   /* ToDo timestamp behaviour for '0' and "" */
+   cType = leto_ItemType( pKey );
+   if( cType != pTagInfo->cKeyType )
+      return SELF_GOTO( ( AREAP ) pArea, 0 );
    else
    {
       char      szKey[ LETO_MAX_KEY ];

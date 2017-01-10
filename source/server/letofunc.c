@@ -6416,8 +6416,8 @@ static PHB_ITEM leto_KeyToItem( AREAP pArea, const char * ptr, int iKeyLen, cons
       {
          char szBuffer[ 9 ];
 
-         memcpy( szBuffer, ptr, 8 );
-         szBuffer[ 8 ] = 0;
+         memcpy( szBuffer, ptr, iKeyLen );
+         szBuffer[ iKeyLen ] = '\0';
          pKey = hb_itemPutDS( NULL, szBuffer );
          break;
       }
@@ -6434,7 +6434,8 @@ static PHB_ITEM leto_KeyToItem( AREAP pArea, const char * ptr, int iKeyLen, cons
       }
 
       case 'L':
-         pKey = hb_itemPutL( NULL, *ptr == 'T' );
+         if( iKeyLen )
+            pKey = hb_itemPutL( NULL, *ptr == 'T' );
          break;
    }
 
@@ -6580,7 +6581,7 @@ static void leto_Seek( PUSERSTRU pUStru, const char * szData )
    HB_BOOL      bSoftSeek, bFindLast;
    int          iKeyLen;
 
-   if( strlen( szData ) < 3 || ! pArea )
+   if( strlen( szData ) < 2 || ! pArea )
       pData = szErr2;
    else
    {

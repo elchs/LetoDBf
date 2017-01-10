@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-10 20:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/client/letocl.c
+    * DbSeek() behaviour for invalid key conform to HB: no RTE, but goto EOF
+
+  * source/server/letofunc.c
+    ! fix DbSeek() null string;
+    ; THANKS Ash ! for locating bug, as revealing two at once ;-)
+    ! fix for blank date key in leto_KeyToItem()
+
+  * tests/test_dbf.prg
+    + adding test for blank DbSeek( '' ), TS seek, formatting
+
 2017-01-10 16:17 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/client/letocl.c
@@ -29,7 +42,7 @@
     * cleanup
 
   * tests/test_dbf.prg
-    + adding test for SbSeek() with/ without softseek
+    + adding test for DbSeek() with/ without softseek
 
 2017-01-09 20:27 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c

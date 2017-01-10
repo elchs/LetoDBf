@@ -2008,19 +2008,6 @@ void leto_SetUpdated( LETOTABLE * pTable, HB_USHORT uiUpdated )
    memset( pTable->pFieldUpd, 0, pTable->uiFieldExtent * sizeof( HB_UCHAR ) );
 }
 
-static void LetoDbGotoEof( LETOTABLE * pTable )
-{
-   unsigned long ulRecCount;
-
-   LetoDbRecCount( pTable, &ulRecCount );
-   leto_SetBlankRecord( pTable, 0 );
-   leto_SetUpdated( pTable, LETO_FLAG_UPD_NONE );
-   pTable->ulRecNo = pTable->ulRecCount + 1;
-   pTable->fEof = HB_TRUE;
-   pTable->fBof = HB_FALSE;  /* fixed ?? -- BOF was set to HB_TRUE */
-   pTable->fDeleted = pTable->fFound = pTable->fRecLocked = HB_FALSE;
-}
-
 /* also used over leto_ParseRec() in leto1.c */
 void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const char * szData )
 {
@@ -3851,7 +3838,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
    HB_BOOL          fFound = HB_FALSE;
 
    /* elch -- check hotbuffer also for same ulRecno */
-   if( pTable->ptrBuf && leto_HotBuffer( pTable, &pTable->Buffer, pConnection->iBufRefreshTime ) )
+   if( ulRecNo && pTable->ptrBuf && leto_HotBuffer( pTable, &pTable->Buffer, pConnection->iBufRefreshTime ) )
    {
       HB_UCHAR * ptrBuf = pTable->Buffer.pBuffer;
       HB_ULONG   ulRecLen;
@@ -3884,19 +3871,14 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
 
    if( ! fFound )
    {
-      if( ! ulRecNo && ! pConnection->fRefreshCount && pTable->ulRecCount )
-         LetoDbGotoEof( pTable );
-      else
-      {
-         char     szData[ 32 ];
-         HB_ULONG ulLen;
+      char     szData[ 32 ];
+      HB_ULONG ulLen;
 
-         ulLen = eprintf( szData, "%c;%lu;%lu;%c;", LETOCMD_goto, pTable->hTable, ulRecNo,
-                                  ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
-         if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
-            return 1;
-         leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
-      }
+      ulLen = eprintf( szData, "%c;%lu;%lu;%c;", LETOCMD_goto, pTable->hTable, ulRecNo,
+                               ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
+      if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
+         return 1;
+      leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
       pTable->ptrBuf = NULL;
    }
 
