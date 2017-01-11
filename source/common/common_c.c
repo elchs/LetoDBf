@@ -274,7 +274,7 @@ HB_UINT leto_CPULoad( void )
 
 #endif  /* leto_CPULoad() */
 
-HB_I64 leto_MicroSec( void )
+HB_U64 leto_MicroSec( void )
 {
 #if defined( HB_OS_WIN )
    LARGE_INTEGER liFrequency;
@@ -290,14 +290,13 @@ HB_I64 leto_MicroSec( void )
    {
       return 0;
    }
-#elif defined( HB_OS_UNIX ) && \
-      ( defined( CLOCK_MONOTONIC_RAW ) || defined( CLOCK_MONOTONIC ) )
+#elif defined( HB_OS_UNIX ) && ( defined( CLOCK_MONOTONIC ) || defined( CLOCK_MONOTONIC_RAW ) )
    struct timespec ts;
 
-   #if defined( CLOCK_MONOTONIC_RAW )   /* without NTP changes, _RAW kernel >= 2.6.28 */
-      clock_gettime( CLOCK_MONOTONIC_RAW, &ts );
-   #elif defined( CLOCK_MONOTONIC )       /* only forwarding clock */
+   #if defined( CLOCK_MONOTONIC )         /* only forwarding clock */
       clock_gettime( CLOCK_MONOTONIC, &ts );
+   #elif defined( CLOCK_MONOTONIC_RAW )   /* without NTP changes, _RAW kernel >= 2.6.28 */
+      clock_gettime( CLOCK_MONOTONIC_RAW, &ts );
    #endif
 
    return ( HB_I64 ) ( ts.tv_sec * 1000000 ) + ( ts.tv_nsec / 1000 );

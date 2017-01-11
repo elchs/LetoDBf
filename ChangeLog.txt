@@ -2,6 +2,24 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-11 23:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/funcleto.h
+  * source/common/common_c.c
+  * source/common/lz4net.c
+  * source/client/letocl.c
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+    % use macro LZ4_COMPRESSBOUND instead function
+    * split leto_SockSend() in two versions for ZLib and LZ4
+    * formatting, squeezing for last bits performance
+
+  * source/common/common_c.c
+  * source/server/leto_2.c
+    % change to CLOCK_MONOTONIC from .._RAW, had unexpected much more latency
+
+  * utils/manage/console.prg
+    * some keyboard shortcuts, refresh rate, formatting, small improves ..
+
 2017-01-10 20:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/client/letocl.c

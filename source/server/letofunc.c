@@ -48,10 +48,6 @@
 
 #include "srvleto.h"
 
-#if defined( USE_LZ4 )
-   #include "lz4.h"
-#endif
-
 #define PARSE_MAXDEEP            5   /* used in leto_ParseFilter() */
 #define SHIFT_FOR_LEN            3
 
@@ -3946,11 +3942,6 @@ static _HB_INLINE_ void leto_lz4Compress( char * pDst, HB_SIZE * pnDst, const ch
 {
    *pnDst = ( HB_SIZE ) LZ4_compress_fast( pSrc, pDst, nLen, *pnDst, iLevel );
 }
-
-static _HB_INLINE_ HB_SIZE leto_lz4CompressBound( HB_ULONG ulLen )
-{
-   return ( HB_SIZE ) LZ4_compressBound( ulLen );
-}
 #endif
 
 static const char * leto_DecryptText( PUSERSTRU pUStru, HB_ULONG * pulLen, char * ptr )
@@ -4004,7 +3995,7 @@ static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG u
    fCompress = ( pUStru->iZipRecord < 1 && ulLen > LETO_LZ4_COMPRESS_MIN ) ? HB_TRUE : HB_FALSE;
    if( fCompress )
    {
-      nDest = leto_lz4CompressBound( ulLen );
+      nDest = ( HB_SIZE ) LZ4_COMPRESSBOUND( ulLen );
       if( ! nDest )  /* too big > 0x7E000000 */
       {
          ulBufLen = 5 + ulPrelead;

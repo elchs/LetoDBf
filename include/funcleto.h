@@ -47,6 +47,10 @@
 #include "hbbfish.h"
 #include "hbsocket.h"
 
+#if defined( USE_LZ4 )
+   #include "lz4.h"
+#endif
+
 #if defined( __XHARBOUR__ )
    #include "hbverbld.h"
 #elif defined( __HARBOUR__ )
@@ -194,7 +198,7 @@
 
 extern HB_I64 leto_DeciSec( void );
 extern HB_I64 leto_MilliSec( void );
-extern HB_I64 leto_MicroSec( void );
+extern HB_U64 leto_MicroSec( void );
 extern int leto_CPUCores( void );
 extern int leto_CPULoad( void );
 extern HB_UCHAR leto_n2b( char * s, HB_U32 n );

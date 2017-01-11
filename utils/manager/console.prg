@@ -362,19 +362,8 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          nBrowTmp := nBrow
          DO WHILE nBrow < LEN( aBrows )
             nBrow++
-            @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft TO;
-              aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nRight DOUBLE COLOR aBrows[ nBrow ]:colorSpec
-            DO CASE
-               CASE nBrowTmp == 1 .AND. nBrow == 1
-                  @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Connentions ]" COLOR aBrows[ nBrow ]:colorSpec
-               CASE nBrowTmp == 2 .AND. nBrow == 2
-                  @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Databases ]" COLOR aBrows[ nBrow ]:colorSpec
-               CASE nBrowTmp == 3 .AND. nBrow == 3
-                  @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Indexes ]" COLOR aBrows[ nBrow ]:colorSpec
-               CASE nBrowTmp == 4 .AND. nBrow == 4
-                  @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Locks ]" COLOR aBrows[ nBrow ]:colorSpec
-            ENDCASE
-
+            DispBegin()
+            BrowseFrames( aBrows, nBrow, nBrowTmp )
             EVAL( aBlocks[ nBrow ], aBrows[ nBrow ] )
             nNewLen := IIF( EMPTY( aBrows[ nBrow ]:cargo ), 0, LEN( aBrows[ nBrow ]:cargo ) )
             IF aBrows[ nBrow ]:RowPos > nNewLen
@@ -385,11 +374,14 @@ FUNCTION Main( cAddress, cUser, cPasswd )
             aBrows[ nBrow ]:refreshAll()
 
             DO WHILE .NOT. aBrows[ nBrow ]:Stabilize()
-               nKey := INKEY()
+               IF nKey == 0
+                  nKey := INKEY()
+               ENDIF
                IF nKey <> 0
                   EXIT
                ENDIF
             ENDDO
+            DispEnd()
             aLastPos[ nBrow ] := aPos[ nBrow ]
          ENDDO
          nBrow := nBrowTmp
@@ -400,24 +392,8 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          nBrowTmp := nBrow
          nBrow := 1
          DO WHILE nBrow <= LEN( aBrows )
-            @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft TO;
-              aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nRight DOUBLE COLOR aBrows[ nBrow ]:colorSpec
-            DO CASE
-               CASE nBrowTmp == 1 .AND. nBrow == 1
-                  @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Connentions ]" COLOR aBrows[ nBrow ]:colorSpec
-               CASE nBrowTmp == 2 .AND. nBrow == 2
-                  @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Databases ]" COLOR aBrows[ nBrow ]:colorSpec
-               CASE nBrowTmp == 3 .AND. nBrow == 3
-                  @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Indexes ]" COLOR aBrows[ nBrow ]:colorSpec
-               CASE nBrowTmp == 4 .AND. nBrow == 4
-                  @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Locks ]" COLOR aBrows[ nBrow ]:colorSpec
-            ENDCASE
-            IF nBrow == 4
-               @ aBrows[ nBrow ]:nTop, aBrows[ nBrow ]:nLeft - 1 TO;
-                 aBrows[ nBrow ]:nBottom + 1, aBrows[ nBrow ]:nLeft - 1 DOUBLE COLOR aBrows[ nBrow ]:colorSpec
-               @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft - 1 SAY "É" COLOR aBrows[ nBrow ]:colorSpec
-            ENDIF
-
+            DispBegin()
+            BrowseFrames( aBrows, nBrow, nBrowTmp )
             IF hb_MilliSeconds() - nLastRefresh > s_nRefresh
                nLastLen := IIF( EMPTY( aBrows[ nBrow ]:cargo ), -1, LEN( aBrows[ nBrow ]:cargo ) )
                EVAL( aBlocks[ nBrow ], aBrows[ nBrow ] )
@@ -434,11 +410,14 @@ FUNCTION Main( cAddress, cUser, cPasswd )
             ENDIF
 
             DO WHILE .NOT. aBrows[ nBrow ]:Stabilize()
-               nKey := INKEY()
+               IF nKey == 0
+                  nKey := INKEY()
+               ENDIF
                IF nKey <> 0
                   EXIT
                ENDIF
             ENDDO
+            DispEnd()
             nBrow++
          ENDDO
          nBrow := nBrowTmp
@@ -493,7 +472,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
                   nKey := 0
                ENDIF
             ELSE
-               nKey = 0
+               nKey := 0
             ENDIF
          ELSE
             nKey := 0
@@ -505,9 +484,9 @@ FUNCTION Main( cAddress, cUser, cPasswd )
             ai := ASCAN( aBrows, { | oBrow | oBrow:nTop - 1 <= mRow .AND. oBrow:nBottom >= mRow ;
                                       .AND. oBrow:nLeft <= mCol .AND. oBrow:nRight >= mCol } )
             IF nBrow != ai
-               nKey = 0
+               nKey := 0
             ELSEIF mRow >= aBrows[ nBrow ]:nTop + 2 .AND. aBrows[ nBrow ]:RowPos + aBrows[ nBrow ]:nTop + 1 != mRow
-               nKey = 0
+               nKey := 0
             ENDIF
          ELSE
             nKey := 0
@@ -519,7 +498,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
             ai := ASCAN( aBrows, { | oBrow | oBrow:nTop - 1 <= mRow .AND. oBrow:nBottom >= mRow ;
                                       .AND. oBrow:nLeft <= mCol .AND. oBrow:nRight >= mCol } )
             IF nBrow != ai
-               nKey = 0
+               nKey := 0
             ENDIF
          ENDIF
       ENDIF
@@ -571,11 +550,35 @@ FUNCTION Main( cAddress, cUser, cPasswd )
             lReconfigure := .T.
          CASE nKey == K_ALT_M
             Administrate( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) )
+         CASE nKey == K_ALT_L
+            ViewLogs( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) )
+         CASE nKey == K_ALT_K
+            KillActiveUsers( aBrows[ 1 ]:cargo, aPos[ 1 ] )
       ENDCASE
 
    ENDDO
 
 RETURN Nil
+
+STATIC FUNCTION BrowseFrames( aBrows, nBrow, nBrowTmp )
+   @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft TO;
+     aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nRight DOUBLE COLOR aBrows[ nBrow ]:colorSpec
+   DO CASE
+      CASE nBrowTmp == 1 .AND. nBrow == 1
+         @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Connentions ]" COLOR aBrows[ nBrow ]:colorSpec
+      CASE nBrowTmp == 2 .AND. nBrow == 2
+         @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Databases ]" COLOR aBrows[ nBrow ]:colorSpec
+      CASE nBrowTmp == 3 .AND. nBrow == 3
+         @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Indexes ]" COLOR aBrows[ nBrow ]:colorSpec
+      CASE nBrowTmp == 4 .AND. nBrow == 4
+         @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Locks ]" COLOR aBrows[ nBrow ]:colorSpec
+   ENDCASE
+   IF nBrow == 4
+      @ aBrows[ nBrow ]:nTop, aBrows[ nBrow ]:nLeft - 1 TO;
+        aBrows[ nBrow ]:nBottom + 1, aBrows[ nBrow ]:nLeft - 1 DOUBLE COLOR aBrows[ nBrow ]:colorSpec
+      @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft - 1 SAY "É" COLOR aBrows[ nBrow ]:colorSpec
+   ENDIF
+RETURN NIL
 
 STATIC FUNCTION SecToTimestring( nSec )
  LOCAL cTime
@@ -693,7 +696,7 @@ STATIC FUNCTION ActionDecode( cAction )
          cHaveDone := "dbcopy   "
       OTHERWISE
          cHaveDone := "???      "
-   ENDCASE         
+   ENDCASE
 RETURN cHaveDone + cAction
 
 STATIC FUNCTION GetAllConnections( oBrow )
@@ -771,6 +774,8 @@ STATIC FUNCTION BasicInfo()
    IF EMPTY( ( aInfo := leto_MgGetInfo() ) )
       RETURN .F.
    ENDIF
+
+   DispBegin()
 
    oldc := SETCOLOR( "W+/B,B/BG,,,W+/G" )
    @ 1, 0, 7, MAXCOL() BOX B_DOUBLE + " "
@@ -896,6 +901,8 @@ STATIC FUNCTION BasicInfo()
    @ 6, MAXCOL() / 2 + 25 SAY "Core: " + Padl( aInfo[ 13 ], 3 )
    SETCOLOR( oldc )
 
+   DispEnd()
+
 RETURN .T.
 
 STATIC FUNCTION KillActiveUsers( nConnection )
@@ -918,9 +925,12 @@ STATIC FUNCTION KillActiveUsers( nConnection )
 
    IF lOk
      @ 2, 1 SAY "? kill *ALL* active user [ *USE* with open tables ] or only *ONE* connection ?"
-     @ 3, 2 SAY "type: ALL, USE or ONE" GET cConfirm PICT "@! XXX" VALID ALLTRIM( cConfirm ) $ "ALL-ONE-USE"
+     @ 3, 2 SAY "type: ALL, USE or ONE" GET cConfirm PICT "@! XXX" VALID ALLTRIM( cConfirm ) $ "ALL-ONE-USE-NON"
      READ
      lOk := LASTKEY() != K_ESC
+     IF cConfirm == "NON"
+        lOk := .F.
+     ENDIF
      lOpen := cConfirm == "USE"
    ENDIF
 
@@ -934,7 +944,7 @@ STATIC FUNCTION KillActiveUsers( nConnection )
       ENDIF
    ENDIF
 
-   IF lOk .AND. cConfirm $ "ALL-USE"
+   IF lOk .AND. ( cConfirm == "ALL" .OR. cConfirm == "USE" )
       nKilled := 0
       DO WHILE lOk
          IF lOpen .AND. ( VALTYPE( aInfo := leto_MgGetTables() ) != "A" .OR. EMPTY( aInfo ) )
@@ -965,7 +975,7 @@ STATIC FUNCTION KillActiveUsers( nConnection )
          NEXT i
          INKEY( 2 )  /* wait for the connection(s) to close */
       ENDDO
-   ELSEIF lOk
+   ELSEIF lOk .AND. cConfirm == "ONE"
       IF nConnection == -1
          timedAlert( " can not close me myself this way", 3, "W+/R" )
          lOk := .F.
@@ -1003,18 +1013,18 @@ FUNCTION memologger( nMode, nLine, nCol )
 
    HB_SYMBOL_UNUSED( nLine )
    HB_SYMBOL_UNUSED( nCol )
-   
+
    DO CASE
       CASE nMode == ME_IDLE
-         nKey := INKEY( ( s_nRefresh / 1000 ) ) 
+         nKey := INKEY( ( s_nRefresh / 1000 ) )
          IF nKey == 0 .AND. hb_MilliSeconds() - nUpTime > s_nRefresh
             hb_keyPut( K_CTRL_W )
          ELSE
-            hb_keyPut( nKey )
+            hb_keyIns( nKey )
          ENDIF
       CASE nMode == ME_INIT
          nUpTime := hb_MilliSeconds()
-         hb_keyPut( K_CTRL_PGDN )
+         /* hb_keyPut( K_CTRL_PGDN ) */
       CASE nMode == ME_UNKEY
          nKey := LASTKEY()
          IF nKey == K_MWBACKWARD
@@ -1028,15 +1038,23 @@ FUNCTION memologger( nMode, nLine, nCol )
 RETURN nRet
 
 STATIC FUNCTION ViewLogs( nConnection )
+ LOCAL oldcolor := SetColor( "W+/G,W+/B" )
  LOCAL cText := leto_MgLog( nConnection, 0 )
  LOCAL cSave
+ LOCAL nLines
 
    IF EMPTY( cText )
       timedAlert( " no LOG file for connection: " + hb_nTos( nConnection ), 1, "W+/R" )
    ELSE
       cSave := SAVESCREEN( 8, 0, MAXROW(), MAXCOL() )
+      nLines := LEN( cText )
+      IF nLines > 65535 * 5
+         timedAlert( " LARGE log " + hb_nTos( INT( nLines / 1024 ) ) + " KB, expect delays ", 3, "W+/R" )
+         s_nRefresh := MAX( 10000, s_nRefresh )
+      ENDIF
       DO WHILE .T.
-         memoedit( cText, 8, 0, MAXROW(), MAXCOL(), .F.,"memologger", 1024 )
+         nLines := MLCOUNT( cText, 1024 )
+         memoedit( cText, 8, 0, MAXROW(), MAXCOL(), .F.,"memologger", 1024,, MAX( 0, nLines - ( MAXROW() - 8 ) ) )
          IF LASTKEY() != K_ESC
             IF ! BasicInfo()  /* server down */
                EXIT
@@ -1048,6 +1066,7 @@ STATIC FUNCTION ViewLogs( nConnection )
       ENDDO
       RESTSCREEN(  8, 0, MAXROW(), MAXCOL(), cSave )
    ENDIF
+   SetColor( oldcolor )
 RETURN NIL
 
 STATIC FUNCTION Administrate( nConnection )
@@ -1170,9 +1189,13 @@ FUNCTION MyChoice( nStatus )  /* must be a public FUNCTION */
       CASE nStatus == AC_EXCEPT
          cKey := Upper( CHR( nKey ) )  /* hb_keyChar( nKey ) */
          DO CASE
-            CASE cKey >= "0" .AND. cKey <= "9"
+            CASE ( cKey >= "0" .AND. cKey <= "9" ) .OR. cKey == "D"
                hb_keyPut( K_ENTER )
                RETURN AC_GOTO
+            CASE nKey == K_HOME
+               hb_keyPut( K_PGUP )
+            CASE nKey == K_END
+               hb_keyPut( K_PGDN )
             CASE nKey == K_ENTER
                RETURN AC_SELECT
             CASE nKey == K_ESC .OR. nKey == K_RBUTTONUP
@@ -1207,9 +1230,13 @@ STATIC FUNCTION ChangeDebug
  LOCAL nLevel := RDDInfo( RDDI_DEBUGLEVEL )
 
    @ 2, 1, 6, MAXCOL() - 1 BOX SPACE( 9 )
-   @ 2, 2 SAY "DebugLevel: 0: none   1: the very most  10: a lot  15: partly traffic  21: full traffic"
-   @ 3, 2 SAY "old level: " + STR( nLevel, 2, 0 ) + "  new: " GET nLevel PICTURE "@K 99" ;
-                                                              VALID nLevel >= 0 .AND. nLevel <= 99
+   @ 2, 2 SAY "DebugLevel: 0: non debug feedback, only error"
+   @ 3, 2 GET nLevel PICTURE "@K 99" VALID nLevel >= 0 .AND. nLevel <= 99
+   @ 3, 2 SAY "            1: the very minimal info messages"
+   @ 4, 2 SAY "           10: a lot feedback"
+   @ 5, 2 SAY "           15: plus partly traffic"
+   @ 6, 2 SAY "           21: full traffic log -- ! log files will very fast grow huge !"
+
    READ
    IF LASTKEY() != K_ESC
       RDDInfo( RDDI_DEBUGLEVEL, nLevel )

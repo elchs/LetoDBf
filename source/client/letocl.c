@@ -77,10 +77,6 @@
   #define _WINSOCKAPI_
 #endif
 
-#if defined( USE_LZ4 )
-   #include "lz4.h"
-#endif
-
 #define LETO_DEFAULT_TIMEOUT 120000;  /* two minutes */
 
 #ifdef LETO_MT
@@ -1012,11 +1008,7 @@ static long leto_Recv( LETOCONNECTION * pConnection )
  * => no need to memcpy() data in a temp buffer to add data-length beforehand
  *    only use such buffer always for hb_znet connection
  * EXCEPTION for zipped traffic, here to do it 'old style' using receive buffer */
-#if defined( __BORLANDC__ )
 static long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen )
-#else
-static _HB_INLINE_ long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen )
-#endif
 {
    HB_ULONG ulSent;
    long     lTmp;
@@ -1467,11 +1459,6 @@ static _HB_INLINE_ void leto_lz4Compress( char * pDst, HB_SIZE * pnDst, const ch
 {
    *pnDst = ( HB_SIZE ) LZ4_compress_fast( pSrc, pDst, nLen, *pnDst, iLevel );
 }
-
-static _HB_INLINE_ HB_SIZE leto_lz4CompressBound( HB_ULONG ulLen )
-{
-   return ( HB_SIZE ) LZ4_compressBound( ulLen );
-}
 #endif
 
 const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen, char * ptr )
@@ -1521,7 +1508,7 @@ HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_UL
    fCompress = ( pConnection->iZipRecord < 1 && ulLen > LETO_LZ4_COMPRESS_MIN ) ? HB_TRUE : HB_FALSE;
    if( fCompress )
    {
-      nDest = leto_lz4CompressBound( ulLen );
+      nDest = ( HB_SIZE ) LZ4_COMPRESSBOUND( ulLen );
       if( ! nDest )  /* too big > 0x7E000000 */
       {
          pConnection->iError = 1021;

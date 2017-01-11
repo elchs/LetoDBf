@@ -244,7 +244,7 @@ static void lz4_bfDecrypt( const HB_BLOWFISH * pBfKey, const char * pSrc, const 
  * if not, and socket flag <MSG_MORE> is available, datablock can be send directly without memcpy() */
 HB_BOOL hb_lz4netEncryptTest( const PHB_LZ4NET pStream, const HB_ULONG ulLen )
 {
-   return ( pStream && ( ( ulLen > LZ4_COMPRESS_MINLENGTH && pStream->iLevel > 0 ) || pStream->pBfKey ) ) ? HB_TRUE : HB_FALSE;
+   return ( pStream && ( ( ulLen > LZ4_COMPRESS_MINLENGTH && pStream->iLevel > 0 ) || pStream->pBfKey ) );
 }
 
 /* for hb_lz4net[En|De]crypt() the caller is responsible to free 'too' big result blocks after send/ receive,
@@ -258,10 +258,11 @@ HB_ULONG hb_lz4netEncrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB
 {
    HB_ULONG  ulBufLen;
    HB_SIZE   nDest;
+   HB_BOOL   fCompress = ( pStream->iLevel > 0 && ulLen > LZ4_COMPRESS_MINLENGTH );
 
    if( ! ulLen )
       return 0;
-   else if( pStream->iLevel > 0 && ulLen > LZ4_COMPRESS_MINLENGTH )
+   else if( fCompress )
    {
       nDest = ( HB_SIZE ) LZ4_COMPRESSBOUND( ulLen ); /* value needed for compressing below */
       ulBufLen = nDest + 16;  /* add overhead: encrypt +8, uncomp-length +4, length +4 [, termination +1 ]  */
@@ -294,7 +295,7 @@ HB_ULONG hb_lz4netEncrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB
       lz4_destSizer( pData, *pulDataLen );
    }
 
-   if( pStream->iLevel > 0 && ulLen > LZ4_COMPRESS_MINLENGTH )
+   if( fCompress )
    {
 #if 0  /* testing purpose only */
       // nDest = LZ4_compress_fast( szData, *pData + 4, ulLen, nDest, pStream->iLevel );
