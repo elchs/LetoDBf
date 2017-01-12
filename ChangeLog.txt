@@ -2,6 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-12 18:48 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    + missing DBFFPT for leto_DBDriver()
+    ; please note this RDD is without index create/ use
+
+  * source/server/letofunc.c
+  * utils/manage/console.prg
+    * text of two log messages
+    + transmit and display by connection active used RDD driver
+    ! correct freeze of leftmost columns
+    ; note new descriptions in column "last action" in Connections browse
+
+  * Readme.txt
+    * some notes about Harbour 3.0, above change, typos, etc ...
+
 2017-01-12 06:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/srvleto.h
   * source/client/letocl.c

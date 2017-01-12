@@ -174,7 +174,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):headSep   := CHR_HEADSEP
    /* ATAIL( aBrows ):footSep   := CHR_FOOTSEP */
    ATAIL( aBrows ):colSep    := CHR_COLSEP
-   oColumn := TbColumnNew( "No", ArrBlock( ATAIL( aBrows ), 1, @aPos[ 1 ] ) )
+   oColumn := TbColumnNew( "ID", ArrBlock( ATAIL( aBrows ), 1, @aPos[ 1 ] ) )
    oColumn:width := 4
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
@@ -183,15 +183,15 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "system name", ArrBlock( ATAIL( aBrows ), 3, @aPos[ 1 ] ) )
-   oColumn:width := 18
+   oColumn:width := 17
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "executable", ArrBlock( aBrows[ 1 ], 4, @aPos[ 1 ] ) )
    oColumn:width := 15
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
-   oColumn := TbColumnNew( "cndx", ArrBlock( ATAIL( aBrows ), 7, @aPos[ 1 ] ) )
-   oColumn:width := 4
+   oColumn := TbColumnNew( " RDD ", ArrBlock( ATAIL( aBrows ), 7, @aPos[ 1 ] ) )
+   oColumn:width := 5
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "last active", ArrBlock( ATAIL( aBrows ), 8, @aPos[ 1 ] ) )
@@ -202,7 +202,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:width := 64
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
-   ATAIL( aBrows ):freeze( 1 )
+   ATAIL( aBrows ):freeze := 1
    AADD( aBlocks, { | oBrow | GetAllConnections( @oBrow ) } )
 
    /* databases */
@@ -257,7 +257,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:width := MAXCOL() - 23
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
-   ATAIL( aBrows ):freeze( 1 )
+   ATAIL( aBrows ):freeze := 1
    AADD( aBlocks, {|oBrow| IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
                            ( oBrow:cargo := leto_MgGetIndex( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) ), ( oBrow:cargo := {} ) ) } )
 
@@ -311,7 +311,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          aBrows[ 1 ]:nRight := MAXCOL()
          aBrows[ 1 ]:nBottom := 11 + nAllExtra + INT( nExtra / 2 )
          aBrows[ 1 ]:configure()
-         aBrows[ 1 ]:freeze( 1 )
+         aBrows[ 1 ]:freeze := 1
 
          aBrows[ 2 ]:nTop := 13 + nAllExtra + INT( nExtra / 2 )
          aBrows[ 2 ]:nRight := MAXCOL() - 20
@@ -331,7 +331,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          oColumn:width := MAXCOL() - 23
          aBrows[ 3 ]:setColumn( 3, oColumn )
          aBrows[ 3 ]:configure()
-         aBrows[ 3 ]:freeze( 1 )
+         aBrows[ 3 ]:freeze := 1
 
          aBrows[ 4 ]:nTop := 13 + nAllExtra + ( nExtra / 2 )
          aBrows[ 4 ]:nLeft := MAXCOL() - 18
@@ -371,6 +371,9 @@ FUNCTION Main( cAddress, cUser, cPasswd )
                aPos[ nBrow ] := MAX( nNewLen, 1 )
             ENDIF
             aBrows[ nBrow ]:configure()
+            IF nBrow == 1 .OR. nBrow == 3
+               aBrows[ nBrow ]:freeze := 1
+            ENDIF
             aBrows[ nBrow ]:refreshAll()
 
             DO WHILE .NOT. aBrows[ nBrow ]:Stabilize()
@@ -405,6 +408,9 @@ FUNCTION Main( cAddress, cUser, cPasswd )
                ENDIF
                IF nLastLen != nNewLen
                   aBrows[ nBrow ]:configure()
+                  IF nBrow == 1 .OR. nBrow == 3
+                    aBrows[ nBrow ]:freeze := 1
+                  ENDIF
                ENDIF
                aBrows[ nBrow ]:refreshAll()
             ENDIF
@@ -565,7 +571,7 @@ STATIC FUNCTION BrowseFrames( aBrows, nBrow, nBrowTmp )
      aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nRight DOUBLE COLOR aBrows[ nBrow ]:colorSpec
    DO CASE
       CASE nBrowTmp == 1 .AND. nBrow == 1
-         @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Connentions ]" COLOR aBrows[ nBrow ]:colorSpec
+         @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Connections ]" COLOR aBrows[ nBrow ]:colorSpec
       CASE nBrowTmp == 2 .AND. nBrow == 2
          @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft + 2 SAY "[ Databases ]" COLOR aBrows[ nBrow ]:colorSpec
       CASE nBrowTmp == 3 .AND. nBrow == 3
@@ -699,12 +705,37 @@ STATIC FUNCTION ActionDecode( cAction )
    ENDCASE
 RETURN cHaveDone + cAction
 
+STATIC FUNCTION DriverName( nID )
+ LOCAL cDriver
+
+   DO CASE
+      CASE nId == 0 
+         cDriver := " CDX "
+      CASE nId == 1
+         cDriver := " NTX "
+      CASE nId == 2
+         cDriver := " NSX "
+      CASE nId == 3
+         cDriver := " FPT "
+      CASE nId == 4
+         cDriver := " SIX "
+      CASE nId == 10
+         cDriver := "BMCDX"
+      CASE nId == 11
+         cDriver := "BMNTX"
+      CASE nId == 12
+         cDriver := "BMNSX"
+      OTHERWISE
+         cDriver := " ??? "
+   ENDCASE
+RETURN cDriver
+         
 STATIC FUNCTION GetAllConnections( oBrow )
    oBrow:cargo := leto_MgGetUsers()
    IF EMPTY( oBrow:cargo )
       oBrow:cargo := {}  /* can be NIL */
    ELSE
-      AEVAL( @oBrow:cargo, { | aConn | aConn[ 7 ] := IIF( aConn[ 7 ] == "0", "CDX", "NTX" ) } )
+      AEVAL( @oBrow:cargo, { | aConn | aConn[ 7 ] := DriverName( VAL( aConn[ 7 ] ) ) } )
       AEVAL( @oBrow:cargo, { | aConn | aConn[ 8 ] := SecToTimestring( Val( aConn[ 5 ] ) ) } )
       AEVAL( @oBrow:cargo, { | aConn | aConn[ 6 ] := ActionDecode( aConn[ 6 ] ) } )
    ENDIF

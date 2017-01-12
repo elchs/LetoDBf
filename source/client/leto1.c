@@ -5831,7 +5831,7 @@ HB_FUNC( LETO_DBDRIVER )
 
          if( ! strcmp( szDriver, "DBFNTX" ) || ! strcmp( szDriver, "BMDBFNTX" ) )
             iDriver = 1;
-         else if( ! strcmp( szDriver, "SIXCDX" ) )
+         else if( ! strcmp( szDriver, "SIXCDX" ) || ! strcmp( szDriver, "DBFFPT" ) )
             iDriver = 0;
          else if( ! strcmp( szDriver, "DBFCDX" ) || ! strcmp( szDriver, "BMDBFCDX" ) )
             iDriver = 0;
@@ -5862,7 +5862,8 @@ HB_FUNC( LETO_DBDRIVER )
                iMemoType = DB_MEMO_DBT;
                memcpy( pConnection->szMemoExt, ".dbt\0", 5 );
             }
-            else if( ! strcmp( szDriver, "DBFCDX" ) || ! strcmp( szDriver, "BMDBFCDX" ) )
+            else if( ! strcmp( szDriver, "DBFCDX" ) || ! strcmp( szDriver, "BMDBFCDX" ) ||
+                     ! strcmp( szDriver, "DBFFPT" ) )
             {
                iMemoType = DB_MEMO_FPT;
                memcpy( pConnection->szMemoExt, ".fpt\0", 5 );

@@ -3443,7 +3443,7 @@ void leto_CloseUS( PUSERSTRU pUStru )
    {
       const char * szNull = "(null)";
 
-      leto_writelog( NULL, -1, "DEBUG closing connect %s:%d %s users=(%d : %d : %d), tables=(%d : %d)",
+      leto_writelog( NULL, -1, "INFO: disconnect %s:%d %s users=(%d : %d : %d), tables=(%d : %d)",
                      ( pUStru->szAddr    ? ( char * ) pUStru->szAddr    : szNull ),
                      ( pUStru->iPort     ? ( int ) pUStru->iPort     : 0 ),
                      ( *( pUStru->szExename ) ? ( char * ) pUStru->szExename : szNull ),
@@ -7970,6 +7970,32 @@ static HB_U64 leto_LinuxRam( int uiType )
 }
 #endif
 
+static HB_USHORT leto_DriverID( PUSERSTRU pUStru )
+{
+   HB_USHORT uiDriver = 0;
+
+   if( ! strcmp( pUStru->szDriver, "DBFCDX"  ) )
+      uiDriver = 0;
+   else if( ! strcmp( pUStru->szDriver, "DBFNTX"  ) )
+      uiDriver = 1;
+   else if( ! strcmp( pUStru->szDriver, "DBFNSX"  ) )
+      uiDriver = 2;
+   else if( ! strcmp( pUStru->szDriver, "DBFFPT"  ) )
+      uiDriver = 3;
+   else if( ! strcmp( pUStru->szDriver, "SIXCDX"  ) )
+      uiDriver = 4;
+   else if( ! strcmp( pUStru->szDriver, "BMDBFCDX"  ) )
+      uiDriver = 10;
+   else if( ! strcmp( pUStru->szDriver, "BMDBFNTX"  ) )
+      uiDriver = 11;
+   else if( ! strcmp( pUStru->szDriver, "BMDBFNSX"  ) )
+      uiDriver = 12;
+   else
+      uiDriver = 9;
+
+   return uiDriver;
+}
+
 static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
 {
    char *       ptr = NULL;
@@ -8118,7 +8144,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                                         *( pUStru1->szExename ) ? ( char * ) pUStru1->szExename : szNull,
                                         ( long int ) ( llTimePoint - pUStru1->llLastAct ),
                                         szRequest,
-                                        pUStru1->uiDriver,
+                                        leto_DriverID( pUStru1 ),
                                         pUStru1->szUsername ? ( char * ) pUStru1->szUsername : szNull,
                                         pUStru1->iPort );
                         uiCount++;
@@ -9227,7 +9253,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
          pData = pBuf;
 
          if( pUStru->hSocketErr == HB_NO_SOCKET && iDebugMode() > 0 )  /* second socket comes also here */
-            leto_writelog( NULL, -1, "INFO: connected from %s :%d %s CP: %s  DF: %s  conn-ID %d",
+            leto_writelog( NULL, -1, "INFO: connected  %s:%d %s CP: %s  DF: %s  conn-ID %d",
                                      pUStru->szAddr, pUStru->iPort,
                                      ( *( pUStru->szExename ) ? ( char * ) pUStru->szExename : "?exe?" ),
                                      hb_cdpID(), hb_setGetDateFormat(), pUStru->iUserStru - 1 );

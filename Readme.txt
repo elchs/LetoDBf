@@ -17,6 +17,7 @@ Contents
    2.1 via hbmk2
    2.2 Borland Win32 C compiler
    2.3 MS Visual C compiler
+   2.4 Old Harbour v 3.0
 3. Running and stopping server
    3.1 the classic way for all OS
    3.2 Run as Windows service
@@ -136,6 +137,19 @@ A. Internals
  BCC55 and maybe also newer ones have a problem with compiling LZ4 compression library, you will
  get this case slower ZLib compression. This must fit together for client lib and server when you
  want to use network traffic compression. It is configured by this "{!bcc}" at top in the ".hbp" files.
+
+
+      2.4 Old Harbour v 3.0
+
+ Basically it is possible to compile and use LetoDBf with older Harbour version 3.0.
+ For this you have to search in above named HBP files for the line with: "#-cflag=-D__HARBOUR30__=1",
+ and there to remove the single character '#' at line start, which means the line is outcommented.
+ This should be the last solution, as you will miss some fantastic new features of Harbour 3.2 and
+ instead get some left and meanwhile fixed bugs.
+ As the hbmk2 make tool v 3.0 does not know about the "-env:" option in the HBP files, you have to set
+ these as environment variables. So to set Env variables: __LZ4=yes   and   __PMURHASH=yes
+ to get defaults to use LZ4 compression and PmurHash Algorithm. This is done in Windows with: SET ...=...
+ and in Linux with export ...=...
 
 
       3. Running and stopping server
@@ -394,7 +408,7 @@ A. Internals
  letodb.hbp ( ledodbaddon/ letodbsvc ) the line with: "__HB_EXT_CDP__" [ remove the '#' at beginning ]
 
 
-      4.2.3 Rushmore bitmap index supprt
+      4.2.3 Rushmore bitmap index support
 
  Before you believe, this will be the mother of filtering performance problems, let be told she isn't.
  Better to invest a bit time about how to get optimized *server-side* filters with help of the Leto_Var*()
@@ -809,7 +823,7 @@ A. Internals
 
  This returns the timeout value for the skipbuffer guilty for the this table, before an optional
  new setting is applied with <nNewSetting>.
- Default is no specific timeou to a table, aka to use the general connection timeout value.
+ Default is no specific timeout for a table, aka to use the general connection timeout value.
  With optional <nNewSetting> it can be applied a new setting only guilty for this specific table.
  "-1 " == skipbuffer disabled, "0" == infinite skipbuffer, nHotBuffer > 0 == nHotBuffer / 100 seconds.
  Above is also the possible range for <nNewSetting>, plus a value < -1 will disable again a specific
@@ -822,19 +836,24 @@ A. Internals
 
       7.4 Additional rdd functions
 
-      leto_CloseAll( [ cConnString | nConnection ] )           ==> nil
-
- Close all workareas for specified or default connection
-
       leto_DbDriver( [ "cNewDriver" ], [ "cMemoType" ], [ nBlocksize ] )
                                                                ==> aInfo
- return an array with and in order of the three params.
- New values are optional, and then valid for the next ! opened/ created data table.
- Changing cMemoType will also change
- cNewDriver: "DBFNTX", "DBFCDX", "DBFNSX"
+ return an array with and in order of the three params, new values are optional.
+ New value for <cNewDriver> is then valid for the next opened/ created data table.
+ New values for <cMemoType> and <nBlockSize> only get into action for new created DBF tables.
+ Only changing <cMemoType> without given <cNewDriver> will also change <cNewDriver>.
+ cNewDriver: "DBFNTX", "DBFCDX", "DBFNSX", "SIXCDX", "DBFFPT" ( no index! )
  cMemoType : "DBT", "FPT", "SMT"
  nBlockSize: default for DBT is 512, for FPT 64 and SMT 32 Bytes.
              minimum is 32 Bytes, maximum 65535 == 64 KB; new values as multiple of 32 Bytes.
+ Only if server and client library are linked with rushmore bitmap index support ( 4.2.3 ),
+ additional possible for < cNewDriver >: "BMDBFCDX", "BMDBFNTX", "BMDBFNSX"
+
+      leto_CloseAll( [ cConnString ] )                         ==> nil
+
+ Somehow obsolete: closing all workareas for a specified or the default connection.
+ This function is only interesting for users with multiple server connections and does the same as:
+ DbCloseAll() with setting and restoring current connection with Leto_[Set|Get]CurrentConnetion()
 
 
       7.5 Setting client paramenter
@@ -850,32 +869,36 @@ A. Internals
  with given numeric value effective set size or 0 if no workarea was selected.
  Related to the skipbuffer timeout see also 7.3: DbInfo( DBI_BUFREFRESHTIME ).
 
-      LETO_SETSEEKBUFFER( nRecsInBuf )                         ==> 0
- ! DEPRECATED !
+      RddInfo( RDDI_REFRESHCOUNT[, <lSet> ] )                  ==> lOldSet
 
-      LETO_SETFASTAPPEND( lFastAppend )                        ==> .F.
- ! DEPRECATED !
- because of ugly design problems. It is left as dummy function.
- If such functionality is really needed, encapsulate your request in a transaction.
- Or use: Leto_Commit() after the record is appended, to spare an tiny unlock request to server.
+ By default, the RDDI_REFRESHCOUNT flag is set to true.
+ If this flag is set, function: RecCount() retrieve amount of records from server.
+ If not set, with record data transmitted values are used and are maybe slightly out-timed.
+ If other applications are appending records to the table, new records count won't be immediately seen.
 
-      RddInfo( RDDI_REFRESHCOUNT[, <lSet> ] )
+      RddInfo( RDDI_BUFKEYNO[, <lSet> ] )                      ==> lOldSet
 
- By default, the RDDI_REFRESHCOUNT flag is set to true.  If this flag is set, function: RecCount() retrieve
- amount of records from server.
- If not set, with common record data transmitted values are used and are maybe slightly out-timed.
- If other applications are appending records to the table, new value of records count won't be immediately received.
- If RDDI_REFRESHCOUNT flag is cleared, dbGoto(0) clears record buffer and set EOF and other flags instead of sending a
- server request.
- ( RDDI_REFRESHCOUNT     101 RDDI_BUFKEYNO         102  RDDI_BUFKEYCOUNT      103 )
+ Only use this if you need to very often query for OrdKeyNo(), e.g. during browsing to actualize the scrolbar.
+ Default value is .F., which means that the function: OrdKeyNo() will send an extra request to the server.
+ If <lSet> is set to TRUE (.T.), the values for OrdKeyNo() are transmitted with the record data and no extra
+ request is send. Generally this is very performance decreasing as counting need time at server, so immediate
+ deactivate (.F.) it if no more needed.
 
-      RddInfo( RDDI_DEBUGLEVEL [, nNewLevel ] )
+      RddInfo( RDDI_DEBUGLEVEL [, nNewLevel ] )                ==> nOldLevel
 
  Reports [ and changes ] the debug level at server, responsible for amount of feedback in the log files.
  Use with care, log files will grow at a busy server in only some seconds MB stepwise ...
  For possible values look 4.1 :letodb.ini ...
  With <nNewLevel> this can be changed on the fly, no server restart is needed. This then applies to all
  active and new server connections.
+
+      LETO_SETSEEKBUFFER( nRecsInBuf )                         ==> 0
+ ! DEPRECATED !
+
+      LETO_SETFASTAPPEND( lFastAppend )                        ==> .F.
+ ! DEPRECATED !
+ because of ugly design problems. It is left as dummy function doing nothing.
+ If such former functionality is really needed, encapsulate your request in a transaction.
 
 
       7.6 File functions
@@ -953,7 +976,7 @@ A. Internals
  A simple backup:
     aArr := Leto_Directory( "*" )
     AEval( aArr, { |aItem| Leto_FCopyFromSrv( aItem[1], aItem[1] } )
- Copy to a logged into HbNetIO server a file located in LetoDBf RAM:
+ Copy from a logged into HbNetIO server a file to LeoDBf located in RAM:
     Leto_FCopyToSrv( "net:hbnetio.txt", "mem:RAMfile.txt" )
 
       Leto_FileSize( cFileName )                               ==> -1 if failed
