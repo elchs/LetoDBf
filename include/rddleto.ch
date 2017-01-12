@@ -85,33 +85,33 @@
 #define DBI_DBS_STEP          1004
 
 /* server config options */
-#define LETOOPT_cDataPath      1
-#define LETOOPT_nIndexType     2
-#define LETOOPT_lFilefunc      3
-#define LETOOPT_lAnyExt        4
-#define LETOOPT_lPass4l        5
-#define LETOOPT_lPass4m        6
-#define LETOOPT_lPass4d        7
-#define LETOOPT_cAccPath       8
-#define LETOOPT_lCrypt         9
-#define LETOOPT_lShare        10
-#define LETOOPT_lNoSaveWA     11
-#define LETOOPT_nVarMax       12
-#define LETOOPT_nVarlenmax    13
-#define LETOOPT_nCacherecords 14
-#define LETOOPT_nTableMax     15
-#define LETOOPT_nUserMax      16
-#define LETOOPT_nDebugLevel   17
-#define LETOOPT_lOptimize     18
-#define LETOOPT_nAutoOrder    19
-#define LETOOPT_nMemotype     20
-#define LETOOPT_lForceOpt     21
-#define LETOOPT_nLockCheme    22
-#define LETOOPT_lUdfEnable    23
-#define LETOOPT_nMemoBSize    24
-#define LETOOPT_bLowerPath    25
-#define LETOOPT_pTrigger      26
-#define LETOOPT_pPendTrigger  27
-#define LETOOPT_bHardCommit   29
+#define LETOOPT_DATAPATH      1   // C
+#define LETOOPT_INDEXTYPE     2   // N
+#define LETOOPT_FILEFUNC      3   // L
+#define LETOOPT_ANYEXT        4   // L
+#define LETOOPT_PASS4L        5   // L
+#define LETOOPT_PASS4M        6   // L
+#define LETOOPT_PASS4D        7   // L
+#define LETOOPT_ACCPATH       8   // C
+#define LETOOPT_CRYPT         9   // L
+#define LETOOPT_SHARETABLES  10   // L
+#define LETOOPT_NOSAVEWA     11   // L
+#define LETOOPT_VARMAX       12   // N
+#define LETOOPT_VARLENMAX    13   // N
+#define LETOOPT_CACHERECORDS 14   // N
+#define LETOOPT_TABLEMAX     15   // N
+#define LETOOPT_USERMAX      16   // N
+#define LETOOPT_DEBUGLEVEL   17   // N
+#define LETOOPT_OPTIMIZE     18   // L
+#define LETOOPT_AUTOORDER    19   // N
+#define LETOOPT_MEMOTYPE     20   // N
+#define LETOOPT_FORCEOPT     21   // L
+#define LETOOPT_LOCKCHEME    22   // N
+#define LETOOPT_UDFENABLED   23   // L
+#define LETOOPT_MEMOSIZE     24   // N
+#define LETOOPT_LOWERPATH    25   // L
+#define LETOOPT_TRIGGER      26   // P
+#define LETOOPT_PENDTRIGGER  27   // P
+#define LETOOPT_HARDCOMMIT   29   // L
 
 #endif /* LETO_CH_ */

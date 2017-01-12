@@ -320,7 +320,7 @@ PROCEDURE StartServer()
 
 STATIC FUNCTION leto_hrbLoad( cData )
 
-   LOCAL lUdfEnabled := leto_GetAppOptions( LETOOPT_lUdfEnable )
+   LOCAL lUdfEnabled := leto_GetAppOptions( LETOOPT_UDFENABLED )
    LOCAL cHrbName, pInit
    LOCAL lDefault, pHrb, aFunc
    MEMVAR oErr
@@ -369,7 +369,7 @@ STATIC FUNCTION leto_hrbLoad( cData )
 
 FUNCTION hs_UdfReload( cData )
 
-   LOCAL lUdfEnabled := leto_GetAppOptions( LETOOPT_lUdfEnable )
+   LOCAL lUdfEnabled := leto_GetAppOptions( LETOOPT_UDFENABLED )
 
    IF lUdfEnabled
       IF VALTYPE( cData ) != "C" .AND. ! Empty( s_pHrb )

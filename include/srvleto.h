@@ -88,6 +88,9 @@
    #if defined( _POSIX_C_SOURCE ) && _POSIX_C_SOURCE >= 200112L
       #define HB_HAS_POLL
       #include <poll.h>
+      #ifndef POLLRDNORM
+         #define POLLRDNORM  0x0040
+      #endif
    #endif
    #include <errno.h>
    /* splice == leto_dbfCopy() for extended Linux advantages */

@@ -2,13 +2,25 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
-2017-01-11 23:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+2017-01-12 06:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/srvleto.h
+  * source/client/letocl.c
+    * hack me a possible missing POLLRDNORM
+    ; maybe not needed at all
+
+  * include/rddleto.ch
+  * source/server/letofunc.c
+  * source/server/server.prg
+    * change #defines to all upper case
+
+2017-01-11 23:03 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/funcleto.h
   * source/common/common_c.c
   * source/common/lz4net.c
   * source/client/letocl.c
   * source/server/leto_2.c
   * source/server/letofunc.c
+    * remove one func inlining
     % use macro LZ4_COMPRESSBOUND instead function
     * split leto_SockSend() in two versions for ZLib and LZ4
     * formatting, squeezing for last bits performance
@@ -16,6 +28,7 @@
   * source/common/common_c.c
   * source/server/leto_2.c
     % change to CLOCK_MONOTONIC from .._RAW, had unexpected much more latency
+    * remove one func inlining
 
   * utils/manage/console.prg
     * some keyboard shortcuts, refresh rate, formatting, small improves ..

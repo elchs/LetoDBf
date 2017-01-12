@@ -1482,49 +1482,49 @@ HB_FUNC( LETO_GETAPPOPTIONS )
 
    switch( uiNum )
    {
-      case LETOOPT_cDataPath:
+      case LETOOPT_DATAPATH:
          hb_retc( s_pDataPath );
          break;
-      case LETOOPT_nIndexType:
+      case LETOOPT_INDEXTYPE:
          hb_retni( s_uiDriverDef );
          break;
-      case LETOOPT_lAnyExt:
+      case LETOOPT_ANYEXT:
          hb_retl( s_bAnyExt );
          break;
-      case LETOOPT_lShare:
+      case LETOOPT_SHARETABLES:
          hb_retl( s_bShareTables );
          break;
-      case LETOOPT_lNoSaveWA:
+      case LETOOPT_NOSAVEWA:
          hb_retl( s_bNoSaveWA );
          break;
-      case LETOOPT_lOptimize:
+      case LETOOPT_OPTIMIZE:
          hb_retl( s_bOptimize );
          break;
-      case LETOOPT_nAutoOrder:
+      case LETOOPT_AUTOORDER:
          hb_retni( s_iAutOrder );
          break;
-      case LETOOPT_nMemotype:
+      case LETOOPT_MEMOTYPE:
          hb_retni( s_uiMemoType );
          break;
-      case LETOOPT_nLockCheme:
+      case LETOOPT_LOCKCHEME:
          hb_retni( leto_lockScheme( s_uiDriverDef ) );  // TO Fix: actual driver or only if extended lock ?
          break;
-      case LETOOPT_lUdfEnable:
+      case LETOOPT_UDFENABLED:
          hb_retl( s_bUdfEnabled );
          break;
-      case LETOOPT_nMemoBSize:
+      case LETOOPT_MEMOSIZE:
          hb_retni( s_uiMemoBlocksize );
          break;
-      case LETOOPT_bLowerPath:
+      case LETOOPT_LOWERPATH:
          hb_retl( s_bLowerPath );
          break;
-      case LETOOPT_pTrigger:
+      case LETOOPT_TRIGGER:
          hb_retc( s_pTrigger );
          break;
-      case LETOOPT_pPendTrigger:
+      case LETOOPT_PENDTRIGGER:
          hb_retc( s_pPendTrigger );
          break;
-      case LETOOPT_bHardCommit:
+      case LETOOPT_HARDCOMMIT:
          hb_retl( s_bHardCommit );
          break;
       case 42:  /* what else is the answer to all !? */
