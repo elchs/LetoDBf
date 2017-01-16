@@ -1151,7 +1151,7 @@ static long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsign
 #ifndef USE_LZ4
    if( pConnection->zstream && lLast > 0 && ! iErr )
    {
-   #if defined( __HARBOUR30__ )  // 26.08.2015 new param --> hb_sockexFlush()
+   #if defined( __HARBOUR30__ )  /* 26.08.2015 new param --> hb_sockexFlush() */
       if( ( lTmp = hb_znetFlush( pConnection->zstream, pConnection->hSocket, iTimeOut ) ) != 0 )
    #else
       if( ( lTmp = hb_znetFlush( pConnection->zstream, pConnection->hSocket, iTimeOut, HB_FALSE ) ) != 0 )
@@ -1167,14 +1167,14 @@ static long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsign
 
    if( iErr )
    {
-#if 0  // new function since 2015/08/17
+#if 0  /* new function since 2015/08/17 */
       hb_socketSetError( iErr );
 #endif
       ulSent = 0;
    }
-   else if( ulSent < ulLen )   /* error occured, don wait for answer */
+   else if( ulSent < ulLen )  /* ToDo: better flushing rec buffer - or retry send as alternative ? */
       ulSent = 0;
-   /* elch: better flushing rec buffer - or retry send as alternative ? */
+
    return ( long ) ulSent;
 }
 
@@ -1202,9 +1202,7 @@ long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * szData, unsig
    return lRecv;
 }
 
-/* determine if second socket for asynchronous error answers is available
- * else react as formerly on first socket, wait for answer
- */
+/* if no second socket for asynchronous error is available send it the over first socket, wait for response */
 static long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr )
 {
    long lRet;
@@ -1265,7 +1263,6 @@ HB_EXPORT void LetoSet( LETOCONNECTION * pConnection, int iCommand, const char *
 
    ulLen = eprintf( szData, "%c;%d;%s;", LETOCMD_set, iCommand, szCommand );
    leto_SendRecv2( pConnection, szData, ulLen, 0 );  /* ToDo -- no feedback in case of error */
-   //leto_DataSendRecv( pConnection, szData, 0 );
 }
 
 #ifdef LETO_MT
@@ -1493,7 +1490,6 @@ const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen, 
 #else
       hb_zlibUncompress( pConnection->pBufCrypt, ( HB_SIZE * ) pulLen, ( const char * ) ptr, nSize );
 #endif
-      /* leto_clientlog( NULL, 0, "leto_DecryptText uncompress %lu <-- %ld", *pulLen, nSize ); */
       ptr = pConnection->pBufCrypt;
    }
 
@@ -1554,7 +1550,7 @@ HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_UL
                           HB_ZLIB_COMPRESSION_SPEED );
 #else
          hb_zlibCompress( ( char * ) pConnection->pBufCrypt + 4 + ulPrelead, &nDest, ( const char * ) pData, ulLen,
-                          HB_ZLIB_COMPRESSION_SPEED );  // == HB_ZLIB_RES_OK
+                          HB_ZLIB_COMPRESSION_SPEED );
 #endif
          HB_PUT_LE_UINT32( pConnection->pBufCrypt + 4 + nDest + ulPrelead, nDest );
          HB_PUT_LE_UINT32( pConnection->pBufCrypt + 4 + nDest + 4 + ulPrelead, ulLen );
@@ -1642,17 +1638,10 @@ static void leto_SetBlankRecord( LETOTABLE * pTable, unsigned int uiAppend )
    }
 }
 
-static _HB_INLINE_ HB_BOOL leto_HotBuffer( LETOTABLE * pTable, int iBufRefreshTime )
+/* optimized: hb_setGetDeleted() change no more checked */ 
+static _HB_INLINE_ HB_BOOL leto_HotBuffer( LETOTABLE * pTable )
 {
-   if( pTable->iBufRefreshTime >= -1 )
-   {
-      if( pTable->iBufRefreshTime == -1 )
-         return HB_FALSE;
-      iBufRefreshTime = pTable->iBufRefreshTime;
-   }
-
-   /* REMOVED: .. && ( pLetoBuf->fSetDeleted == hb_setGetDeleted() ); */
-   return iBufRefreshTime == 0 || ( leto_DeciSec() - pTable->llDeciSec < iBufRefreshTime );
+   return ( pTable->iBufRefreshTime == 0 || leto_DeciSec() - pTable->llDeciSec < pTable->iBufRefreshTime );
 }
 
 static _HB_INLINE_ HB_BOOL leto_OutBuffer( LETOBUFFER * pLetoBuf, char * ptr )
@@ -1673,7 +1662,6 @@ static _HB_INLINE_ void leto_setSkipBuf( LETOTABLE * pTable, const char * ptr, u
       pLetoBuf->ulBufLen = ulDataLen;
    }
    pLetoBuf->ulBufDataLen = ulDataLen;
-   /* pLetoBuf->fSetDeleted = hb_setGetDeleted(); */
 
    memcpy( ( char * ) pTable->Buffer.pBuffer, ptr, ulDataLen );
    pTable->ptrBuf = pTable->Buffer.pBuffer;
@@ -1682,7 +1670,7 @@ static _HB_INLINE_ void leto_setSkipBuf( LETOTABLE * pTable, const char * ptr, u
 }
 
 /* pTable->ptrBuf must be pre-checked to be not NULL */
-static void leto_refrSkipBuf( LETOTABLE * pTable )  /* set new position in buffer to first */
+static void leto_refrSkipBuf( LETOTABLE * pTable )
 {
    HB_ULONG ulRemove = pTable->ptrBuf - pTable->Buffer.pBuffer;
 
@@ -2719,7 +2707,6 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
             memcpy( pConnection->szVersion, pConnection->szBuffer, ptr - pConnection->szBuffer );
             pConnection->szVersion[ ptr - pConnection->szBuffer ] = '\0';
             ptr += 2;
-            //pConnection->fCrypt = ( *ptr++ == 'Y' ) ? HB_TRUE : HB_FALSE;  s_bCryptTraf
 
             ulLen = strlen( ptr );
             if( ulLen )
@@ -2863,10 +2850,10 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
                              &uiMemoType, &uiMemoBlocksize, &uiLockScheme,
                              &uiServerPort, &iAutOrder, &uiSrvMode, &uiLowerCase );
 
-                     pConnection->uiLockSchemeExtend = ( HB_USHORT ) uiLockScheme;  // extended or normal ?
+                     pConnection->uiLockSchemeExtend = ( HB_USHORT ) uiLockScheme;  /* extended or normal */
                      pConnection->uiMemoType = ( HB_USHORT ) uiMemoType;
                      pConnection->uiMemoBlocksize = ( HB_USHORT ) uiMemoBlocksize;
-                     pConnection->iServerPort = uiServerPort;  // elch the port at server side, after accept()
+                     pConnection->iServerPort = uiServerPort;  /* port at server side, after accept() */
                      hb_itemPutNI( pItem, iAutOrder <= 0 ? 0 : iAutOrder );
                      hb_setSetItem( HB_SET_AUTORDER, pItem );
                      hb_itemClear( pItem );
@@ -2964,7 +2951,6 @@ HB_EXPORT int LetoCloseAll( LETOCONNECTION * pConnection )
    char szData[ 4 ];
 
    eprintf( szData, "%c;", LETOCMD_closall );
-   //if( leto_DataSendRecv( pConnection, szData, 3 ) )
    if( leto_SendRecv2( pConnection, szData, 3, 1000 ) )
       return 1;
    else
@@ -3309,7 +3295,7 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
 
    pTable = ( LETOTABLE * ) hb_xgrabz( sizeof( LETOTABLE ) );
    pTable->uiConnection = pConnection->iConnection;
-   pTable->iBufRefreshTime = -2;
+   pTable->iBufRefreshTime = pConnection->iBufRefreshTime;
    pTable->fShared = pTable->fReadonly = pTable->fEncrypted = HB_FALSE;
 
    pTable->pLocksPos = NULL;
@@ -3378,7 +3364,7 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    pTable->fShared = fShared;
    pTable->fReadonly = fReadOnly;
    pTable->fEncrypted = HB_FALSE;
-   pTable->iBufRefreshTime = -2;
+   pTable->iBufRefreshTime = pConnection->iBufRefreshTime;
 
    pTable->pLocksPos = NULL;
    pTable->ulLocksMax = pTable->ulLocksAlloc = 0;
@@ -3427,7 +3413,6 @@ HB_EXPORT HB_ERRCODE LetoDbCloseTable( LETOTABLE * pTable )
       {
          HB_ULONG ulLen = eprintf( szData, "%c;%lu;", LETOCMD_close, pTable->hTable );
 
-         //if( !leto_SendRecv( pTable, szData, 0, 1021 ) )
          if( ! leto_SendRecv2( pConnection, szData, ulLen, 1021 ) )
             return 1;
       }
@@ -3737,7 +3722,6 @@ HB_EXPORT HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, co
          leto_refrSkipBuf( pTable );
 
       /* send without pre-leading length */
-      //if ( ! leto_SendRecv( pTable, szData + 4, ulLen, 1021 ) )
       if( ! leto_SendRecv2( pConnection, szData + 4, ulLen, 1021 ) )
       {
          hb_xfree( szData );
@@ -3828,8 +3812,8 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
    HB_BOOL          fFound = HB_FALSE;
 
-   /* elch -- check hotbuffer also for same ulRecno */
-   if( ulRecNo && pTable->ptrBuf && leto_HotBuffer( pTable, pConnection->iBufRefreshTime ) )
+   /* check hotbuffer also for same ulRecno */
+   if( ulRecNo && pTable->ptrBuf && leto_HotBuffer( pTable ) )
    {
       HB_UCHAR * ptrBuf = pTable->Buffer.pBuffer;
       HB_ULONG   ulRecLen;
@@ -3924,12 +3908,10 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
    HB_ULONG         ulDataLen;
-   HB_BOOL          fHotBuffer;
    const char *     ptr;
    char             sData[ 42 ];
 
-   /* pTable->ptrBuf == NULL force to fetch fresh data */
-   if( pTable->ptrBuf && leto_HotBuffer( pTable, pConnection->iBufRefreshTime ) )
+   if( pTable->ptrBuf && leto_HotBuffer( pTable ) )
    {
       if( ! lToSkip )
          return 0;
@@ -3985,14 +3967,10 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
       }
    }
 
-   if( pTable->iBufRefreshTime >= -1 )
-      fHotBuffer = pTable->iBufRefreshTime >= 0;
-   else
-      fHotBuffer = pConnection->iBufRefreshTime >= 0;
-   /* fetch fresh data, if lToSkip == 0 will fetch only one */
+   /* if( lToSkip == 0 || pTable->iBufRefreshTime < 0 ) will fetch only one record */
    ulDataLen = eprintf( sData, "%c;%lu;%ld;%lu;%c;%c;", LETOCMD_skip, pTable->hTable, lToSkip,
                         pTable->ulRecNo, ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ),
-                        fHotBuffer ? 'T' : 'F'  );
+                        pTable->iBufRefreshTime >= 0 ? 'T' : 'F'  );
    ulDataLen = leto_SendRecv( pConnection, sData, ulDataLen, 1020 );
    if( ! ulDataLen-- )  /* first char is '+' */
       return 1;
@@ -4103,7 +4081,6 @@ HB_EXPORT HB_ERRCODE LetoDbCommit( LETOTABLE * pTable )
    }
 
    ulLen = eprintf( szData, "%c;%lu;", LETOCMD_flush, pTable->hTable );
-   //if( !leto_SendRecv( pTable, szData, 0, 1021 ) )
    if( ! leto_SendRecv2( pConnection, szData, ulLen, 1011 ) )
    {
       pConnection->iError = 1011;
@@ -4540,7 +4517,6 @@ HB_EXPORT HB_ERRCODE LetoDbRecUnLock( LETOTABLE * pTable, unsigned long ulRecNo 
 
    ulLen = eprintf( szData, "%c;%lu;r;%lu;", LETOCMD_unlock, pTable->hTable, ulRecNo );
 
-   //if ( !leto_SendRecv( pTable, szData, 0, 0 ) || leto_checkLockError( s_letoConnPool+pTable->uiConnection ) )
    if( ! leto_SendRecv2( pConnection, szData, ulLen, 1038 ) )
       return 1;
    if( ulRecNo == pTable->ulRecNo )
@@ -4597,8 +4573,6 @@ HB_EXPORT HB_ERRCODE LetoDbFileUnLock( LETOTABLE * pTable )
       return HB_SUCCESS;
 
    ulLen = eprintf( szData, "%c;%lu;f;", LETOCMD_unlock, pTable->hTable );
-
-   //if ( !leto_SendRecv( pTable, szData, 0, 0 ) || leto_checkLockError( s_letoConnPool+pTable->uiConnection ) )
    if( ! leto_SendRecv2( pConnection, szData, ulLen, 1038 ) )
       return 1;
 

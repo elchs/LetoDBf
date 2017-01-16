@@ -998,23 +998,11 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
          return HB_FAILURE;
    }
 
-   /* automatic refresh data if record is accessible to other */
+   /* automatic refresh data if record is accessible to other; 0 == infinite cache */
    if( pTable->fAutoRefresh && pTable->fShared && ! pTable->fFLocked && ! pTable->fRecLocked && ! pTable->fReadonly )
    {
-      int iBufRefreshTime = pTable->iBufRefreshTime;
-
-      if( iBufRefreshTime < -1 )  /* no table specific timeout */
-      {
-         LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-
-         if( pConnection )
-            iBufRefreshTime = pConnection->iBufRefreshTime;
-      }
-      if( iBufRefreshTime >= -1 && iBufRefreshTime )
-      {
-         if( iBufRefreshTime == -1 || leto_DeciSec() - pTable->llDeciSec >= iBufRefreshTime )
-            LetoDbSkip( pTable, 0 );
-      }
+      if( pTable->iBufRefreshTime && leto_DeciSec() - pTable->llDeciSec >= pTable->iBufRefreshTime )
+         LetoDbSkip( pTable, 0 );
    }
 
    pField = pArea->area.lpFields + --uiIndex;
@@ -2579,14 +2567,12 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
          if( HB_IS_NUMERIC( pItem ) )
          {
             if( hb_itemGetNI( pItem ) < -1 )
-               pTable->iBufRefreshTime = -2;
+               pTable->iBufRefreshTime = pConnection->iBufRefreshTime;
             else
                pTable->iBufRefreshTime = hb_itemGetNI( pItem );
             pTable->llDeciSec = 0;
          }
 
-         if( iBufRefreshTime < -1 )
-             iBufRefreshTime = pConnection->iBufRefreshTime;
          hb_itemPutNI( pItem, iBufRefreshTime );
          break;
       }
