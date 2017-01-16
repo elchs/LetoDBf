@@ -17,7 +17,7 @@ Contents
    2.1 via hbmk2
    2.2 Borland Win32 C compiler
    2.3 MS Visual C compiler
-   2.4 Old Harbour v 3.0
+   2.4 Old Harbour 3.0
 3. Running and stopping server
    3.1 the classic way for all OS
    3.2 Run as Windows service
@@ -51,6 +51,7 @@ Contents
 A. Internals
 
 
+
       1. Directory structure
 
       bin/          -    server executable file
@@ -67,6 +68,7 @@ A. Internals
           manager/  -    server management utilities
           backup/   -    demo of backup-ing a running server
           uhura/    -    automatic server IP detection
+
 
 
       2. Building binaries
@@ -139,7 +141,7 @@ A. Internals
  want to use network traffic compression. It is configured by this "{!bcc}" at top in the ".hbp" files.
 
 
-      2.4 Old Harbour v 3.0
+      2.4 Old Harbour 3.0
 
  Basically it is possible to compile and use LetoDBf with older Harbour version 3.0.
  For this you have to search in above named HBP files for the line with: "#-cflag=-D__HARBOUR30__=1",
@@ -147,9 +149,10 @@ A. Internals
  This should be the last solution, as you will miss some fantastic new features of Harbour 3.2 and
  instead get some left and meanwhile fixed bugs.
  As the hbmk2 make tool v 3.0 does not know about the "-env:" option in the HBP files, you have to set
- these as environment variables. So to set Env variables: __LZ4=yes   and   __PMURHASH=yes
- to get defaults to use LZ4 compression and PmurHash Algorithm. This is done in Windows with: SET ...=...
- and in Linux with export ...=...
+ these as environment variables. So to set Environment variables: __LZ4=yes   and   __PMURHASH=yes
+ to get defaults to use LZ4 compression and PMurHash algorithm. This is done in your terminal for
+ Windows with: SET ...=...   and in Linux with: export ...=...
+
 
 
       3. Running and stopping server
@@ -199,6 +202,7 @@ A. Internals
       letodb.exe uninstall
  It possible may need to restart your Windows machine. You can check beforehand if the service is
  still listed in the GUI management for services, else it is not needed.
+
 
 
       4. Server configuration
@@ -461,6 +465,7 @@ A. Internals
  the LETO_CONNECT() function.
 
 
+
       5. How to work with the LetoDBf server
 
       5.1 Connecting to the server
@@ -623,6 +628,7 @@ A. Internals
  of available RAM. !!
 
 
+
       6. Variables management
 
  Letodb allows to manage variables, which are shared between applications, connected users
@@ -630,6 +636,7 @@ A. Internals
  one thread, so the variables may work as semaphores.
 
  Scroll to section: 7.9 Server variable functions, and check a first example in tests/test_var.prg.
+
 
 
       7. Functions list
@@ -807,31 +814,42 @@ A. Internals
 
       LETO_ISFLTOPTIM()                                        ==> lFilterOptimized
 
-  To determine if an active filter in selected workarea is optimized [ aka executed only at server side ]
-  or non-opimized [ server send all records to client, which then must decide itself for valid records. ]
-  See 5.2 for more info.
+ To determine if an active filter in selected workarea is optimized [ aka executed only at server side ]
+ or non-opimized [ server send all records to client, which then must decide itself for valid records. ]
+ See 5.2 for more info.
 
-      LETO_MEMOISEMPTY( cnField, cnAlias )                     ==> lEmpty ( TRUE for not a memofield )
+      LETO_MEMOISEMPTY( cnField [, cnAlias ] )                 ==> lEmpty ( TRUE for not a memofield )
 
-  This is an optimzed function to very fast test, if a memofield of the current record is empty or not.
-  The check will be done only at client side, so no network traffic to the server will occure.
-  As it else would happen with a test like: EMPTY( FIELD->memofield ), for which the server will send the
-  whole content of a memofield to the client, before client can decide if empty or not.
-  <cnField> cFIELDNAME or nFIELDPOS, <cnAlias> cALIAS or nSELECT or active WA if empty.
+ This is an optimzed function to very fast test, if a memofield of the current record is empty or not.
+ The check will be done only at client side, so no network traffic to the server will occure.
+ As it else would happen with a test like: EMPTY( FIELD->memofield ), for which the server will send the
+ whole content of a memofield to the client, before client can decide if empty or not.
+ <cnField> cFIELDNAME or nFIELDPOS, <cnAlias> cALIAS or nSELECT or active WA if empty.
 
       DbInfo( DBI_BUFREFRESHTIME[, nNewSetting  ] )            ==> nOldVal
 
- This returns the timeout value for the skipbuffer guilty for the this table, before an optional
+ This returns the timeout value for the skipbuffer valid for the this table, before an optional
  new setting is applied with <nNewSetting>.
  Default is no specific timeout for a table, aka to use the general connection timeout value.
  With optional <nNewSetting> it can be applied a new setting only guilty for this specific table.
  "-1 " == skipbuffer disabled, "0" == infinite skipbuffer, nHotBuffer > 0 == nHotBuffer / 100 seconds.
- Above is also the possible range for <nNewSetting>, plus a value < -1 will disable again a specific
- setting for this table. For the general timeout value see: Leto_Connect() function.
+ Above is also the possible range for <nNewSetting> -- plus a value < -1 will disable again a specific
+ setting for this table. For the global timeout value see: Leto_Connect() function, 5th param.
+
+      DbInfo( DBI_AUTOREFRESH[, lNewSetting  ] )               ==> lSet
+
+ This returns and sets the behaviour, when the hotbuffer timeout value is elapsed. Default timeout
+ is one second and can be changed with Leto_Connect(). If the table have a specific timeout set, this
+ have precedence over the global value. Then with next access to a field after elapsed timeout,
+ an internal DbSkip( 0 ) is executed to refresh the data from server, if data at server is accessible
+ to others, aka the record or the table not locked, table shared opened and not readonly.
+ ! Please note, that disabled timeout ( -1 ) will lead to a DbSkip( 0 ) for each field access.
+ So if you want to access multiple fields, better set minimum value of 1 == 0.01 second as table
+ specific timeout -- else much network traffic will occure.
 
       DbInfo( DBI_CLEARBUFFER )
 
-  This command clears the skip buffer, to force to get fresh data with next Dbskip( [ 0 ] )/ DbGo*().
+  This command clears the skip buffer, to forces to get fresh data with next Dbskip( [ 0 ] ), DbGoTo().
 
 
       7.4 Additional rdd functions
@@ -1278,6 +1296,7 @@ A. Internals
  after a valid hash-value is found.
 
 
+
       8. Utils
 
       8.1 Server Management utility
@@ -1337,6 +1356,7 @@ A. Internals
  will display info about available network interfaces at this machine.
  This help screen will also pop up in case of problems, example when try to stop Uhura and she
  is not running, or in case of invalid interface name ...
+
 
 
       9. Server-side functions

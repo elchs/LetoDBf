@@ -998,9 +998,26 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
          return HB_FAILURE;
    }
 
-   uiIndex--;
-   pField = pArea->area.lpFields + uiIndex;
+   /* automatic refresh data if record is accessible to other */
+   if( pTable->fAutoRefresh ) 
+   {
+      int iBufRefreshTime = pTable->iBufRefreshTime;
 
+      if( iBufRefreshTime < -1 )  /* no table specific timeout */
+      {
+         LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+
+         if( pConnection )
+            iBufRefreshTime = pConnection->iBufRefreshTime;
+      }
+      if( iBufRefreshTime >= -1 && iBufRefreshTime )
+      {
+         if( iBufRefreshTime == -1 || leto_DeciSec() - pTable->llDeciSec >= iBufRefreshTime )
+            LetoDbSkip( pTable, 0 );
+      }
+   }
+
+   pField = pArea->area.lpFields + --uiIndex;
    switch( pField->uiType )
    {
       case HB_FT_STRING:
@@ -2565,6 +2582,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
                pTable->iBufRefreshTime = -2;
             else
                pTable->iBufRefreshTime = hb_itemGetNI( pItem );
+            pTable->llDeciSec = 0;
          }
 
          if( iBufRefreshTime < -1 )
@@ -2573,8 +2591,16 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
          break;
       }
 
+      case DBI_AUTOREFRESH:
+         if( HB_IS_LOGICAL( pItem ) )
+            pTable->fAutoRefresh = hb_itemGetL( pItem );
+         else
+            hb_itemPutL( pItem, pTable->fAutoRefresh );
+         break;
+
       case DBI_CLEARBUFFER:
          pTable->ptrBuf = NULL;
+         pTable->llDeciSec = 0;
          break;
 
       default:
@@ -2878,7 +2904,13 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
    {
       ptr = leto_firstchar( pConnection );
       if( ! memcmp( ptr, "+++;", 4 ) )
+      {
+         LETOTABLE * pTable = pArea->pTable;
+
          leto_ParseRec( pConnection, pAreaDst, ptr + 4 );
+         if( pTable->fAutoRefresh )
+            pTable->llDeciSec = leto_DeciSec();
+      }
       pArea->pTable->ptrBuf = NULL;
    }
    hb_xfree( pData );
@@ -3175,7 +3207,11 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
    }
 
    if( ( iRcvLen - 4 ) > ( ptr - leto_getRcvBuff() ) )
+   {
       leto_ParseRec( pConnection, pArea, ptr );
+      if( pTable->fAutoRefresh )
+         pTable->llDeciSec = leto_DeciSec();
+   }
    pTable->ptrBuf = NULL;
 
    leto_SetAreaFlags( pArea );
@@ -3901,6 +3937,8 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
 
             leto_ParseRec( pConnection, pArea, leto_firstchar( pConnection ) );
             pTable->ptrBuf = NULL;
+            if( pTable->fAutoRefresh )
+               pTable->llDeciSec = leto_DeciSec();
 
             if( pArea->area.lpdbRelations )
                return SELF_SYNCCHILDREN( ( AREAP ) pArea );
@@ -3953,6 +3991,8 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
          pOrderInfo->itmResult = hb_itemPutL( pOrderInfo->itmResult, lRet );
          leto_ParseRec( pConnection, pArea, leto_firstchar( pConnection ) );
          pTable->ptrBuf = NULL;
+         if( pTable->fAutoRefresh )
+            pTable->llDeciSec = leto_DeciSec();
 
          if( pArea->area.lpdbRelations )
             return SELF_SYNCCHILDREN( ( AREAP ) pArea );
@@ -3993,6 +4033,8 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
 
             leto_ParseRec( pConnection, pArea, leto_firstchar( pConnection ) );
             pTable->ptrBuf = NULL;
+            if( pTable->fAutoRefresh )
+               pTable->llDeciSec = leto_DeciSec();
 
             if( pArea->area.lpdbRelations )
                SELF_SYNCCHILDREN( ( AREAP ) pArea );
@@ -5768,18 +5810,6 @@ LETOCONNECTION * leto_getConnection( int iParam )
    }
    else
       pConnection = letoGetCurrConn();
-
-#if 0  /* !!! this STRONGLY not adviseable !!! -- will be removed */
-   else if( HB_ISNUM( iParam ) )
-   {
-      HB_USHORT uiConn = ( HB_USHORT ) hb_parni( iParam );
-
-      if( uiConn > 0 && uiConn <= uiGetConnCount() )
-         pConnection = letoGetConnPool( uiConn - 1 );
-      else
-         pConnection = letoGetCurrConn();
-   }
-#endif
 
    return pConnection;
 }

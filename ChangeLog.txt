@@ -2,6 +2,26 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-16 14:14 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/funcleto.h
+    * formatting
+
+  * include/letocl.h
+  * include/rddleto.ch
+  * source/client/leto1.c
+  * source/client/letocl.c
+    + automatic refresh record data after hotbuffer timeout and in case data at
+      server is accessible to other ( not r|f-lock, shared, not readonly );
+    + DbInfo( DBI_AUTOREFRESH ) to turn behaviour on/ off for a specific table
+    ; disabling hotbuffer (-1) for a table will lead to a LetoDbSkip(0) for
+      each accessed field!, better choose 1=0.01 s for multiple fields access
+    * move last access timepoint from buffer-struct into table-struct
+    - dissolve leto_AllocBuf() into here solely used leto_setSkipBuf()
+    * remove a '#if 0', formatting
+
+  * Readme.txt
+    * some notes about automatic data refresh, typo
+
 2017-01-12 18:48 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     + missing DBFFPT for leto_DBDriver()

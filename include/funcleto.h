@@ -182,19 +182,19 @@
 #endif
 
 /* flags for state of records */
-#define LETO_FLG_BOF     1
-#define LETO_FLG_EOF     2
-#define LETO_FLG_LOCKED  4
-#define LETO_FLG_DEL     8
-#define LETO_FLG_FOUND   16
+#define LETO_FLG_BOF           0x01
+#define LETO_FLG_EOF           0x02
+#define LETO_FLG_LOCKED        0x04
+#define LETO_FLG_DEL           0x08
+#define LETO_FLG_FOUND         0x10
 
 /* client flags for update state of tables */
-#define LETO_FLAG_UPD_NONE    0
-#define LETO_FLAG_UPD_APPEND  1
-#define LETO_FLAG_UPD_CHANGE  2
-#define LETO_FLAG_UPD_DELETE  4
-#define LETO_FLAG_UPD_UNLOCK  8
-#define LETO_FLAG_UPD_FLUSH   16
+#define LETO_FLAG_UPD_NONE     0x00
+#define LETO_FLAG_UPD_APPEND   0x01
+#define LETO_FLAG_UPD_CHANGE   0x02
+#define LETO_FLAG_UPD_DELETE   0x04
+#define LETO_FLAG_UPD_UNLOCK   0x08
+#define LETO_FLAG_UPD_FLUSH    0x10
 
 extern HB_I64 leto_DeciSec( void );
 extern HB_I64 leto_MilliSec( void );

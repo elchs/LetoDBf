@@ -67,16 +67,16 @@
    #define HB_FT_PICTURE      18
 #endif
 
-#define LETO_INDEX_UNIQ    1
-#define LETO_INDEX_ALL     2
-#define LETO_INDEX_REST    4
-#define LETO_INDEX_DESC    8
-#define LETO_INDEX_CUST    16
-#define LETO_INDEX_ADD     32
-#define LETO_INDEX_TEMP    64
-#define LETO_INDEX_FILT    128
-#define LETO_INDEX_USEI    256
-#define LETO_INDEX_EXCL    512
+#define LETO_INDEX_UNIQ   0x0001
+#define LETO_INDEX_ALL    0x0002
+#define LETO_INDEX_REST   0x0004
+#define LETO_INDEX_DESC   0x0008
+#define LETO_INDEX_CUST   0x0010
+#define LETO_INDEX_ADD    0x0020
+#define LETO_INDEX_TEMP   0x0040
+#define LETO_INDEX_FILT   0x0080
+#define LETO_INDEX_USEI   0x0100
+#define LETO_INDEX_EXCL   0x0200
 
 #define leto_firstchar( pConnection )  pConnection->szBuffer + 1
 
@@ -98,7 +98,6 @@ typedef struct _LETOBUFFER_
    unsigned char *   pBuffer;         /* Buffer for records */
    unsigned long     ulBufLen;        /* allocated buffer length */
    unsigned long     ulBufDataLen;    /* data length in buffer */
-   HB_I64            llDeciSec;       /* buffer time in 1/100 seconds */
    unsigned long     ulShoots;        /* using statistic */
 } LETOBUFFER;                         /* 40 */
 
@@ -177,12 +176,14 @@ typedef struct _LETOTABLE
    signed char       BufDirection;
    unsigned long     lLastUpdate;       /* from dbf header: last update */
    int               iBufRefreshTime;   /* cache refresh time in 1/100 sec */
+   HB_BOOL           fAutoRefresh;      /* if true fetch autorefresh data from server if hotbuffer elapsed */
    LETOTAGINFO *     pTagInfo;
    LETOTAGINFO *     pTagCurrent;       /* current order */
    unsigned long *   pLocksPos;         /* List of records locked */
    unsigned long     ulLocksMax;        /* Number of records locked */
    unsigned long     ulLocksAlloc;      /* Number of records locked (allocated) */
    HB_USHORT         uiLockScheme;      /* elch new */
+   HB_I64            llDeciSec;         /* timepoint last access record[-buffer] data in 1/ 100 s */
 } LETOTABLE;                            /* 344 */
 
 typedef struct

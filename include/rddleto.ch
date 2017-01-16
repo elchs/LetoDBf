@@ -83,6 +83,7 @@
 #define DBI_CLEARBUFFER       1002
 #define DBI_DBS_COUNTER       1003
 #define DBI_DBS_STEP          1004
+#define DBI_AUTOREFRESH       1005
 
 /* server config options */
 #define LETOOPT_DATAPATH      1   // C

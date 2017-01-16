@@ -1642,29 +1642,17 @@ static void leto_SetBlankRecord( LETOTABLE * pTable, unsigned int uiAppend )
    }
 }
 
-static _HB_INLINE_ void leto_AllocBuf( LETOBUFFER * pLetoBuf, unsigned long ulDataLen, HB_ULONG ulAdd )
-{
-   if( ulDataLen > pLetoBuf->ulBufLen )
-   {
-      if( ! pLetoBuf->ulBufLen )
-         pLetoBuf->pBuffer = ( HB_BYTE * ) hb_xgrab( ulDataLen + ulAdd );
-      else
-         pLetoBuf->pBuffer = ( HB_BYTE * ) hb_xrealloc( pLetoBuf->pBuffer, ulDataLen + ulAdd );
-      pLetoBuf->ulBufLen = ulDataLen + ulAdd;
-   }
-
-   pLetoBuf->ulBufDataLen = ulDataLen;
-   pLetoBuf->llDeciSec = leto_DeciSec();
-   /* pLetoBuf->fSetDeleted = hb_setGetDeleted(); */
-}
-
-static _HB_INLINE_ HB_BOOL leto_HotBuffer( LETOTABLE * pTable, LETOBUFFER * pLetoBuf, int iBufRefreshTime )
+static _HB_INLINE_ HB_BOOL leto_HotBuffer( LETOTABLE * pTable, int iBufRefreshTime )
 {
    if( pTable->iBufRefreshTime >= -1 )
+   {
+      if( pTable->iBufRefreshTime == -1 )
+         return HB_FALSE;
       iBufRefreshTime = pTable->iBufRefreshTime;
+   }
 
    /* REMOVED: .. && ( pLetoBuf->fSetDeleted == hb_setGetDeleted() ); */
-   return iBufRefreshTime == 0 || ( leto_DeciSec() - pLetoBuf->llDeciSec < iBufRefreshTime );
+   return iBufRefreshTime == 0 || ( leto_DeciSec() - pTable->llDeciSec < iBufRefreshTime );
 }
 
 static _HB_INLINE_ HB_BOOL leto_OutBuffer( LETOBUFFER * pLetoBuf, char * ptr )
@@ -1672,13 +1660,25 @@ static _HB_INLINE_ HB_BOOL leto_OutBuffer( LETOBUFFER * pLetoBuf, char * ptr )
    return ( ( unsigned long ) ( ptr - ( char * ) pLetoBuf->pBuffer ) ) >= pLetoBuf->ulBufDataLen - 1;
 }
 
-static void leto_setSkipBuf( LETOTABLE * pTable, const char * ptr, unsigned long ulDataLen )
+static _HB_INLINE_ void leto_setSkipBuf( LETOTABLE * pTable, const char * ptr, unsigned long ulDataLen )
 {
-   leto_AllocBuf( &pTable->Buffer, ulDataLen, 0 );
+   LETOBUFFER * pLetoBuf = &pTable->Buffer;
+
+   if( ulDataLen > pLetoBuf->ulBufLen )
+   {
+      if( ! pLetoBuf->ulBufLen )
+         pLetoBuf->pBuffer = ( HB_BYTE * ) hb_xgrab( ulDataLen );
+      else
+         pLetoBuf->pBuffer = ( HB_BYTE * ) hb_xrealloc( pLetoBuf->pBuffer, ulDataLen );
+      pLetoBuf->ulBufLen = ulDataLen;
+   }
+   pLetoBuf->ulBufDataLen = ulDataLen;
+   /* pLetoBuf->fSetDeleted = hb_setGetDeleted(); */
 
    memcpy( ( char * ) pTable->Buffer.pBuffer, ptr, ulDataLen );
    pTable->ptrBuf = pTable->Buffer.pBuffer;
    pTable->uiRecInBuf = 0;
+   pTable->llDeciSec = leto_DeciSec();
 }
 
 /* pTable->ptrBuf must be pre-checked to be not NULL */
@@ -3335,6 +3335,7 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    ptr = ++ptrTmp;
 
    leto_ParseRecord( pConnection, pTable, ptr );
+
    return pTable;
 }
 
@@ -3828,7 +3829,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
    HB_BOOL          fFound = HB_FALSE;
 
    /* elch -- check hotbuffer also for same ulRecno */
-   if( ulRecNo && pTable->ptrBuf && leto_HotBuffer( pTable, &pTable->Buffer, pConnection->iBufRefreshTime ) )
+   if( ulRecNo && pTable->ptrBuf && leto_HotBuffer( pTable, pConnection->iBufRefreshTime ) )
    {
       HB_UCHAR * ptrBuf = pTable->Buffer.pBuffer;
       HB_ULONG   ulRecLen;
@@ -3870,6 +3871,8 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
          return 1;
       leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
       pTable->ptrBuf = NULL;
+      if( pTable->fAutoRefresh )
+         pTable->llDeciSec = leto_DeciSec();
    }
 
    return 0;
@@ -3890,6 +3893,8 @@ HB_EXPORT HB_ERRCODE LetoDbGoBottom( LETOTABLE * pTable )
    ptr = leto_firstchar( pConnection );
    leto_ParseRecord( pConnection, pTable, ptr );
    pTable->ptrBuf = NULL;
+   if( pTable->fAutoRefresh )
+      pTable->llDeciSec = leto_DeciSec();
 
    return 0;
 }
@@ -3909,6 +3914,8 @@ HB_EXPORT HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable )
    ptr = leto_firstchar( pConnection );
    leto_ParseRecord( pConnection, pTable, ptr );
    pTable->ptrBuf = NULL;
+   if( pTable->fAutoRefresh )
+      pTable->llDeciSec = leto_DeciSec();
 
    return 0;
 }
@@ -3916,13 +3923,13 @@ HB_EXPORT HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable )
 HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-   HB_ULONG         ulDataLen, ulRecNo = pTable->ulRecNo;
+   HB_ULONG         ulDataLen;
    HB_BOOL          fHotBuffer;
    const char *     ptr;
    char             sData[ 42 ];
 
    /* pTable->ptrBuf == NULL force to fetch fresh data */
-   if( pTable->ptrBuf && leto_HotBuffer( pTable, &pTable->Buffer, pConnection->iBufRefreshTime ) )
+   if( pTable->ptrBuf && leto_HotBuffer( pTable, pConnection->iBufRefreshTime ) )
    {
       if( ! lToSkip )
          return 0;
@@ -3998,8 +4005,12 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
       pTable->BufDirection = ( lToSkip > 0 ? 1 : -1 );
       pTable->uiRecInBuf = 0;
    }
-   else if( pTable->ulRecNo != ulRecNo )  /* active record changed because possible filter active */
+   else
+   {
       pTable->ptrBuf = NULL;
+      if( pTable->fAutoRefresh )
+         pTable->llDeciSec = leto_DeciSec();
+   }
 
    return 0;
 }
@@ -4025,6 +4036,8 @@ HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHO
 
       leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
       pTable->ptrBuf = NULL;
+      if( pTable->fAutoRefresh )
+         pTable->llDeciSec = leto_DeciSec();
    }
 
    return 0;
@@ -4341,7 +4354,11 @@ HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
    leto_SetBlankRecord( pTable, 1 );
 
    if( ! LetoDbPutRecord( pTable ) )
+   {
       pTable->fRecLocked = HB_TRUE;
+      if( pTable->fAutoRefresh )
+         pTable->llDeciSec = leto_DeciSec();
+   }
    else
       return 1;
 
@@ -4389,6 +4406,8 @@ HB_EXPORT HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagNa
    ptr = leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
    leto_ParseRecord( pConnection, pTable, ptr );
    pTable->ptrBuf = NULL;
+   if( pTable->fAutoRefresh )
+      pTable->llDeciSec = leto_DeciSec();
 
    return 0;
 }
@@ -4439,6 +4458,8 @@ HB_EXPORT HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagNam
       return 1;
    leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
    pTable->ptrBuf = NULL;
+   if( pTable->fAutoRefresh )
+      pTable->llDeciSec = leto_DeciSec();
 
    return pTagInfo ? 0 : 1;
 }
@@ -4494,6 +4515,8 @@ HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
    leto_ParseRecord( pConnection, pTable, ptr );
    if( pTable->ptrBuf )
       leto_refrSkipBuf( pTable );
+   else if( pTable->fAutoRefresh )
+      pTable->llDeciSec = leto_DeciSec();
 
    if( ulRecNo == pTable->ulRecNo )
       pTable->fRecLocked = HB_TRUE;
@@ -4551,6 +4574,8 @@ HB_EXPORT HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable )
       leto_ParseRecord( pConnection, pTable, ptr );
       if( pTable->ptrBuf )
          leto_refrSkipBuf( pTable );
+      else if( pTable->fAutoRefresh )
+         pTable->llDeciSec = leto_DeciSec();
    }
    pTable->fFLocked = HB_TRUE;
 
