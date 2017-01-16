@@ -999,7 +999,7 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
    }
 
    /* automatic refresh data if record is accessible to other */
-   if( pTable->fAutoRefresh ) 
+   if( pTable->fAutoRefresh && pTable->fShared && ! pTable->fFLocked && ! pTable->fRecLocked && ! pTable->fReadonly )
    {
       int iBufRefreshTime = pTable->iBufRefreshTime;
 
