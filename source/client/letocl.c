@@ -4319,23 +4319,26 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
 
 HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
 {
-   leto_SetUpdated( pTable, LETO_FLAG_UPD_APPEND | ( fUnLockAll ? LETO_FLAG_UPD_UNLOCK : 0 ) );
+   if( fUnLockAll )
+      leto_SetUpdated( pTable, LETO_FLAG_UPD_APPEND | LETO_FLAG_UPD_UNLOCK );
+   else
+      leto_SetUpdated( pTable, LETO_FLAG_UPD_APPEND );
    pTable->fBof = pTable->fEof = pTable->fFound = pTable->fDeleted = HB_FALSE;
    pTable->ptrBuf = NULL;
    pTable->ulRecCount++;
-   /* if pTable->fHaveAutoinc, autoincrement-values will be received in LetoDbPutRecord() */
-   leto_SetBlankRecord( pTable, 1 );
 
-   if( ! LetoDbPutRecord( pTable ) )
+   /* if pTable->fHaveAutoinc, autoinc-values will be received in LetoDbPutRecord() */
+   leto_SetBlankRecord( pTable, 1 );
+   if( LetoDbPutRecord( pTable ) == HB_SUCCESS )
    {
-      pTable->fRecLocked = HB_TRUE;
+      if( ! pTable->fFLocked && pTable->fShared && ! pTable->fHaveAutoinc )
+         pTable->fRecLocked = HB_TRUE;
       if( pTable->fAutoRefresh )
          pTable->llDeciSec = leto_DeciSec();
+      return HB_SUCCESS;
    }
-   else
-      return 1;
 
-   return 0;
+   return HB_FAILURE;
 }
 
 HB_EXPORT HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const char * szTag,
@@ -4444,7 +4447,7 @@ HB_EXPORT HB_ERRCODE LetoDbIsRecLocked( LETOTABLE * pTable, unsigned long ulRecN
    pConnection->iError = 0;
    if( ulRecNo != 0 && ulRecNo != pTable->ulRecNo && ! pTable->fReadonly )
    {
-      if( ! pTable->fShared || pTable->fFLocked || leto_IsRecLocked( pTable, ulRecNo ) )
+      if( ! pTable->fShared || leto_IsRecLocked( pTable, ulRecNo ) )
          *uiRes = 1;
       else
       {
@@ -4460,7 +4463,7 @@ HB_EXPORT HB_ERRCODE LetoDbIsRecLocked( LETOTABLE * pTable, unsigned long ulRecN
       }
    }
    else
-      *uiRes = ! pTable->fShared || pTable->fFLocked || pTable->fRecLocked;
+      *uiRes = ! pTable->fReadonly && ( ! pTable->fShared || pTable->fRecLocked );
 
    return 0;
 }

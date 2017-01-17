@@ -790,8 +790,7 @@ static void leto_DelRecLock( LETOTABLE * pTable, HB_ULONG ulRecNo )
 
 static HB_ERRCODE letoAppend( LETOAREAP pArea, HB_BOOL fUnLockAll )
 {
-   LETOTABLE *      pTable = pArea->pTable;
-   LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+   LETOTABLE * pTable = pArea->pTable;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoAppend(%p, %d)", pArea, ( int ) fUnLockAll ) );
 
@@ -808,11 +807,13 @@ static HB_ERRCODE letoAppend( LETOAREAP pArea, HB_BOOL fUnLockAll )
 
    if( LetoDbAppend( pTable, fUnLockAll ) )
       return HB_FAILURE;
-   if( ! pConnection->fTransActive )
+
+   if( pTable->ulRecNo )  /* ! pConnection->fTransActive */
    {
       if( fUnLockAll )
          pTable->ulLocksMax = 0;
-      leto_AddRecLock( pTable, pTable->ulRecNo );
+      if( pTable->fRecLocked )
+         leto_AddRecLock( pTable, pTable->ulRecNo );
    }
 
    if( pArea->area.lpdbRelations )
