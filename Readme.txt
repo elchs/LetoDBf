@@ -148,11 +148,13 @@ A. Internals
  and there to remove the single character '#' at line start, which means the line is outcommented.
  This should be the last solution, as you will miss some fantastic new features of Harbour 3.2 and
  instead get some left and meanwhile fixed bugs.
+
  As the hbmk2 make tool v 3.0 does not know about the "-env:" option in the HBP files, you have to set
  these as environment variables. So to set Environment variables: __LZ4=yes   and   __PMURHASH=yes
  to get defaults to use LZ4 compression and PMurHash algorithm. This is done in your terminal for
  Windows with: SET ...=...   and in Linux with: export ...=...
-
+ You have to manually '#include rddleto.ch' and '#include leto_std.ch' into your projects, hbmk2 3.0
+ does that not automatic by using letodb.hbc.
 
 
       3. Running and stopping server
@@ -1534,6 +1536,8 @@ A. Internals
      mode: NO_Save_Wa = 1.
    # maximum numeric value for a field: "N", 20, 0 is: +/- 9223372036854775807
      one more (or less) and rounding will occure with trailing zeroes
+   # clear a possible existing skip-buffer with DbInfo( DBI_CLEARBUFFER ) after change setting of
+     SET DELETED on | OFF. Alternatively "#include leto_std.ch" for automatic by using letodb.hbc.
 
 
 -------------

@@ -1638,10 +1638,10 @@ static void leto_SetBlankRecord( LETOTABLE * pTable, unsigned int uiAppend )
    }
 }
 
-/* optimized: hb_setGetDeleted() change no more checked */ 
+/* optimized: hb_setGetDeleted() change checked with LETO_SETGET() */ 
 static _HB_INLINE_ HB_BOOL leto_HotBuffer( LETOTABLE * pTable )
 {
-   return ( pTable->iBufRefreshTime == 0 || leto_DeciSec() - pTable->llDeciSec < pTable->iBufRefreshTime );
+   return ( leto_DeciSec() - pTable->llDeciSec < pTable->iBufRefreshTime || pTable->iBufRefreshTime == 0 );
 }
 
 static _HB_INLINE_ HB_BOOL leto_OutBuffer( LETOBUFFER * pLetoBuf, char * ptr )
@@ -4272,11 +4272,10 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
       if( pTable->ptrBuf )
          leto_refrSkipBuf( pTable );
 
-      pData = szData + 4;
       if( fAppend )  /* wait for answer */
-         iOk = leto_SendRecv( pConnection, pData, ulLen, 0 );
+         iOk = leto_SendRecv( pConnection, szData + 4, ulLen, 0 );
       else
-         iOk = leto_SendRecv2( pConnection, pData, ulLen, 1021 );
+         iOk = leto_SendRecv2( pConnection, szData + 4, ulLen, 1021 );
 
       ptr = pConnection->szBuffer;
       if( ! iOk )
@@ -4320,9 +4319,6 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
 
 HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
 {
-   if( pTable->fReadonly )
-      return HB_FAILURE;
-
    leto_SetUpdated( pTable, LETO_FLAG_UPD_APPEND | ( fUnLockAll ? LETO_FLAG_UPD_UNLOCK : 0 ) );
    pTable->fBof = pTable->fEof = pTable->fFound = pTable->fDeleted = HB_FALSE;
    pTable->ptrBuf = NULL;

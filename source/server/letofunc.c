@@ -7972,7 +7972,7 @@ static HB_U64 leto_LinuxRam( int uiType )
 
 static HB_USHORT leto_DriverID( PUSERSTRU pUStru )
 {
-   HB_USHORT uiDriver = 0;
+   HB_USHORT uiDriver;
 
    if( ! strcmp( pUStru->szDriver, "DBFCDX"  ) )
       uiDriver = 0;

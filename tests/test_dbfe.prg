@@ -2,13 +2,11 @@
  * This sample tests working with dbf files
  * Just change the cPath value to that one you need.
  */
-REQUEST LETO_CONNECTINFO, LETO_GETLOCALIP
-REQUEST DBORDERINFO, ORDLISTCLEAR, ORDBAGCLEAR, ORDDESTROY
+REQUEST ORDLISTCLEAR, ORDBAGCLEAR
 REQUEST LETO
 REQUEST DBFCDX
 
 #include "dbinfo.ch"
-#include "set.ch"
 
 Function Main( cPath )
  LOCAL aNames := { "Petr", "Ivan", "Alexander", "Pavel", "Alexey", "Fedor", ;
@@ -16,9 +14,9 @@ Function Main( cPath )
  LOCAL i, aStru
  LOCAL nPort := 2812
  LOCAL nHotbuf := 100
- LOCAL nTimeOut := 60000
+ LOCAL nTimeOut := 6000
  LOCAL nKey
- FIELD NAME, NUM, INFO, DINFO, MINFO
+ FIELD NAME, NUM, INFO, DINFO, MINFO, FLOAT, LONG, LLONG
 
    SET DATE FORMAT "dd/mm/yy"
    ALTD()
@@ -38,7 +36,7 @@ Function Main( cPath )
          QUIT
       ELSE
          ? LETO_GetServerVersion(), " at address: ", Leto_getLocalIP( .T. )
-         // LETO_DBDRIVER( "DBFCDX" )
+         LETO_DBDRIVER( "DBFCDX" )
          // LETO_DBDRIVER( "DBFNTX" )
          ? "DBF DATABASE DRIVER        :", LETO_DBDRIVER()[ 1 ], "MEMOTYPE:", LETO_DBDRIVER()[ 2 ] 
          LETO_TOGGLEZIP( 1 )
@@ -51,7 +49,10 @@ Function Main( cPath )
    ? "File test1.dbf"
    IF ! DbExists( "test1.dbf" )
       IF dbCreate( "test1", { { "NAME",  "C", 10, 0 },;
-                              { "NUM",   "N",  4, 0 },;
+                              { "NUM",   "N",  6, 0 },;
+                              { "LONG",  "N", 17, 8 },;
+                              { "LLONG", "N", 20, 0 },;
+                              { "FLOAT", "F", 17, 8 },;
                               { "INFO",  "C", 32, 0 },;
                               { "DINFO", "D",  8, 0 },;
                               { "TINFO", "T", 17, 0 },;
@@ -82,7 +83,7 @@ Function Main( cPath )
    aStru := dbStruct()
    ? "Fields:", Len( aStru )
    FOR i := 1 TO Len( aStru )
-      ? i, aStru[ i, 1 ], aStru[ i, 2 ], aStru[ i, 3 ], aStru[ i, 4 ]
+      ? i, PadR( aStru[ i, 1 ], 10 ), aStru[ i, 2 ], aStru[ i, 3 ], aStru[ i, 4 ]
    NEXT
 
    ?
@@ -93,9 +94,12 @@ Function Main( cPath )
       FOR i := 1 TO Len( aNames )
          APPEND BLANK
          REPLACE NAME  WITH aNames[ i ],;
-                 NUM   WITH i + 1000, ;
-                 INFO  WITH "This is a record number "+Ltrim(Str(i)), ;
-                 DINFO WITH Date() + i - 1, ;
+                 NUM   WITH i + 1000,;
+                 LONG  WITH 12345678.12345678,;
+                 LLONG WITH IIF( i % 2 == 0, 9223372036854775807, 9223372036854775807 * -1 ),;
+                 FLOAT WITH 87654321.87654321,;
+                 INFO  WITH "This is a record number "+Ltrim(Str(i)),;
+                 DINFO WITH Date() + i - 1,;
                  MINFO WITH "elk test" + STR( i, 10, 0)
       NEXT i
       ? LEN( aNames ), "Records has been added"
@@ -134,47 +138,61 @@ Function Main( cPath )
    ? "Reccount ", i, Iif( i == Len( aNames ), "- Ok","- Failure" )
 
    GO TOP
-   ? "go top", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
+   ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok"," - Failure" )
+   ? "float, long ?", LLONG, LONG, FLOAT
+   ?? Iif( LONG == 12345678.12345678 .AND. FLOAT == 87654321.87654321 .AND. LLONG == -9223372036854775807, " - Ok","- Failure" )
    REPLACE INFO WITH "First", MINFO WITH "First"
 
    GO BOTTOM
-   ? "go bottom", NUM, NAME, DINFO, Iif( NUM == 1012, "- Ok","- Failure" )
+   ? "go bottom ", NUM, NAME, DINFO, Iif( NUM == 1012 .AND. LLONG == 9223372036854775807, "- Ok","- Failure" )
    REPLACE INFO WITH "Last", MINFO WITH "Last"
 
-   ? "table unlocked", DbUnlock()
+   DbUnlock()
+   SET DELETED ON
    ? 'ordSetFocus( "NAME" )'
    ordSetFocus( "NAME" )
    GO TOP
-   ? "go top", NUM, NAME, DINFO, Iif( NUM == 1003, "- Ok","- Failure" )
+   ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1003, "- Ok","- Failure" )
 
-   SKIP
-   ? "skip", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
+   SKIP 1
+   ? "skip      ", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
+   SKIP 3; SKIP -3
+   SKIP 6; SKIP -6
+   SKIP 2; SKIP -2
+   SKIP 11; SKIP -11
+   SKIP -1
 
    GO BOTTOM
-   ? "go bottom", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
+   ? "go bottom ", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
 
    SKIP -1
-   ? "skip -1", NUM, NAME, DINFO, Iif( NUM == 1012, "- Ok","- Failure" )
+   ? "skip -1   ", NUM, NAME, DINFO, Iif( NUM == 1012, "- Ok","- Failure" )
+
+   SKIP -5
+   SKIP 5
+
+   SKIP 1
+   ? "skip 1    ", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
 
    SEEK "Petr"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
    SEEK "Andre"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
 
    SET FILTER TO NUM >= 1004 .AND. NUM <= 1010
    ?
    ? "SET FILTER TO NUM >= 1004 .AND. NUM <= 1010"
    GO TOP
-   ? "go top", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
+   ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
 
    SKIP
-   ? "skip", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+   ? "skip      ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
 
    GO BOTTOM
-   ? "go bottom", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
+   ? "go bottom ", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
 
    SKIP -1
-   ? "skip -1", NUM, NAME, DINFO, Iif( NUM == 1004, "- Ok","- Failure" )
+   ? "skip -1   ", NUM, NAME, DINFO, Iif( NUM == 1004, "- Ok","- Failure" )
 
    ? "Press any key to continue..."
    Inkey(0)
@@ -188,7 +206,7 @@ Function Main( cPath )
    ? "First record", Iif( ALLTRIM( INFO ) == "First" .AND. MINFO == "First", "- Ok","- Failure" )
 
    GO BOTTOM
-   ? "Last record", Iif( ALLTRIM( INFO ) == "Last" .AND. MINFO == "Last", "- Ok","- Failure" )
+   ? "Last record ", Iif( ALLTRIM( INFO ) == "Last" .AND. MINFO == "Last", "- Ok","- Failure" )
 
    SET FILTER TO NUM >= 1009
    ?
@@ -197,16 +215,16 @@ Function Main( cPath )
    SET SCOPE TO "1009", "1011"
 
    GO TOP
-   ? "go top", NUM, NAME, DINFO, Iif( NUM == 1009, "- Ok","- Failure" )
+   ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1009, "- Ok","- Failure" )
 
    SKIP
-   ? "skip", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+   ? "skip      ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
 
    SKIP
-   ? "skip", NUM, NAME, DINFO, Iif( NUM == 1011, "- Ok","- Failure" )
+   ? "skip      ", NUM, NAME, DINFO, Iif( NUM == 1011, "- Ok","- Failure" )
 
    SKIP
-   ? "skip", NUM, NAME, DINFO, Iif( Eof(), "- Ok","- Failure" )
+   ? "skip      ", NUM, NAME, DINFO, Iif( Eof(), "- Ok","- Failure" )
 
    SET FILTER TO NUM >= 1009
    ?
@@ -216,16 +234,16 @@ Function Main( cPath )
    SET SCOPE TO , "1011"
 
    GO TOP
-   ? "go top", NUM, NAME, DINFO, Iif( NUM == 1009, "- Ok","- Failure" )
+   ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1009, "- Ok","- Failure" )
 
    SKIP
-   ? "skip", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+   ? "skip      ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
 
    SKIP
-   ? "skip", NUM, NAME, DINFO, Iif( NUM == 1011, "- Ok","- Failure" )
+   ? "skip      ", NUM, NAME, DINFO, Iif( NUM == 1011, "- Ok","- Failure" )
 
    SKIP
-   ? "skip", NUM, NAME, DINFO, Iif( Eof(), "- Ok","- Failure" )
+   ? "skip      ", NUM, NAME, DINFO, Iif( Eof(), "- Ok","- Failure" )
 
    dbCloseAll()
    ?
@@ -241,7 +259,7 @@ Function Main( cPath )
    i := DBORDERINFO( DBOI_ORDERCOUNT )
    IF RDDInfo( RDDI_STRUCTORD )
       ? "Active orders ", i, Iif( i == 3, "- Ok","- Failure" )
-      ? "Focus set to ", indexord(), Iif( indexord() == SET( _SET_AUTORDER ), "- Ok","- Failure" )
+      ? "Focus set to  ", indexord(), Iif( indexord() == SET( _SET_AUTORDER ), "- Ok","- Failure" )
    ELSE
       ? "Indextype does not support to auto-open index, found:", STR( i, 1, 0 ), " TAGs"
    ENDIF

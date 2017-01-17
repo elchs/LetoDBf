@@ -5768,7 +5768,7 @@ HB_FUNC( LETO_ISFLTOPTIM )
 {
    LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
 
-   if( leto_CheckArea( pArea ) )
+   if( pArea && leto_CheckArea( pArea ) )
       hb_retl( pArea->area.dbfi.fOptimized );
    else
       hb_retl( HB_FALSE );
@@ -5798,29 +5798,6 @@ LETOCONNECTION * leto_getConnection( int iParam )
       pConnection = letoGetCurrConn();
 
    return pConnection;
-}
-
-HB_FUNC( LETO_CONNECTINFO )
-{
-   LETOCONNECTION * pConnection = NULL;
-   int iParam = HB_ISNUM( 1 ) ? 1 : 0;
-
-   if( iParam > 0 )
-      pConnection = leto_getConnection( iParam );
-   if( ! pConnection )
-      pConnection = letoGetCurrConn();
-   if( pConnection )
-   {
-      PHB_ITEM pInfoArr = hb_itemArrayNew( 6 );
-
-      hb_arraySetNI( pInfoArr, 1, pConnection->uiDriver );
-      hb_arraySetNI( pInfoArr, 2, leto_LockScheme( pConnection ) );
-      hb_arraySetNI( pInfoArr, 3, pConnection->uiMemoType );
-      hb_arraySetNI( pInfoArr, 4, pConnection->uiMemoBlocksize );
-      hb_arraySetNI( pInfoArr, 5, pConnection->iServerPort );
-      hb_arraySetC( pInfoArr, 6, pConnection->szDriver );
-      hb_itemReturnRelease( pInfoArr );
-   }
 }
 
 HB_FUNC( LETO_DBDRIVER )
@@ -6015,38 +5992,6 @@ HB_FUNC( LETO_CLOSEALL )
       hb_retl( HB_FALSE );
 }
 
-/* To FIX: ?really?, only lock at client side in pLocksPos array ?? */
-HB_FUNC( LETO_RECLOCKLIST )
-{
-   LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-
-   if( leto_CheckArea( pArea ) && HB_ISARRAY( 1 ) )
-   {
-      LETOTABLE * pTable = pArea->pTable;
-      PHB_ITEM    pArray = hb_param( 1, HB_IT_ARRAY );
-      HB_SIZE     nLen = hb_arrayLen( pArray ), nIndex;
-
-      if( ! pTable->pLocksPos )
-      {
-         /* Allocate locks array for the table, if it isn't allocated yet */
-         pTable->ulLocksAlloc = nLen;
-         pTable->pLocksPos = ( HB_ULONG * ) hb_xgrab( sizeof( HB_ULONG ) * pTable->ulLocksAlloc );
-         pTable->ulLocksMax = 0;
-      }
-      else if( pTable->ulLocksMax + nLen > pTable->ulLocksAlloc )
-      {
-         pTable->ulLocksAlloc = pTable->ulLocksMax + nLen;
-         pTable->pLocksPos = ( HB_ULONG * ) hb_xrealloc( pTable->pLocksPos, sizeof( HB_ULONG ) * ( pTable->ulLocksAlloc ) );
-      }
-
-      for( nIndex = 1; nIndex <= nLen; nIndex++ )
-      {
-         leto_AddRecLock( pTable, hb_arrayGetNL( pArray, nIndex ) );
-      }
-   }
-   hb_ret();
-}
-
 HB_FUNC( LETO_ERRORCODE )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
@@ -6060,31 +6005,36 @@ HB_FUNC( LETO_ERRORCODE )
 HB_FUNC( LETO_SETSKIPBUFFER )
 {
    LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-   LETOCONNECTION * pCurrentConn = letoGetCurrConn();
 
-   if( leto_CheckArea( pArea ) )
+   if( pArea && leto_CheckArea( pArea ) )
    {
-      if( HB_ISNUM( 1 ) )
+      LETOTABLE * pTable = pArea->pTable;
+
+      if( pTable )
       {
-         HB_USHORT uiNum = ( HB_USHORT ) hb_parni( 1 );
-
-         if( uiNum < 1 )
-            uiNum = 1;
-         if( pArea->pTable->uiRecordLen * uiNum > LETO_MAX_RECV_BLOCK )
-            uiNum = ( HB_USHORT ) ( LETO_MAX_RECV_BLOCK / pArea->pTable->uiRecordLen );
-         if( pCurrentConn )
+         if( HB_ISNUM( 1 ) )
          {
-            char szTmp[ 42 ];
+            LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+            HB_USHORT uiNum = ( HB_USHORT ) hb_parni( 1 );
 
-            eprintf( szTmp, "%lu;%d", pArea->pTable->hTable, uiNum );
-            LetoSet( pCurrentConn, 2, szTmp );  /* LETOCMD_set */
-            hb_retni( uiNum );
+            if( uiNum < 1 )
+               uiNum = 1;
+            if( pTable->uiRecordLen * uiNum > LETO_MAX_RECV_BLOCK )
+               uiNum = ( HB_USHORT ) ( LETO_MAX_RECV_BLOCK / pTable->uiRecordLen );
+            if( pConnection )
+            {
+               char szTmp[ 42 ];
+
+               eprintf( szTmp, "%lu;%d", pTable->hTable, uiNum );
+               LetoSet( pConnection, 2, szTmp );  /* LETOCMD_set */
+               hb_retni( uiNum );
+            }
+            else
+               hb_retni( 0 );
          }
          else
-            hb_retni( 0 );
+            hb_retni( pTable->Buffer.ulShoots );
       }
-      else
-         hb_retni( pArea->pTable->Buffer.ulShoots );
    }
    else
       hb_retni( 0 );
@@ -6110,31 +6060,6 @@ HB_FUNC( LETO_SETBM )
 }
 #endif
 
-/* for debug / optimizing purpose */
-HB_FUNC( LETO_SIZE )
-{
-   int iValue = hb_parni( 1 );
-
-   switch( iValue )
-   {
-      case 1:
-         hb_retni( sizeof( LETOBUFFER ) );  // 40
-         break;
-      case 2:
-         hb_retni( sizeof( LETOFIELD ) );  // 20
-         break;
-      case 3:
-         hb_retni( sizeof( LETOTAGINFO ) ); // 160 -20
-         break;
-      case 4:
-         hb_retni( sizeof( LETOTABLE ) ); // 344 - 44
-         break;
-      case 5:
-         hb_retni( sizeof( LETOCONNECTION ) ); // 352 -44
-         break;
-   }
-}
-
 HB_FUNC( LETO_HASH )
 {
    if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
@@ -6149,6 +6074,64 @@ HB_FUNC( LETO_HASH )
    }
    else
       hb_retni( 0 );
+}
+
+HB_FUNC( LETO_SETGET )
+{
+   HB_BOOL fSet = HB_FALSE;
+   HB_BOOL fOldSet = HB_FALSE, fNewSet = HB_FALSE;
+
+   if( HB_ISNUM( 1 ) )
+   {
+      if( HB_ISLOG( 2 ) )
+      {
+         fNewSet = hb_parl( 2 );
+         fSet = HB_TRUE;
+      }
+      else if( HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+      {
+         if( ! leto_stricmp( hb_parc( 2 ), "ON" ) )
+         {
+            fNewSet = HB_TRUE;
+            fSet = HB_TRUE;
+         }
+         else if( ! leto_stricmp( hb_parc( 2 ), "OFF" ) )
+         {
+            fNewSet = HB_FALSE;
+            fSet = HB_TRUE;
+         }
+      }
+   }
+
+   if( fSet )
+   {
+      if( hb_parni( 1 ) == HB_SET_DELETED )
+         fOldSet = hb_setGetDeleted();
+      else
+         fSet = HB_FALSE;
+   }
+
+   if( fSet && fNewSet != fOldSet )
+   {
+      LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
+      PHB_ITEM  pItem = hb_itemNew( NULL );
+
+      hb_itemPutL( pItem, fNewSet );
+      hb_setSetItem( ( HB_set_enum ) hb_parni( 1 ), pItem );
+      hb_itemRelease( pItem );
+
+      if( pArea )
+      {
+         LETOTABLE * pTable = pArea->pTable;
+
+         if( pTable )
+         {
+            /* the cause to do this all */
+            pTable->ptrBuf = NULL;
+            pTable->llDeciSec = 0;
+         }
+      }
+   }
 }
 
 static void hb_letoRddInit( void * cargo )
