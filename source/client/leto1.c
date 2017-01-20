@@ -123,7 +123,7 @@ static HB_ERRCODE commonError( LETOAREAP pArea, HB_ERRCODE uiGenCode, HB_ERRCODE
                             HB_USHORT uiOsCode, const char * szFileName, HB_USHORT uiFlags,
                             const char * szOperation )
 {
-   HB_ERRCODE errCode = 0;
+   HB_ERRCODE errCode = HB_SUCCESS;
 
    HB_TRACE( HB_TR_DEBUG, ( "commonError(%p, %d, %d, %d, '%s', %d)", pArea, uiGenCode, uiSubCode, uiOsCode, szFileName, uiFlags ) );
 
@@ -1309,7 +1309,7 @@ static HB_ERRCODE leto_PutMemoValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITE
 {
    const char * ptr = hb_itemGetCPtr( pItem );
    char *       pBuff = NULL;
-   unsigned int uiRes;
+   HB_ERRCODE   errCode;
 #if defined ( __XHARBOUR__ )
    HB_ULONG     ulLenMemo = hb_itemGetCLen( pItem );
 #else
@@ -1328,10 +1328,10 @@ static HB_ERRCODE leto_PutMemoValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITE
 #endif
       ptr = pBuff;
    }
-   uiRes = LetoDbPutMemo( pArea->pTable, uiIndex, ptr, ulLenMemo );
+   errCode = LetoDbPutMemo( pArea->pTable, uiIndex, ptr, ulLenMemo );
    if( pBuff )
       hb_xfree( pBuff );
-   return uiRes == 0 ? HB_SUCCESS : HB_FAILURE;
+   return errCode;
 }
 
 static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
@@ -1776,7 +1776,7 @@ static HB_ERRCODE letoRecCount( LETOAREAP pArea, HB_ULONG * pRecCount )
 {
    HB_TRACE( HB_TR_DEBUG, ( "letoRecCount(%p, %p)", pArea, pRecCount ) );
 
-   if( LetoDbRecCount( pArea->pTable, ( HB_ULONG * ) pRecCount ) )
+   if( LetoDbRecCount( pArea->pTable, pRecCount ) )
       return HB_FAILURE;
    else
       return HB_SUCCESS;
@@ -2018,7 +2018,7 @@ static LETOCONNECTION * leto_OpenConn( LETOCONNECTION * pConnection, const char 
    HB_USHORT        uiPathLen;
    HB_BOOL          fTwister = HB_FALSE;
 
-   HB_TRACE( HB_TR_DEBUG, ( "leto_OpenConn(%s, szFile)", szParam ) );
+   HB_TRACE( HB_TR_DEBUG, ( "leto_OpenConn(%p, %s, szFile)", pConnection, szParam ? szParam : "(null)" ) );
 
    szFile[ 0 ] = '\0';
 
@@ -2031,7 +2031,6 @@ static LETOCONNECTION * leto_OpenConn( LETOCONNECTION * pConnection, const char 
          char szAddr[ 96 ];
          int  iPort = 0;
 
-         szAddr[ 0 ] = '\0';
          if( leto_getIpFromPath( szParam, szAddr, &iPort, szFile ) )
          {
             pConnection = leto_ConnectionFind( szAddr, iPort );
@@ -2071,43 +2070,35 @@ static LETOCONNECTION * leto_OpenConnection( LETOAREAP pArea, LPDBOPENINFO pOpen
    LETOCONNECTION * pConnection;
    int              iPort = 0;
 
-   HB_TRACE( HB_TR_DEBUG, ( "leto_OpenConnection(%p, %p, %s, %d)", pArea, pOpenInfo, szFile, ( int ) fCreate ) );
+   HB_TRACE( HB_TR_DEBUG, ( "leto_OpenConnection(%p, %p, szFile, %d)", pArea, pOpenInfo, ( int ) fCreate ) );
 
    szFile[ 0 ] = '\0';
 
    if( pOpenInfo->ulConnection > 0 && pOpenInfo->ulConnection <= ( HB_ULONG ) uiGetConnCount() )
-   {
       pConnection = letoGetConnPool( ( HB_USHORT ) pOpenInfo->ulConnection - 1 );
-
-      if( pConnection )
-      {
-         strcpy( szFile, leto_RemoveIpFromPath( pOpenInfo->abName ) );
-         leto_BeautifyPath( szFile );
-      }
-   }
    else
    {
       char szAddr[ 96 ];
-
-      szAddr[ 0 ] = '\0';
 
       if( ! leto_getIpFromPath( pOpenInfo->abName, szAddr, &iPort, NULL ) )
          pConnection = letoGetCurrConn();
       else
       {
-         if( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) == NULL )
+         pConnection = leto_ConnectionFind( szAddr, iPort );
+         if( ! pConnection )
             pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE );
       }
-      if( pConnection )
-      {
-         strcpy( szFile, leto_RemoveIpFromPath( pOpenInfo->abName ) );
-         leto_BeautifyPath( szFile );
-      }
+   }
+
+   if( pOpenInfo->abName )
+   {
+      strcpy( szFile, leto_RemoveIpFromPath( pOpenInfo->abName ) );
+      leto_BeautifyPath( szFile );
    }
 
    if( ! pConnection )
    {
-      commonError( pArea, EG_OPEN, ( fCreate ? 1 : 101 ), 0, pOpenInfo->abName, 0, NULL );
+      commonError( pArea, EG_OPEN, ( fCreate ? 1 : 101 ), 0, *szFile ? szFile : "? FILE ?", 0, "CONNECTION ERROR" );
       return NULL;
    }
 
@@ -2148,13 +2139,14 @@ static void letoCreateAlias( const char * szFile, char * szAlias )
 
 static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
 {
-   LETOTABLE *      pTable;
    LETOCONNECTION * pConnection;
+   LETOTABLE *      pTable;
    LPFIELD          pField;
    HB_USHORT        uiCount = 0;
    HB_ULONG         ulFieldDups;
    char *           szData, * ptr, * szFieldDup;
    char             szFile[ HB_PATH_MAX ];
+   char             szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
    char             cType;
    const char *     szFieldName;
    HB_ERRCODE       errCode = HB_SUCCESS;
@@ -2162,7 +2154,10 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
    HB_TRACE( HB_TR_DEBUG, ( "letoCreate(%p, %p)", pArea, pCreateInfo ) );
 
    if( ( pConnection = leto_OpenConnection( pArea, pCreateInfo, szFile, HB_TRUE ) ) == NULL )
+   {
+      hb_rddSetNetErr( HB_TRUE );
       return HB_FAILURE;
+   }
    pArea->szDataFileName = hb_strdup( szFile );
 
    /* ( 10 + ';' + 7 [ C:attribute ] + ';' + 5 + ';' + 3 + ';' ) */
@@ -2313,12 +2308,10 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
          hb_rddSelectWorkAreaNumber( 0 );
          pCreateInfo->uiArea = ( HB_USHORT ) hb_rddGetCurrentWorkAreaNumber();
       }
-      if( ! pCreateInfo->atomAlias || ! *pCreateInfo->atomAlias )  /* create a missing Alias */
+      if( ( ! pCreateInfo->atomAlias || ! *pCreateInfo->atomAlias ) && *szFile )  /* create a missing Alias */
       {
-         char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
-
          letoCreateAlias( szFile, szAlias );
-         pCreateInfo->atomAlias = ( const char * ) szAlias;
+         pCreateInfo->atomAlias = szAlias;
       }
 
       pTable = LetoDbCreateTable( pConnection, szFile, pCreateInfo->atomAlias, szData,
@@ -2338,6 +2331,8 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
          commonError( pArea, EG_DATATYPE, LetoGetError(), 0, NULL, 0, NULL );
       else if( ! leto_CheckError( pArea ) )
          commonError( pArea, EG_CREATE, EDBF_CORRUPT, 0, szFile, 0, NULL );
+      else
+         hb_rddSetNetErr( HB_TRUE );
       return HB_FAILURE;
    }
 
@@ -2425,7 +2420,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
       }
 
       case DBI_FULLPATH:
-         hb_itemPutCL( pItem, pArea->szDataFileName, strlen( pArea->szDataFileName ) );
+         hb_itemPutC( pItem, pArea->szDataFileName );
          break;
 
       case DBI_ISFLOCK:
@@ -2611,30 +2606,28 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    DBFIELDINFO      dbFieldInfo;
    LETOTABLE *      pTable;
    LETOFIELD *      pField;
+   HB_ERRCODE       errCode;
    char             szFile[ HB_PATH_MAX ];
+   char             szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOpen(%p, %p)", pArea, pOpenInfo ) );
 
    if( ( pConnection = leto_OpenConnection( pArea, pOpenInfo, szFile, HB_FALSE ) ) == NULL )
-      return HB_FAILURE;
-   pArea->szDataFileName = hb_strdup( pOpenInfo->abName );
-   if( ! pOpenInfo->atomAlias || ! *pOpenInfo->atomAlias )  /* create a missing Alias */
    {
-      char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
-
-      letoCreateAlias( szFile, szAlias );
-      pOpenInfo->atomAlias = ( const char * ) szAlias;
+      hb_rddSetNetErr( HB_TRUE );
+      return HB_FAILURE;
    }
-
-   /* close already used WA before */
-   if( pOpenInfo->uiArea && pArea->pTable )
-      SELF_CLOSE( ( AREAP ) pArea );
+   pArea->szDataFileName = hb_strdup( szFile );
+   if( ( ! pOpenInfo->atomAlias || ! *pOpenInfo->atomAlias ) && *szFile )  /* create a missing Alias */
+   {
+      letoCreateAlias( szFile, szAlias );
+      pOpenInfo->atomAlias = szAlias;
+   }
 
    /* sets pTable->pTagCurrent */
    pTable = LetoDbOpenTable( pConnection, szFile, pOpenInfo->atomAlias,
                              pOpenInfo->fShared, pOpenInfo->fReadonly,
-                             ( pOpenInfo->cdpId ) ? pOpenInfo->cdpId : "", pOpenInfo->uiArea );
-
+                             pOpenInfo->cdpId ? pOpenInfo->cdpId : "", pOpenInfo->uiArea );
    if( ! pTable )
    {
       if( LetoGetError() != 103 )  /* no runtime error, only NetErr() ? */
@@ -2654,9 +2647,12 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    else
       pArea->area.cdPage = HB_CDP_PAGE();
 
-   SELF_SETFIELDEXTENT( ( AREAP ) pArea, pTable->uiFieldExtent );
-   uiFields = pTable->uiFieldExtent;
-   for( uiCount = 0; uiCount < uiFields; uiCount++ )
+   errCode = SELF_SETFIELDEXTENT( ( AREAP ) pArea, pTable->uiFieldExtent );
+   if( errCode == HB_SUCCESS )
+      uiFields = pTable->uiFieldExtent;
+   else
+      uiFields = 0;
+   for( uiCount = 0; errCode == HB_SUCCESS && uiCount < uiFields; uiCount++ )
    {
       /* memset( &dbFieldInfo, 0, sizeof( dbFieldInfo ) ); */
       pField = pTable->pFields + uiCount;
@@ -2666,13 +2662,13 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
       dbFieldInfo.uiLen = pField->uiLen;
       dbFieldInfo.uiDec = pField->uiDec;
       dbFieldInfo.uiFlags = pField->uiFlags;
-      if( SELF_ADDFIELD( ( AREAP ) pArea, &dbFieldInfo ) != HB_SUCCESS )
-         return HB_FAILURE;
+      errCode = SELF_ADDFIELD( ( AREAP ) pArea, &dbFieldInfo );
    }
 
-   if( SUPER_OPEN( ( AREAP ) pArea, pOpenInfo ) != HB_SUCCESS )
+   if( errCode != HB_SUCCESS || SUPER_OPEN( ( AREAP ) pArea, pOpenInfo ) != HB_SUCCESS )
    {
       SELF_CLOSE( ( AREAP ) pArea );
+      hb_rddSetNetErr( HB_TRUE );
       return HB_FAILURE;
    }
 
@@ -3411,7 +3407,6 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
    char          szIFileName[ HB_PATH_MAX ];
    LETOTAGINFO * pTagInfo;
    unsigned int  uiFlags;
-   int           iRes;
    LPDBORDERCONDINFO lpdbOrdCondInfo = pArea->area.lpdbOrdCondInfo;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderCreate(%p, %p)", pArea, pOrderInfo ) );
@@ -3420,9 +3415,12 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
       leto_PutRec( pArea );
 
    /* we need to transfer to server and use the compiled string expression
-   * a possible CB in pOrderInfo->itmCobExpr doesn't matter */
+    * a possible CB in pOrderInfo->itmCobExpr doesn't matter */
    if( ! hb_itemGetCLen( pOrderInfo->abExpr ) )
+   {
+      hb_rddSetNetErr( HB_TRUE );
       return HB_FAILURE;
+   }
    szKey = hb_itemGetCPtr( pOrderInfo->abExpr );
 
    if( pOrderInfo->abBagName )
@@ -3435,28 +3433,10 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
 
    if( pOrderInfo->atomBagName && *pOrderInfo->atomBagName )
       hb_strncpy( szTag, pOrderInfo->atomBagName, LETO_MAX_TAGNAME );
-   else if( szBagName && ! pTable->uiDriver )  /* for NTX create a TAG from BAG */
-   {
-      PHB_FNAME    pFilePath = hb_fsFNameSplit( szBagName );
-      const char * ptr = pFilePath->szName;
-      char *       ptr2;
-
-      ptr2 = strrchr( ptr, '/' );
-      if( ptr2 )
-      {
-         ptr = ptr2 + 1;
-         ptr2 = strrchr( ptr, '\\' );
-         if( ptr2 )
-            ptr = ptr2 + 1;
-      }
-      hb_strncpy( szTag, ptr, LETO_MAX_TAGNAME );
-      hb_xfree( pFilePath );
-   }
-   else
+   else  /* else TAG is created by server from szBagName */
       szTag[ 0 ] = '\0';
 
    szFor = ( lpdbOrdCondInfo && lpdbOrdCondInfo->abFor ) ? lpdbOrdCondInfo->abFor : "";
-
    uiFlags = pOrderInfo->fUnique ? LETO_INDEX_UNIQ : 0;
    if( lpdbOrdCondInfo )
       uiFlags |= ( lpdbOrdCondInfo->fAll ? LETO_INDEX_ALL : 0 ) |
@@ -3469,7 +3449,6 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
                  ( lpdbOrdCondInfo->fUseFilter ? LETO_INDEX_FILT : 0 );
 
    /* close all index order, re-register the orders reported by server after creating the new order */
-   /* letoOrderListClear( pArea ); */
    if( pTable->pTagInfo )
    {
       LETOTAGINFO * pTag, * pTagNext;
@@ -3489,11 +3468,10 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
    }
 
    /* sets pTable->pTagCurrent */
-   iRes = LetoDbOrderCreate( pTable, szBagName, szTag,
-                             szKey, uiFlags, szFor,
-                             lpdbOrdCondInfo ? lpdbOrdCondInfo->abWhile : NULL,
-                             lpdbOrdCondInfo ? lpdbOrdCondInfo->lNextCount : 0 );
-   if( iRes )
+   if( LetoDbOrderCreate( pTable, szBagName, szTag,
+                          szKey, uiFlags, szFor,
+                          lpdbOrdCondInfo ? lpdbOrdCondInfo->abWhile : NULL,
+                          lpdbOrdCondInfo ? lpdbOrdCondInfo->lNextCount : 0 ) )
    {
       if( LetoGetError() == 1000 )
          commonError( pArea, EG_DATATYPE, LetoGetError(), 0, NULL, 0, NULL );
@@ -4305,10 +4283,9 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
       /* test available filter text for validity at server */
       if( pFilterInfo->abFilterText && hb_itemGetCLen( pFilterInfo->abFilterText ) )
       {
-         unsigned int uiRes = LetoDbSetFilter( pTable, hb_itemGetCPtr( pFilterInfo->abFilterText ), hb_setGetForceOpt() );
-
-         if( ! uiRes )  /* server can evaluate expression -> optimized */
+         if( ! LetoDbSetFilter( pTable, hb_itemGetCPtr( pFilterInfo->abFilterText ), hb_setGetForceOpt() ) )
          {
+            /* server can evaluate expression -> optimized */
             if( pFilterInfo->itmCobExpr )  /* remove a given codeblock */
                pFilterInfo->itmCobExpr = NULL;
             pFilterInfo->fOptimized = HB_TRUE;
@@ -4973,11 +4950,10 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          if( pConnection )
          {
             HB_BOOL fSet = HB_IS_LOGICAL( pItem );
-            HB_BOOL fRefresh = hb_itemGetL( pItem );
 
             hb_itemPutL( pItem, pConnection->fRefreshCount );
             if( fSet )
-               pConnection->fRefreshCount = fRefresh;
+               pConnection->fRefreshCount = hb_itemGetL( pItem );
          }
          else
             hb_itemPutL( pItem, HB_TRUE );

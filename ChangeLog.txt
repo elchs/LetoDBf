@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-20 16:24 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    - SELF_CLOSE() already done by RDD for letoOpen()
+    - not needed casting, variables
+    - TAG creation in letoOrderCreate() done by server
+    * move termination into upper func leto_getIpFromPath()
+    * hardening letoOpen(), set at more places hb_rddSetNetErr()
+
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    * moved termination into upper func leto_getIpFromPath()
+
 2017-01-17 22:04 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     ! fix of last change: simulate a Rlock after append in transaction

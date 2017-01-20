@@ -1332,7 +1332,7 @@ int LetoCheckServerVer( LETOCONNECTION * pConnection, HB_USHORT uiVer )
 
 const char * leto_RemoveIpFromPath( const char * szPath )
 {
-   if( strlen( szPath ) >= 10 && szPath[ 0 ] == '/' && szPath[ 1 ] == '/' )
+   if( szPath && strlen( szPath ) >= 10 && szPath[ 0 ] == '/' && szPath[ 1 ] == '/' )
    {
       const char * ptr = strchr( szPath + 2, '/' );
 
@@ -1364,9 +1364,10 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
 {
    const char * ptrPort = szSource;
    const char * ptr = szSource;
-   int          iLen = strlen( ptr );
+   int          iLen = ptr ? strlen( ptr ) : 0;
    HB_BOOL      fWithPort = HB_TRUE, fWithIP = iLen >= 10 ? HB_TRUE : HB_FALSE;
 
+   szAddr[ 0 ] = '\0';
    while( iLen >= 10 )  /* "//1.1.1.1/" len 10-18 */
    {
       if( ptr[ 0 ] != '/' || ptr[ 1 ] != '/' )
@@ -1419,7 +1420,7 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
    }
 
    /* ptrPort positioned after '//IP:port/' or at start of szSource */
-   if( szPath )
+   if( szPath && ptrPort )
    {
       if( *ptrPort )
          strcpy( szPath, ptrPort );
