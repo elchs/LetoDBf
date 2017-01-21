@@ -94,6 +94,8 @@ FUNCTION Main( cAddress, cUser, cPasswd )
  LOCAL mrow, mcol
  LOCAL cMode
  LOCAL nTmp
+ LOCAL lResizing
+ LOCAL nMaxRow, nMaxCol
 
    s_nLastKeyType := hb_MilliSeconds()
    IF VALTYPE( cAddress ) != "C"
@@ -280,20 +282,24 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    AADD( aBlocks, {|oBrow| IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
-                           ( oBrow:cargo := leto_MgGetLocks( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) ), ( oBrow:cargo := {} ) ) } )
+                           ( oBrow:cargo := GetLocks( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) ), ( oBrow:cargo := {} ) ) } )
 
    aLastPos := Aclone( aPos )
    EVAL( aBlocks[ 1 ], aBrows[ 1 ] )
 
    DO WHILE nKey <> K_ESC .AND. nKey <> HB_K_CLOSE
 
+      lResizing := .F.
+
       IF lReconfigure .AND. lHaveFocus
-         IF MAXROW() < 21 .OR. MAXCOL() < 79
-            SETMODE( 22, 80 )
+         nMaxRow := MAXROW()
+         nMaxCol := MAXCOL()
+         IF MAXROW() < 24 .OR. MAXCOL() < 79
+            SETMODE( 25, 80 )
          ENDIF
          ServerInfo( cAddress, cVersion, cMode )
 
-         nExtra := MAXROW() - 21
+         nExtra := nMaxRow - 21
          IF nExtra > 0
             nAllExtra = INT( nExtra / 3 )
             IF nAllExtra > 3
@@ -307,39 +313,53 @@ FUNCTION Main( cAddress, cUser, cPasswd )
             nAllExtra := 0
          ENDIF
 
-         @ 8, 0, MAXROW(), MAXCOL() BOX SPACE( 9 ) COLOR aBrows[ 1 ]:colorSpec
-         aBrows[ 1 ]:nRight := MAXCOL()
-         aBrows[ 1 ]:nBottom := 11 + nAllExtra + INT( nExtra / 2 )
+         @ 8, 0, nMaxRow, nMaxCol BOX SPACE( 9 ) COLOR aBrows[ 1 ]:colorSpec
+         aBrows[ 1 ]:nRight := MAX( nMaxCol, 40 )
+         aBrows[ 1 ]:nBottom := MAX( 11 + nAllExtra + INT( nExtra / 2 ), 12 )
          aBrows[ 1 ]:configure()
          aBrows[ 1 ]:freeze := 1
 
          aBrows[ 2 ]:nTop := 13 + nAllExtra + INT( nExtra / 2 )
-         aBrows[ 2 ]:nRight := MAXCOL() - 20
-         aBrows[ 2 ]:nBottom := MAXROW() - 5 - nAllExtra
+         aBrows[ 2 ]:nRight := MAX( nMaxCol - 20, 20 )
+         aBrows[ 2 ]:nBottom := MAX( nMaxRow - 5 - nAllExtra, 16 )
          oColumn := aBrows[ 2 ]:getColumn( 4 )
-         oColumn:width := MAXCOL() - 33 - 21
+         oColumn:width := MAX( nMaxCol - 33 - 21, 1 )
          aBrows[ 3 ]:setColumn( 4, oColumn )
          aBrows[ 2 ]:configure()
 
-         aBrows[ 3 ]:nTop := MAXROW() - 3 - nAllExtra
-         aBrows[ 3 ]:nRight := MAXCOL() - 20
-         aBrows[ 3 ]:nBottom := MAXROW()
+         aBrows[ 3 ]:nTop := MAX( nMaxRow - 3 - nAllExtra, 17 )
+         aBrows[ 3 ]:nRight := MAX( nMaxCol - 20, 20 )
+         aBrows[ 3 ]:nBottom := MAX( nMaxRow, 20 )
          oColumn := aBrows[ 3 ]:getColumn( 2 )
-         oColumn:width := MAXCOL() - 14 - 21
+         oColumn:width := MAX( nMaxCol - 14 - 21, 1 )
          aBrows[ 3 ]:setColumn( 2, oColumn )
          oColumn := aBrows[ 3 ]:getColumn( 3 )
-         oColumn:width := MAXCOL() - 23
+         oColumn:width := MAX( nMaxCol - 23, 1 )
          aBrows[ 3 ]:setColumn( 3, oColumn )
          aBrows[ 3 ]:configure()
          aBrows[ 3 ]:freeze := 1
 
          aBrows[ 4 ]:nTop := 13 + nAllExtra + ( nExtra / 2 )
-         aBrows[ 4 ]:nLeft := MAXCOL() - 18
-         aBrows[ 4 ]:nBottom := MAXROW()
-         aBrows[ 4 ]:nRight := MAXCOL()
+         aBrows[ 4 ]:nLeft := MAX( nMaxCol - 18, 21 )
+         aBrows[ 4 ]:nBottom := MAX( nMaxRow, 20 )
+         aBrows[ 4 ]:nRight := MAX( nMaxCol, 23 )
          aBrows[ 4 ]:configure()
          nLastRefresh := 1
          lReconfigure := .F.
+
+         nBrowTmp := nBrow
+         nBrow := 1
+         DispBegin()
+         DO WHILE nBrow <= LEN( aBrows )
+            BrowseFrames( aBrows, nBrow, nBrowTmp )
+            aBrows[ nBrow ]:refreshAll()
+            DO WHILE .NOT. aBrows[ nBrow ]:Stabilize()
+            ENDDO
+            nBrow++
+         ENDDO
+         DispEnd()
+         nBrow := nBrowTmp
+
       ENDIF
 
       IF hb_MilliSeconds() - nLastRefresh > s_nRefresh
@@ -460,9 +480,12 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          mCol := MCOL()
          IF mRow == 0 .AND. mCol >= 2 .AND. mCol <= 10
             nKey := 0
-            Administrate( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) )
-            IF NEXTKEY() > 0
-               nKey := NEXTKEY()
+            IF Administrate( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) )
+               lResizing := .T.
+            ENDIF
+         ELSEIF mRow == 0 .AND. mCol >= MAXCOL() - 9 .AND. mCol <= MAXCOL() - 2
+            IF HelpText()
+               lResizing := .T.
             ENDIF
          ELSEIF mRow >= aBrows[ 1 ]:nTop - 1
             ai := ASCAN( aBrows, { | oBrow | oBrow:nTop - 1 <= mRow .AND. oBrow:nBottom >= mRow ;
@@ -552,16 +575,28 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          CASE nKey == HB_K_GOTFOCUS
             lHaveFocus := .T.
          CASE nKey == HB_K_RESIZE
-            nLastRefresh := 0
-            lReconfigure := .T.
+            lHaveFocus := .T.
+            lResizing := .T.
+         CASE nKey == K_ALT_H
+            IF HelpText()
+               lResizing := .T.
+            ENDIF
          CASE nKey == K_ALT_M
-            Administrate( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) )
+            IF Administrate( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) )
+               lResizing := .T.
+            ENDIF
          CASE nKey == K_ALT_L
-            ViewLogs( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) )
+            IF ViewLogs( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) )
+               lResizing := .T.
+            ENDIF
          CASE nKey == K_ALT_K
             KillActiveUsers( aBrows[ 1 ]:cargo, aPos[ 1 ] )
       ENDCASE
 
+      IF lResizing
+         nLastRefresh := 0
+         lReconfigure := .T.
+      ENDIF
    ENDDO
 
 RETURN Nil
@@ -582,7 +617,7 @@ STATIC FUNCTION BrowseFrames( aBrows, nBrow, nBrowTmp )
    IF nBrow == 4
       @ aBrows[ nBrow ]:nTop, aBrows[ nBrow ]:nLeft - 1 TO;
         aBrows[ nBrow ]:nBottom + 1, aBrows[ nBrow ]:nLeft - 1 DOUBLE COLOR aBrows[ nBrow ]:colorSpec
-      @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft - 1 SAY "É" COLOR aBrows[ nBrow ]:colorSpec
+      @ aBrows[ nBrow ]:nTop - 1, aBrows[ nBrow ]:nLeft - 1 SAY CHR( 201 ) COLOR aBrows[ nBrow ]:colorSpec
    ENDIF
 RETURN NIL
 
@@ -741,6 +776,23 @@ STATIC FUNCTION GetAllConnections( oBrow )
    ENDIF
 RETURN .T.
 
+STATIC FUNCTION GetLocks( nConnection, cTable )
+ LOCAL aRaw := leto_MgGetLocks( nConnection, cTable, "<100" )  /* max 100 locks */
+ LOCAL aLocks := {}
+ LOCAL cTmp, cLock
+
+   IF ! EMPTY( aRaw )
+      cTmp := aRaw[ 1, 2 ]
+      TOKENINIT( @cTmp, ",", 1 )
+      DO WHILE .NOT. TOKENEND()
+         cLock := TOKENNEXT( cTmp )
+         IF .NOT. EMPTY( cLock )
+            AADD( aLocks, { NIL, cLock } )
+         ENDIF
+      ENDDO
+   ENDIF
+RETURN aLocks
+
 STATIC FUNCTION ArrSkip( aArr, nCurrent, nSkip )
  LOCAL nSkipped
    IF nCurrent + nSkip < 1
@@ -790,8 +842,10 @@ STATIC FUNCTION ServerInfo( cAddress, cVersion, cMode )
 
    SETCOLOR( "W+/G" )
    @ 0, 2 SAY "[ Menu ]"
+   @ 0, MAXCOL() - 9 SAY "[ Help ]"
    SETCOLOR( "GR+/G" )
    @ 0, 4 SAY "M"
+   @ 0, MAXCOL() - 7 SAY "H"
 
 RETURN .T.
 
@@ -955,7 +1009,7 @@ STATIC FUNCTION KillActiveUsers( nConnection )
    ENDIF
 
    IF lOk
-     @ 2, 1 SAY "? kill *ALL* active user [ *USE* with open tables ] or only *ONE* connection ?"
+     @ 2, 1 SAY "? close *ALL* active user [ *USE* with open tables ] or only *ONE* connection ?"
      @ 3, 2 SAY "type: ALL, USE or ONE" GET cConfirm PICT "@! XXX" VALID ALLTRIM( cConfirm ) $ "ALL-ONE-USE-NON"
      READ
      lOk := LASTKEY() != K_ESC
@@ -1059,11 +1113,14 @@ FUNCTION memologger( nMode, nLine, nCol )
       CASE nMode == ME_UNKEY
          nKey := LASTKEY()
          IF nKey == K_MWBACKWARD
-            hb_keyPut( K_DOWN )
+            hb_keyIns( K_DOWN )
          ELSEIF nKey == K_MWFORWARD
-            hb_keyPut( K_UP )
+            hb_keyIns( K_UP )
          ELSEIF nKey == K_RBUTTONUP
+            hb_keyIns( K_ESC )
+         ELSEIF nKey == HB_K_RESIZE
             hb_keyPut( K_ESC )
+            hb_keyPut( HB_K_RESIZE )
          ENDIF
    ENDCASE
 RETURN nRet
@@ -1073,6 +1130,7 @@ STATIC FUNCTION ViewLogs( nConnection )
  LOCAL cText := leto_MgLog( nConnection, 0 )
  LOCAL cSave
  LOCAL nLines
+ LOCAL lResize := .F.
 
    IF EMPTY( cText )
       timedAlert( " no LOG file for connection: " + hb_nTos( nConnection ), 1, "W+/R" )
@@ -1096,9 +1154,12 @@ STATIC FUNCTION ViewLogs( nConnection )
          ENDIF
       ENDDO
       RESTSCREEN(  8, 0, MAXROW(), MAXCOL(), cSave )
+      IF INKEY() == HB_K_RESIZE
+         lResize := .T.
+      ENDIF
    ENDIF
    SetColor( oldcolor )
-RETURN NIL
+RETURN lResize
 
 STATIC FUNCTION Administrate( nConnection )
  LOCAL nMenu := 0
@@ -1107,10 +1168,10 @@ STATIC FUNCTION Administrate( nConnection )
  LOCAL aMenu := {;
       "1 Add    User",;
       "2 Delete User",;
-      "3 Change Password",;
+      "3 Change Passwrd",;
       "4 Change Access",;
       "5 Flush  Changes",;
-      "6 Kill   Connecti",;
+      "6 Close  Connect",;
       "7 Change Refresh",;
       IIF( bLocked, "8 UNlock Server", "8 Lock   Server" ),;
       "9 View   Logfile",;
@@ -1118,13 +1179,20 @@ STATIC FUNCTION Administrate( nConnection )
       "0 QUIT ! Console" }
  LOCAL cSave := SAVESCREEN( 1, 2, 2 + LEN( aMenu ), 19 )
  LOCAL arr
+ LOCAL lResize := .F.
 
    DO WHILE nMenu < 6
       @ 1, 2, 2 + LEN( aMenu ), 19 BOX B_SINGLE + " "
       nMenu := Achoice( 2, 3, 2 + LEN( aMenu ), 18, aMenu, "MyChoice" )
+      IF INKEY() == HB_K_RESIZE
+         lResize := .T.
+      ENDIF
       DO WHILE INKEY() != 0
       ENDDO
       RESTSCREEN( 1, 2, 2 + LEN( aMenu ), 19, cSave )
+      IF lResize
+         EXIT
+      ENDIF
 
       DO CASE
          CASE nMenu == 1
@@ -1231,6 +1299,9 @@ FUNCTION MyChoice( nStatus )  /* must be a public FUNCTION */
                RETURN AC_SELECT
             CASE nKey == K_ESC .OR. nKey == K_RBUTTONUP
                RETURN AC_ABORT
+            CASE nKey == HB_K_RESIZE
+               hb_keyPut( HB_K_RESIZE )
+               RETURN AC_ABORT
          ENDCASE
       CASE nStatus == AC_NOITEM
          RETURN AC_ABORT
@@ -1276,6 +1347,43 @@ STATIC FUNCTION ChangeDebug
    SETCURSOR( oldcurs )
    RESTSCREEN( 2, 1, 6, MAXCOL() - 1, cSave )
 RETURN .T.
+
+STATIC FUNCTION HelpText
+ LOCAL oldcolor := SETCOLOR( "W+/B,W+/G,,,W/N" )
+ LOCAL cSave := SAVESCREEN( 8, 0, MAXROW(), MAXCOL() )
+ LOCAL nKey
+ LOCAL lResize := .F.
+
+   @ 8, 0 CLEAR TO MAXROW(), MAXCOL()
+   DO WHILE .T.
+      @  8, 0 SAY CENTER( "LetoDBf console navigation", MAXCOL( .T. ) + 1 ," ", .T. )
+      @  9, 1 SAY "in browses: K_TAB/ K_SHIFT_TAB/ Left-click into area: toggle between browses"
+      @ 10, 1 SAY "            K_DOWN/ K_UP/ mouse wheel ( mouse in browse area ): row up/ down"
+      @ 11, 1 SAY "            left-click onto a row in browse: change to that row"
+      @ 12, 1 SAY "            K_LEFT/ K_RIGHT/ left-click/ right click active row: change column"
+      @ 13, 1 SAY "            K_ALT_M = menu; K_ALT_H = help, K_ALT_L = log; K_ALT_K = close C."
+      @ 15, 1 SAY "in Menu   : K_DOWN/ K_UP/ left-click: change to that menu option"
+      @ 16, 1 SAY "            K_ESC/ right-click: end menu"
+      @ 17, 1 SAY "            K_ENTER/ left-double-click: choose menu option"
+      @ 19, 1 SAY "in Logview: K_UP/ K_DOWN/ K_PG_UP/ K_PGDN/ K_HOME/ K_END/ mouse wheel: textpos"
+      @ 20, 1 SAY "            K_ESC/ right-click: end log view"
+      @ 21, 1 SAY "            not typing any key for refresh rate: reposition cursor last page  "
+      @ 23, 1 SAY "this help : end in 30 seconds without typing any key, with any key immideately"
+      @ 24, 1 SAY "            K_SPACE/ left-click will leave it 30 sec longer viewable"
+      nKey := INKEY( 30000 )
+      IF nKey == HB_K_RESIZE
+         lResize := .T.
+         EXIT
+      ELSEIF nKey == K_SPACE .OR. nKey == K_LBUTTONUP .OR. nKey == K_LBUTTONDOWN .OR. ;
+             nKey == HB_K_LOSTFOCUS .OR. nKey == HB_K_GOTFOCUS
+         LOOP
+      ELSE
+         EXIT
+      ENDIF
+   ENDDO
+   RESTSCREEN(  8, 0, MAXROW(), MAXCOL(), cSave )
+   SetColor( oldcolor )
+RETURN lResize
 
 STATIC FUNCTION GetUser( lPass, lRights )
  LOCAL cUser := SPACE( 21 )

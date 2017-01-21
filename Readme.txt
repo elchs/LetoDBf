@@ -477,14 +477,19 @@ A. Internals
  It will basically need 2 lines modification to your existing source, the rest of your
  application will stay as it was without LetoDBf usage.
  Hopefully you did not set the second param of DbUseArea( , cDriver, ... )
- or used the "VIA option" of the "USE command". In that case remove them all.
+ or used the "VIA" option of the "USE command". In that case remove them all.
 
- To be able to connect to the server you need to request the LetoDBf RDD driver.
+ Most easy is to build your app for LetoDBf by using "letodb.hbc" for hbmk2, aka:
+      hbmk2 yourapp[.prg|.hbp] letodb.hbc
+ This will automatically #include "rddleto.ch" and #include "leto_std.ch" into your project, link the
+ library, activates MultiThread.
+ If not using this "letodb.ch" you have at least to manually: #include "leto_std.ch" to get some things
+ correct working.
+
+ To be able to connect to the server you need to request for the LetoDBf RDD driver.
  Herefore you add at very start of the file outside the main() procedure:
-
       REQUEST LETO
-
- This will set the default RDD driver to "LETO" similar done with: RddSetDefault( "LETO" ).
+ This will set the default RDD driver to "LETO" after connecting similar done with: RddSetDefault( "LETO" ).
  Further an additive idletask is activated, if your application is build with hbmk2 switch '-mt' for
  MultiThread support. ( done by using letodb.hbc )
 
@@ -501,10 +506,10 @@ A. Internals
  With connection to the server, and later with opening or creating a table, information about codepage
  and dateformat settings are sent to server. This is important for creating index orders containing
  national special characters or index keys containing a date value.
- The last applied dateformat setting during above occasions will keep from then on the active one at server.
+ The last applied dateformat setting will be from then on the active one at server.
 
- All filenames and paths now are relative to the root DataPath in letodb.ini.
- It may look alike: ( to this i refere in the following )
+ All filenames and paths are now relative to the root DataPath in letodb.ini.
+ It may look alike: ( to this example i refer in the following explanations )
       DataPath = [drive:]\path\to\data_diretory
 
  If none DataPath is given ( ! NOT ! recommended ), it will be the root directory with the server
@@ -699,6 +704,14 @@ A. Internals
 
       LETO_ADDCDPTRANSLATE( cClientCdp, cServerCdp )           ==> nil
  For ugly ;-) xHarbour hackers with different CP names, no comment.
+
+      LETO_SET( nOption [, xNewSet ] )                         ==> xActiveSetting
+ Use may use this function for nOption: SOFTSEEK, DELETED, AUTORDER, AUTOPEN as you may have used
+ the Set() function. This will inform the server about changed setting, which is very important to
+ inform the server about changes. With no given <xNewSet>, you get the active setting without
+ changing it.
+ Recommended is to use the commands: SET xxx [ TO ] instead this function. This translation is done
+ in "leto_std.ch" to inform server for these SETs, likely it is else done in Harbour "std.ch".
 
 
       7.2 Transaction functions

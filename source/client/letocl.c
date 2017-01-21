@@ -1011,6 +1011,8 @@ static long leto_Recv( LETOCONNECTION * pConnection )
  * => no need to memcpy() data in a temp buffer to add data-length beforehand
  *    only use such buffer always for hb_znet connection
  * EXCEPTION for zipped traffic, here to do it 'old style' using receive buffer */
+
+/* this are 4! variants in one: LZ4 or ZLib compression (hb_znet) --- with and without MSG_MORE flag */
 static long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen )
 {
    HB_ULONG ulSent;
@@ -1642,7 +1644,7 @@ static void leto_SetBlankRecord( LETOTABLE * pTable, unsigned int uiAppend )
    }
 }
 
-/* optimized: hb_setGetDeleted() change checked with LETO_SETGET() */
+/* optimized: hb_setGetDeleted() change checked with LETO_SET() */
 static _HB_INLINE_ HB_BOOL leto_HotBuffer( LETOTABLE * pTable )
 {
    return ( leto_DeciSec() - pTable->llDeciSec < pTable->iBufRefreshTime || pTable->iBufRefreshTime == 0 );

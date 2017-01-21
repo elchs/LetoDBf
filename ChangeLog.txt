@@ -2,6 +2,30 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-21 21:16 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/leto_std.ch
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    + use of AUT[ORDER|OPEN] and SOFTSEEK in renamed LETO_SET(), leto_std.ch,
+      transfer new setting to server if connection exists
+    * change Leto_SetGet() to Leto_Set()
+
+  * source/server/letofunc.c
+    - remove outcommented deprecated lines
+    ! fix limited locks list transfer in leto__MgMt()
+    * send ok for closing closed/ not found WA, only leave a debug note about
+
+  * tests/test_dbfe.prg
+    + adding test for SET AUT[ORDER|OPEN]. LastRec()
+
+  * Readme.txt
+    + note about leto_std.ch, use of Leto_Set()
+
+  * utils/manage/console.prg
+    * limit locks list tranfer; change display of them
+    ! better resize window behaviour
+
 2017-01-20 16:24 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     - SELF_CLOSE() already done by RDD for letoOpen()

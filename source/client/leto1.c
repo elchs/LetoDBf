@@ -6053,10 +6053,12 @@ HB_FUNC( LETO_HASH )
       hb_retni( 0 );
 }
 
-HB_FUNC( LETO_SETGET )
+HB_FUNC( LETO_SET )
 {
-   HB_BOOL fSet = HB_FALSE;
-   HB_BOOL fOldSet = HB_FALSE, fNewSet = HB_FALSE;
+   HB_BOOL   fSet = HB_FALSE;
+   PHB_ITEM  pItem = hb_itemNew( NULL );
+   HB_BOOL   fNewSet = HB_FALSE;
+   int       iNewSet = 0;
 
    if( HB_ISNUM( 1 ) )
    {
@@ -6078,37 +6080,95 @@ HB_FUNC( LETO_SETGET )
             fSet = HB_TRUE;
          }
       }
+      else if( HB_ISNUM( 2 ) )
+      {
+         iNewSet = hb_parni( 2 );
+         if( iNewSet >= 0 )
+            fSet = HB_TRUE;
+      }
+   }
+
+   switch( hb_parni( 1 ) )
+   {
+      case HB_SET_SOFTSEEK:
+         hb_itemPutL( pItem, hb_setGetSoftSeek() );
+         if( fSet && fNewSet == hb_itemGetL( pItem ) )
+            fSet = HB_FALSE;
+         if( fSet )
+            hb_itemPutL( pItem, fNewSet );
+         break;
+
+      case HB_SET_DELETED:
+         hb_itemPutL( pItem, hb_setGetDeleted() );
+         if( fSet && fNewSet == hb_itemGetL( pItem ) )
+            fSet = HB_FALSE;
+         if( fSet )
+            hb_itemPutL( pItem, fNewSet );
+         break;
+
+      case HB_SET_AUTOPEN:
+         hb_itemPutL( pItem, hb_setGetAutOpen() );
+         if( fSet && fNewSet == hb_itemGetL( pItem ) )
+            fSet = HB_FALSE;
+         if( fSet )
+            hb_itemPutL( pItem, fNewSet );
+         break;
+
+      case HB_SET_AUTORDER:
+         hb_itemPutNI( pItem, hb_setGetAutOrder() );
+         if( fSet && iNewSet == hb_itemGetNI( pItem ) )
+            fSet = HB_FALSE;
+         if( fSet )
+            hb_itemPutNI( pItem, iNewSet );
+         break;
+
+      default:
+         fSet = HB_FALSE;
+         break;
    }
 
    if( fSet )
    {
-      if( hb_parni( 1 ) == HB_SET_DELETED )
-         fOldSet = hb_setGetDeleted();
-      else
-         fSet = HB_FALSE;
-   }
-
-   if( fSet && fNewSet != fOldSet )
-   {
+      LETOCONNECTION * pConnection = NULL;
       LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-      PHB_ITEM  pItem = hb_itemNew( NULL );
 
-      hb_itemPutL( pItem, fNewSet );
+      /* apply local */
       hb_setSetItem( ( HB_set_enum ) hb_parni( 1 ), pItem );
-      hb_itemRelease( pItem );
 
       if( pArea )
       {
          LETOTABLE * pTable = pArea->pTable;
 
-         if( pTable )
+         if( pTable )  /* reset skipbuffer */
          {
-            /* the cause to do this all */
             pTable->ptrBuf = NULL;
             pTable->llDeciSec = 0;
+            if( leto_CheckArea( pArea ) )
+               pConnection = letoGetConnPool( pTable->uiConnection );
          }
       }
+
+      /* apply at server if connected */
+      if( ! pConnection )
+         pConnection = letoGetCurrConn();
+      if( pConnection )
+      {
+         if( HB_IS_NUMERIC( pItem ) )
+         {
+            char * szSet = hb_itemStr( pItem, NULL, NULL );
+
+            if( szSet )
+            {
+               LetoSet( pConnection, 1000 + hb_parni( 1 ), szSet );
+               hb_xfree( szSet );
+            }
+         }
+         else  /* boolean */
+            LetoSet( pConnection, 1000 + hb_parni( 1 ), hb_itemGetL( pItem ) ? "T" : "F" );
+      }
    }
+
+   hb_itemReturnRelease( pItem );
 }
 
 static void hb_letoRddInit( void * cargo )

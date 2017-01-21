@@ -6333,7 +6333,6 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
       leto_SendAnswer( pUStru, pData, ulLen ? ulLen : strlen( pData ) );
    else
       leto_SendAnswer2( pUStru, pData, ulLen ? ulLen : strlen( pData ), ! iRes, iRes < 1000 ? iRes + 1000 : iRes );
-      //leto_SendAnswer( pUStru, pData, strlen( pData ) );
    if( szData2 )
       hb_xfree( szData2 );
 }
@@ -6350,7 +6349,6 @@ static void leto_Flush( PUSERSTRU pUStru, const char * szData )
 
    if( szData )  /* else a flush done after append/ update */
       leto_SendAnswer2( pUStru, szOk, 4, bOk, 1000 );
-   //leto_SendAnswer( pUStru, szOk|szErrr101, 4 );
 }
 
 static void leto_UpdateRecAdd( PUSERSTRU pUStru, const char * szData )
@@ -8316,7 +8314,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
 
          case '4': /* LETO_MGGETLOCKS */
          {
-            HB_USHORT       uiCount = 0;
+            HB_USHORT       uiLocks = 0, uiCount = 0;
             PLETO_LOCK_ITEM pLockA;
             int             iUser = -1;
             HB_ULONG        ulMemSize = 0;
@@ -8338,8 +8336,12 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
             {
                char * pTmp;
 
-                if( ( pTmp = strchr( pp3, '<' ) ) != NULL )
+               if( ( pTmp = strchr( pp3, '<' ) ) != NULL )
                   iListLen = atoi( ++pTmp );
+               if( iListLen < 1 )
+                  iListLen = 1;
+               else
+                  iListLen = HB_MIN( 999, iListLen );
             }
 
             if( iUser >= 0 && iUser < ( int ) s_uiUsersAlloc )
@@ -8353,12 +8355,13 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                if( s_users[ iUser ].iUserStru )
                {
                   pListItem = s_users[ iUser ].AreasList.pItem;
-                  while( pListItem )
+                  while( pListItem && uiCount < ( HB_USHORT ) iListLen )
                   {
                      pAStru = ( PAREASTRU ) ( pListItem + 1 );
                      if( pAStru && pAStru->pTStru && pAStru->pTStru->szTable &&
                          ( pp2 ? ! strcmp( ( const char * ) pAStru->pTStru->szTable, pp2 ) : HB_TRUE ) )
                      {
+                        uiCount++;
                         if( ! pData )
                         {
                            ulMemSize = HB_PATH_MAX + 42;
@@ -8383,7 +8386,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                               if( *( ptr - 1 ) != ';' )
                                  *ptr++ = ',';
                               ptr += sprintf( ptr, "%lu", pLockA->ulRecNo );
-                              if( uiCount++ > iListLen )
+                              if( uiLocks++ > iListLen )
                                  break;
                            }
                         }
@@ -8396,7 +8399,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                               if( *( ptr - 1 ) != ';' )
                                  *ptr++ = ',';
                               ptr += sprintf( ptr, "%lu", pLockA->ulRecNo );
-                              if( uiCount++ > iListLen )
+                              if( uiLocks++ > iListLen )
                                  break;
                            }
                            letoListUnlock( &pAStru->pTStru->LocksList );
@@ -8434,6 +8437,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                   {
                      if( pp2 ? ! strcmp( ( const char * ) pTStru1->szTable, pp2 ) : HB_TRUE )
                      {
+                        uiCount++;
                         if( ! pData )
                         {
                            ulMemSize = HB_PATH_MAX + 42;
@@ -8457,7 +8461,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                            if( *( ptr - 1 ) != ';' )
                               *ptr++ = ',';
                            ptr += sprintf( ptr, "%lu", pLockA->ulRecNo );
-                           if( uiCount++ > iListLen )
+                           if( uiLocks++ > iListLen )
                               break;
                         }
                         letoListUnlock( &pTStru1->LocksList );
@@ -9299,14 +9303,13 @@ static void leto_CloseT( PUSERSTRU pUStru, const char * szData )
       }
       else
       {
-         pData = szErr4;
+         pData = szOk;
          leto_wUsLog( pUStru, -1, "DEBUG! leto_CloseT workarea (%lu) not found (not opened ?), developer error", ulAreaID );
       }
    }
 
    if( ! pUStru->bBeQuiet )
       leto_SendAnswer2( pUStru, pData, 4, bOk, 1000 );
-   //leto_SendAnswer( pUStru, pData, 4 );
 
    if( bOk )
       pUStru->bLastAct = HB_TRUE;
@@ -9364,7 +9367,6 @@ static void leto_CloseTall( PUSERSTRU pUStru, const char * szData  )
 
    leto_CloseAll4Us( pUStru );
    leto_SendAnswer2( pUStru, szOk, 4, HB_TRUE, 1000 );
-   // leto_SendAnswer( pUStru, szOk, 4 );
 
    HB_GC_UNLOCKU();
 }
@@ -9442,7 +9444,6 @@ static void leto_Set( PUSERSTRU pUStru, const char * szData )
 
    if( nParam < 1 )   // changed protocol || *szData != '0' )
       leto_SendAnswer2( pUStru, szErr2, 4, HB_FALSE, 1000 );
-      //leto_SendAnswer( pUStru, szErr2, 4 );
    else
    {
       int iCmd = atoi( szData );
@@ -9478,9 +9479,25 @@ static void leto_Set( PUSERSTRU pUStru, const char * szData )
                   pUStru->bBufKeyCount = bSet;
             }
             break;
+
+         default:  /* SET #defines + 1000 */
+            if( nParam >= 2 && iCmd > 1000 )
+            {
+               PHB_ITEM  pItem = hb_itemNew( NULL );
+
+               if( *pAreaID == 'T' || *pAreaID == 'F' )
+                  hb_itemPutL( pItem, *pAreaID == 'T' );
+               else
+                  hb_itemPutNI( pItem, atoi( pAreaID ) );
+               hb_setSetItem( iCmd - 1000, pItem );
+               hb_itemRelease( pItem );
+               if( s_iDebugMode >= 10 )
+                  leto_wUsLog( pUStru, -1, "DEBUG leto_Set: Set( %d, %s )", iCmd - 1000, pAreaID );
+            }
+            break;
       }
+
       leto_SendAnswer2( pUStru, szOk, 4, HB_TRUE, 1000 );
-      //leto_SendAnswer( pUStru, szOk, 4 );
    }
 }
 

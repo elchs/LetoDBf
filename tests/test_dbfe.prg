@@ -103,6 +103,11 @@ Function Main( cPath )
                  MINFO WITH "elk test" + STR( i, 10, 0)
       NEXT i
       ? LEN( aNames ), "Records has been added"
+      IF LASTREC() == LEN( aNames )
+         ?? " (ok)"
+      ELSE
+         ?? " fail"
+      ENDIF
       INDEX ON NAME TAG NAME
       ? "INDEX KEY 1:", IIF( indexord() == 1, "(ok)", "(fail)" ), indexkey( 1 )
       INDEX ON Str(NUM,4) TAG NUMS
@@ -118,7 +123,7 @@ Function Main( cPath )
       ?? " with extension: ", RDDInfo( RDDI_ORDEREXT ), ";"
    ELSE
       IF ! DbExists( "test2" + RDDInfo( RDDI_ORDEREXT ) )
-         ? "INDEX KEY 2:", IIF( indexord() == 2, "(ok)", "(fail)" ), indexkey( 2 )
+         ? "INDEX KEY 2:", IIF( indexord() == 0, "(ok)", "(fail)" ), indexkey( 2 )
          INDEX ON NUM TAG NUMI TO test2
          DbSetIndex( "test2" )
          DbSetIndex( "test1" )
@@ -250,6 +255,18 @@ Function Main( cPath )
    ? "Press any key to continue..."
    Inkey( 0 )
 
+   ?
+   IF ! "NTX" $ Leto_DbDriver()[ 1 ]  /* NTX intentionally does not autoopen */
+      SET AUTOPEN OFF
+      SET AUTORDER TO 0
+      USE ( "test1" ) SHARED New
+      i := DBORDERINFO( DBOI_ORDERCOUNT )
+      ? "AutOpen off " + IIF( i == 0, "- Ok", "- Failure" )
+      USE
+   ENDIF
+
+   SET AUTORDER TO 1
+   SET AUTOPEN ON
    USE ( "test1" ) SHARED New
    i := 0
    ? "AutoOpened Tags:"
@@ -257,12 +274,13 @@ Function Main( cPath )
       ? i, ordKey( i )
    ENDDO
    i := DBORDERINFO( DBOI_ORDERCOUNT )
-   IF RDDInfo( RDDI_STRUCTORD )
+   IF RDDInfo( RDDI_STRUCTORD ) .AND. ! "NTX" $ Leto_DbDriver()[ 1 ]
       ? "Active orders ", i, Iif( i == 3, "- Ok","- Failure" )
       ? "Focus set to  ", indexord(), Iif( indexord() == SET( _SET_AUTORDER ), "- Ok","- Failure" )
    ELSE
       ? "Indextype does not support to auto-open index, found:", STR( i, 1, 0 ), " TAGs"
    ENDIF
+
    OrdListAdd( "test2" )
    ? "Destroy singular TAG <NUMI> in BAG <test2>", IIF( OrdDestroy( "NUMI" ) .AND. ! hb_dbExists( "test2.cdx" ), "- Ok","- Failure" )
 
