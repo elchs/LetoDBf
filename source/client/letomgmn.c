@@ -608,7 +608,10 @@ HB_FUNC( LETO_DISCONNECT )
 
    if( pConnection )
    {
-      leto_ConnectionClose( pConnection );
+      if( ! HB_ISLOG( 2 ) || ! hb_parl( 2 ) )
+         leto_ConnectionClose( pConnection );
+      else
+         LetoConnectionClose( pConnection );  /* only socket shutdown */
       hb_retl( HB_TRUE );
    }
    else

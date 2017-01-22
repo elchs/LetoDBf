@@ -1419,11 +1419,14 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
             {
                szAddr[ 0 ] = '\0';
                fWithIP = HB_FALSE;
+               hb_xfree( szIP );
                break;
             }
             else
+            {
                strcpy( szAddr, szIP );
-            hb_xfree( szIP );
+               hb_xfree( szIP );
+            }
          }
       }
 
