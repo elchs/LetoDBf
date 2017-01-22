@@ -1334,11 +1334,11 @@ int LetoCheckServerVer( LETOCONNECTION * pConnection, HB_USHORT uiVer )
 
 const char * leto_RemoveIpFromPath( const char * szPath )
 {
-   if( szPath && strlen( szPath ) >= 10 && szPath[ 0 ] == '/' && szPath[ 1 ] == '/' )
+   if( szPath && strlen( szPath ) >= 5 && szPath[ 0 ] == '/' && szPath[ 1 ] == '/' )
    {
       const char * ptr = strchr( szPath + 2, '/' );
 
-      if( ptr &&  ptr - szPath <= 24 )  /* "//123.123.123.123:12345/" */
+      if( ptr &&  ptr - szPath <= 71 )  /* "//123.123.123.123:12345/" or //DNS63:12345/ */
          return ptr + 1;
    }
    return szPath;
@@ -1367,10 +1367,10 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
    const char * ptrPort = szSource;
    const char * ptr = szSource;
    int          iLen = ptr ? strlen( ptr ) : 0;
-   HB_BOOL      fWithPort = HB_TRUE, fWithIP = iLen >= 10 ? HB_TRUE : HB_FALSE;
+   HB_BOOL      fWithPort = HB_TRUE, fWithIP = iLen >= 5 ? HB_TRUE : HB_FALSE;
 
    szAddr[ 0 ] = '\0';
-   while( iLen >= 10 )  /* "//1.1.1.1/" len 10-18 */
+   while( iLen >= 5 )  /* "//1.1.1.1/" len 10-18 or "//lh/" len 5-66 */
    {
       if( ptr[ 0 ] != '/' || ptr[ 1 ] != '/' )
       {
@@ -1399,7 +1399,7 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
          fWithIP = HB_FALSE;
          break;
       }
-      else if( ptrPort - ptr < 7 )  /* address min len */
+      else if( ptrPort - ptr < 2 )  /* address or hostname min len */
       {
          fWithIP = HB_FALSE;
          break;
@@ -1409,6 +1409,23 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
 
       memcpy( szAddr, ptr, ptrPort - ptr );
       szAddr[ ptrPort - ptr ] = '\0';
+      if( atoi( szAddr ) == 0 )  /* instead a valid hostname ? */
+      {
+         char * szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
+
+         if( szIP )
+         {
+            if( atoi( szIP ) == 0 )
+            {
+               szAddr[ 0 ] = '\0';
+               fWithIP = HB_FALSE;
+               break;
+            }
+            else
+               strcpy( szAddr, szIP );
+            hb_xfree( szIP );
+         }
+      }
 
       if( fWithPort )
       {

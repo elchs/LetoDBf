@@ -2,7 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
-2017-01-21 21:16 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+2017-01-21 06:40 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/client/letocl.c
+    + allow use of network name to be resolved as IP address
+
+2017-01-21 22:33 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/leto_std.ch
   * source/client/leto1.c
   * source/client/letocl.c

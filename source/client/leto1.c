@@ -2026,7 +2026,7 @@ static LETOCONNECTION * leto_OpenConn( LETOCONNECTION * pConnection, const char 
    {
       if( ! szParam || ! *szParam )
          pConnection = letoGetCurrConn();
-      else if( strlen( szParam ) > 10 && szParam[ 0 ] == '/' && szParam[ 1 ] == '/' )
+      else if( strlen( szParam ) >= 5 && szParam[ 0 ] == '/' && szParam[ 1 ] == '/' )
       {
          char szAddr[ 96 ];
          int  iPort = 0;
