@@ -560,6 +560,13 @@ A. Internals
  After doing this an initial time, you are also connected to the server and would need for the next calls
  no more IPaddress:port prefix more. This is a hint for experienced LetoDB users to think about.
 
+ SET AUTOPEN ON off -- SET AUTORDER TO ( 0 - x ):
+ With connecting the server, the server defaults will be applied to the client. These change beforehand
+ done changes at them. Defaults for server can be changed in letodb.ini.
+ About changes after establishing a connection the server must be informed. this is done by using
+ the SET commands, which are translated by '#include leto_std.ch' into Leto_Set() function call.
+ This include file is automatically bound by using the "letodb.hbc" hbmk2 file.
+
 
       5.2 Filters
 
@@ -712,6 +719,20 @@ A. Internals
  changing it.
  Recommended is to use the commands: SET xxx [ TO ] instead this function. This translation is done
  in "leto_std.ch" to inform server for these SETs, likely it is else done in Harbour "std.ch".
+
+      LETO_RECONNECT( [ cAddress ], [ cUserName ], [ cPassword ],
+                    [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck ], [ nDelay ] )
+                                                               ==> nConnection, -1 if failed
+ All param are optional! and same as LETO_CONNECT(), plus optional 7th param <nDelay> in unit seconds.
+ This will close a possible still alive or dead connection to server, and re-establish a new connection
+ to the same or even different server if <cAddress> is given. Except <cUserName> and <cPassword> all
+ params are filled in by setting of the old connection.
+ The full WA environment ( tables, index orders, filters, scope, relations, R|F-locks ) is restored
+ for the new connection.
+ If it is the same server, <nDelay> will be 1.0 second to let the server close the tables and remove
+ existing locks before try to establish a new connection, for different server no delay is needed.
+ <nDelay> should only needed to be manually set, if a connection is made to same server, but over
+ different network.
 
 
       7.2 Transaction functions
@@ -981,8 +1002,8 @@ A. Internals
  Determine if cirectory exist at the server, analog of Leto_File() function, but
  for directories
 
-      Leto_MakeDir( cPath )                                    ==> -1 if failed
- Creates a directory at the server
+      Leto_DirMake( cPath )                                    ==> -1 if failed
+ Creates a directory at the server. [ renamed, formerly: Leto_MakeDir ]
 
       Leto_DirRemove( cPath )                                  ==> -1 if failed
  Deletes a directory at the server

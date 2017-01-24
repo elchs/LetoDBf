@@ -189,12 +189,13 @@ LETOCONNECTION * letoGetCurrConn( void )
    return pLetoPool->pCurrentConn;
 }
 
-void letoClearCurrConn( void )
+void letoClearCurrConn( LETOCONNECTION * pConnection )
 {
    LETOPOOL *   pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
    unsigned int ui;
 
-   pLetoPool->pCurrentConn = NULL;
+   if( pLetoPool->pCurrentConn && pLetoPool->pCurrentConn == pConnection )
+      pLetoPool->pCurrentConn = NULL;
 
    for( ui = 0; ui < pLetoPool->uiConnCount; ui++ )
    {
@@ -228,9 +229,10 @@ LETOCONNECTION * letoGetCurrConn( void )
    return s_pCurrentConn;
 }
 
-void letoClearCurrConn( void )
+void letoClearCurrConn( LETOCONNECTION * pConnection )
 {
-   s_pCurrentConn = NULL;
+   if( s_pCurrentConn && s_pCurrentConn == pConnection )
+      s_pCurrentConn = NULL;
 }
 
 HB_USHORT uiGetConnCount( void )
@@ -903,7 +905,6 @@ static long leto_Recv( LETOCONNECTION * pConnection )
       hb_vmLock();
       return -1;
    }
-
    do
    {
 #ifndef USE_LZ4
@@ -1171,7 +1172,7 @@ static long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsign
 
    if( iErr )
    {
-#if 0  /* new function since 2015/08/17 */
+#if ! defined( __HARBOUR30__ )  /* new function since 2015/08/17 */
       hb_socketSetError( iErr );
 #endif
       ulSent = 0;
@@ -1191,6 +1192,8 @@ long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * szData, unsig
       ulLen = strlen( szData );
 
    lRecv = leto_Send( pConnection, szData, ulLen );
+   if( ! lRecv )
+      pConnection->iError = 1000;
    if( delayedError() )
       lRecv = 0;
 
@@ -1199,8 +1202,12 @@ long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * szData, unsig
       lRecv = leto_Recv( pConnection );
       if( lRecv <= 0 )
       {
+#if ! defined( __HARBOUR30__ )  /* new function since 2015/08/17 */
+         hb_socketSetError( LETO_SOCK_GETERROR() );
+#endif
          lRecv = 0;
          pConnection->fMustResync = HB_TRUE;  // ToDo - does not really work
+         pConnection->iError = 1000;
       }
    }
 
@@ -1385,7 +1392,7 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
             fWithIP = HB_FALSE;
             break;
          }
-         else if( ptrPort - ptr > 15 || ptrPort - ptr < 7 )
+         else if( ptrPort - ptr > 63 || ptrPort - ptr < 2 )
          {
             fWithIP = HB_FALSE;
             break;
@@ -2674,6 +2681,7 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
       pLetoPool->uiConnCount++;
    }
    pConnection = pLetoPool->letoConnPool + ui;
+   memset( pConnection, 0, sizeof( LETOCONNECTION ) );
    pLetoPool->pCurrentConn = pConnection;
 
 #else
@@ -2986,10 +2994,6 @@ HB_EXPORT int LetoCloseAll( LETOCONNECTION * pConnection )
 /* called from both version with 'LETO_MT' and without MT */
 HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
 {
-#ifndef LETO_MT
-   LETOCONNECTION * pCurrentConn = letoGetCurrConn();
-#endif
-
    if( pConnection->pAddr )
    {
       hb_xfree( pConnection->pAddr );
@@ -3085,12 +3089,7 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
       pConnection->hSockPipe[ 0 ] = FS_ERROR;
    }
 
-#ifndef LETO_MT
-   if( pCurrentConn && pCurrentConn == pConnection )
-      s_pCurrentConn = NULL;
-#endif
-
-   /* check if there is another possible connection */
+   letoClearCurrConn( pConnection );
 }
 
 static const char * leto_AddFields( LETOTABLE * pTable, HB_USHORT uiFields, const char * szFields )

@@ -516,7 +516,7 @@ HB_FUNC( LETO_DIRECTORY )  /* ( cPathSpec, cAttributes ) */
    hb_itemReturnRelease( hb_itemArrayNew( 0 ) );
 }
 
-HB_FUNC( LETO_MAKEDIR )
+HB_FUNC( LETO_DIRMAKE )
 {
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];

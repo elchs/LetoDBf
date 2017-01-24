@@ -44,7 +44,7 @@
  *
  */
 
- 
+
 /* ! also used in C source ! */
 
 #ifndef LETO_CH_
@@ -60,6 +60,7 @@
 #define LETO_ERR_SOCKET       7
 #define LETO_ERR_PROTO        8
 #define LETO_ERR_LOCKED       9
+#define LETO_ERR_RESTORE     10
 
 #define LETO_CDX              0
 #define LETO_NTX              1

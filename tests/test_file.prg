@@ -5,7 +5,6 @@
 REQUEST LETO
 #include "rddleto.ch"
 
-REQUEST Leto_MakeDir, Leto_DirExist, Leto_DirRemove
 REQUEST hb_vfExists, hb_vfOpen, hb_vfClose
 
 Function Main( cPath )
@@ -111,15 +110,24 @@ Function Main( cPath )
       ?? " wrong"
    ENDIF
 
+   ? 'leto_DirMake( "TEST" ) - '
+   ?? Iif( leto_DirMake( "TEST" ) == 0, "Ok", "Failure" )
+   ?? Iif( leto_DirExist( "TEST" ), " verified", "!" )
+   ? 'leto_DirRemove( "TEST" ) - '
+   ?? Iif( leto_DirRemove( "TEST" ) == 0, "Ok", "Failure" )
+   ?? Iif( ! leto_DirExist( "TEST" ), " verified", "!" )
+
+   ? "Press any key to continue..."
+   ?
    arr := leto_directory( "*" )
    ? 'leto_directory(): (' + Ltrim(Str(Len(arr))) + ")"
-   ? "Press any key to continue..."
    Inkey( 0 )
    ? "found files: "
    FOR i := 1 TO Len( arr )
       ?? arr[i,1] + "; "
    NEXT
    ? "----------"
+   ? "Press any key to continue..."
 
    ? 'leto_ferase( "test2.txt" ) - '
    ?? Iif( leto_fErase( "test2.txt" ) == 0, "Ok", "Failure" )

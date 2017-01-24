@@ -196,12 +196,16 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:width := 5
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
-   oColumn := TbColumnNew( "last active", ArrBlock( ATAIL( aBrows ), 8, @aPos[ 1 ] ) )
+   oColumn := TbColumnNew( "last active", ArrBlock( ATAIL( aBrows ), 5, @aPos[ 1 ] ) )
    oColumn:width := 9
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "last action", ArrBlock( ATAIL( aBrows ), 6, @aPos[ 1 ] ) )
    oColumn:width := 64
+   oColumn:defcolor := { 1, 2 }
+   ATAIL( aBrows ):addColumn( oColumn )
+   oColumn := TbColumnNew( "username", ArrBlock( ATAIL( aBrows ), 8, @aPos[ 1 ] ) )
+   oColumn:width := 12
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    ATAIL( aBrows ):freeze := 1
@@ -230,12 +234,12 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "Filename", ArrBlock( ATAIL( aBrows ), 2, @aPos[ 2 ] ) )
-   oColumn:width := MAXCOL() - 33 - 21
+   oColumn:width := MAXCOL() - 31 - 21
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
-   AADD( aBlocks, {|oBrow| IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
-                           ( oBrow:cargo := leto_MgGetTables( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) ) ), ( oBrow:cargo := {} ) ),;
-                    AEVAL( @oBrow:cargo, {|aData| aData[ 5 ] := IIF( aData[ 5 ] , "shar", "excl" ) } ) } )
+   AADD( aBlocks, { | oBrow | IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
+                   ( oBrow:cargo := leto_MgGetTables( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) ) ), ( oBrow:cargo := {} ) ),;
+                   AEVAL( @oBrow:cargo, {|aData| aData[ 5 ] := IIF( aData[ 5 ] , "shar", "excl" ) } ) } )
 
    /* indexes */
    AADD( aPos, 1 )
@@ -252,7 +256,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "Key", ArrBlock( ATAIL( aBrows ), 4, @aPos[ 3 ] ) )
-   oColumn:width := MAXCOL() - 14 - 21
+   oColumn:width := MAXCOL() - 12 - 21
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "Filename", ArrBlock( ATAIL( aBrows ), 2, @aPos[ 3 ] ) )
@@ -260,8 +264,8 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    ATAIL( aBrows ):freeze := 1
-   AADD( aBlocks, {|oBrow| IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
-                           ( oBrow:cargo := leto_MgGetIndex( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) ), ( oBrow:cargo := {} ) ) } )
+   AADD( aBlocks, { | oBrow | IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
+                   ( oBrow:cargo := leto_MgGetIndex( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) ), ( oBrow:cargo := {} ) ) } )
 
    /* locks list */
    AADD( aPos, 1 )
@@ -274,15 +278,15 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):headSep   := CHR_HEADSEP
    ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "    Record Lock    ", ArrBlock( ATAIL( aBrows ), 2, @aPos[ 4 ] ) )
-   oColumn:width := 19
+   oColumn:width := 17
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "Filename", ArrBlock( ATAIL( aBrows ), 1, @aPos[ 4 ] ) )
    oColumn:width := 21
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
-   AADD( aBlocks, {|oBrow| IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
-                           ( oBrow:cargo := GetLocks( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) ), ( oBrow:cargo := {} ) ) } )
+   AADD( aBlocks, { | oBrow | IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
+                   ( oBrow:cargo := GetLocks( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) ), ( oBrow:cargo := {} ) ) } )
 
    aLastPos := Aclone( aPos )
    EVAL( aBlocks[ 1 ], aBrows[ 1 ] )
@@ -323,7 +327,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          aBrows[ 2 ]:nRight := MAX( nMaxCol - 20, 20 )
          aBrows[ 2 ]:nBottom := MAX( nMaxRow - 5 - nAllExtra, 16 )
          oColumn := aBrows[ 2 ]:getColumn( 4 )
-         oColumn:width := MAX( nMaxCol - 33 - 21, 1 )
+         oColumn:width := MAX( nMaxCol - 31 - 21, 1 )
          aBrows[ 3 ]:setColumn( 4, oColumn )
          aBrows[ 2 ]:configure()
 
@@ -331,7 +335,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
          aBrows[ 3 ]:nRight := MAX( nMaxCol - 20, 20 )
          aBrows[ 3 ]:nBottom := MAX( nMaxRow, 20 )
          oColumn := aBrows[ 3 ]:getColumn( 2 )
-         oColumn:width := MAX( nMaxCol - 14 - 21, 1 )
+         oColumn:width := MAX( nMaxCol - 12 - 21, 1 )
          aBrows[ 3 ]:setColumn( 2, oColumn )
          oColumn := aBrows[ 3 ]:getColumn( 3 )
          oColumn:width := MAX( nMaxCol - 23, 1 )
@@ -771,7 +775,7 @@ STATIC FUNCTION GetAllConnections( oBrow )
       oBrow:cargo := {}  /* can be NIL */
    ELSE
       AEVAL( @oBrow:cargo, { | aConn | aConn[ 7 ] := DriverName( VAL( aConn[ 7 ] ) ) } )
-      AEVAL( @oBrow:cargo, { | aConn | aConn[ 8 ] := SecToTimestring( Val( aConn[ 5 ] ) ) } )
+      AEVAL( @oBrow:cargo, { | aConn | aConn[ 5 ] := SecToTimestring( Val( aConn[ 5 ] ) ) } )
       AEVAL( @oBrow:cargo, { | aConn | aConn[ 6 ] := ActionDecode( aConn[ 6 ] ) } )
    ENDIF
 RETURN .T.
@@ -787,7 +791,7 @@ STATIC FUNCTION GetLocks( nConnection, cTable )
       DO WHILE .NOT. TOKENEND()
          cLock := TOKENNEXT( cTmp )
          IF .NOT. EMPTY( cLock )
-            AADD( aLocks, { NIL, cLock } )
+            AADD( aLocks, { "", cLock } )
          ENDIF
       ENDDO
    ENDIF
@@ -1465,28 +1469,5 @@ STATIC FUNCTION TimedAlert( cText, nSec, cColor )
    SETCOLOR( oldcolor )
 RETURN .T.
 
-
-
-#if 0
- a backup try ...
- LOCAL bLockLock := leto_LockLock()
-      IIF( bLocked, "9 UNlock locks ", "8 Lock   locks " ),;
-
-         CASE nMenu == 8
-            TimedAlert( "LetoDBf server try 6 s to : " + IIF( bLockLock, "unlock", "lock" ) + " locking", 2, "W+/B" )
-            IF bLockLock
-               bLockLock := leto_LockLock( .F. )
-            ELSE
-               bLockLock := leto_LockLock( .T. )
-            ENDIF
-            TimedAlert( "LetoDBf server lock/ unlock locking: " + IIF( ! bLockLock, "failed", "successful" ), 2,;
-                         IIF( bLockLock,"W+/G", "W+/R" ) )
-
-
-      @ 6, 2 SAY "Server Lock Test wait"
-      leto_udf( "LETO_BACKUPTABLES", "/tmp/PRO-CNC/DATEN" )
-      hb_idleSleep( 30 )
-      @ 6, 2 SAY "Server Lock Test done"
-#endif
 
 

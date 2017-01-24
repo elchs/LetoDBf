@@ -2,6 +2,47 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-24 16:17 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * Readme.txt
+    + description for Leto_ReConnect(), comment about SET AUT[OPEN|ORDER]
+    * changed entry for Leto_DirMake()
+
+  * include/letocl.h
+  * include/rddleto.ch
+  * source/client/leto1.c
+    + LETO_RECONNECT(); new possible connection establish error
+    ; a function for 'server hop-ping': if connection communication error is
+      handled by an error handler, this function shutdown possible still alive
+      connection and establishes a new to ( possible different ) server;
+      WA environment fully restored for new connection
+    + connection param for letoClearCurrConn()
+
+  * source/client/letocl.c
+    ! length validation for DNS name without port
+    ! reset temporary used iConnectRes; missing zeroizing pConnection struct
+      for (re-used) new connection
+    * set leto_DataSendRecv() error 1000 for communication problems
+    + activate to set hb_socketSetError(), query-able at PRG level
+    + connection param for letoClearCurrConn(), move call into
+      LetoConnectionClose()
+
+  * tests/test_file.prg
+  * source/client/letomgmn.c
+    * renamed LETO_MAKEDIR to LETO_DIRMAKE, conform to other LETO_DIR*
+    + add test about directories commands
+
+  * source/server/letofunc.c
+    * do not send error for not closeable WA, only leave a log debug entry
+    ! store last used RDD driver with creating tables for console
+    ! fix Leto_DirMake()
+
+  * test/test_filt.prg
+    * add test for scope, aligning feedback
+
+  * utils/manage/console.prg
+    + add user name column for connections browse
+    * some cleanup
+
 2017-01-21 07:44 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     ! tiny memory leak for invalid DNS names

@@ -99,7 +99,7 @@ typedef struct _LETOBUFFER_
    unsigned long     ulBufLen;        /* allocated buffer length */
    unsigned long     ulBufDataLen;    /* data length in buffer */
    unsigned long     ulShoots;        /* using statistic */
-} LETOBUFFER;                         /* 40 */
+} LETOBUFFER;                         /* 32 */
 
 typedef struct _LETOFIELD
 {
@@ -132,7 +132,7 @@ typedef struct _LETOTAGINFO
    unsigned long     ulKeyCount;      /* value for ordKeyCount(), if buffering */
    void *            pExtra;
    struct _LETOTAGINFO * pNext;
-} LETOTAGINFO;                        /* 160 */
+} LETOTAGINFO;                        /* 112 */
 
 
 typedef struct _LETOTABLE
@@ -261,7 +261,8 @@ typedef struct _LETOCONNECTION_
    HB_FHANDLE        hSockPipe[ 2 ];
    HB_BYTE           uSrvLock;             /* 0 or type of server 'lock for e.g. replication' mode */
    HB_BOOL           fMustResync;          /* future idea, e.g. after missing answer for a request */
-} LETOCONNECTION;                          /* 352 */
+   PHB_ITEM          whoCares;             /* temporary tasks, e.g. collect WA relations for Leto_ReConnect() */
+} LETOCONNECTION;                          /* 408 */
 
 HB_EXTERN_END
 

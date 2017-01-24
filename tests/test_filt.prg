@@ -10,6 +10,7 @@ REQUEST leto_VarGet, leto_varSet, leto_varGetCached, leto_varDel
 REQUEST DbSetIndex, DbClearIndex
 
 #include "dbinfo.ch"
+#include "ord.ch"
 
 MEMVAR nNumTop, nNumBot
 
@@ -99,24 +100,25 @@ Function Main( cPath )
    ordSetFocus( "NAME" )
 
    SEEK "Petr"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
    SEEK "Andre"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
 
 
    SET FILTER TO NUM >= 1004 .AND. NUM <= 1010
    ?
    ? DbFilter(), "; optimized:", LETO_ISFLTOPTIM()
+   ? LETO_RECONNECT(,,,,,,10)
    GO TOP
-   ? "go top", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
+   ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
 
    GO BOTTOM
-   ? "go bottom", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
+   ? "go bottom ", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
 
    SEEK "Petr"
-   ? "seek", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
    SEEK "Andre"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
 
    ? "Press any key to continue..."
    Inkey( 0 )
@@ -128,15 +130,15 @@ Function Main( cPath )
    ?
    ? DbFilter(), "; optimized:", LETO_ISFLTOPTIM()
    GO TOP
-   ? "go top", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
+   ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
 
    GO BOTTOM
-   ? "go bottom", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
+   ? "go bottom ", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
 
    SEEK "Petr"
-   ? "seek", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
    SEEK "Andre"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
 
    ?
    ? "Press any key to continue..."
@@ -148,13 +150,13 @@ Function Main( cPath )
    ?
    ? DbFilter(), "; <cName> == '", cName, "' - optimized:", LETO_ISFLTOPTIM()
    GO TOP
-   ? "go top", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Alexander", "- Ok","- Failure" )
+   ? "go top    ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Alexander", "- Ok","- Failure" )
 
    GO BOTTOM
-   ? "go bottom", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Alexey", "- Ok","- Failure" )
+   ? "go bottom ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Alexey", "- Ok","- Failure" )
 
    SEEK "Petr"
-   ? "seek", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
 
    i := 0
    GO TOP
@@ -162,7 +164,7 @@ Function Main( cPath )
       i++
       SKIP
    ENDDO
-   ? "count", i, Iif( i == 42, "- Ok","- Failure" )
+   ? "count     ", i, Iif( i == 42, "- Ok","- Failure" )
 
    ?
    ? "Press any key to continue..."
@@ -174,20 +176,36 @@ Function Main( cPath )
    ? "SET FILTER TO", DbFilter()
 
    GO TOP
-   ? "go top", NUM, NAME, DINFO, Iif( NUM == 1003, "- Ok","- Failure" )
+   ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1003, "- Ok","- Failure" )
 
    GO BOTTOM
-   ? "go bottom", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
+   ? "go bottom ", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
 
    SEEK "Petr"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
    SEEK "Andre"
-   ? "seek", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+   ? "seek      ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
 
-   dbCloseAll()
+
+   SET SCOPE TO "Ivan", "Nikolay"
+   ? LETO_RECONNECT(,,,,,,10 )
+   ?
+   ? "SCOPE >= ", OrdScope( TOPSCOPE ), " <= ", OrdScope( BOTTOMSCOPE )
+   GO TOP
+   ? "go top    ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Ivan", "- Ok","- Failure" )
+
+   GO BOTTOM
+   ? "go bottom ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Nikolay", "- Ok","- Failure" )
+
+   SEEK "Konstantin"
+   ? "seek      ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Konstantin", "- Ok","- Failure" )
+   SEEK "Petr"
+   ? "seek      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+
    ?
    ? "Press any key to continue..."
    Inkey( 0 )
+   dbCloseAll()
 
    ?
    ? "dropping test DBF: "
