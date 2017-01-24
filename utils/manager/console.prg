@@ -155,7 +155,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
 
    ? "Connecting to " + cAddress
    /* LETO_CONNECT( cAddress, [ cUserName ], [ cPassword ], [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck ] ) */
-   IF leto_Connect( cAddress, cUser, cPasswd, 5000, , .T. ) == -1
+   IF leto_Connect( cAddress, cUser, cPasswd, 21000, , .T. ) == -1
       TimedALERT( leto_Connect_Err( .T. ), 3 )
       RETURN Nil
    ELSE

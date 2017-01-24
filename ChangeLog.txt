@@ -2,6 +2,10 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-24 22:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * utils/manage/console.prg
+    * increasing timeout for server response/ mutex access to 21 seconds
+
 2017-01-24 16:17 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * Readme.txt
     + description for Leto_ReConnect(), comment about SET AUT[OPEN|ORDER]
