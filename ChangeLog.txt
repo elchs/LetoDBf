@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-25 09:50 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    % no table mutex lock during index creation for exclusive opened table
+    % no table mutex for 'management connections info' if not table specific
+
 2017-01-24 22:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * utils/manage/console.prg
     * increasing timeout for server response/ mutex access to 21 seconds

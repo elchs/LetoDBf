@@ -8056,13 +8056,18 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
 
             if( nParam >= 2 )
             {
-               HB_GC_LOCKT();
                iTable = atoi( pp1 );
-               if( iTable < 0 || iTable >= ( int ) s_uiTablesCurr )
+               if( iTable < 0 )
                   iTable = -1;
                else
-                  ulAreaId = s_tables[ iTable ].ulAreaID;
-               HB_GC_UNLOCKT();
+               {
+                  HB_GC_LOCKT();
+                  if( iTable >= ( int ) s_uiTablesCurr )
+                     iTable = -1;
+                  else
+                     ulAreaId = s_tables[ iTable ].ulAreaID;
+                  HB_GC_UNLOCKT();
+               }
             }
             if( nParam >= 3 )
             {
@@ -13604,8 +13609,13 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
             HB_UINT           uiIndexInUse = 0;
             LETOTAG *         pTag;
             PINDEXSTRU        pIStru;
+            HB_BOOL           bLocked = HB_FALSE;
 
-            HB_GC_LOCKT();
+            if( pTStru->bShared && ! ( bTemporary || bExclusive ) )
+            {
+               HB_GC_LOCKT();
+               bLocked = HB_TRUE;
+            }
 
             /* check if index Bag in use by other -- different check for s_bNoSaveWA */
             if( bTemporary || bExclusive )
@@ -13697,6 +13707,12 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
 #else
                   LETOTAG *    pTagFree;
 #endif
+
+                  if( ! bLocked )
+                  {
+                     HB_GC_LOCKT();
+                     bLocked = HB_TRUE;
+                  }
 
 #ifdef LETO_HBNONCONFORM  /* add the new order to list of already opened */
 
@@ -13821,7 +13837,8 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
                }
             }
 
-            HB_GC_UNLOCKT();
+            if( bLocked )
+               HB_GC_UNLOCKT();
          }
       }
 
