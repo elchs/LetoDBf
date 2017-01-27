@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-27 16:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    * apply 3 RDDI settings as hb_setSetItem()
+    * do not transmit some RDDI string constants to server
+    ; they would be global to all connections
+
 2017-01-27 14:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/leto1.c

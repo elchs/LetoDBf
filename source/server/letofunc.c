@@ -4093,9 +4093,6 @@ static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
          switch( uiIndex )
          {
             /* numerics */
-#if 0 && ! defined( __HARBOUR30__ )
-            case RDDI_INDEXPAGESIZE:
-#endif
             case RDDI_DEBUGLEVEL:
             case RDDI_AUTOORDER:
             {
@@ -4138,35 +4135,40 @@ static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
                break;
             }
 
-            /* string values */
-            case RDDI_TABLEEXT:
-            case RDDI_MEMOEXT:
-            case RDDI_ORDBAGEXT:      /* multi-TAG default */
-            case RDDI_ORDEREXT:       /* single-TAG default */
-            case RDDI_ORDSTRUCTEXT:   /* single-TAG default */
-            case RDDI_PASSWORD:
-               if( pp3 )
-                  pItem = hb_itemPutC( NULL, pp3 );
-               else
-                  pItem = hb_itemPutC( NULL, NULL );
-
-               SELF_RDDINFO( pRDDNode, uiIndex, 0, pItem );
-               sprintf( szInfo, "+%s;", hb_itemGetCPtr( pItem ) );
-               hb_itemRelease( pItem );
-               break;
-
             /* booleans */
             case RDDI_OPTIMIZE:
-            case RDDI_FORCEOPT:
-            case RDDI_AUTOOPEN:
-            case RDDI_MULTITAG:
-            case RDDI_STRUCTORD:
                if( pp3 && strlen( pp3 ) == 1 )
                {
                   pItem = hb_itemPutL( NULL, ( *pp3 == 'T' ) );
-                  if( uiIndex == RDDI_AUTOOPEN )
-                     hb_setSetItem( HB_SET_AUTOPEN, pItem );
+                  hb_setSetItem( HB_SET_OPTIMIZE, pItem );
+                  hb_itemRelease( pItem );
                }
+               sprintf( szInfo, "+%c;", hb_setGetOptimize() ? 'T' : 'F' );
+               break;
+
+            case RDDI_FORCEOPT:
+               if( pp3 && strlen( pp3 ) == 1 )
+               {
+                  pItem = hb_itemPutL( NULL, ( *pp3 == 'T' ) );
+                  hb_setSetItem( HB_SET_FORCEOPT, pItem );
+                  hb_itemRelease( pItem );
+               }
+               sprintf( szInfo, "+%c;", hb_setGetForceOpt() ? 'T' : 'F' );
+               break;
+
+            case RDDI_AUTOOPEN:
+               if( pp3 && strlen( pp3 ) == 1 )
+               {
+                  pItem = hb_itemPutL( NULL, ( *pp3 == 'T' ) );
+                  hb_setSetItem( HB_SET_AUTOPEN, pItem );
+                  hb_itemRelease( pItem );
+               }
+               sprintf( szInfo, "+%c;", hb_setGetAutOpen() ? 'T' : 'F' );
+               break;
+
+            case RDDI_STRUCTORD:
+               if( pp3 && strlen( pp3 ) == 1 )
+                  pItem = hb_itemPutL( NULL, ( *pp3 == 'T' ) );
                else
                   pItem = hb_itemNew( NULL );
 
@@ -4183,7 +4185,7 @@ static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
          leto_SendAnswer( pUStru, szInfo, strlen( szInfo ) );
       }
       else
-         leto_SendAnswer( pUStru, szErr4, 4 );
+         leto_SendAnswer( pUStru, szErr1, 4 );
    }
 }
 

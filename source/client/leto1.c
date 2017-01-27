@@ -4769,7 +4769,6 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
       case RDDI_OPTIMIZE:
       case RDDI_FORCEOPT:
       case RDDI_AUTOOPEN:
-      case RDDI_MULTITAG:
       case RDDI_STRUCTORD:
       {
          LETOCONNECTION * pConnection;
@@ -4816,53 +4815,9 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          break;
       }
 
-      /* string values ask/ set from server */
-      case RDDI_TABLEEXT:
-      case RDDI_MEMOEXT:
-      case RDDI_ORDBAGEXT:      /* multi-TAG default */
-      case RDDI_ORDEREXT:       /* single-TAG default */
-      case RDDI_ORDSTRUCTEXT:   /* single-TAG default */
-      case RDDI_PASSWORD:
-      {
-         LETOCONNECTION * pConnection;
-         int iRes = 1;
-
-         if( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() )
-            pConnection = letoGetConnPool( ( HB_USHORT ) ulConnect - 1 );
-         else
-            pConnection = letoGetCurrConn();
-
-         if( pConnection )
-         {
-            if( LetoRddInfo( pConnection, uiIndex, HB_IS_STRING( pItem ) ? hb_itemGetC( pItem ) : NULL ) == HB_SUCCESS )
-            {
-               const char * ptr = leto_firstchar( pConnection );
-
-               if( *( ptr - 1 ) == '+' )
-               {
-                  char * ptr2 = strchr( ptr, ';' );
-
-                  if( ptr2 )
-                  {
-                     *ptr2 = '\0';
-                     hb_itemPutC( pItem, ptr );
-                     iRes = 0;
-                  }
-               }
-            }
-         }
-         if( iRes )
-            hb_itemPutC( pItem, "" );
-         break;
-      }
-
       /* numerics ask/ set from server */
       case RDDI_AUTOORDER:
       case RDDI_DEBUGLEVEL:
-#if 0   /* ToDo && ! defined( __HARBOUR30__ ) */
-      case RDDI_INDEXPAGESIZE:
-      case RDDI_SETHEADER:
-#endif
       {
          LETOCONNECTION * pConnection;
          int iRes = 1;
