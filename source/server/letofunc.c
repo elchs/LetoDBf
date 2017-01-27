@@ -703,23 +703,6 @@ void leto_initSet( void )
    hb_setSetItem( HB_SET_FORCEOPT, pItem );
 #endif
 
-   if( s_iAutOrder < 0 )  /* change Harbour default _SET_AUTOPEN -- is SET IN letodb.ini */
-   {
-      hb_itemPutL( pItem, HB_FALSE );
-      hb_setSetItem( HB_SET_AUTOPEN, pItem );
-   }
-   else if( s_iAutOrder >= 0 )
-   {
-      hb_itemPutL( pItem, HB_TRUE );
-      hb_setSetItem( HB_SET_AUTOPEN, pItem );
-
-      if( s_iAutOrder > 0 )
-      {
-         hb_itemPutNI( pItem, s_iAutOrder );
-         hb_setSetItem( HB_SET_AUTORDER, pItem );
-      }
-   }
-
    leto_setSetDeleted( HB_FALSE );  /* Harbour default */
 
    pRDDNode = hb_rddFindNode( leto_Driver( s_uiDriverDef ), &uiRddID );
@@ -1414,7 +1397,11 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
    if( HB_ISLOG( 18 ) )
       s_bOptimize = hb_parl( 18 );
    if( HB_ISNUM( 19 ) )
+   {
       s_iAutOrder = hb_parni( 19 );
+      if( s_iAutOrder < 0 )
+         s_iAutOrder = 0;
+   }
    if( HB_ISNUM( 20 ) )
       s_uiMemoType = ( HB_USHORT ) hb_parni( 20 );
    else
@@ -2437,6 +2424,26 @@ static int leto_SetFocus( AREAP pArea, const char * szOrder )
    return iOrder;
 }
 
+static HB_BOOL leto_ProdSupport( const char * szDriver )
+{
+   LPRDDNODE pRDDNode;
+   HB_USHORT uiRddID;
+   HB_BOOL   fSupportStruct = HB_FALSE;
+
+   pRDDNode = hb_rddFindNode( szDriver, &uiRddID );
+   if( pRDDNode )
+   {
+      PHB_ITEM pItem = NULL;
+
+      pItem = hb_itemPutC( pItem, NULL );
+      if( SELF_RDDINFO( pRDDNode, RDDI_STRUCTORD, 0, pItem ) == HB_SUCCESS )
+         fSupportStruct = hb_itemGetL( pItem );
+      hb_itemRelease( pItem );
+   }
+
+   return fSupportStruct;
+}
+
 /* return "sBagname;sTagname;sFor;cKeytype;iKeysize;bUnique;bCustom;"  ToDo no bTemporary ? */
 static int leto_IndexInfo( AREAP pArea, char * szRet, HB_USHORT uiNumber, const char * szKey, const char * szTagName,
                            const char * szBagName, HB_BOOL bProduction )
@@ -2591,7 +2598,7 @@ static PINDEXSTRU leto_InitIndex( PUSERSTRU pUStru, const char * szTagName, cons
    }
 
    if( ! bRegistered && pIStru &&
-       ( ( pIStru->bProduction && ! strstr( pAStru->pTStru->szDriver, "NTX" ) ) || *szFileName == '*' ||
+       ( ( pIStru->bProduction && leto_ProdSupport( pAStru->pTStru->szDriver ) ) || *szFileName == '*' ||
          ( ( ! s_bLowerPath ) ? ! strcmp( szFileName, pIStru->szBagName ) : ! leto_stricmp( szFileName, pIStru->szBagName ) ) ) )
    {
          pIStru->uiAreas++;
@@ -4155,7 +4162,11 @@ static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
             case RDDI_MULTITAG:
             case RDDI_STRUCTORD:
                if( pp3 && strlen( pp3 ) == 1 )
+               {
                   pItem = hb_itemPutL( NULL, ( *pp3 == 'T' ) );
+                  if( uiIndex == RDDI_AUTOOPEN )
+                     hb_setSetItem( HB_SET_AUTOPEN, pItem );
+               }
                else
                   pItem = hb_itemNew( NULL );
 
@@ -7401,8 +7412,6 @@ static void leto_Ordfunc( PUSERSTRU pUStru, const char * szData )
 
          if( uiLen )
          {
-            HB_UCHAR uNtxType = ( strstr( pAStru->pTStru->szDriver, "NTX" ) != NULL ) ? 1 : 0;
-
             pTag = pAStru->pTag;
             while( pTag )
             {
@@ -7410,7 +7419,7 @@ static void leto_Ordfunc( PUSERSTRU pUStru, const char * szData )
                if( ( ! s_bLowerPath ) ? ! strncmp( pTag->pIStru->szBagName, szBagName, uiLen ) :
                                         ! hb_strnicmp( pTag->pIStru->szBagName, szBagName, uiLen ) )
                {
-                  if( ! uNtxType && hb_setGetAutOpen() && pTag->pIStru->bProduction )
+                  if( pTag->pIStru->bProduction && hb_setGetAutOpen() && leto_ProdSupport( pAStru->pTStru->szDriver ) )
                   {
                      bProdIdx = HB_TRUE;
                      break;
@@ -7545,7 +7554,6 @@ static void leto_Ordfunc( PUSERSTRU pUStru, const char * szData )
          PINDEXSTRU pIStru;
          LETOTAG *  pTag = pAStru->pTag, * pTag1, * pTagPrev = NULL;
          HB_BOOL    bClear = HB_FALSE;
-         HB_UCHAR   uNtxType = ( strstr( pAStru->pTStru->szDriver, "NTX" ) != NULL ) ? 1 : 0;
          HB_USHORT  ui;
 
          HB_GC_LOCKT();
@@ -7554,7 +7562,7 @@ static void leto_Ordfunc( PUSERSTRU pUStru, const char * szData )
          ui = 0;
          while( ui < pTStru->uiIndexCount && ( pIStru = ( PINDEXSTRU ) letoGetListItem( &pTStru->IndexList, ui ) ) != NULL )
          {
-            if( uNtxType || ( ! hb_setGetAutOpen() || ! pIStru->bProduction ) )
+            if( ! pIStru->bProduction || ! leto_ProdSupport( pAStru->pTStru->szDriver ) || ! hb_setGetAutOpen() )
             {
                if( s_iDebugMode > 20 )
                   leto_wUsLog( pUStru, -1, "DEBUG leto_OrdFunc OrdListClear (%s) order %s for table %s",
@@ -8042,17 +8050,17 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
 
          case '1':   /* LETO_MGGETUSERS */
          {
-            PUSERSTRU pUStru1;
-            int       iTable = -1;
-            HB_USHORT ui, uiUsers;
-            HB_I64    llTimePoint = leto_MilliSec() / 1000;
-            char      szRequest[ 64 ];
-            HB_ULONG  ulMemSize;
-            HB_ULONG  ulAreaId = 0;
-            int       iListStart = 0;
-            int       iListLen = 65535;
-            HB_USHORT uiCount = 0;
-            char *    pData;
+            PUSERSTRU  pUStru1;
+            int        iTable = -1;
+            HB_USHORT  ui, uiUsers;
+            HB_I64     llTimePoint = leto_MilliSec() / 1000;
+            char       szRequest[ 64 ];
+            HB_ULONG   ulMemSize;
+            PGLOBESTRU pGlobe = NULL;
+            int        iListStart = 0;
+            int        iListLen = 65535;
+            HB_USHORT  uiCount = 0;
+            char *     pData;
 
             if( nParam >= 2 )
             {
@@ -8062,10 +8070,8 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                else
                {
                   HB_GC_LOCKT();
-                  if( iTable >= ( int ) s_uiTablesCurr )
-                     iTable = -1;
-                  else
-                     ulAreaId = s_tables[ iTable ].ulAreaID;
+                  if( iTable < ( int ) s_uiTablesCurr )
+                     pGlobe = s_tables[ iTable ].pGlobe;
                   HB_GC_UNLOCKT();
                }
             }
@@ -8103,7 +8109,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                      while( pListItem )
                      {
                         pAStru = ( PAREASTRU ) ( pListItem + 1 );
-                        if( pAStru && pAStru->pTStru && pAStru->pTStru->ulAreaID == ulAreaId )
+                        if( pAStru && pAStru->pTStru && pAStru->pTStru->pGlobe == pGlobe )
                         {
                            bShow = HB_TRUE;
                            break;
@@ -9106,6 +9112,32 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
 
          if( pp5 && *pp5 )
          {
+            PHB_ITEM pItem = hb_itemNew( NULL );
+            char *   pp6;
+
+            hb_itemPutL( pItem, *pp5++ == 'T' ? HB_TRUE : HB_FALSE );
+            hb_setSetItem( HB_SET_SOFTSEEK, pItem );
+            hb_itemClear( pItem );
+
+            hb_itemPutL( pItem, *pp5++ == 'T' ? HB_TRUE : HB_FALSE );
+            hb_setSetItem( HB_SET_DELETED, pItem );
+            hb_itemClear( pItem );
+
+            hb_itemPutL( pItem, *pp5++ == 'T' ? HB_TRUE : HB_FALSE );
+            hb_setSetItem( HB_SET_AUTOPEN, pItem );
+            hb_itemClear( pItem );
+
+            hb_itemPutNI( pItem, strtoul( pp5, &pp6, 10 ) );
+            hb_setSetItem( HB_SET_AUTORDER, pItem );
+            hb_itemRelease( pItem );
+
+            pp5 = pp6;
+            if( pp5 )
+               pp5++;
+         }
+
+         if( pp5 && *pp5 )
+         {
             char *   ptr;
             PHB_ITEM pItem = NULL;
 
@@ -9262,7 +9294,8 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                                      ( *( pUStru->szExename ) ? ( char * ) pUStru->szExename : "?exe?" ),
                                      hb_cdpID(), hb_setGetDateFormat(), pUStru->iUserStru - 1 );
          if( s_iDebugMode > 10 )
-            leto_writelog( NULL, -1, "DEBUG leto_Intro() DEFAULT %s  PATH %s", hb_setGetDefault(), hb_setGetPath() );
+            leto_writelog( NULL, -1, "DEBUG leto_Intro() AUTO -open %d -order %d DEFAULT '%s' PATH '%s'",
+                           ( int ) hb_setGetAutOpen(), hb_setGetAutOrder(), hb_setGetDefault(), hb_setGetPath() );
       }
    }
 
@@ -12114,12 +12147,13 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             HB_GC_UNLOCKT();
       }
 
+#if 0  /* this should be already done by Harbour */
       if( errcode == HB_SUCCESS && ! pArea )
       {
          pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
          if( ! pArea )
             errcode = HB_FAILURE;
-         else if( ! uiNtxType && hb_setGetAutOpen() )  /* non NTX */
+         else if( hb_setGetAutOpen() && leto_ProdSupport( szDriver ) )
          {
             DBORDERINFO pInfo;
 
@@ -12131,6 +12165,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             hb_itemRelease( pInfo.itmResult );
          }
       }
+#endif
 
       if( errcode != HB_SUCCESS )
       {
@@ -12190,7 +12225,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
          hb_itemRelease( pFldLen );
          hb_itemRelease( pFldDec );
 
-         if( ! uiNtxType && hb_setGetAutOpen() )  /* non NTX */
+         if( hb_setGetAutOpen() && leto_ProdSupport( szDriver ) )
          {
             char * szExt = ( char * ) hb_xgrab( HB_MAX_FILE_EXT + 1 );
             char * szIFile = ( char * ) hb_xgrab( HB_PATH_MAX );

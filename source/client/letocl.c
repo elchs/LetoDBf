@@ -2820,8 +2820,10 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
             ptr += ulLen * 2;
          }
          *ptr++ = ';';
-         eprintf( ptr, "%s;%s;%d;%s;%s", leto_GetServerCdp( pConnection, HB_CDP_PAGE() ? HB_CDP_PAGE()->id : "" ),
-                  hb_setGetDateFormat(), hb_setGetEpoch(), hb_setGetDefault(), hb_setGetPath() );
+         eprintf( ptr, "%s;%c%c%c%d;%s;%d;%s;%s", leto_GetServerCdp( pConnection, HB_CDP_PAGE() ? HB_CDP_PAGE()->id : "" ),
+                       hb_setGetSoftSeek() ? 'T' : 'F', hb_setGetDeleted() ? 'T' : 'F',
+                       hb_setGetAutOpen() ? 'T' : 'F', hb_setGetAutOrder(),
+                       hb_setGetDateFormat(), hb_setGetEpoch(), hb_setGetDefault(), hb_setGetPath() );
 
          ulLen = strlen( szData + LETO_MSGSIZE_LEN );
          HB_PUT_LE_UINT32( szData, ulLen );
@@ -2867,10 +2869,8 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
                   if( *( ptr = pName + 1 ) != '\0' )
                   {
                      unsigned int uiMemoType, uiMemoBlocksize, uiLockScheme;
-                     unsigned int uiServerPort, uiSrvMode, uiLowerCase;
-                     int          iAutOrder;
+                     unsigned int uiServerPort, uiSrvMode, uiLowerCase, uiAutOrder;
                      char *       ptr2 = pName + 1;
-                     PHB_ITEM     pItem = hb_itemNew( NULL );
 
                      while( *ptr2 != ';' )
                         ptr2++;
@@ -2882,19 +2882,12 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
 
                      sscanf( ptr2, "%u;%u;%u;%u;%d;%u;%u",
                              &uiMemoType, &uiMemoBlocksize, &uiLockScheme,
-                             &uiServerPort, &iAutOrder, &uiSrvMode, &uiLowerCase );
+                             &uiServerPort, &uiAutOrder, &uiSrvMode, &uiLowerCase );
 
                      pConnection->uiLockSchemeExtend = ( HB_USHORT ) uiLockScheme;  /* extended or normal */
                      pConnection->uiMemoType = ( HB_USHORT ) uiMemoType;
                      pConnection->uiMemoBlocksize = ( HB_USHORT ) uiMemoBlocksize;
                      pConnection->iServerPort = uiServerPort;  /* port at server side, after accept() */
-                     hb_itemPutNI( pItem, iAutOrder <= 0 ? 0 : iAutOrder );
-                     hb_setSetItem( HB_SET_AUTORDER, pItem );
-                     hb_itemClear( pItem );
-                     hb_itemPutL( pItem, ( iAutOrder >= 0 ? HB_TRUE : HB_FALSE ) );
-                     hb_setSetItem( HB_SET_AUTOPEN, pItem );
-                     if( pItem )
-                        hb_itemRelease( pItem );
                      pConnection->uiServerMode = ( HB_USHORT ) uiSrvMode;
                      pConnection->fLowerCase = uiLowerCase ? HB_TRUE : HB_FALSE;
 
@@ -3350,6 +3343,26 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    return pTable;
 }
 
+HB_EXPORT HB_BOOL LetoProdSupport( void )
+{
+   LPRDDNODE pRDDNode;
+   HB_USHORT uiRddID;
+   HB_BOOL   fSupportStruct = HB_FALSE;
+
+   pRDDNode = hb_rddFindNode( "LETO", &uiRddID );
+   if( pRDDNode )
+   {
+      PHB_ITEM pItem = NULL;
+
+      pItem = hb_itemPutC( pItem, NULL );
+      if( SELF_RDDINFO( pRDDNode, RDDI_STRUCTORD, 0, pItem ) == HB_SUCCESS )
+         fSupportStruct = hb_itemGetL( pItem );
+      hb_itemRelease( pItem );
+   }
+
+   return fSupportStruct;
+}
+
 HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias,
                                        HB_BOOL fShared, HB_BOOL fReadOnly, const char * szCdp, unsigned int uiArea )
 {
@@ -3410,7 +3423,7 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    ptr = leto_AddFields( pTable, ( HB_USHORT ) atoi( ptr ), LetoParseItemEnd( ptr ) + 1 );
    pTable->pRecord = ( HB_UCHAR * ) hb_xgrab( pTable->uiRecordLen + 1 );
 
-   if( ! pTable->uiDriver && hb_setGetAutOpen() )  /* only for CDX */
+   if( hb_setGetAutOpen() && LetoProdSupport() )
       ptr = leto_ParseTagInfo( pTable, ptr );
    else
       ptr = leto_SkipTagInfo( ptr );

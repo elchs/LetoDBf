@@ -2,6 +2,33 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-27 14:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/leto1.c
+    ! apply hb_setSetItem() only for RDDI_AUTOORDER
+    + introducing AUTOPEN and AUTORDER for DBFNTX if RDDI_STRUCTORD set true
+    - remove homebrew AUTORDER -1 to disable AUTOPEN
+
+  * source/client/letocl.c
+    * transmit client setting of SOFTSEEK/ DELETED/ AUT[OPEN|ORDER] to server
+      with intro for new connection
+    + introducing AUTOPEN and AUTORDER for DBFNTX if RDDI_STRUCTORD set true
+
+  * source/server/letofunc.c
+    ! fix to correctly grep users per table in all server modes,
+      used in management applications
+    + apply missing Set() for RDDI_AUTOPEN
+    - remove homebrew AUTORDER -1 to disable AUTOPEN
+
+  * tests/test_dbfe.prg
+    + test for SET AUT[ORDER|OPEN] also for DBFNTX, now default RDD
+
+  * utils/manage/console.prg
+    * better readability for the browse CB by using seperate functions
+
+  * Readme.txt
+    * change to reflect above changes; formatting
+
 2017-01-25 09:50 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     % no table mutex lock during index creation for exclusive opened table

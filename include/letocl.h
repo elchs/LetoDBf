@@ -283,6 +283,7 @@ HB_BOOL LetoSetFastAppend( int uiFApp );
 void leto_clientlog( const char * sFile, int n, const char * s, ... );
 void LetoDbFreeTag( LETOTAGINFO * pTagInfo );
 HB_ERRCODE LetoRddInfo( LETOCONNECTION * pConnection, HB_USHORT uiIndex, const char * szNewSet );
+HB_BOOL LetoProdSupport( void );
 HB_ERRCODE LetoDbCloseTable( LETOTABLE * pTable );
 LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, const char * szFields, unsigned int uiArea, const char * szCdpage );
 LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, int iShared, int iReadOnly, const char * szCdp, unsigned int uiArea );

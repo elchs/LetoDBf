@@ -130,7 +130,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    endif
 
    IF LEFT( cAddress,2 ) != "//"
-      cAddress := "//" + cAddress + IF( ! EMPTY(cPort) , ":" + cPort, "") + "/"
+      cAddress := "//" + cAddress + IIF( ! EMPTY(cPort) , ":" + cPort, "") + "/"
    endif
 
    RddSetDefault( "LETO" )
@@ -172,7 +172,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):cargo := {}
    ATAIL( aBrows ):GoTopBlock := { || aPos[ 1 ] := 1 }
    ATAIL( aBrows ):GoBottomBlock := { || aPos[ 1 ] := IIF( EMPTY( aBrows[ 1 ]:cargo ), 1, LEN( aBrows[ 1 ]:cargo ) ) }
-   ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 1 ]:cargo, @aPos[ 1 ], nSkip) }
+   ATAIL( aBrows ):SkipBlock := { | nSkip | ArrSkip( aBrows[ 1 ]:cargo, @aPos[ 1 ], nSkip ) }
    ATAIL( aBrows ):headSep   := CHR_HEADSEP
    /* ATAIL( aBrows ):footSep   := CHR_FOOTSEP */
    ATAIL( aBrows ):colSep    := CHR_COLSEP
@@ -188,7 +188,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:width := 17
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
-   oColumn := TbColumnNew( "executable", ArrBlock( aBrows[ 1 ], 4, @aPos[ 1 ] ) )
+   oColumn := TbColumnNew( "executable", ArrBlock( ATAIL( aBrows ), 4, @aPos[ 1 ] ) )
    oColumn:width := 15
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
@@ -218,7 +218,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):cargo := {}
    ATAIL( aBrows ):GoTopBlock := { || aPos[ 2 ] := 1 }
    ATAIL( aBrows ):GoBottomBlock := { || aPos[ 2 ] := IIF( EMPTY( aBrows[ 2 ]:cargo ), 1, LEN( aBrows[ 2 ]:cargo ) ) }
-   ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 2 ]:cargo, @aPos[ 2 ], nSkip) }
+   ATAIL( aBrows ):SkipBlock := { | nSkip | ArrSkip( aBrows[ 2 ]:cargo, @aPos[ 2 ], nSkip ) }
    ATAIL( aBrows ):headSep   := CHR_HEADSEP
    ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "Area", ArrBlock( ATAIL( aBrows ), 3, @aPos[ 2 ] ) )
@@ -237,9 +237,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:width := MAXCOL() - 31 - 21
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
-   AADD( aBlocks, { | oBrow | IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
-                   ( oBrow:cargo := leto_MgGetTables( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) ) ), ( oBrow:cargo := {} ) ),;
-                   AEVAL( @oBrow:cargo, {|aData| aData[ 5 ] := IIF( aData[ 5 ] , "shar", "excl" ) } ) } )
+   AADD( aBlocks, { | oBrow | oBrow:cargo := GetTables( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) ) } )
 
    /* indexes */
    AADD( aPos, 1 )
@@ -248,7 +246,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    ATAIL( aBrows ):cargo := {}
    ATAIL( aBrows ):GoTopBlock := { || aPos[ 3 ] := 1 }
    ATAIL( aBrows ):GoBottomBlock := { || aPos[ 3 ] := IIF( EMPTY( aBrows[ 3 ]:cargo ), 1, LEN( aBrows[ 3 ]:cargo ) ) }
-   ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 3 ]:cargo, @aPos[ 3 ], nSkip) }
+   ATAIL( aBrows ):SkipBlock := { | nSkip | ArrSkip( aBrows[ 3 ]:cargo, @aPos[ 3 ], nSkip ) }
    ATAIL( aBrows ):headSep   := CHR_HEADSEP
    ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "Tagname", ArrBlock( ATAIL( aBrows ), 3, @aPos[ 3 ] ) )
@@ -264,17 +262,16 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    ATAIL( aBrows ):freeze := 1
-   AADD( aBlocks, { | oBrow | IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
-                   ( oBrow:cargo := leto_MgGetIndex( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) ), ( oBrow:cargo := {} ) ) } )
+   AADD( aBlocks, { | oBrow | oBrow:cargo := GetIndex( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) } )
 
    /* locks list */
    AADD( aPos, 1 )
-   AADD( aBrows, TBrowseNew( 14, MAXCOL() - 18, MAXROW() - 1, MAXCOL() ) )
+   AADD( aBrows, TBrowseNew( 14, MAXCOL() - 18, MAXROW(), MAXCOL() ) )
    ATAIL( aBrows ):colorSpec := "R/N,W+/B"
    ATAIL( aBrows ):cargo := {}
    ATAIL( aBrows ):GoTopBlock := { || aPos[ 4 ] := 1 }
    ATAIL( aBrows ):GoBottomBlock := { || aPos[ 4 ] := IIF( EMPTY( aBrows[ 4 ]:cargo ), 1, LEN( aBrows[ 4 ]:cargo ) ) }
-   ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 4 ]:cargo, @aPos[ 4 ], nSkip) }
+   ATAIL( aBrows ):SkipBlock := { |nSkip| ArrSkip( aBrows[ 4 ]:cargo, @aPos[ 4 ], nSkip ) }
    ATAIL( aBrows ):headSep   := CHR_HEADSEP
    ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "    Record Lock    ", ArrBlock( ATAIL( aBrows ), 2, @aPos[ 4 ] ) )
@@ -285,8 +282,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:width := 21
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
-   AADD( aBlocks, { | oBrow | IIF( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) >= -1,;
-                   ( oBrow:cargo := GetLocks( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) ), ( oBrow:cargo := {} ) ) } )
+   AADD( aBlocks, { | oBrow | oBrow:cargo := GetLocks( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ), ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ) ) } )
 
    aLastPos := Aclone( aPos )
    EVAL( aBlocks[ 1 ], aBrows[ 1 ] )
@@ -585,6 +581,10 @@ FUNCTION Main( cAddress, cUser, cPasswd )
             IF HelpText()
                lResizing := .T.
             ENDIF
+         CASE nKey == K_ALT_U .AND. ! EMPTY( aBrows[ 2 ]:cargo )
+            IF GetUserList( ActiveDatabase( aBrows[ 2 ]:cargo, aPos[ 2 ] ), aBrows[ 3 ] )
+               lResizing := .T.
+            ENDIF
          CASE nKey == K_ALT_M
             IF Administrate( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) )
                lResizing := .T.
@@ -748,7 +748,7 @@ STATIC FUNCTION DriverName( nID )
  LOCAL cDriver
 
    DO CASE
-      CASE nId == 0 
+      CASE nId == 0
          cDriver := " CDX "
       CASE nId == 1
          cDriver := " NTX "
@@ -768,7 +768,7 @@ STATIC FUNCTION DriverName( nID )
          cDriver := " ??? "
    ENDCASE
 RETURN cDriver
-         
+
 STATIC FUNCTION GetAllConnections( oBrow )
    oBrow:cargo := leto_MgGetUsers()
    IF EMPTY( oBrow:cargo )
@@ -779,6 +779,24 @@ STATIC FUNCTION GetAllConnections( oBrow )
       AEVAL( @oBrow:cargo, { | aConn | aConn[ 6 ] := ActionDecode( aConn[ 6 ] ) } )
    ENDIF
 RETURN .T.
+
+STATIC FUNCTION GetTables( nConnection )
+ LOCAL aTables := leto_MgGetTables( nConnection )
+
+   IF ! EMPTY( aTables )
+      AEVAL( aTables, {|aData| aData[ 5 ] := IIF( aData[ 5 ] , "shar", "excl" ) } )
+   ELSE
+      aTables := {}
+   ENDIF
+RETURN aTables
+
+STATIC FUNCTION GetIndex( nConnection, cTable )
+ LOCAL aIndex := leto_MgGetIndex( nConnection, cTable )
+
+   IF EMPTY( aIndex )
+      aIndex := {}
+   ENDIF
+RETURN aIndex
 
 STATIC FUNCTION GetLocks( nConnection, cTable )
  LOCAL aRaw := leto_MgGetLocks( nConnection, cTable, "<100" )  /* max 100 locks */
@@ -796,6 +814,112 @@ STATIC FUNCTION GetLocks( nConnection, cTable )
       ENDDO
    ENDIF
 RETURN aLocks
+
+STATIC FUNCTION GetUserList( cTable, oRefBrow )
+ LOCAL aUsers := leto_MgGetUsers( cTable )
+ LOCAL oBrow, oColumn, nRowPos := 1
+ LOCAL aQuitKeys := { K_ESC, HB_K_CLOSE, K_TAB, K_SH_TAB, K_LBUTTONDOWN, K_RBUTTONDOWN, HB_K_RESIZE }
+ LOCAL nKey := 0
+ LOCAL lResize := .F.
+ LOCAL nLastRefresh := 0
+
+   IF ! EMPTY( aUsers )
+      oBrow := TBrowseNew( oRefBrow:nTop, 0, oRefBrow:nBottom, oRefBrow:nRight )
+      oBrow:cargo := aUsers
+      oBrow:colorSpec := oRefBrow:colorSpec
+      oBrow:GoTopBlock := { || nRowPos := 1 }
+      oBrow:GoBottomBlock := { || nRowPos := IIF( EMPTY( oBrow:cargo ), 1, LEN( oBrow:cargo ) ) }
+      oBrow:SkipBlock := { | nSkip | ArrSkip( oBrow:cargo, @nRowPos, nSkip ) }
+      oBrow:headSep := CHR_HEADSEP
+      oBrow:colSep := CHR_COLSEP
+      oColumn := TbColumnNew( "ID", { || oBrow:cargo[ nRowPos, 1  ] } )
+      oColumn:width := 4
+      oColumn:defcolor := { 1, 2 }
+      oBrow:addColumn( oColumn )
+      oColumn := TbColumnNew( "IP address", { || oBrow:cargo[ nRowPos, 2  ] } )
+      oColumn:width := 15
+      oColumn:defcolor := { 1, 2 }
+      oBrow:addColumn( oColumn )
+      oColumn := TbColumnNew( "system name", { || oBrow:cargo[ nRowPos, 3  ] } )
+      oColumn:width := 17
+      oColumn:defcolor := { 1, 2 }
+      oBrow:addColumn( oColumn )
+      oColumn := TbColumnNew( "executable", { || oBrow:cargo[ nRowPos, 4  ] } )
+      oColumn:width := 15
+      oColumn:defcolor := { 1, 2 }
+      oBrow:addColumn( oColumn )
+      oColumn := TbColumnNew( " RDD ", { || oBrow:cargo[ nRowPos, 7  ] } )
+      oColumn:width := 5
+      oColumn:defcolor := { 1, 2 }
+      oBrow:addColumn( oColumn )
+      oColumn := TbColumnNew( "last active", { || oBrow:cargo[ nRowPos, 5  ] } )
+      oColumn:width := 9
+      oColumn:defcolor := { 1, 2 }
+      oBrow:addColumn( oColumn )
+      oColumn := TbColumnNew( "last action", { || oBrow:cargo[ nRowPos, 6  ] } )
+      oColumn:width := 64
+      oColumn:defcolor := { 1, 2 }
+      oBrow:addColumn( oColumn )
+      oColumn := TbColumnNew( "username", { || oBrow:cargo[ nRowPos, 8  ] } )
+      oColumn:width := 12
+      oColumn:defcolor := { 1, 2 }
+      oBrow:addColumn( oColumn )
+      oBrow:freeze := 1
+      oBrow:configure()
+      @ oBrow:nTop - 1, oBrow:nLeft TO oBrow:nTop - 1, oBrow:nRight DOUBLE COLOR oBrow:colorSpec
+      @ oBrow:nTop - 1, oBrow:nLeft + 2 SAY "[ Users ]" COLOR oBrow:colorSpec
+      DO WHILE ASCAN( aQuitKeys, nKey ) == 0
+         DO CASE
+            CASE nKey == HB_K_RESIZE
+               lResize := .T.
+               EXIT
+            CASE nKey == K_DOWN .OR. nKey == K_MWBACKWARD
+               oBrow:Down()
+            CASE nKey == K_UP .OR. nKey == K_MWFORWARD
+               oBrow:Up()
+            CASE nKey == K_RIGHT
+               oBrow:Right()
+            CASE nKey == K_LEFT
+               oBrow:Left()
+            CASE nKey == K_PGDN
+               oBrow:PageDown()
+            CASE nKey == K_PGUP
+               oBrow:PageUp()
+            CASE nKey == K_HOME
+               oBrow:goTop()
+            CASE nKey == K_END
+               oBrow:goBottom()
+         ENDCASE
+
+         IF hb_MilliSeconds() - nLastRefresh > s_nRefresh
+            IF ! BasicInfo()  /* server down */
+               EXIT
+            ENDIF
+            oBrow:cargo := leto_MgGetUsers( cTable )
+            IF EMPTY( oBrow:cargo )
+               EXIT
+            ELSEIF oBrow:rowPos > LEN( oBrow:cargo )
+               oBrow:rowPos := LEN( oBrow:cargo )
+               oBrow:rowPos:configure()
+            ENDIF
+            oBrow:refreshAll()
+            nLastRefresh := hb_MilliSeconds()
+         ENDIF
+
+         IF ! oBrow:stable
+            DispBegin()
+            DO WHILE .NOT. oBrow:Stabilize()
+               IF NextKey() <> 0
+                  EXIT
+               ENDIF
+            ENDDO
+            DispEnd()
+         ENDIF
+
+         nKey := INKEY( s_nRefresh / 1000 )
+      ENDDO
+   ENDIF
+RETURN lResize
 
 STATIC FUNCTION ArrSkip( aArr, nCurrent, nSkip )
  LOCAL nSkipped
@@ -1054,7 +1178,7 @@ STATIC FUNCTION KillActiveUsers( nConnection )
             IF ! lOpen .AND. nKillId == s_myConn  /* can not kill myself ;-) */
                LOOP
             ENDIF
-            IF( leto_MgKill( nKillID ) == nKillID )
+            IF leto_MgKill( nKillID ) == nKillID
                @ 5, 2 SAY " closed connection: " + aUser[ i, 1 ] + " " +;
                           ALLTRIM( aUser[ i, 4 ] ) + "@" + ALLTRIM( aUser[ i, 3 ] ) + SPACE( 10 )
                nKilled++
@@ -1200,7 +1324,7 @@ STATIC FUNCTION Administrate( nConnection )
 
       DO CASE
          CASE nMenu == 1
-            IF( arr := GetUser( .t.,.t. ) ) != Nil
+            IF ( arr := GetUser( .T., .T. ) ) != Nil
                IF leto_useradd( arr[1], arr[2], arr[3] )
                   TimedAlert( "User is added", 2, "GR+/N" )
                ELSE
@@ -1211,7 +1335,7 @@ STATIC FUNCTION Administrate( nConnection )
             ENDIF
 
          CASE nMenu == 2
-            IF( arr := GetUser( .f.,.f. ) ) != Nil
+            IF ( arr := GetUser( .F., .F. ) ) != Nil
                IF leto_userdelete( arr[1], arr[2], arr[3] )
                   TimedAlert( "User is deleted", 2, "GR+/N" )
                ELSE
@@ -1222,7 +1346,7 @@ STATIC FUNCTION Administrate( nConnection )
             ENDIF
 
          CASE nMenu == 3
-            IF( arr := GetUser( .t.,.f. ) ) != Nil
+            IF ( arr := GetUser( .T.,.F. ) ) != Nil
                IF leto_userpasswd( arr[1], arr[2] )
                   TimedAlert( "Password is changed", 2, "GR+/N" )
                ELSE
@@ -1233,7 +1357,7 @@ STATIC FUNCTION Administrate( nConnection )
             ENDIF
 
          CASE nMenu == 4
-            IF( arr := GetUser( .f.,.t. ) ) != Nil
+            IF ( arr := GetUser( .F., .T. ) ) != Nil
                IF leto_userrights( arr[1], arr[3] )
                   TimedAlert( "Rights are changed", 2, "GR+/N" )
                ELSE

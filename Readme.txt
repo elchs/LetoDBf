@@ -339,13 +339,6 @@ A. Internals
                                     which means that each change at data tables are immedeate written to
                                     harddrive bypassing the OS cache.
                                     Expect significant reduced performance with setting '1'.
-      AutOrder = 0             -    SET AUTORDER setting, this will influence the SET( _SET_AUTOPEN ) setting.
-                                    Default is to auto-open production index.
-                                    Set to -1 will disable AutOpen at server and client.
-                                    Setting this to >= 0 activates AutoOpen and also set the active order
-                                    ( if possible ) to that value, when data tables are opened.
-                                    Server default can be changed for each connection with:
-                                    RddInfo( RDDI_AUTOORDER [, nNew ]
       Optimize = 1             -    _SET_OPTIMIZE setting
       ForceOpt = 0             -    _SET_FORCEOPT setting
       Allow_Udf = 0            -    security setting, DEFAULT is ! NOT ! to allow the use of
@@ -561,11 +554,10 @@ A. Internals
  no more IPaddress:port prefix more. This is a hint for experienced LetoDB users to think about.
 
  SET AUTOPEN ON off -- SET AUTORDER TO ( 0 - x ):
- With connecting the server, the server defaults will be applied to the client. These change beforehand
- done changes at them. Defaults for server can be changed in letodb.ini.
- About changes after establishing a connection the server must be informed. this is done by using
- the SET commands, which are translated by '#include leto_std.ch' into Leto_Set() function call.
- This include file is automatically bound by using the "letodb.hbc" hbmk2 file.
+ Use these commands or Leto_Set() to change settings -- they do the same as Set(), but also inform the
+ server about changes what is very important. ! Never use Set() for these two settings !
+ FYI: the commands are translated in leto_std.ch to Leto_Set(). This include file is automatically bound
+ by using the "letodb.hbc" hbmk2 file.
 
 
       5.2 Filters

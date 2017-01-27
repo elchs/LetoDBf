@@ -4,7 +4,7 @@
  */
 REQUEST ORDLISTCLEAR, ORDBAGCLEAR
 REQUEST LETO
-REQUEST DBFCDX
+REQUEST DBFCDX, DBFNTX
 
 #include "dbinfo.ch"
 
@@ -23,7 +23,7 @@ Function Main( cPath )
 
    IF Empty( cPath )
       cPath := ""
-      RDDSETDEFAULT( "DBFCDX" )
+      RDDSETDEFAULT( "DBFNTX" )
    ELSE
       cPath := "//" + cPath + IiF( ":" $ cPath, "", ":" + ALLTRIM( STR( nPort ) ) )
       cPath += Iif( Right(cPath,1) == "/", "", "/" )
@@ -36,15 +36,15 @@ Function Main( cPath )
          QUIT
       ELSE
          ? LETO_GetServerVersion(), " at address: ", Leto_getLocalIP( .T. )
-         LETO_DBDRIVER( "DBFCDX" )
-         // LETO_DBDRIVER( "DBFNTX" )
+         //LETO_DBDRIVER( "DBFCDX" )
+         LETO_DBDRIVER( "DBFNTX" )
          ? "DBF DATABASE DRIVER        :", LETO_DBDRIVER()[ 1 ], "MEMOTYPE:", LETO_DBDRIVER()[ 2 ] 
          LETO_TOGGLEZIP( 1 )
          ? "NETWORK TRAFFIC COMPRESSION:", Iif( LETO_TOGGLEZIP() > 0, "ON", "OFF" )
       ENDIF
    ENDIF
 
-   ? "DBF DATABASE EXTENSION     :", hb_rddInfo( RDDI_TABLEEXT )
+   ? "RDD: ", RddSetDefault(),  " with DBF EXTENSION     :", hb_rddInfo( RDDI_TABLEEXT )
 
    ? "File test1.dbf"
    IF ! DbExists( "test1.dbf" )
@@ -55,20 +55,21 @@ Function Main( cPath )
                               { "FLOAT", "F", 17, 8 },;
                               { "INFO",  "C", 32, 0 },;
                               { "DINFO", "D",  8, 0 },;
-                              { "TINFO", "T", 17, 0 },;
-                              { "MINFO", "M", 10, 0 } },, .T. )
-         ?? " has been created, left opened"
+                              { "TINFO", "@",  8, 0 },;
+                              { "MINFO", "M", 10, 0 } },, .T., "TEST1" )
+         ?? " have been new created"
       ELSE
          ALERT( "DBF CREATE FAILED" + IIF( NetErr(), ", TABLE IN USE BY OTHER", "" ) )
          QUIT
       ENDIF
    ELSE
       USE ( "test1" ) SHARED NEW
+      ?? " existed"
    ENDIF
 
     
    IF ! NetErr() .AND. ! EMPTY( ALIAS() )
-      ?? " successful in use"
+      ?? " ,successful opened"
    ELSE
       ? "ERROR opening database! -- press any key to quit"
       Inkey( 0 )
@@ -90,6 +91,10 @@ Function Main( cPath )
    ? "Press any key to continue..."
    Inkey( 0 )
 
+   IF ! RDDInfo( RDDI_STRUCTORD )
+      RDDInfo( RDDI_STRUCTORD, .T. )  /* activate AUTOPEN for NTX */
+   ENDIF
+
    IF RecCount() == 0
       FOR i := 1 TO Len( aNames )
          APPEND BLANK
@@ -102,6 +107,7 @@ Function Main( cPath )
                  DINFO WITH Date() + i - 1,;
                  MINFO WITH "elk test" + STR( i, 10, 0)
       NEXT i
+      DbUnlock()
       ? LEN( aNames ), "Records has been added"
       IF LASTREC() == LEN( aNames )
          ?? " (ok)"
@@ -200,7 +206,7 @@ Function Main( cPath )
    ? "skip -1   ", NUM, NAME, DINFO, Iif( NUM == 1004, "- Ok","- Failure" )
 
    ? "Press any key to continue..."
-   Inkey(0)
+   Inkey( 0 )
 
    ?
    ? "SET FILTER TO, SET ORDER TO 0"
@@ -256,14 +262,12 @@ Function Main( cPath )
    Inkey( 0 )
 
    ?
-   IF ! "NTX" $ Leto_DbDriver()[ 1 ]  /* NTX intentionally does not autoopen */
-      SET AUTOPEN OFF
-      SET AUTORDER TO 0
-      USE ( "test1" ) SHARED New
-      i := DBORDERINFO( DBOI_ORDERCOUNT )
-      ? "AutOpen off " + IIF( i == 0, "- Ok", "- Failure" )
-      USE
-   ENDIF
+   SET AUTOPEN OFF
+   SET AUTORDER TO 0
+   USE ( "test1" ) SHARED New
+   i := DBORDERINFO( DBOI_ORDERCOUNT )
+   ? "AutOpen off " + IIF( i == 0, "- Ok", "- Failure" )
+   USE
 
    SET AUTORDER TO 1
    SET AUTOPEN ON
@@ -274,7 +278,7 @@ Function Main( cPath )
       ? i, ordKey( i )
    ENDDO
    i := DBORDERINFO( DBOI_ORDERCOUNT )
-   IF RDDInfo( RDDI_STRUCTORD ) .AND. ! "NTX" $ Leto_DbDriver()[ 1 ]
+   IF RDDInfo( RDDI_STRUCTORD )
       ? "Active orders ", i, Iif( i == 3, "- Ok","- Failure" )
       ? "Focus set to  ", indexord(), Iif( indexord() == SET( _SET_AUTORDER ), "- Ok","- Failure" )
    ELSE

@@ -2683,26 +2683,6 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
 #endif
          pTagInfo = pTagInfo->pNext;
       }
-#if 0  /* done by Harbour, send info about */
-      if( ! pTable->uiDriver && hb_setGetAutOpen() ) /* don't do that for NTX */
-      {
-         HB_USHORT uiAutOrder = ( HB_USHORT ) hb_setGetAutOrder();
-
-         if( uiAutOrder )
-         {
-            pTagInfo = pTable->pTagInfo;
-            while( pTagInfo )
-            {
-               if( pTagInfo->uiTag == uiAutOrder )
-               {
-                  pTable->pTagCurrent = pTagInfo;
-                  break;
-               }
-               pTagInfo = pTagInfo->pNext;
-            }
-         }
-      }
-#endif
    }
    pArea->area.fBof = pTable->fBof;
    pArea->area.fEof = pTable->fEof;
@@ -3228,8 +3208,7 @@ static HB_ERRCODE letoOrderListClear( LETOAREAP pArea )  /* OrdListClear() */
       pTable->uiOrders = 0;
       do
       {
-         /* no leto_ProdCheck() for NTX */
-         if( ! pTagInfo->fProduction || pTable->uiDriver || ! hb_setGetAutOpen() )
+         if( ! pTagInfo->fProduction || ! LetoProdSupport() || ! hb_setGetAutOpen() )
          {
 #ifdef LETO_CLIENTLOG
             leto_clientlog( NULL, 0, "letoOrderListClear( driver %d prod %d %s (%s) )", pTable->uiDriver,
@@ -3309,7 +3288,7 @@ static HB_ERRCODE letoOrderListDelete( LETOAREAP pArea, LPDBORDERINFO pOrderInfo
       if( uiLen < 2 || ! pTagInfo )
          return HB_FAILURE;
 
-      if( ! pTagInfo->fProduction || pTable->uiDriver || ! hb_setGetAutOpen() )
+      if( ! pTagInfo->fProduction || ! LetoProdSupport() || ! hb_setGetAutOpen() )
       {
          /* note: pOrderInfo->atomBagName is TAGname */
          eprintf( szData, "%c;%lu;10;%s;", LETOCMD_ord, pTable->hTable, szBagName );
@@ -4649,7 +4628,7 @@ static HB_USHORT leto_MemoType( HB_ULONG ulConnect )
       else
          uiMemoType = DB_MEMO_SMT;
    }
-   else if( pConnection && pConnection->uiDriver == 1 )
+   else if( pConnection && pConnection->uiDriver == LETO_NTX )
       uiMemoType = DB_MEMO_DBT;
    else
       uiMemoType = DB_MEMO_FPT;
@@ -4902,6 +4881,8 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
             {
                fSet = HB_TRUE;
                szNum = ( char * ) hb_xgrab( 21 );
+               if( hb_itemGetNI( pItem ) < 0 )
+                  hb_itemPutNI( pItem, 0 );
                eprintf( szNum, "%d", hb_itemGetNI( pItem ) );
             }
             if( LetoRddInfo( pConnection, uiIndex, szNum ) == HB_SUCCESS )
@@ -4910,24 +4891,12 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
 
                if( *( ptr - 1 ) == '+' )
                {
-                  if( uiIndex == RDDI_AUTOORDER )
-                     hb_itemPutNL( pItem, strtol( ptr, NULL, 10 ) );
-                  else
-                     hb_itemPutNL( pItem, strtoul( ptr, NULL, 10 ) );
+                  hb_itemPutNL( pItem, strtoul( ptr, NULL, 10 ) );
                   iRes = 0;
                   if( fSet && uiIndex == RDDI_AUTOORDER )
                   {
-                     if( hb_itemGetNI( pItem ) < 0 )
-                     {
-                        PHB_ITEM pItem2 = hb_itemNew( NULL );
-
-                        hb_itemPutL( pItem2, HB_FALSE );
-                        hb_setSetItem( HB_SET_AUTOPEN, pItem );
-                        hb_itemRelease( pItem2 );
-
-                        hb_itemPutNL( pItem, 0 );
-                     }
-                     hb_setSetItem( HB_SET_AUTORDER, pItem );
+                     if( uiIndex == RDDI_AUTOORDER )
+                        hb_setSetItem( HB_SET_AUTORDER, pItem );
                   }
                }
             }
@@ -6139,7 +6108,7 @@ HB_FUNC( LETO_SET )
       /* apply local */
       hb_setSetItem( ( HB_set_enum ) hb_parni( 1 ), pItem );
 
-      if( pArea )
+      if( pArea && leto_CheckArea( pArea ) )
       {
          LETOTABLE * pTable = pArea->pTable;
 
@@ -6147,8 +6116,7 @@ HB_FUNC( LETO_SET )
          {
             pTable->ptrBuf = NULL;
             pTable->llDeciSec = 0;
-            if( leto_CheckArea( pArea ) )
-               pConnection = letoGetConnPool( pTable->uiConnection );
+            pConnection = letoGetConnPool( pTable->uiConnection );
          }
       }
 
