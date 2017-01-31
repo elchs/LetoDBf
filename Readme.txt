@@ -153,8 +153,8 @@ A. Internals
  these as environment variables. So to set Environment variables: __LZ4=yes   and   __PMURHASH=yes
  to get defaults to use LZ4 compression and PMurHash algorithm. This is done in your terminal for
  Windows with: SET ...=...   and in Linux with: export ...=...
- You have to manually '#include rddleto.ch' and '#include leto_std.ch' into your projects, hbmk2 3.0
- does that not automatic by using letodb.hbc.
+ You have to manually '#include rddleto.ch' into your projects, hbmk2 3.0 does that not automatic
+ by using letodb.hbc.
 
 
       3. Running and stopping server
@@ -472,19 +472,18 @@ A. Internals
  Hopefully you did not set the second param of DbUseArea( , cDriver, ... )
  or used the "VIA" option of the "USE command". In that case remove them all.
 
- Most easy is to build your app for LetoDBf by using "letodb.hbc" for hbmk2, aka:
-      hbmk2 yourapp[.prg|.hbp] letodb.hbc
- This will automatically #include "rddleto.ch" and #include "leto_std.ch" into your project, link the
- library, activates MultiThread.
- If not using this "letodb.ch" you have at least to manually: #include "leto_std.ch" to get some things
- correct working.
+ Most easy and highly recommended is to build your app for LetoDBf by using "letodb.hbc" for hbmk2.
+ You can include it into your project HBP by adding it in an extra line, or use it at command line:
 
- To be able to connect to the server you need to request for the LetoDBf RDD driver.
- Herefore you add at very start of the file outside the main() procedure:
+      hbmk2 yourapp[.prg|.hbp] letodb.hbc
+
+ It automates for you the following steps:
+ a) request for the LetoDBf RDD driver, else manually must be set outside the main() procedure:
       REQUEST LETO
- This will set the default RDD driver to "LETO" after connecting similar done with: RddSetDefault( "LETO" ).
- Further an additive idletask is activated, if your application is build with hbmk2 switch '-mt' for
- MultiThread support. ( done by using letodb.hbc )
+ b) includes the header file: "rddleto.ch", else it must be done manually in every of your PRG:
+      #include "rddleto.ch"
+ c) set the switch "-mt" to link your application with LetoDBf client library with multi-thread support.
+    Further an internal, additive idletask is activated, if your application is build with '-mt'.
 
  Then there are two ways to open a DBF table at the server,
  THE **very recommended** because portable way is using leto_Connect().
@@ -496,6 +495,8 @@ A. Internals
 
  For detailed parameters info of leto_Connect() see: 7.1
 
+ This will set the default RDD driver to "LETO" after connecting similar done with: RddSetDefault( "LETO" ).
+ Also the server is informed about four SET settings: DELETED/ SOFTSEEK/ AUTOPEN/ AUTORDER. 
  With connection to the server, and later with opening or creating a table, information about codepage
  and dateformat settings are sent to server. This is important for creating index orders containing
  national special characters or index keys containing a date value.
@@ -552,12 +553,6 @@ A. Internals
        [drive:]\path\to\data_diretory\mydir\test.dbf.
  After doing this an initial time, you are also connected to the server and would need for the next calls
  no more IPaddress:port prefix more. This is a hint for experienced LetoDB users to think about.
-
- SET AUTOPEN ON off -- SET AUTORDER TO ( 0 - x ):
- Use these commands or Leto_Set() to change settings -- they do the same as Set(), but also inform the
- server about changes what is very important. ! Never use Set() for these two settings !
- FYI: the commands are translated in leto_std.ch to Leto_Set(). This include file is automatically bound
- by using the "letodb.hbc" hbmk2 file.
 
 
       5.2 Filters
@@ -660,6 +655,7 @@ A. Internals
                                                                ==> nConnection, -1 if failed
  <cAddress> can be given as raw IP-address "127.0.0.1" or "//127.0.0.1/".
  If the port is omitted ( aka: "//127.0.0.1:2812/" ), the default port number: 2812 is choosen.
+ Alternatively DNS names can be used instead of an IP number.
  <nTimeOut> defines, how log for an answer from server application will wait, in 0.001 seconds.
  This timeout value is valid for each request to the server, not only for the initial connect.
  Default is 120000 aka 2 minutes. '-1' means infinite wait. After that timespan, application will
@@ -705,12 +701,12 @@ A. Internals
  For ugly ;-) xHarbour hackers with different CP names, no comment.
 
       LETO_SET( nOption [, xNewSet ] )                         ==> xActiveSetting
- Use may use this function for nOption: SOFTSEEK, DELETED, AUTORDER, AUTOPEN as you may have used
- the Set() function. This will inform the server about changed setting, which is very important to
- inform the server about changes. With no given <xNewSet>, you get the active setting without
- changing it.
- Recommended is to use the commands: SET xxx [ TO ] instead this function. This translation is done
- in "leto_std.ch" to inform server for these SETs, likely it is else done in Harbour "std.ch".
+ Recommended is to use the commands: SET xxx [ TO ] or the SET() function instead, to keep your
+ sourcecode portable. A translation is done in "rddleto.ch" by define macros, to inform server about
+ changes of four settings: SOFTSEEK, DELETED, AUTORDER, AUTOPEN. All other requests/ settings are
+ simply forwarded to the SET() function.
+ With no given <xNewSet>, you get the active setting without changing it.
+
 
       LETO_RECONNECT( [ cAddress ], [ cUserName ], [ cPassword ],
                     [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck ], [ nDelay ] )
@@ -957,7 +953,8 @@ A. Internals
 
  Alternatively in the OLD style, the <cFileName> parameter of all file functions *can* contain a
  connection string to the letodb server in a format:
- //ip_address:port/[mem:][\]file_name
+ //IP_address:port/[mem:][\]file_name
+ where IP_address can be also a DNS name like example "localhost".
 
  If the whole connection prefix "//..:../" is omitted, the currently active connection is used.
  Such an connection is established with recommended: Leto_Connect() -or- after a aingle LetoDbf command
@@ -1562,8 +1559,6 @@ A. Internals
      mode: NO_Save_Wa = 1.
    # maximum numeric value for a field: "N", 20, 0 is: +/- 9223372036854775807
      one more (or less) and rounding will occure with trailing zeroes
-   # clear a possible existing skip-buffer with DbInfo( DBI_CLEARBUFFER ) after change setting of
-     SET DELETED on | OFF. Alternatively "#include leto_std.ch" for automatic by using letodb.hbc.
 
 
 -------------

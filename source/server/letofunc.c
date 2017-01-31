@@ -723,16 +723,17 @@ void leto_initSet( void )
       hb_itemPutC( pItem, leto_memoDefaultExt( s_uiMemoType ) );
       SELF_RDDINFO( pRDDNode, RDDI_MEMOEXT, 0, pItem );
    }
+   hb_itemPutNI( pItem, s_uiMemoBlocksize );
    if( s_uiMemoBlocksize )
-   {
-      hb_itemPutNI( pItem, s_uiMemoBlocksize );
       SELF_RDDINFO( pRDDNode, RDDI_MEMOBLOCKSIZE, 0, pItem );
-   }
+   hb_setSetItem( HB_SET_MBLOCKSIZE, pItem );
+
    if( s_uiLockExtended )
    {
       hb_itemPutNI( pItem, leto_lockScheme( s_uiDriverDef ) );
       SELF_RDDINFO( pRDDNode, RDDI_LOCKSCHEME, 0, pItem );
    }
+   /* ToDo ? this would be connections global --> DBI_TRIGGER ?? */
    if( s_pTrigger )
    {
       hb_itemPutC( pItem, s_pTrigger );
@@ -1727,8 +1728,8 @@ static HB_ULONG leto_MemoInfo( AREAP pArea, char * szTemp )
       ulLen = sprintf( szTemp, "%s;%s;%d;%d;%d;%d;", szBagExt ? szBagExt : "",
                        hb_itemGetCPtr( pItem ), iMemoType, iMemoVer, iMemoBlocksize, iLockScheme );
    else
-      ulLen = sprintf( szTemp, "bad;%d;%d;%d;%d;",
-                       iMemoType, iMemoVer, iMemoBlocksize, iLockScheme );
+      ulLen = sprintf( szTemp, "%s;%s;%d;%d;%d;%d;", szBagExt ? szBagExt : "",
+                       szBagExt ? szBagExt : "", iMemoType, iMemoVer, iMemoBlocksize, iLockScheme );
 
    hb_itemRelease( pItem );
    if( pOrderInfo.itmResult )
@@ -2864,7 +2865,7 @@ static void leto_CloseTable( PTABLESTRU pTStru )
    /* HB_GC_UNLOCKT(); */
 }
 
-static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT uiTable, HB_USHORT uiLen, const char * szCdp )
+static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT uiTable, HB_USHORT uiLen, const char * szCdp, unsigned char uMemoType )
 {
    PGLOBESTRU pGStru;
 
@@ -2903,6 +2904,7 @@ static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT ui
       memcpy( pGStru->szTable, szTable, uiLen );
       pGStru->szTable[ uiLen ] = '\0';
       pGStru->uiCrc = uiCrc;
+      pGStru->uMemoType = uMemoType;
       if( ! szCdp )
       {
          szCdp = hb_cdpID();
@@ -2959,6 +2961,7 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
    PTABLESTRU pTStru = s_tables + s_uiTablesFree;
    HB_UINT    uiTable = s_uiTablesFree;
    HB_USHORT  uiLen;
+   PHB_ITEM   pItem;
    AREAP      pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
 
    while( uiTable < s_uiTablesAlloc && pTStru->szTable )
@@ -3003,8 +3006,12 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
       s_uiTablesMax = uiTable + 1;
    s_uiTablesCurr++;
 
-   pTStru->pGlobe = leto_InitGlobe( szName, pTStru->uiCrc, uiTable, uiLen, szCdp );
+   pItem = hb_itemPutNI( NULL, 0 );
+   SELF_INFO( pArea, DBI_MEMOTYPE, pItem );
 
+   pTStru->pGlobe = leto_InitGlobe( szName, pTStru->uiCrc, uiTable, uiLen, szCdp, hb_itemGetNI( pItem ) );
+
+   hb_itemRelease( pItem );
    return uiTable;
 }
 
@@ -4226,9 +4233,9 @@ static void leto_RddiGetValue( const char * szDriver, HB_USHORT uiIndex, char * 
 /* secured, only drop table/ index if not used */
 static void leto_Drop( PUSERSTRU pUStru, const char * szData )
 {
-   const char * pIFile;
+   const char * pIFile, * szNonDefMemoExt = NULL;
    char         szBuf[ HB_PATH_MAX ];
-   int          nParam = leto_GetParam( szData, &pIFile, NULL, NULL, NULL );
+   int          nParam = leto_GetParam( szData, &pIFile, &szNonDefMemoExt, NULL, NULL );
 
    if( nParam < 2 )
       leto_SendAnswer( pUStru, szErr2, 4 );
@@ -4248,9 +4255,7 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
 
       if( pRDDNode )
       {
-         //HB_USHORT uiLen = ( HB_USHORT ) strlen( hb_setGetDefault() );
-
-         if( ! strlen( hb_setGetPath() ) || strchr( szData, DEF_SEP ) || strchr( szData, DEF_SEP ) )
+         if( ! strlen( hb_setGetPath() ) || strchr( szData, DEF_SEP ) || strchr( szData, DEF_CH_SEP ) )
             leto_DataPath( szData, szBuf );
          else
             strcpy( szBuf, szData );
@@ -4258,7 +4263,7 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
 
          if( *pIFile )
          {
-            if( ! strlen( hb_setGetPath() ) ||strchr( pIFile, DEF_SEP ) || strchr( pIFile, DEF_SEP ) )
+            if( ! strlen( hb_setGetPath() ) || strchr( pIFile, DEF_SEP ) || strchr( pIFile, DEF_CH_SEP ) )
                leto_DataPath( pIFile, szBuf );
             else
                strcpy( szBuf, pIFile );
@@ -4270,27 +4275,65 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
          {
             PHB_FNAME pFilePath = hb_fsFNameSplit( szData );
             int       iTableStru;
+            char      szFileName[ HB_PATH_MAX ];
 
             /* check if table is used, add extension if missing */
             if( ! pFilePath->szExtension )
             {
-               char * szFileName = ( char * ) hb_xgrab( HB_PATH_MAX );
-               char * szExt = ( char * ) hb_xgrab( HB_MAX_FILE_EXT + 1 );
+               char szExt[ HB_MAX_FILE_EXT + 1 ];
 
                if( ! *( pUStru->szDriver ) || strlen( pUStru->szDriver ) < 3 )
                   leto_RddiGetValue( hb_rddDefaultDrv( NULL ), RDDI_TABLEEXT, szExt );
                else
                   leto_RddiGetValue( pUStru->szDriver, RDDI_TABLEEXT, szExt );
-               sprintf( szFileName, "%s%s", szData, szExt );
-               iTableStru = leto_FindTable( szFileName, NULL );
-               hb_xfree( szExt );
-               hb_xfree( szFileName );
+               pFilePath->szExtension = szExt;
+               hb_fsFNameMerge( szFileName, pFilePath );
             }
             else
-               iTableStru = leto_FindTable( szData, NULL );
+               hb_strncpy( szFileName, szData, HB_PATH_MAX - 1 );
+            iTableStru = leto_FindTable( szFileName, NULL );
 
+            /* check if table is used solely by active user */
+            if( iTableStru >= 0 && ( ( PTABLESTRU ) s_tables + iTableStru )->pGlobe->uiAreas == 1 )
+            {
+               PAREASTRU       pAStru;
+               PLETO_LIST_ITEM pListItem = pUStru->AreasList.pItem;
+
+               while( pListItem )
+               {
+                  pAStru = ( PAREASTRU ) ( pListItem + 1 );
+                  if( pAStru->pTStru->pGlobe == ( ( PTABLESTRU ) s_tables + iTableStru )->pGlobe )
+                  {
+                     /* leto_CloseArea( pUStru, pAStru ) */
+                     iTableStru = -1;
+                     break;
+                  }
+
+                  pListItem = pListItem->pNext;
+               }
+            }
+
+            if( ! pName2 )
+               hb_fileExists( szFileName, szFileName );
             if( iTableStru < 0 && SELF_DROP( pRDDNode, pName1, pName2 ? pName2 : NULL, 0 ) == HB_SUCCESS )
+            {
+               if( ! pName2 && szNonDefMemoExt && *szNonDefMemoExt )
+               {
+                  PHB_ITEM pDefaultMemoExt = hb_itemPutC( NULL, NULL );
+
+                  SELF_RDDINFO( pRDDNode, RDDI_MEMOEXT, 0, pDefaultMemoExt );
+                  if( leto_stricmp( hb_itemGetCPtr( pDefaultMemoExt ), szNonDefMemoExt ) )
+                  {
+                     pFilePath->szExtension = szNonDefMemoExt;
+                     hb_fsFNameMerge( szFileName, pFilePath );
+                     if( hb_fileExists( szFileName, szFileName ) )
+                        hb_fileDelete( szFileName );
+                  }
+
+                  hb_itemRelease( pDefaultMemoExt );
+               }
                leto_SendAnswer( pUStru, "+T;0;", 5 );
+            }
             else if( iTableStru >= 0 )
                leto_SendAnswer( pUStru, "+F;1;", 5 );
             else
@@ -4298,7 +4341,7 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
             hb_xfree( pFilePath );
          }
          else
-            leto_SendAnswer( pUStru, "+F;0;", 5 );
+            leto_SendAnswer( pUStru, "+F;2;", 5 );
 
          hb_itemRelease( pName1 );
          if( pName2 )
@@ -4321,22 +4364,18 @@ static void leto_Exists( PUSERSTRU pUStru, const char * szData )
       leto_SendAnswer( pUStru, szErr2, 4 );
    else
    {
-      LPRDDNODE    pRDDNode;
+      const char * szDriver = hb_rddDefaultDrv( NULL );
       HB_USHORT    uiRddID;
-      const char * szDriver;
-      PHB_ITEM     pName1, pName2 = NULL;
-
-      // HB_GC_LOCKT();
-
-      szDriver = hb_rddDefaultDrv( NULL );
-      pRDDNode = hb_rddFindNode( szDriver, &uiRddID );  /* find the RDDNODE */
+      LPRDDNODE    pRDDNode = hb_rddFindNode( szDriver, &uiRddID );
 
       if( pRDDNode )
       {
+         PHB_ITEM pName1, pName2 = NULL;
+
          if( strchr( szData, DEF_SEP ) || strchr( szData, DEF_CH_SEP ) )
             leto_DataPath( szData, szBuf );
          else
-            strcpy( szBuf, szData );
+            hb_strncpy( szBuf, szData, HB_PATH_MAX - 1 );
          pName1 = hb_itemPutC( NULL, szBuf );
 
          if( *pIFile )
@@ -4359,8 +4398,6 @@ static void leto_Exists( PUSERSTRU pUStru, const char * szData )
       }
       else
          leto_SendAnswer( pUStru, szErr2, 4 );
-
-      // HB_GC_UNLOCKT();
    }
 }
 
@@ -4438,7 +4475,7 @@ static HB_BOOL leto_DirMake( const char * szTarget, HB_BOOL bFilename )
    if( bFilename && szPath[ uiLen - 1 ] != DEF_SEP )
    {
       if( ( ptr2 = strrchr( szPath, DEF_SEP ) ) != NULL )
-         *ptr2-- = '\0';    /* trailing filename */
+         *ptr2 = '\0';    /* trailing filename */
       else
          return HB_FALSE;
    }
@@ -8228,10 +8265,11 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                         if( ( int ) uiTables >= iListStart )
                         {
                            leto_BufCheck( &pData, &ptr, &ulMemSize, HB_RDD_MAX_ALIAS_LEN + HB_PATH_MAX + 21, 42 );
-                           ptr += sprintf( ptr, "%d;%s;%lu;%s%s;%c;",
+                           ptr += sprintf( ptr, "%d;%s;%lu;%s%s;%c;%s;%d;",
                                         uiTables, pAStru->pTStru->szTable, pAStru->ulSelectID,
                                         s_users[ iUser ].pCurAStru == pAStru ? "*" : "", pAStru->szAlias,
-                                        pAStru->pTStru->bShared ? 'T' : 'F' );
+                                        pAStru->pTStru->bShared ? 'T' : 'F',
+                                        pAStru->pTStru->szDriver, pAStru->pTStru->pGlobe->uMemoType );
                            uiCount++;
                            if( iListLen-- < 1 )
                               break;
@@ -8272,9 +8310,10 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                         }
                         if( bAdd )
                         {
-                           ptr += sprintf( ptr, "%d;%s;0;;%c;",
+                           ptr += sprintf( ptr, "%d;%s;0;;%c;%s;%d;",
                                         uiTables, ( char * ) pTStru1->szTable,
-                                        pTStru1->bShared ? 'T' : 'F' );
+                                        pTStru1->bShared ? 'T' : 'F',
+                                        pTStru1->szDriver, pTStru1->pGlobe->uMemoType );
                            uiCount++;
                            if( iListLen-- < 1 )
                               break;
@@ -11725,7 +11764,7 @@ static int leto_ValidateAlias( PUSERSTRU pUStru, const char * szAlias, PTABLESTR
    while( pListItem )
    {
       pAStru = ( PAREASTRU ) ( pListItem + 1 );
-      if( pAStru->ulAreaID == pTStru->ulAreaID )
+      if( pAStru->pTStru->pGlobe == pTStru->pGlobe )  /* pAStru->ulAreaID == pTStru->ulAreaID */
       {
          if( uiCrc == pAStru->uiCrc && ! leto_stricmp( pAStru->szAlias, szAlias ) )
          {
@@ -12393,74 +12432,54 @@ HB_FUNC( LETO_DBUSEAREA )  /* 'wrong' number for not fresh opened */
 }
 
 /* help function for leto_CreateTable() to set non-standard memofile */
-static void leto_SetMemoEnv( PUSERSTRU pUStru, const char * szDBType, int iMemoType, int iMemoVersion, int iMemoBlocksize )
+static void leto_SetMemoEnv( const char * szDriver, int iMemoType, int iMemoBlocksize, const char * szExt )
 {
-   LPRDDNODE pRDDNode = NULL;
    HB_USHORT uiRddID;
+   LPRDDNODE pRDDNode = hb_rddFindNode( szDriver, &uiRddID );
 
-   if( szDBType && *szDBType )
-      pRDDNode = hb_rddFindNode( szDBType, &uiRddID );
-
-   if( iMemoType >= 0 )
+   if( pRDDNode )
    {
       PHB_ITEM pItem = NULL;
 
-      pUStru->uiMemoType = ( HB_USHORT ) iMemoType;
-      if( pRDDNode )
+      if( ! iMemoType && ! iMemoBlocksize && ! szExt )  /* reset to defaults */
       {
-         PHB_ITEM pFileExt = NULL;
+         LPDBFDATA pData = DBFNODE_DATA( pRDDNode );
 
-         pItem = hb_itemPutNI( NULL, iMemoType );
-         SELF_RDDINFO( pRDDNode, RDDI_MEMOTYPE, 0, pItem );
-         /* to check: need that hb_setSetItem() ? */
-         switch( iMemoType )
-         {
-            case DB_MEMO_DBT:
-               pFileExt = hb_itemPutC( NULL, ".dbt" );
-               break;
-            case DB_MEMO_FPT:
-               pFileExt = hb_itemPutC( NULL, ".fpt" );
-               break;
-            case DB_MEMO_SMT:
-               pFileExt = hb_itemPutC( NULL, ".smt" );
-               break;
-         }
-         if( pFileExt )
-         {
-            hb_setSetItem( HB_SET_MFILEEXT, pFileExt );
-            SELF_RDDINFO( pRDDNode, RDDI_MEMOEXT, 0, pFileExt );
-            hb_itemRelease( pFileExt );
-         }
-      }
-      if( pItem )
+         memset( pData->szMemoExt, '\0', sizeof( pData->szMemoExt ) );
+         pData->ulMemoBlockSize = 0;
+         pData->bMemoType = '\0';
+
+         pItem = hb_itemPutNI( pItem, 0 );
+         hb_setSetItem( HB_SET_MBLOCKSIZE, pItem );
+         pItem = hb_itemPutC( pItem, NULL );
+         hb_setSetItem( HB_SET_MFILEEXT, pItem );
          hb_itemRelease( pItem );
-   }
-   if( iMemoVersion > 0 )
-   {
-      PHB_ITEM pItem = NULL;
 
-      pUStru->uiMemoVersion = ( HB_USHORT ) iMemoVersion;
-      if( pRDDNode )
-      {
-         pItem = hb_itemPutNI( NULL, iMemoVersion );
-         SELF_RDDINFO( pRDDNode, RDDI_MEMOVERSION, 0, pItem );
+         return;
       }
-      if( pItem )
-         hb_itemRelease( pItem );
-   }
-   if( iMemoBlocksize > 0 )
-   {
-      PHB_ITEM pItem = NULL;
 
-      pUStru->uiMemoBlocksize = ( HB_USHORT ) iMemoBlocksize;
-      if( pRDDNode )
+      if( iMemoBlocksize )
       {
-         pItem = hb_itemPutNI( NULL, iMemoBlocksize );
+         pItem = hb_itemPutNI( pItem, iMemoBlocksize );
          SELF_RDDINFO( pRDDNode, RDDI_MEMOBLOCKSIZE, 0, pItem );
       }
+
+      if( szExt && strlen( szExt ) )
+      {
+         pItem = hb_itemPutC( pItem, szExt );
+         SELF_RDDINFO( pRDDNode, RDDI_MEMOEXT, 0, pItem );
+         hb_itemClear( pItem );
+      }
+
+      if( iMemoType )
+      {
+         pItem = hb_itemPutNI( pItem, iMemoType );
+         SELF_RDDINFO( pRDDNode, RDDI_MEMOTYPE, 0, pItem );
+      }
+
       if( pItem )
          hb_itemRelease( pItem );
-   }
+    }
 }
 
 static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
@@ -12476,9 +12495,10 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
    char *       szCdp = NULL;
    char *       ptr, * ptr2, * ptrTmp;
    const char * pData = NULL;
+   const char * szMemoExt = NULL;
    const char * pp2 = NULL, * pp3 = NULL, * pp4, * pp5;
    int          nParam;
-   int          iMemoType, iMemoVersion, iMemoBlocksize;
+   int          iMemoType, iMemoBlocksize;
    AREAP        pArea;
    HB_BOOL      bLeadSep, bMemIO;
    HB_BOOL      bKeepOpen = HB_TRUE;  /* default, Harbour (client) will send afterwards a close */
@@ -12601,13 +12621,14 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
 
       pp4 = pp3 + strlen( pp3 ) + 1;
       iMemoType = ( int ) strtol( pp4, &ptrTmp, 10 );
-      pp4 = ++ptrTmp;
-      iMemoVersion = ( int ) strtol( pp4, &ptrTmp, 10 );
+      ptrTmp++;
+      if( *ptrTmp == '.' )
+         szMemoExt = ptrTmp;
+      ptrTmp = strchr( ptrTmp, ';' );
+      *ptrTmp = '\0';
       pp4 = ++ptrTmp;
       iMemoBlocksize = ( int ) strtol( pp4, &ptrTmp, 10 );
       pp4 = ++ptrTmp;
-      if( iMemoType || iMemoVersion || iMemoBlocksize )
-         leto_SetMemoEnv( pUStru, szDriver, iMemoType, iMemoVersion, iMemoBlocksize );
 
       uiFieldCount = ( HB_USHORT ) strtol( pp4, &ptrTmp, 10 );
       pp4 = ++ptrTmp;
@@ -12714,6 +12735,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
       if( errcode == HB_SUCCESS )
       {
          HB_USHORT uiArea = 0;
+         HB_BOOL   bRestore = HB_FALSE;
 
          if( ( s_bNoSaveWA && ! bMemIO ) )  // ToFix UDF mode ?
          {
@@ -12735,12 +12757,21 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
             }
          }
 
+         if( *szDriver && ( iMemoType || iMemoBlocksize || szMemoExt ) )
+         {
+            leto_SetMemoEnv( szDriver, iMemoType, iMemoBlocksize, szMemoExt );
+            bRestore = HB_TRUE;
+         }
+
          hb_xvmSeqBegin();
          errcode = hb_rddCreateTable( szFileName, szDriver, uiArea, szRealAlias, bKeepOpen,
                                                   szCdp, 0 /*ulConnection*/, pFields, pDelim );
          hb_xvmSeqEnd();
          if( pUStru->iHbError )
             errcode = HB_FAILURE;
+
+         if( bRestore )
+            leto_SetMemoEnv( szDriver, 0, 0, NULL );
 
          if( errcode != HB_SUCCESS )
          {
@@ -12981,9 +13012,9 @@ HB_FUNC( LETO_DBCREATE )
       szData = ( char * ) hb_xgrab( HB_PATH_MAX + HB_RDD_MAX_ALIAS_LEN +
                                     HB_RDD_MAX_DRIVERNAME_LEN + 42 + nFields );
       /* note: a double ';' after last field[dec] */
-      sprintf( szData, "%s;%s;%s;%d;%d;%d;%d;%s;%d;%s;", szFile, szAlias, szDriver,  /* LETOCMD_creat */
-               pUStru->uiMemoType, pUStru->uiMemoVersion, pUStru->uiMemoBlocksize,
-               uiFields, szFields, uiArea, szCdpage ? szCdpage : "" );
+      sprintf( szData, "%s;%s;%s;%d;%s;%d;%d;%s;%d;%s;%s", szFile, szAlias, szDriver,  /* LETOCMD_creat */
+               0, "", 0,  /* defaults of RDD: memotype, meoblocksize, memoext */
+               uiFields, szFields, uiArea, szCdpage ? szCdpage : "", hb_setGetDateFormat() );
 
       leto_CreateTable( pUStru, ( const char * ) szData );
       bRet = pUStru->bLastAct;

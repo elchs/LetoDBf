@@ -2,6 +2,7 @@
  * Header file for Leto RDD
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
+ *           2017 Rolf 'elch' Beckmann ( additions )
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -115,5 +116,16 @@
 #define LETOOPT_TRIGGER      26   // P
 #define LETOOPT_PENDTRIGGER  27   // P
 #define LETOOPT_HARDCOMMIT   29   // L
+
+/* redirect for 4 options handled in LETO_SET(), others forward to SET() */
+#define CASESENSITIVE
+#ifdef CaseSensitive
+#undef CASESENSITIVE
+#endif
+#ifdef CASESENSITIVE
+   #define set( _HB_SETTING, XSET )   LETO_SET( _HB_SETTING, XSET )
+   #define Set( _HB_SETTING, XSET )   LETO_SET( _HB_SETTING, XSET )
+#endif
+#define SET( _HB_SETTING, XSET )   LETO_SET( _HB_SETTING, XSET )
 
 #endif /* LETO_CH_ */

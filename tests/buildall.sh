@@ -4,6 +4,7 @@ hbmk2 nenadi.prg
 hbmk2 ron.prg
 hbmk2 test_dbf.prg
 hbmk2 test_dbfe.prg
+hbmk2 test_file.prg
 hbmk2 test_filt.prg
 hbmk2 test_ta.prg
 hbmk2 test_tr.prg

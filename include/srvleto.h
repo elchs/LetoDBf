@@ -162,6 +162,7 @@ typedef struct
 {
    HB_USHORT         uiAreas;                  /* Number of references */
    HB_BOOL           bLocked;                  /* table filelock [ not reclock ] */
+   unsigned char     uMemoType;                /* MEMO type DBT 1/ FPT 2/ SMT 3 */
    char *            szCdp;                    /* CP or NULL for default */
    HB_BYTE *         szTable;                  /* may include leading [back]slash, name of table */
    HB_U32            uiCrc;                    /* hash value for szTable speed search */
@@ -238,10 +239,6 @@ typedef struct
    PHB_CODEPAGE      cdpage;                  /* codepage */
    HB_USHORT         uiDriver;                /* contains a '1' for NTX index mode */
    char              szDriver[ 32 ];          /* last used = active RDD */
-   HB_USHORT         uiMemoType;
-   HB_USHORT         uiMemoVersion;
-   HB_USHORT         uiMemoSubtype;           /* DBI_MEMOVERSION */
-   HB_USHORT         uiMemoBlocksize;
    char *            szDateFormat;
    unsigned int      uiEpoch;
    HB_BOOL           bDeleted;                /* value to spare unnecessary leto_setSetDeleted() calls */

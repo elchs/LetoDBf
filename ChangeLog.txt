@@ -2,6 +2,60 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-01-31 14:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; ! tiny communication protocol changes, recompile client, server, tools !
+
+  * letodb.hbc
+  - include/leto_std.ch
+  * include/rddleto.ch
+  * source/client/leto1.c
+  * source/server/server.prg
+    + define macros to translate Set() calls to Leto_Set()
+    ; these can be included in C-level used rddleto.ch -> leto_std.ch obsolete
+    % Leto_Set() rework, now a fully Set() 'drop-in' replace
+    + Leto_Set() dummy for server, all forwarding to Set()
+    ; do not use Leto_Set() directly to keep your source portable,
+      it should be responsibility of the preprocessor
+
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+    * RDDI_CONNECTION to work with connection strings '//IP:port/'
+    - remove transmit of MemoVersion; was nonsense
+    + instead MemoVersion transmit memofile extension ( only 3 default ext )
+    + re-add RDDI_ORD*EXT as handled locally, missing RDDI_MEMOEXT
+    + set-ability for RDDI_MEMO* except for RDDI_MEMOEXT,
+      as partly alternative to Leto_DbDriver()
+    + transmit non-default memotype extension for drop-ing tables
+
+  * include/srvleto.h
+  * source/server/letofunc.c
+    * rework of leto_SetMemoEnv(), move call into mutex, radical reset
+      settings after table creation
+    * set HB_SET_MBLOCKSIZE to server default in leto_initSet()
+    ; fixes a Harbour bug which have not RDD dependent default 64
+    * allow leto_Drop() try to drop used WA when used solely by caller
+    ! fix typo in leto_Drop(): double checked filename for same PS
+    + add memo-file delete in leto_Drop() for non default memotype
+    - remove MemoVersion nonsense
+    - remove memofield related entries out of pUStru, no more used in
+      UDF LETO_DBCREATE()
+    + info about memotype/ used RDD of tables for management tools
+
+  * source/client/letomgmn.c
+  * utils/manage/console.prg
+    + new array items about memotype/ RDD, columns for them in browse
+
+  * tests/buildall.sh
+  * tests/buildall.bat
+    + missing build of test_file
+
+  * tests/test_dbfe.prg
+    + add example of using memotype other than default
+
+  * Readme.txt
+    * changes to reflect above
+
 2017-01-27 16:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/server/letofunc.c

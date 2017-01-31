@@ -149,8 +149,8 @@ typedef struct _LETOTABLE
    unsigned char *   pFieldIsBinary;    /* pointer to array: field is a binary type */
    HB_USHORT         uiOrders;
    char *            szTags;
-   char              szOrderExt[ HB_MAX_FILE_EXT + 1 ];
-   char              szMemoExt[ HB_MAX_FILE_EXT + 1 ];
+   char              szOrderExt[ HB_MAX_FILE_EXT + 1 ];  /* default BAG extension for RDD */
+   char              szMemoExt[ HB_MAX_FILE_EXT + 1 ];   /* real used BAG extension */
    unsigned char     uiMemoType;        /* MEMO type used in DBF memo fields */
    unsigned int      uiMemoVersion;     /* MEMO file version */
    unsigned int      uiMemoBlocksize;   /* MEMO BLOCKSIZE ( > 32; <= 64K, % 32 == 0 ) */
@@ -247,7 +247,6 @@ typedef struct _LETOCONNECTION_
    char              szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];       /* DBF driver NAME */
    HB_USHORT         uiLockSchemeExtend;   /* use default or extended lockscheme !! only info, set by server */
    HB_USHORT         uiMemoType;           /* default memo type: dbt, fpt, smt */
-   HB_USHORT         uiMemoVersion;
    HB_USHORT         uiMemoBlocksize;                    /* default memo blocksize: 512, 64, 32 or multiple of 32 */
    char              szMemoExt[ HB_MAX_FILE_EXT + 1 ];   /* default memo file extension */
    HB_USHORT         uiProto;

@@ -692,6 +692,8 @@ FUNCTION leto_ClearEnv( xScope, xScopeBottom, xOrder, cFilter )
 
    RETURN NIL
 
+FUNCTION leto_Set( nSet, xPar1, xPar2 )
+   RETURN Set( nSet, xPar1, xPar2 )
 
 /* don't ! use, elch historical needed mixkey */
 #pragma BEGINDUMP

@@ -3,8 +3,8 @@
  * Just change the cPath value to that one you need.
  */
 REQUEST ORDLISTCLEAR, ORDBAGCLEAR
-REQUEST LETO
 REQUEST DBFCDX, DBFNTX
+/* REQUEST LETO  // done by using letodb.hbc */
 
 #include "dbinfo.ch"
 
@@ -16,6 +16,7 @@ Function Main( cPath )
  LOCAL nHotbuf := 100
  LOCAL nTimeOut := 6000
  LOCAL nKey
+ LOCAL lFresh
  FIELD NAME, NUM, INFO, DINFO, MINFO, FLOAT, LONG, LLONG
 
    SET DATE FORMAT "dd/mm/yy"
@@ -27,24 +28,24 @@ Function Main( cPath )
    ELSE
       cPath := "//" + cPath + IiF( ":" $ cPath, "", ":" + ALLTRIM( STR( nPort ) ) )
       cPath += Iif( Right(cPath,1) == "/", "", "/" )
-      RDDSETDEFAULT( "LETO" )
    ENDIF
 
-   IF RDDSETDEFAULT() == "LETO"
-      IF EMPTY( cPath ) .OR. leto_Connect( cPath, /*user*/, /*pass*/, nTimeOut /*timeout*/, nHotBuf /*hot buffer*/ ) == -1
+   IF ! EMPTY( cPath )
+      IF leto_Connect( cPath, /*user*/, /*pass*/, nTimeOut /*timeout*/, nHotBuf /*hot buffer*/ ) == -1
          ALERT("NO LETODB SERVER FOUND - Fehler: " + leto_Connect_Err( .T. ) )
          QUIT
       ELSE
          ? LETO_GetServerVersion(), " at address: ", Leto_getLocalIP( .T. )
-         //LETO_DBDRIVER( "DBFCDX" )
-         LETO_DBDRIVER( "DBFNTX" )
-         ? "DBF DATABASE DRIVER        :", LETO_DBDRIVER()[ 1 ], "MEMOTYPE:", LETO_DBDRIVER()[ 2 ] 
+         // LETO_DBDRIVER( "DBFCDX", "SMT", 512 )
+         LETO_DBDRIVER( "DBFNTX", "SMT", 512 )
+         /* alternative: RddInfo( RDDI_MEMOTYPE, DB_MEMO_SMT ); RddInfo( RDDI_MEMOBLOCKSIZE, 512 ) */
+         ? "DBF DATABASE DRIVER        :", LETO_DBDRIVER()[ 1 ], "MEMOTYPE:", LETO_DBDRIVER()[ 2 ]
          LETO_TOGGLEZIP( 1 )
          ? "NETWORK TRAFFIC COMPRESSION:", Iif( LETO_TOGGLEZIP() > 0, "ON", "OFF" )
       ENDIF
    ENDIF
 
-   ? "RDD: ", RddSetDefault(),  " with DBF EXTENSION     :", hb_rddInfo( RDDI_TABLEEXT )
+   ? "RDD: ", RddSetDefault(),  " , DBF EXTENSION:", hb_rddInfo( RDDI_TABLEEXT )
 
    ? "File test1.dbf"
    IF ! DbExists( "test1.dbf" )
@@ -57,29 +58,30 @@ Function Main( cPath )
                               { "DINFO", "D",  8, 0 },;
                               { "TINFO", "@",  8, 0 },;
                               { "MINFO", "M", 10, 0 } },, .T., "TEST1" )
-         ?? " have been new created"
+         ?? " have been new created, left open"
       ELSE
          ALERT( "DBF CREATE FAILED" + IIF( NetErr(), ", TABLE IN USE BY OTHER", "" ) )
          QUIT
       ENDIF
    ELSE
       USE ( "test1" ) SHARED NEW
-      ?? " existed"
+      ?? " existed, opened"
    ENDIF
 
-    
+
    IF ! NetErr() .AND. ! EMPTY( ALIAS() )
-      ?? " ,successful opened"
+      ?? " successful !"
    ELSE
       ? "ERROR opening database! -- press any key to quit"
       Inkey( 0 )
       QUIT
    ENDIF
 
-   ? "Lockscheme    :", hb_rddInfo( RDDI_LOCKSCHEME ), dbinfo( DBI_LOCKSCHEME )
-   ? "Memo extension:", hb_rddInfo( RDDI_MEMOEXT ), dbinfo( DBI_MEMOEXT )
-   ? "     type     :", hb_rddInfo( RDDI_MEMOTYPE )
-   ? "     blocksize:", hb_rddInfo( RDDI_MEMOBLOCKSIZE )
+   ? "Lockscheme    :", hb_rddInfo( RDDI_LOCKSCHEME ),;
+     IiF( RddSetDefault() == "LETO", Leto_UDF( "DbInfo", DBI_LOCKSCHEME ), DbInfo( DBI_LOCKSCHEME ) )
+   ? "Memo extension:", Padl( hb_rddInfo( RDDI_MEMOEXT ), 10 ), Padl( DbInfo( DBI_MEMOEXT ), 10 )
+   ? "     blocksize:", hb_rddInfo( RDDI_MEMOBLOCKSIZE ),;
+     IiF( RddSetDefault() == "LETO", Leto_UDF( "DbInfo", DBI_MEMOBLOCKSIZE ), DbInfo( DBI_MEMOBLOCKSIZE ) )
 
    aStru := dbStruct()
    ? "Fields:", Len( aStru )
@@ -127,6 +129,7 @@ Function Main( cPath )
          ?? ", all in one file"
       ENDIF
       ?? " with extension: ", RDDInfo( RDDI_ORDEREXT ), ";"
+      lFresh := .T.
    ELSE
       IF ! DbExists( "test2" + RDDInfo( RDDI_ORDEREXT ) )
          ? "INDEX KEY 2:", IIF( indexord() == 0, "(ok)", "(fail)" ), indexkey( 2 )
@@ -138,10 +141,11 @@ Function Main( cPath )
          DbSetIndex( "test2" )
          DbSetIndex( "test1" )
       ENDIF
+      lFresh := .F.
    ENDIF
    ?? STR( DBORDERINFO( DBOI_ORDERCOUNT ), 2, 0 )
    ?? " orders active "
-   ?? Iif( DBORDERINFO( DBOI_ORDERCOUNT ) == 3, "- Ok","- Failure" )
+   ?? Iif( DBORDERINFO( DBOI_ORDERCOUNT ) == IiF( ! lFresh, 4, 3 ), "- Ok","- Failure" )
    DBSETORDER( 0 )
    ? "table locked", IIF( FLock(), "(Ok)", "Failure" )
 
@@ -150,7 +154,7 @@ Function Main( cPath )
 
    GO TOP
    ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok"," - Failure" )
-   ? "float, long ?", LLONG, LONG, FLOAT
+   ? "float, long", LLONG, LONG, FLOAT
    ?? Iif( LONG == 12345678.12345678 .AND. FLOAT == 87654321.87654321 .AND. LLONG == -9223372036854775807, " - Ok","- Failure" )
    REPLACE INFO WITH "First", MINFO WITH "First"
 
@@ -256,7 +260,7 @@ Function Main( cPath )
    SKIP
    ? "skip      ", NUM, NAME, DINFO, Iif( Eof(), "- Ok","- Failure" )
 
-   dbCloseAll()
+   DbCloseAll()
    ?
    ? "Press any key to continue..."
    Inkey( 0 )
@@ -297,8 +301,8 @@ Function Main( cPath )
    IF nKey == 13
       hb_dbDrop( "test1.dbf" )
       IF hb_dbexists( "test1.dbf" ) .OR.;
-         hb_dbExists( "test1.cdx" ) .OR.;
-         hb_dbexists( "test1.fpt" )
+         hb_dbExists( "test1" + RDDInfo( RDDI_ORDEREXT ) ) .OR.;
+         hb_dbexists( "test1" + RDDInfo( RDDI_MEMOEXT ) )
          ? "drop dbf: - Failure "
       ELSE
          ? "drop dbf: -  Ok"

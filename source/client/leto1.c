@@ -4471,7 +4471,7 @@ static HB_ERRCODE letoDrop( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pItemI
    hb_rddSetNetErr( HB_FALSE );
    if( pConnection != NULL )
    {
-      HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;", LETOCMD_drop, szTFileName, szIFileName );
+      HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;%s;", LETOCMD_drop, szTFileName, szIFileName, pConnection->szMemoExt );
 
       if( leto_DataSendRecv( pConnection, szData, ulLen ) )
       {
@@ -4636,6 +4636,31 @@ static HB_USHORT leto_MemoType( HB_ULONG ulConnect )
    return uiMemoType;
 }
 
+static const char * leto_MemoExt( HB_ULONG ulConnect )
+{
+   LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
+                                  letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+
+   if( pConnection && *pConnection->szMemoExt )
+      return pConnection->szMemoExt;
+   else if( pConnection )
+   {
+      switch( leto_MemoType( ulConnect ) )
+      {
+         case DB_MEMO_DBT:
+            return ".dbt";
+
+         case DB_MEMO_FPT:
+            return ".fpt";
+
+         case DB_MEMO_SMT:
+            return ".smt";
+      }
+   }
+
+   return NULL;
+}
+
 static HB_USHORT leto_MemoBlocksize( HB_ULONG ulConnect )
 {
    LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
@@ -4670,7 +4695,6 @@ static HB_USHORT leto_MemoBlocksize( HB_ULONG ulConnect )
 
    return uiMemoBlocksize;
 }
-
 
 static int leto_LockScheme( LETOCONNECTION * pConnection )
 {
@@ -4709,34 +4733,42 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
       case RDDI_REMOTE:
          hb_itemPutL( pItem, HB_TRUE );
          break;
+
       case RDDI_CONNECTION:
       {
-         HB_USHORT uiConnection;
+         LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
+                                        letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+         char szAddr[ 96 ];
 
-#if 0  /* !! SCARY !! -- possible take over another connection ... */
-         if( HB_IS_NUMBER( pItem ) )
+         if( pConnection )
          {
-            HB_USHORT uiNewConn = hb_itemGetNI( pItem );
+            int  iLen;
 
-            if( uiNewConn && uiNewConn <= uiGetConnCount() )
-               pCurrentConn = letoGetConnPool( uiNewConn - 1 );
+            szAddr[ 0 ] = '/';
+            szAddr[ 1 ] = '/';
+            strcpy( szAddr + 2, pConnection->pAddr );
+            iLen = strlen( szAddr );
+            szAddr[ iLen++ ] = ':';
+            iLen += ultostr( pConnection->iPort, szAddr + iLen );
+            szAddr[ iLen++ ] = '/';
+            szAddr[ iLen ] = '\0';
          }
-#endif
-         if( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() )
-            uiConnection = ( HB_USHORT ) ulConnect;
          else
-         {
-            LETOCONNECTION * pConnection = letoGetCurrConn();
+            szAddr[ 0 ] = '\0';
 
-            if( pConnection )
-               uiConnection = ( HB_USHORT ) pConnection->iConnection + 1;
-            else
-               uiConnection = 0;
+         if( HB_IS_STRING( pItem ) )
+         {
+            char szNewAddr[ 96 ];
+            int  iNewPort = 0;
+
+            if( leto_getIpFromPath( hb_itemGetCPtr( pItem ), szNewAddr, &iNewPort, NULL ) )
+               leto_ConnectionFind( szNewAddr, iNewPort );
          }
 
-         hb_itemPutNI( pItem, uiConnection );
+         hb_itemPutC( pItem, szAddr );
          break;
       }
+
       case RDDI_ISDBF:
          hb_itemPutL( pItem, HB_TRUE );
          break;
@@ -4745,12 +4777,99 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          hb_itemPutL( pItem, HB_TRUE );
          break;
 
+      case RDDI_ORDBAGEXT:      /* multi-TAG default */
+      case RDDI_ORDEREXT:       /* single-TAG default */
+      case RDDI_ORDSTRUCTEXT:   /* single-TAG default */
+      {
+         LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
+                                        letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+
+         if( pConnection && *( pConnection->szDriver ) )
+         {
+            if( strstr( pConnection->szDriver, "NTX" ) != NULL )
+               hb_itemPutC( pItem, ".ntx" );
+            else if( strstr( pConnection->szDriver, "NSX" ) != NULL )
+               hb_itemPutC( pItem, ".nsx" );
+            else if( strstr( pConnection->szDriver, "FPT" ) == NULL )
+               hb_itemPutC( pItem, ".cdx" );
+            else
+               hb_itemPutC( pItem, "" );
+         }
+         else
+            hb_itemPutC( pItem, "" );
+         break;
+      }
+
+      case RDDI_MEMOEXT:  /* by intention not setable ! */
+         hb_itemPutC( pItem, leto_MemoExt( ulConnect ) );
+         break;
+
       case RDDI_MEMOTYPE:
-         hb_itemPutNI( pItem, leto_MemoType( ulConnect ) );
+         if( HB_IS_NUMERIC( pItem ) )
+         {
+            HB_USHORT uiMemoType = ( HB_USHORT ) hb_itemGetNI( pItem );
+
+            if( uiMemoType == DB_MEMO_DBT || uiMemoType == DB_MEMO_FPT || uiMemoType == DB_MEMO_SMT )
+            {
+               LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
+                                              letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+
+               if( pConnection && pConnection->uiMemoType != uiMemoType )
+               {
+                  HB_USHORT uiOldMemoType = pConnection->uiMemoType;
+
+                  pConnection->uiMemoType = uiMemoType;
+                  if( uiMemoType == DB_MEMO_DBT )
+                  {
+                     strcpy( pConnection->szMemoExt, ".dbt" );
+                     pConnection->uiMemoBlocksize = 512;
+                  }
+                  else if( uiMemoType == DB_MEMO_FPT )
+                  {
+                     strcpy( pConnection->szMemoExt, ".fpt" );
+                     pConnection->uiMemoBlocksize = 64;
+                  }
+                  else
+                  {
+                     strcpy( pConnection->szMemoExt, ".smt" );
+                     pConnection->uiMemoBlocksize = 32;
+                  }
+
+                  hb_itemPutNI( pItem, uiOldMemoType );
+               }
+               else if( pConnection )
+                  hb_itemPutNI( pItem, pConnection->uiMemoType );
+               else
+                  hb_itemPutNI( pItem, 0 );
+            }
+            else
+               hb_itemPutNI( pItem, leto_MemoType( ulConnect ) );
+         }
+         else
+            hb_itemPutNI( pItem, leto_MemoType( ulConnect ) );
          break;
 
       case RDDI_MEMOBLOCKSIZE:
-         hb_itemPutNI( pItem, leto_MemoBlocksize( ulConnect ) );
+         if( HB_IS_NUMERIC( pItem ) && hb_itemGetNI( pItem ) > 0 )
+         {
+            LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
+                                           letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+
+            if( pConnection )
+            {
+               HB_USHORT uiOldSize = pConnection->uiMemoBlocksize;
+
+               pConnection->uiMemoBlocksize = ( HB_USHORT ) hb_itemGetNI( pItem );
+               if( uiOldSize )
+                  hb_itemPutNI( pItem, uiOldSize );
+               else
+                  hb_itemPutNI( pItem, leto_MemoBlocksize( ulConnect ) );
+            }
+            else
+               hb_itemPutNI( pItem, leto_MemoBlocksize( ulConnect ) );
+         }
+         else
+            hb_itemPutNI( pItem, leto_MemoBlocksize( ulConnect ) );
          break;
 
       case RDDI_LOCKSCHEME:
@@ -4764,6 +4883,10 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
             hb_itemPutNI( pItem, 0 );
          break;
       }
+
+      case RDDI_TABLEEXT:
+         hb_itemPutC( pItem, ".dbf" );
+         break;
 
       /* boolean ask/ set from server */
       case RDDI_OPTIMIZE:
@@ -5983,13 +6106,43 @@ HB_FUNC( LETO_HASH )
 
 HB_FUNC( LETO_SET )
 {
-   HB_BOOL   fSet = HB_FALSE;
-   PHB_ITEM  pItem = hb_itemNew( NULL );
-   HB_BOOL   fNewSet = HB_FALSE;
-   int       iNewSet = 0;
+   HB_set_enum setId = ( HB_set_enum ) hb_parnidef( 1, HB_SET_INVALID_ );
+   PHB_ITEM    pItem, pNewItem = NULL;
+   HB_BOOL     fSet = HB_FALSE;
+   HB_BOOL     fNewSet = HB_FALSE;
+   int         iNewSet = 0;
 
-   if( HB_ISNUM( 1 ) )
+   if( ! setId )
+      return;
+   else
    {
+      if( setId != HB_SET_SOFTSEEK && setId != HB_SET_DELETED &&
+          setId != HB_SET_AUTOPEN && setId != HB_SET_AUTORDER )
+      {
+         PHB_DYNS pDo = hb_dynsymFindName( "SET" );
+         PHB_ITEM pSet = hb_param( 2, HB_IT_ANY );
+         PHB_ITEM pExtra = hb_param( 3, HB_IT_ANY );
+
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushNumInt( setId );
+         if( pSet )
+         {
+            hb_vmPush( pSet );
+            if( pExtra )
+            {
+               hb_vmPush( pExtra );
+               hb_vmDo( 3 );
+            }
+            else
+               hb_vmDo( 2 );
+         }
+         else
+            hb_vmDo( 1 );
+
+         return;
+      }
+
       if( HB_ISLOG( 2 ) )
       {
          fNewSet = hb_parl( 2 );
@@ -6016,14 +6169,19 @@ HB_FUNC( LETO_SET )
       }
    }
 
-   switch( hb_parni( 1 ) )
+   /* up here we come only for below 4 settings */
+   pItem = hb_itemNew( NULL );
+   if( fSet )
+      pNewItem = hb_itemNew( NULL );
+
+   switch( setId )
    {
       case HB_SET_SOFTSEEK:
          hb_itemPutL( pItem, hb_setGetSoftSeek() );
          if( fSet && fNewSet == hb_itemGetL( pItem ) )
             fSet = HB_FALSE;
          if( fSet )
-            hb_itemPutL( pItem, fNewSet );
+            hb_itemPutL( pNewItem, fNewSet );
          break;
 
       case HB_SET_DELETED:
@@ -6031,7 +6189,7 @@ HB_FUNC( LETO_SET )
          if( fSet && fNewSet == hb_itemGetL( pItem ) )
             fSet = HB_FALSE;
          if( fSet )
-            hb_itemPutL( pItem, fNewSet );
+            hb_itemPutL( pNewItem, fNewSet );
          break;
 
       case HB_SET_AUTOPEN:
@@ -6039,7 +6197,7 @@ HB_FUNC( LETO_SET )
          if( fSet && fNewSet == hb_itemGetL( pItem ) )
             fSet = HB_FALSE;
          if( fSet )
-            hb_itemPutL( pItem, fNewSet );
+            hb_itemPutL( pNewItem, fNewSet );
          break;
 
       case HB_SET_AUTORDER:
@@ -6047,7 +6205,7 @@ HB_FUNC( LETO_SET )
          if( fSet && iNewSet == hb_itemGetNI( pItem ) )
             fSet = HB_FALSE;
          if( fSet )
-            hb_itemPutNI( pItem, iNewSet );
+            hb_itemPutNI( pNewItem, iNewSet );
          break;
 
       default:
@@ -6058,20 +6216,24 @@ HB_FUNC( LETO_SET )
    if( fSet )
    {
       LETOCONNECTION * pConnection = NULL;
-      LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
 
       /* apply local */
-      hb_setSetItem( ( HB_set_enum ) hb_parni( 1 ), pItem );
+      hb_setSetItem( ( HB_set_enum ) hb_parni( 1 ), pNewItem );
 
-      if( pArea && leto_CheckArea( pArea ) )
+      if( setId == HB_SET_DELETED )
       {
-         LETOTABLE * pTable = pArea->pTable;
+         LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
 
-         if( pTable )  /* reset skipbuffer */
+         if( pArea && leto_CheckArea( pArea ) )
          {
-            pTable->ptrBuf = NULL;
-            pTable->llDeciSec = 0;
-            pConnection = letoGetConnPool( pTable->uiConnection );
+            LETOTABLE * pTable = pArea->pTable;
+
+            if( pTable )  /* reset skipbuffer */
+            {
+               pTable->ptrBuf = NULL;
+               pTable->llDeciSec = 0;
+               pConnection = letoGetConnPool( pTable->uiConnection );
+            }
          }
       }
 
@@ -6080,21 +6242,23 @@ HB_FUNC( LETO_SET )
          pConnection = letoGetCurrConn();
       if( pConnection )
       {
-         if( HB_IS_NUMERIC( pItem ) )
+         if( HB_IS_NUMERIC( pNewItem ) )
          {
-            char * szSet = hb_itemStr( pItem, NULL, NULL );
+            char * szSet = hb_itemStr( pNewItem, NULL, NULL );
 
             if( szSet )
             {
-               LetoSet( pConnection, 1000 + hb_parni( 1 ), szSet );
+               LetoSet( pConnection, 1000 + setId, szSet );
                hb_xfree( szSet );
             }
          }
          else  /* boolean */
-            LetoSet( pConnection, 1000 + hb_parni( 1 ), hb_itemGetL( pItem ) ? "T" : "F" );
+            LetoSet( pConnection, 1000 + setId, hb_itemGetL( pNewItem ) ? "T" : "F" );
       }
    }
 
+   if( pNewItem )
+      hb_itemRelease( pNewItem );
    hb_itemReturnRelease( pItem );
 }
 
@@ -6136,14 +6300,13 @@ static HB_ERRCODE leto_doReopen( AREAP pArea, void * p )
       {
          LETOTAGINFO * pTagInfo = pTable->pTagInfo;
          PHB_ITEM      pOrderList = hb_itemArrayNew( 0 ), pOrder;
-         PHB_ITEM      pRelationList = NULL, pRelation ;
          char          szCdp[ 32 ];
          char          szFile[ HB_PATH_MAX ];
          PHB_ITEM      pFilterText = NULL, pFilterBlock = NULL, pItem = NULL;
          HB_USHORT     uiArea = pLetoArea->area.uiArea;
          HB_BOOL       fAutOpen = hb_setGetAutOpen();
          char          szTagCurrent[ LETO_MAX_TAGNAME + 1 ];
-         int           iOrder = 0, iRelation = 0;
+         int           iOrder = 0;
          HB_BOOL       fFLocked = pTable->fFLocked;
          HB_ULONG      ulLocksMax = pTable->ulLocksMax;
          HB_ULONG *    pLocksPos = NULL;
@@ -6197,12 +6360,12 @@ static HB_ERRCODE leto_doReopen( AREAP pArea, void * p )
 
          if( pArea->lpdbRelations )
          {
+            PHB_ITEM    pRelationList = pConnection->whoCares;
+            PHB_ITEM    pRelation;
             LPDBRELINFO pRelInf;
 
-            pRelationList = pConnection->whoCares;
             while( pArea->lpdbRelations )
             {
-               iRelation++;
                pRelInf = pArea->lpdbRelations;
                pArea->lpdbRelations = pRelInf->lpdbriNext;
 
@@ -6222,7 +6385,6 @@ static HB_ERRCODE leto_doReopen( AREAP pArea, void * p )
                if( pRelInf->abKey )
                   hb_itemRelease( pRelInf->abKey );
                hb_xfree( pRelInf );
-               pRelInf = NULL;
             }
          }
 
@@ -6280,7 +6442,7 @@ static HB_ERRCODE leto_doReopen( AREAP pArea, void * p )
                   memset( &pOrderInfo, 0, sizeof( DBORDERINFO ) );
                   pOrderInfo.itmOrder = hb_itemPutC( NULL, szTagCurrent );
                   pOrderInfo.itmResult = hb_itemPutC( NULL, NULL );
-                  errCode = SELF_ORDLSTFOCUS( pArea, &pOrderInfo );
+                  SELF_ORDLSTFOCUS( pArea, &pOrderInfo );
                   hb_itemRelease( pOrderInfo.itmOrder );
                   hb_itemRelease( pOrderInfo.itmResult );
                }
@@ -6373,7 +6535,6 @@ HB_FUNC( LETO_RECONNECT )
       LETOAREAP    pLetoArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
       HB_USHORT    uiActiveWA = pLetoArea ? pLetoArea->area.uiArea : 0;
       HB_USHORT    uiMemoType = pConnection->uiMemoType;
-      HB_USHORT    uiMemoVersion = pConnection->uiMemoVersion;
       HB_USHORT    uiMemoBlocksize = pConnection->uiMemoBlocksize;
       HB_USHORT    uiLockSchemeExtend = pConnection->uiLockSchemeExtend;
       char         szMemoExt[ HB_MAX_FILE_EXT + 1 ];
@@ -6404,7 +6565,6 @@ HB_FUNC( LETO_RECONNECT )
          pConnection->iBufRefreshTime = iBufRefreshTime;
          pConnection->uiLockSchemeExtend = uiLockSchemeExtend;
          pConnection->uiMemoType = uiMemoType;
-         pConnection->uiMemoVersion = uiMemoVersion;
          pConnection->uiMemoBlocksize = uiMemoBlocksize;
 
          strcpy( pConnection->szDriver, szDriver );

@@ -237,6 +237,14 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:width := MAXCOL() - 31 - 21
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
+   oColumn := TbColumnNew( "Memo", ArrBlock( ATAIL( aBrows ), 7, @aPos[ 2 ] ) )
+   oColumn:width := 4
+   oColumn:defcolor := { 1, 2 }
+   ATAIL( aBrows ):addColumn( oColumn )
+   oColumn := TbColumnNew( "RDD", ArrBlock( ATAIL( aBrows ), 6, @aPos[ 2 ] ) )
+   oColumn:width := 8
+   oColumn:defcolor := { 1, 2 }
+   ATAIL( aBrows ):addColumn( oColumn )
    AADD( aBlocks, { | oBrow | oBrow:cargo := GetTables( ActiveConnection( aBrows[ 1 ]:cargo, aPos[ 1 ] ) ) } )
 
    /* indexes */
@@ -784,7 +792,8 @@ STATIC FUNCTION GetTables( nConnection )
  LOCAL aTables := leto_MgGetTables( nConnection )
 
    IF ! EMPTY( aTables )
-      AEVAL( aTables, {|aData| aData[ 5 ] := IIF( aData[ 5 ] , "shar", "excl" ) } )
+      AEVAL( aTables, {| aData | aData[ 5 ] := IIF( aData[ 5 ] , "shar", "excl" ) } )
+      AEVAL( aTables, {| aData | aData[ 7 ] := IIF( aData[ 7 ] == "1" , "DBT", IIF( aData[ 7 ] == "2", "FPT", "SMT" ) ) } )
    ELSE
       aTables := {}
    ENDIF

@@ -884,12 +884,12 @@ HB_FUNC( LETO_MGGETTABLES )
             for( i = 1; i <= iTables; i++ )
             {
                pArrayItm = hb_arrayGetItemPtr( pArray, i );
-               hb_arrayNew( pArrayItm, 5 );
-               for( j = 1; j <= 5; j++ )
+               hb_arrayNew( pArrayItm, 7 );
+               for( j = 1; j <= 7; j++ )
                {
                   if( ( ptr2 = LetoFindCmdItem( ptr ) ) == NULL )
                      return;
-                  if( j < 5 )
+                  if( j != 5 )
                      hb_itemPutCL( hb_arrayGetItemPtr( pArrayItm, j ), ptr, ptr2 - ptr );
                   else
                      hb_itemPutL( hb_arrayGetItemPtr( pArrayItm, j ), ( *ptr == 'T' ) ? HB_TRUE : HB_FALSE );

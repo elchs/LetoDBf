@@ -2,7 +2,7 @@ incpaths=include
 libpaths=lib
 
 headers=include/rddleto.ch
-headers=include/leto_std.ch
+requests=LETO
 libs=rddleto
 
 mt=yes

@@ -3283,9 +3283,9 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    szData = ( char * ) hb_xgrab( strlen( szFields ) + 30 +        /* uiFields * 24 --> strlen() */
                                  HB_PATH_MAX + HB_RDD_MAX_ALIAS_LEN + HB_RDD_MAX_DRIVERNAME_LEN );
 
-   ulLen = eprintf( szData, "%c;%s;%s;%s;%d;%d;%d;%d;%s;%d;%s;%s;", LETOCMD_creat, szFile,
+   ulLen = eprintf( szData, "%c;%s;%s;%s;%d;%s;%d;%d;%s;%d;%s;%s;", LETOCMD_creat, szFile,
                     szAlias ? szAlias : "", pConnection->szDriver,
-                    pConnection->uiMemoType, pConnection->uiMemoVersion, pConnection->uiMemoBlocksize,
+                    pConnection->uiMemoType,  pConnection->szMemoExt, pConnection->uiMemoBlocksize,
                     uiFields, szFields, uiArea, szCdpage ? szCdpage : "", hb_setGetDateFormat() );
    if( ! leto_DataSendRecv( pConnection, szData, ulLen ) )
    {
