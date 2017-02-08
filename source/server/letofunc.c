@@ -632,20 +632,6 @@ HB_FUNC( LETO_DEFAULTDRIVER )
    hb_retc( leto_Driver( s_uiDriverDef ) );
 }
 
-static const char * leto_memoDefaultExt( int iType )
-{
-   switch( iType )
-   {
-      case DB_MEMO_DBT:
-         return ".dbt";
-      case DB_MEMO_FPT:
-         return ".fpt";
-      case DB_MEMO_SMT:
-         return ".smt";
-   }
-   return NULL;
-}
-
 static int leto_lockScheme( int iIndexType )
 {
    int iLockScheme;
@@ -719,13 +705,13 @@ void leto_initSet( void )
    {
       hb_itemPutNI( pItem, s_uiMemoType );
       SELF_RDDINFO( pRDDNode, RDDI_MEMOTYPE, 0, pItem );
-
-      hb_itemPutC( pItem, leto_memoDefaultExt( s_uiMemoType ) );
-      SELF_RDDINFO( pRDDNode, RDDI_MEMOEXT, 0, pItem );
    }
-   hb_itemPutNI( pItem, s_uiMemoBlocksize );
    if( s_uiMemoBlocksize )
+   {
+      hb_itemPutNI( pItem, s_uiMemoBlocksize );
       SELF_RDDINFO( pRDDNode, RDDI_MEMOBLOCKSIZE, 0, pItem );
+   }
+   hb_itemPutNI( pItem, 0 );
    hb_setSetItem( HB_SET_MBLOCKSIZE, pItem );
 
    if( s_uiLockExtended )
@@ -1403,11 +1389,11 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
       if( s_iAutOrder < 0 )
          s_iAutOrder = 0;
    }
-   if( HB_ISNUM( 20 ) )
+   if( HB_ISNUM( 20 ) && hb_parni( 20 ) > 0 )
       s_uiMemoType = ( HB_USHORT ) hb_parni( 20 );
    else
    {
-      if( s_uiDriverDef )
+      if( s_uiDriverDef == LETO_NTX )
          s_uiMemoType = DB_MEMO_DBT;
       else
          s_uiMemoType = DB_MEMO_FPT;
@@ -1419,7 +1405,7 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
       s_uiLockExtended = ( HB_USHORT ) hb_parni( 22 );
    if( HB_ISLOG( 23 ) )
       s_bUdfEnabled = hb_parl( 23 );
-   if( HB_ISNUM( 24 ) && hb_parni( 24 ) > 0 && hb_parni( 24 ) <= 0xFFFF && hb_parni( 24 ) % 32 == 0 )
+   if( HB_ISNUM( 24 ) && hb_parni( 24 ) > 0 && hb_parni( 24 ) <= 0x10000 && hb_parni( 24 ) % 32 == 0 )
       s_uiMemoBlocksize = ( HB_USHORT ) hb_parni( 24 );
    else
    {
@@ -3009,7 +2995,7 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
    pItem = hb_itemPutNI( NULL, 0 );
    SELF_INFO( pArea, DBI_MEMOTYPE, pItem );
 
-   pTStru->pGlobe = leto_InitGlobe( szName, pTStru->uiCrc, uiTable, uiLen, szCdp, hb_itemGetNI( pItem ) );
+   pTStru->pGlobe = leto_InitGlobe( szName, pTStru->uiCrc, uiTable, uiLen, szCdp, ( unsigned char ) hb_itemGetNI( pItem ) );
 
    hb_itemRelease( pItem );
    return uiTable;
@@ -4313,10 +4299,13 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
                }
             }
 
+#if ! defined( __HARBOUR30__ )
             if( ! pName2 )
                hb_fileExists( szFileName, szFileName );
+#endif
             if( iTableStru < 0 && SELF_DROP( pRDDNode, pName1, pName2 ? pName2 : NULL, 0 ) == HB_SUCCESS )
             {
+#if ! defined( __HARBOUR30__ )
                if( ! pName2 && szNonDefMemoExt && *szNonDefMemoExt )
                {
                   PHB_ITEM pDefaultMemoExt = hb_itemPutC( NULL, NULL );
@@ -4332,6 +4321,7 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
 
                   hb_itemRelease( pDefaultMemoExt );
                }
+#endif
                leto_SendAnswer( pUStru, "+T;0;", 5 );
             }
             else if( iTableStru >= 0 )
@@ -4516,6 +4506,8 @@ static HB_BOOL leto_DirMake( const char * szTarget, HB_BOOL bFilename )
 #endif
          *ptr2 = DEF_SEP;
          ptr = ptr2 + 1;
+         if( ptr - szPath >= uiLen )
+            break;
       }
    }
 
@@ -4800,8 +4792,9 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                      pDir = hb_itemArrayNew( 0 );
 
                   pParam = hb_itemSerialize( pDir, HB_SERIALIZE_NUMSIZE, &nSize );
-                  ulLen = leto_CryptText( pUStru, pParam, nSize, 0 );
+                  ulLen = leto_CryptText( pUStru, pParam, nSize, 3 ) + 3;
                   pBuffer = ( char * ) pUStru->pBufCrypt;
+                  memcpy( pBuffer, "+T;", 3 );
                   if( pDir )
                      hb_itemRelease( pDir );
                   if( pParam )
@@ -12169,7 +12162,9 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                   HB_GC_UNLOCKT();
                   bUnlocked = HB_TRUE;
                   leto_InitArea( pUStru, iTableStru, ulAreaID, szAlias, NULL, ulSelectID );
-                  leto_SelectArea( pUStru, ulAreaID );
+                  pArea = leto_SelectArea( pUStru, ulAreaID );
+                  if( ! pArea )
+                     errcode = HB_FAILURE;
                }
                else
                {
@@ -12187,26 +12182,6 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
          if( ! bUnlocked )
             HB_GC_UNLOCKT();
       }
-
-#if 0  /* this should be already done by Harbour */
-      if( errcode == HB_SUCCESS && ! pArea )
-      {
-         pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-         if( ! pArea )
-            errcode = HB_FAILURE;
-         else if( hb_setGetAutOpen() && leto_ProdSupport( szDriver ) )
-         {
-            DBORDERINFO pInfo;
-
-            memset( &pInfo, 0, sizeof( DBORDERINFO ) );
-            pInfo.itmOrder = hb_itemPutNI( NULL, hb_setGetAutOrder() );
-            pInfo.itmResult = hb_itemPutC( NULL, NULL );
-            SELF_ORDLSTFOCUS( pArea, &pInfo );
-            hb_itemRelease( pInfo.itmOrder );
-            hb_itemRelease( pInfo.itmResult );
-         }
-      }
-#endif
 
       if( errcode != HB_SUCCESS )
       {

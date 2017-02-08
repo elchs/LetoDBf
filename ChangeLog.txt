@@ -2,6 +2,43 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-02-08 08:48 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; communication protocol change [Leto_Directory()], recompile all
+
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letomgmn.c
+    ! fix LETO_FERROR() and LetoGetError() for case of no connection
+    ! fix letoOrderListFocus( NIL ) for just querying the order;
+      Thanks Ron for pointing out
+    - dissolve leto_getRcvBuff() and leto_ParseRec();
+      replace LetoGetError() with connection->iError;
+    - remove use of connection->iError for Leto_Var*(), only analysed in
+      LETO_VAR[INCR|DECR]; reset it immediate afterwards
+    * connection param for leto_CheckError()
+    * move leto_CryptBuffReset() as static into letomgmn.c;
+      rename it to leto_BufferResize()
+
+  * source/client/letocl.c
+    - remove socket support for Watcom OS2
+    + experimental test to check for EAGAIN #if defined __SOCKET_EAGAIN__
+    * increase socket buffers to 64K if OS default is smaller
+    * clean up of connection->iError for file and variable functions;
+      reset iError with each request send to server
+    * respect new "+T;" at start of response for Leto_Directory() request
+
+  * source/server/letofunc.c
+    ! !FIX! missing pArea in leto_OpenTable() for No_Save_WA = 0;
+      wrongly outcommented 2017-01-27, now use return of leto_SelectArea()
+    ! tiny fix: uninitalized bytes in leto_DirMake()
+    ! not set RDDI_MEMOEXT in leto_initSet(), it would prevent opening tables
+      with non-default memotypes
+    * exclude extended functionality in leto_Drop() for HB 3.0
+    * add "+T;" at start of response for successfull directory request
+
+  * include/rddleto.ch
+    * formatting
+
 2017-01-31 14:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; ! tiny communication protocol changes, recompile client, server, tools !
 

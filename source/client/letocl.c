@@ -189,7 +189,7 @@ LETOCONNECTION * letoGetCurrConn( void )
    return pLetoPool->pCurrentConn;
 }
 
-void letoClearCurrConn( LETOCONNECTION * pConnection )
+static void letoClearCurrConn( LETOCONNECTION * pConnection )
 {
    LETOPOOL *   pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
    unsigned int ui;
@@ -229,7 +229,7 @@ LETOCONNECTION * letoGetCurrConn( void )
    return s_pCurrentConn;
 }
 
-void letoClearCurrConn( LETOCONNECTION * pConnection )
+static void letoClearCurrConn( LETOCONNECTION * pConnection )
 {
    if( s_pCurrentConn && s_pCurrentConn == pConnection )
       s_pCurrentConn = NULL;
@@ -383,8 +383,8 @@ static PHB_ITEM leto_cloneError( PHB_ITEM pSourceError )
 /* check for thread global s_pError; clone into local var to keep mutex lock short */
 HB_ERRCODE delayedError( void )
 {
-   HB_ERRCODE  errCode = 0;
-   PHB_ITEM    pError = NULL;
+   HB_ERRCODE errCode = 0;
+   PHB_ITEM   pError = NULL;
 
    if( s_pError )  /* this hurts mutex, but should be ok for this quick pre-test */
    {
@@ -472,7 +472,10 @@ HB_EXPORT int LetoGetError( void )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
 
-   return pCurrentConn->iError;
+   if( pCurrentConn )
+      return pCurrentConn->iError;
+   else
+      return -1;
 }
 
 HB_EXPORT const char * LetoGetServerVer( LETOCONNECTION * pConnection )
@@ -572,10 +575,16 @@ static HB_SOCKET leto_ipConnect( const char * szHost, int iPort, int iTimeOut, L
 
       if( hb_socketInetAddr( &pSockAddr, &uiLen, pszIpAddres, iPort ) )
       {
+         int iSize;
+
          hb_socketSetKeepAlive( sd, HB_TRUE );
-         /* set 16KB send and receive buffer */
-         //hb_socketSetSndBufSize( sd, 0x4000 );
-         //hb_socketSetRcvBufSize( sd, 0x4000 );
+         /* set 64KB send and receive buffer */
+         hb_socketGetSndBufSize( sd, &iSize );
+         if( iSize < 0xFFFF )
+            hb_socketSetSndBufSize( sd, 0xFFFF );
+         hb_socketGetRcvBufSize( sd, &iSize );
+         if( iSize < 0xFFFF )
+            hb_socketSetSndBufSize( sd, 0xFFFF );
 
          if( hb_socketConnect( sd, pSockAddr, uiLen, iTimeOut ) == 0 )
             hb_socketSetNoDelay( sd, HB_TRUE );
@@ -766,12 +775,11 @@ static HB_BOOL leto_RecvSecond( LETOCONNECTION * pConnection )
 #if defined( HB_OS_WIN )
 #  define LETO_SOCK_GETERROR()       WSAGetLastError()
 #  define LETO_SOCK_IS_EINTR( err )  ( ( err ) == WSAEINTR )
-#elif defined( HB_OS_OS2 ) && defined( __WATCOMC__ )
-#  define LETO_SOCK_GETERROR()       sock_errno()
-#  define LETO_SOCK_IS_EINTR( err )  ( ( err ) == EINTR )
+#  define LETO_SOCK_IS_EAGAIN( err ) ( ( err ) == WSAEAGAIN )
 #else
 #  define LETO_SOCK_GETERROR()       errno
 #  define LETO_SOCK_IS_EINTR( err )  ( ( err ) == EINTR )
+#  define LETO_SOCK_IS_EAGAIN( err ) ( ( err ) == EAGAIN )
 #endif
 
 static int leto_socketSelectRead( HB_SOCKET hSocket, HB_MAXINT lTimeOut )
@@ -802,8 +810,13 @@ static int leto_socketSelectRead( HB_SOCKET hSocket, HB_MAXINT lTimeOut )
       {
          if( LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
             continue;
+#ifndef __SOCKET_EAGAIN__
          else if( LETO_SOCK_GETERROR() )
             break;
+#else
+         else if( ! LETO_SOCK_IS_EAGAIN( LETO_SOCK_GETERROR() ) && LETO_SOCK_GETERROR() )
+            break;
+#endif
          else
          {
             if( llMilliSec != 0 )
@@ -855,8 +868,13 @@ static int leto_socketSelectRead( HB_SOCKET hSocket, HB_MAXINT lTimeOut )
 
          if( LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
             continue;
+#ifndef __SOCKET_EAGAIN__
          else if( LETO_SOCK_GETERROR() )
             break;
+#else
+         else if( ! LETO_SOCK_IS_EAGAIN( LETO_SOCK_GETERROR() ) && LETO_SOCK_GETERROR() )
+            break;
+#endif
          else if( recv( hSocket, &c, 1, MSG_PEEK ) <= 0 )  /* test read fails in case of closed socket */
          {
             iChange = -1;
@@ -891,6 +909,12 @@ static int leto_socketSelectRead( HB_SOCKET hSocket, HB_MAXINT lTimeOut )
    return iChange;
 }
 
+/*
+ * -1 == timed out or socket err
+ * -2 == received less bytes as 4 ( LETO_MSGSIZE_LEN )
+ * -3 == invalid LETO_MSGSIZE_LEN
+ * -4 == received less than expected
+ */
 static long leto_Recv( LETOCONNECTION * pConnection )
 {
    HB_ULONG ulMsgLen, ulRead = 0;
@@ -898,13 +922,23 @@ static long leto_Recv( LETOCONNECTION * pConnection )
 #ifdef USE_LZ4
    HB_BOOL  fCompressed = HB_FALSE;
 #endif
+#ifdef __SOCKET_EAGAIN__
+   HB_I64   llMilliSec;
+
+   if( pConnection->iTimeOut > 0 )
+      llMilliSec = leto_MilliSec();
+   else
+      llMilliSec = 0;
+   pConnection->iTimeOut
+#endif
 
    hb_vmUnlock();
-   if( leto_socketSelectRead( pConnection->hSocket, pConnection->iTimeOut ) <= 0 )
+   if( ( lRet = leto_socketSelectRead( pConnection->hSocket, pConnection->iTimeOut ) ) <= 0 )
    {
       hb_vmLock();
-      return -1;
+      return lRet;
    }
+
    do
    {
 #ifndef USE_LZ4
@@ -922,8 +956,15 @@ static long leto_Recv( LETOCONNECTION * pConnection )
       }
       if( lRet > 0 )
          ulRead += lRet;
-      else if( lRet <= 0 && ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
+#ifndef __SOCKET_EAGAIN__
+      else if( ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
          break;
+#else
+      else if( ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) && ! LETO_SOCK_IS_EAGAIN( LETO_SOCK_GETERROR() ) )
+         break;
+      else if( llMilliSec != 0 && leto_MilliSec() - llMilliSec > pConnection->iTimeOut )
+         break;
+#endif
    }
    while( ulRead < LETO_MSGSIZE_LEN );
 
@@ -976,11 +1017,18 @@ static long leto_Recv( LETOCONNECTION * pConnection )
 
       if( lRet > 0 )
          ulRead += lRet;
-      else if( lRet <= 0 && ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
+#ifndef __SOCKET_EAGAIN__
+      else if( ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
          break;
+#else
+      else if( ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) && ! LETO_SOCK_IS_EAGAIN( LETO_SOCK_GETERROR() ) )
+         break;
+      else if( llMilliSec != 0 && leto_MilliSec() - llMilliSec > pConnection->iTimeOut )
+         break;
+#endif
       else
       {
-         if( leto_socketSelectRead( pConnection->hSocket, 250 ) <= 0 )  // come on !, one ! tiny pause ...
+         if( leto_socketSelectRead( pConnection->hSocket, 1000 ) <= 0 )  // come on !, one ! tiny pause ...
             break;
       }
    }
@@ -1170,15 +1218,14 @@ static long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsign
    }
 #endif
 
-   if( iErr )
+   if( iErr || ulSent < ulLen )
    {
 #if ! defined( __HARBOUR30__ )  /* new function since 2015/08/17 */
-      hb_socketSetError( iErr );
+      if( iErr )
+         hb_socketSetError( iErr );
 #endif
       ulSent = 0;
    }
-   else if( ulSent < ulLen )  /* ToDo: better flushing rec buffer - or retry send as alternative ? */
-      ulSent = 0;
 
    return ( long ) ulSent;
 }
@@ -1192,10 +1239,17 @@ long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * szData, unsig
       ulLen = strlen( szData );
 
    lRecv = leto_Send( pConnection, szData, ulLen );
-   if( ! lRecv )
-      pConnection->iError = 1000;
-   if( delayedError() )
+   pConnection->iError = delayedError();
+   if( pConnection->iError )
       lRecv = 0;
+   else if( ! lRecv )
+   {
+#if ! defined( __HARBOUR30__ )  /* new function since 2015/08/17 */
+      hb_socketSetError( LETO_SOCK_GETERROR() );
+#endif
+      pConnection->fMustResync = HB_TRUE;
+      pConnection->iError = 1000;
+   }
 
    if( lRecv > 0 )  /* only receive in case of no above send errors */
    {
@@ -1206,7 +1260,7 @@ long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * szData, unsig
          hb_socketSetError( LETO_SOCK_GETERROR() );
 #endif
          lRecv = 0;
-         pConnection->fMustResync = HB_TRUE;  // ToDo - does not really work
+         pConnection->fMustResync = HB_TRUE;
          pConnection->iError = 1000;
       }
    }
@@ -1215,7 +1269,7 @@ long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * szData, unsig
 }
 
 /* if no second socket for asynchronous error is available send it the over first socket, wait for response */
-static unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr )
+unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr )
 {
    unsigned long ulRet;
 
@@ -1225,25 +1279,24 @@ static unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * 
    if( pConnection->hSocketErr != HB_NO_SOCKET )
    {
       ulRet = leto_Send( pConnection, szData, ulLen );
+
       /* also check for deleayed error */
-      if( delayedError() )
-      {
-         pConnection->iError = 1021;
+      pConnection->iError = delayedError();
+      if( pConnection->iError )
          ulRet = 0;
-      }
       else if( ! ulRet )
+      {
+         pConnection->fMustResync = HB_FALSE;
          pConnection->iError = 1000;
+      }
    }
    else
    {
       ulRet = leto_DataSendRecv( pConnection, szData, ulLen );
 
-      if( ! ulRet )
-         pConnection->iError = 1000;
-      else if( *( pConnection->szBuffer ) == '-' )
+      if( ulRet && *( pConnection->szBuffer ) == '-' && iErr )
       {
-         if( iErr )
-            pConnection->iError = iErr;
+         pConnection->iError = iErr;
          ulRet = 0;
       }
    }
@@ -1255,11 +1308,8 @@ static _HB_INLINE_ unsigned long leto_SendRecv( LETOCONNECTION * pConnection, co
 {
    unsigned long ulRet;
 
-   pConnection->iError = 0;
    ulRet = leto_DataSendRecv( pConnection, szData, ulLen );
-   if( ! ulRet )
-      pConnection->iError = 1000;
-   else if( *( pConnection->szBuffer ) == '-' && iErr )
+   if( ulRet && *( pConnection->szBuffer ) == '-' && iErr )
    {
       pConnection->iError = iErr;
       ulRet = 0;
@@ -1268,13 +1318,16 @@ static _HB_INLINE_ unsigned long leto_SendRecv( LETOCONNECTION * pConnection, co
    return ulRet;
 }
 
-HB_EXPORT void LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szCommand )
+HB_EXPORT HB_ERRCODE LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szCommand )
 {
    char          szData[ 32 ];
    unsigned long ulLen;
 
    ulLen = eprintf( szData, "%c;%d;%s;", LETOCMD_set, iCommand, szCommand );
-   leto_SendRecv2( pConnection, szData, ulLen, 0 );  /* ToDo -- no feedback in case of error */
+   if( ! leto_SendRecv2( pConnection, szData, ulLen, 0 ) )
+      return HB_FAILURE;
+
+   return HB_SUCCESS;
 }
 
 #ifdef LETO_MT
@@ -1603,22 +1656,6 @@ HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_UL
    pConnection->pBufCrypt[ ulLen + ulPrelead ] = '\0';
 
    return ulLen;
-}
-
-void leto_CryptBuffReset( LETOCONNECTION * pConnection )
-{
-   if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
-   {
-      hb_xfree( pConnection->pBufCrypt );
-      pConnection->pBufCrypt = NULL;
-      pConnection->ulBufCryptLen = 0;
-   }
-
-   if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
-   {
-      pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
-      pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
-   }
 }
 
 static _HB_INLINE_ unsigned int leto_IsBinaryField( unsigned int uiType, unsigned int uiLen )
@@ -2019,7 +2056,6 @@ void leto_SetUpdated( LETOTABLE * pTable, HB_USHORT uiUpdated )
    memset( pTable->pFieldUpd, 0, pTable->uiFieldExtent * sizeof( HB_UCHAR ) );
 }
 
-/* also used over leto_ParseRec() in leto1.c */
 void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const char * szData )
 {
    const char * ptr = szData + 3;  /* after leading UINT24 */
@@ -2491,10 +2527,16 @@ static HB_THREAD_STARTFUNC( leto_elch )
          {
             lRet = hb_socketRecv( pConnection->hSocketErr, ptr + ulRead, LETO_MSGSIZE_LEN - ulRead, 0, -1 );
 
-            if( lRet <= 0 && ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
-               break;
-            else
+            if( lRet > 0 )
                ulRead += lRet;
+#ifndef __SOCKET_EAGAIN__
+            else if( ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
+               break;
+#else
+            else if( ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) &&
+                     ! LETO_SOCK_IS_EAGAIN( LETO_SOCK_GETERROR() ) )
+               break;
+#endif
          }
          while( ulRead < LETO_MSGSIZE_LEN );
 
@@ -2514,16 +2556,22 @@ static HB_THREAD_STARTFUNC( leto_elch )
             lRet = hb_socketRecv( pConnection->hSocketErr, ptr + ulRead, ulMsgLen - ulRead, 0, -1 );
             hb_vmLock();
 
-            if( lRet < 0 && ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
+            if( lRet > 0 )
+               ulRead += lRet;
+#ifndef __SOCKET_EAGAIN__
+            else if( lRet < 0 && ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
                break;
+#else
+            else if( ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) &&
+                     ! LETO_SOCK_IS_EAGAIN( LETO_SOCK_GETERROR() ) )
+               break;
+#endif
             else if( lRet == 0 )
             {
-               iChange = leto_socketSelectRead( hSocket, 100 ); // come on !, one ! tiny pause ...
+               iChange = leto_socketSelectRead( hSocket, 1000 ); // come on !, one ! tiny pause ...
                if( iChange <= 0 )
                   break;
             }
-            else
-               ulRead += lRet;
          }
          while( ulRead < ulMsgLen );
 
@@ -2978,7 +3026,7 @@ HB_EXPORT int LetoCloseAll( LETOCONNECTION * pConnection )
    char szData[ 4 ];
 
    eprintf( szData, "%c;", LETOCMD_closall );
-   if( leto_SendRecv2( pConnection, szData, 3, 1000 ) )
+   if( leto_SendRecv2( pConnection, szData, 3, 1021 ) )
       return 1;
    else
       return 0;
@@ -3028,6 +3076,7 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
       hb_xfree( pConnection->szBuffer );
       pConnection->szBuffer = NULL;
    }
+
    if( pConnection->pCdpTable )
    {
       PCDPSTRU pNext = pConnection->pCdpTable, pCdps;
@@ -3289,7 +3338,6 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
                     uiFields, szFields, uiArea, szCdpage ? szCdpage : "", hb_setGetDateFormat() );
    if( ! leto_DataSendRecv( pConnection, szData, ulLen ) )
    {
-      pConnection->iError = 1000;
       hb_xfree( szData );
       return NULL;
    }
@@ -3377,10 +3425,7 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
                     ( fShared ) ? 'T' : 'F', ( fReadOnly ) ? 'T' : 'F',
                     szCdp, pConnection->szDriver, uiArea, hb_setGetDateFormat() );
    if( ! leto_DataSendRecv( pConnection, szData, ulLen ) )
-   {
-      pConnection->iError = 1000;
       return NULL;
-   }
 
    ptr = pConnection->szBuffer;
    if( *ptr == '-' )
@@ -4040,11 +4085,8 @@ HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHO
                                   | ( fSoftSeek ? 0x10 : 0 )
                                   | ( fFindLast ? 0x20 : 0 ) ) );
       leto_AddKeyToBuf( szData, szKey, uiKeyLen, &ulLen );  /* trailing */
-      if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) || *( pConnection->szBuffer ) == '-' )
-      {
-         pConnection->iError = 1021;
+      if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
          return 1;
-      }
 
       leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
       pTable->ptrBuf = NULL;
@@ -4323,8 +4365,6 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
             else
                pConnection->iError = 1021;
          }
-         else  /* if( ! fAppend ) */
-            pConnection->iError = 1000;
          iRet = 1;
       }
       else if( fAppend && *ptr == '+' )
@@ -4528,6 +4568,7 @@ HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
 
    if( ulRecNo == pTable->ulRecNo )
       pTable->fRecLocked = HB_TRUE;
+
    return 0;
 }
 
@@ -4818,7 +4859,6 @@ HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, co
    char *        pData, * ptr, cFlag1 = ' ', cFlag2 = ' ';
    unsigned int  uiRes;
 
-   pConnection->iError = -1;
    if( strchr( szGroup, ';' ) || strchr( szVar, ';' ) )  /* illegal char in name */
       return 0;
    if( cType < '1' || cType > '4' )
@@ -4849,7 +4889,6 @@ HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, co
 
    if( uiRes )
    {
-      pConnection->iError = 0;
       if( pRetValue )
       {
          if( uiRes < 3 )
@@ -4861,8 +4900,6 @@ HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, co
             *pRetValue = ptr;
       }
    }
-   else
-      pConnection->iError = ( unsigned int ) atoi( ptr );
 
    return uiRes;
 }
@@ -4873,8 +4910,6 @@ HB_EXPORT const char * LetoVarGet( LETOCONNECTION * pConnection, const char * sz
    unsigned long ulLen = 24 + strlen( szGroup ) + strlen( szVar );
    char *        pData;
    unsigned int  uiRes;
-
-   pConnection->iError = -1;
 
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;%c;%s;%s;", LETOCMD_var, LETOSUB_get, szGroup, szVar );
@@ -4887,16 +4922,12 @@ HB_EXPORT const char * LetoVarGet( LETOCONNECTION * pConnection, const char * sz
 
       if( *ptr++ == '+' && uiRes >= 3 )
       {
-         pConnection->iError = 0;
          if( pulLen )
             *pulLen = ( HB_ULONG ) uiRes - 3;
          return ptr;
       }
       else
-      {
-         pConnection->iError = ( unsigned int ) atoi( ptr );
          return NULL;
-      }
    }
 
    return NULL;
@@ -4908,8 +4939,6 @@ HB_EXPORT long LetoVarIncr( LETOCONNECTION * pConnection, const char * szGroup, 
    char *        pData;
    char          cFlag1 = ' ', cFlag2 = ' ';
    unsigned int  uiRes;
-
-   pConnection->iError = -1;
 
    cFlag1 |= ( uiFlags & ( LETO_VCREAT | LETO_VOWN | LETO_VDENYWR | LETO_VDENYRD ) );
    if( uiFlags & LETO_VOWN )
@@ -4926,16 +4955,15 @@ HB_EXPORT long LetoVarIncr( LETOCONNECTION * pConnection, const char * szGroup, 
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' )
-      {
-         pConnection->iError = 0;
          return strtol( ptr + 2, NULL, 10 );
-      }
       else
       {
          pConnection->iError = ( unsigned int ) atoi( ptr );
          return 0;
       }
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = 1;
 
    return 0;
 }
@@ -4946,8 +4974,6 @@ HB_EXPORT long LetoVarDecr( LETOCONNECTION * pConnection, const char * szGroup, 
    char *        pData;
    char          cFlag1 = ' ', cFlag2 = ' ';
    unsigned int  uiRes;
-
-   pConnection->iError = -1;
 
    cFlag1 |= ( uiFlags & ( LETO_VCREAT | LETO_VOWN | LETO_VDENYWR | LETO_VDENYRD ) );
    if( uiFlags & LETO_VOWN )
@@ -4964,16 +4990,15 @@ HB_EXPORT long LetoVarDecr( LETOCONNECTION * pConnection, const char * szGroup, 
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' )
-      {
-         pConnection->iError = 0;
          return strtol( ptr + 2, NULL, 10 );
-      }
       else
       {
          pConnection->iError = ( unsigned int ) atoi( ptr );
          return 0;
       }
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = 1;
 
    return 0;
 }
@@ -4983,8 +5008,6 @@ HB_EXPORT int LetoVarDel( LETOCONNECTION * pConnection, const char * szGroup, co
    unsigned long ulLen = 24 + strlen( szGroup ) + strlen( szVar );
    char *        pData;
    unsigned int  uiRes;
-
-   pConnection->iError = -1;
 
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;%c;%s;%s;", LETOCMD_var, LETOSUB_del, szGroup, szVar );
@@ -4996,15 +5019,9 @@ HB_EXPORT int LetoVarDel( LETOCONNECTION * pConnection, const char * szGroup, co
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' )
-      {
-         pConnection->iError = 0;
          return 1;
-      }
       else
-      {
-         pConnection->iError = ( unsigned int ) atoi( ptr );
          return 0;
-      }
    }
 
    return 0;
@@ -5016,8 +5033,6 @@ HB_EXPORT const char * LetoVarGetList( LETOCONNECTION * pConnection, const char 
    char *        pData;
    unsigned int  uiRes;
 
-   pConnection->iError = -1;
-
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;%c;%s;;%u;", LETOCMD_var, LETOSUB_list, ( szGroup ) ? szGroup : "", uiMaxLen );
 
@@ -5028,15 +5043,9 @@ HB_EXPORT const char * LetoVarGetList( LETOCONNECTION * pConnection, const char 
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' )
-      {
-         pConnection->iError = 0;
          return ptr;
-      }
       else
-      {
-         pConnection->iError = ( unsigned int ) atoi( ptr );
          return NULL;
-      }
    }
 
    return NULL;
@@ -5058,10 +5067,8 @@ HB_EXPORT HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFi
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' && *ptr == 'T' )
-      {
-         pConnection->iError = 0;
          return HB_TRUE;
-      }
+
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
    else if( ! pConnection->iError )
@@ -5086,10 +5093,8 @@ HB_EXPORT HB_BYTE LetoFileErase( LETOCONNECTION * pConnection, const char * szFi
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' && ( *ptr == 'T' ) )
-      {
-         pConnection->iError = 0;
          return 1;
-      }
+
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
    else if( ! pConnection->iError )
@@ -5114,10 +5119,8 @@ HB_EXPORT HB_BYTE LetoFileRename( LETOCONNECTION * pConnection, const char * szF
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' && ( *ptr == 'T' ) )
-      {
-         pConnection->iError = 0;
          return 1;
-      }
+
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
    else if( ! pConnection->iError )
@@ -5142,10 +5145,8 @@ HB_EXPORT HB_BYTE LetoFileCopy( LETOCONNECTION * pConnection, const char * szFil
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' && ( *ptr == 'T' ) )
-      {
-         pConnection->iError = 0;
          return 1;
-      }
+
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
    else if( ! pConnection->iError )
@@ -5210,14 +5211,13 @@ HB_EXPORT HB_BOOL LetoMemoWrite( LETOCONNECTION * pConnection, const char * szFi
       if( *( ptr - 1 ) == '+' )
       {
          if( *ptr == 'T' )
-         {
-            pConnection->iError = 0;
             return HB_TRUE;
-         }
          else
             pConnection->iError = atoi( ptr + 2 );
       }
    }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
 
    return HB_FALSE;
 }
@@ -5226,8 +5226,6 @@ HB_EXPORT const char * LetoFileRead( LETOCONNECTION * pConnection, const char * 
 {
    char *        pData;
    unsigned long ulRes;
-
-   pConnection->iError = 0;
 
    pData = ( char * ) hb_xgrab( 32 + strlen( szFile ) );
    ulRes = eprintf( pData, "%c;10;%s;%lu;%lu;", LETOCMD_file, szFile, ulStart, *ulLen );
@@ -5284,7 +5282,7 @@ HB_EXPORT HB_BOOL LetoFileWrite( LETOCONNECTION * pConnection, const char * szFi
       else
          pConnection->iError = -2;
    }
-   else
+   else if( ! pConnection->iError )
       pConnection->iError = -1;
 
    return HB_FALSE;
@@ -5310,7 +5308,6 @@ HB_EXPORT long LetoFileSize( LETOCONNECTION * pConnection, const char * szFile )
          if( *ptr == 'T' )
          {
             ulLen = strtoul( ptr + 2, NULL, 10 );
-            pConnection->iError = 0;
             return ulLen;
          }
          else
@@ -5347,7 +5344,6 @@ HB_EXPORT const char * LetoFileAttr( LETOCONNECTION * pConnection, const char * 
             if( pEnd )
             {
                *pEnd = '\0';
-               pConnection->iError = 0;
                return ptr + 2;
             }
          }
@@ -5376,15 +5372,10 @@ HB_EXPORT const char * LetoDirectory( LETOCONNECTION * pConnection, const char *
    {
       const char * ptr = pConnection->szBuffer;
 
-      if( ! strncmp( ptr, "-002", 4 ) ) /* param error */
-         pConnection->iError = -2;
-      else if( ! strncmp( ptr, "+F;", 3 ) )
+      if( ! strncmp( ptr, "+F;", 3 ) )
          pConnection->iError = atoi( ptr + 3 );
       else
-      {
-         pConnection->iError = 0;
-         return ptr;
-      }
+         return ptr + 3;
    }
    else if( ! pConnection->iError )
       pConnection->iError = -1;
@@ -5398,8 +5389,6 @@ HB_EXPORT HB_BYTE LetoDirMake( LETOCONNECTION * pConnection, const char * szFile
    char *        pData;
    unsigned int  uiRes;
 
-   pConnection->iError = -1;
-
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;05;%s;", LETOCMD_file, szFile );
 
@@ -5410,10 +5399,8 @@ HB_EXPORT HB_BYTE LetoDirMake( LETOCONNECTION * pConnection, const char * szFile
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' && *ptr == 'T' )
-      {
-         pConnection->iError = 0;
          return 1;
-      }
+
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
    else if( ! pConnection->iError )
@@ -5428,8 +5415,6 @@ HB_EXPORT HB_BYTE LetoDirExist( LETOCONNECTION * pConnection, const char * szFil
    char *        pData;
    unsigned int  uiRes;
 
-   pConnection->iError = -1;
-
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;06;%s;", LETOCMD_file, szFile );
 
@@ -5440,10 +5425,8 @@ HB_EXPORT HB_BYTE LetoDirExist( LETOCONNECTION * pConnection, const char * szFil
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' && *ptr == 'T' )
-      {
-         pConnection->iError = 0;
          return 1;
-      }
+
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
    else if( ! pConnection->iError )
@@ -5468,10 +5451,8 @@ HB_EXPORT HB_BYTE LetoDirRemove( LETOCONNECTION * pConnection, const char * szFi
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' && *ptr == 'T' )
-      {
-         pConnection->iError = 0;
          return 1;
-      }
+
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }
    else if( ! pConnection->iError )

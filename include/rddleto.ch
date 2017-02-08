@@ -117,11 +117,13 @@
 #define LETOOPT_PENDTRIGGER  27   // P
 #define LETOOPT_HARDCOMMIT   29   // L
 
-/* redirect for 4 options handled in LETO_SET(), others forward to SET() */
+/* determine if compiler behave case sensitive */
 #define CASESENSITIVE
 #ifdef CaseSensitive
-#undef CASESENSITIVE
+   #undef CASESENSITIVE
 #endif
+
+/* redirect for 4 options handled in LETO_SET(), others forward to SET() */
 #ifdef CASESENSITIVE
    #define set( _HB_SETTING, XSET )   LETO_SET( _HB_SETTING, XSET )
    #define Set( _HB_SETTING, XSET )   LETO_SET( _HB_SETTING, XSET )

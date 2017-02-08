@@ -236,13 +236,13 @@ typedef struct _LETOCONNECTION_
    HB_BOOL           fRefreshCount;
    HB_BOOL           fBufKeyNo;
    HB_BOOL           fBufKeyCount;
-   char *            szBuffer;             /* socket communication buffer */
-   HB_ULONG          ulBufferLen;          /* len of buffer */
+   char *            szBuffer;             /* socket communication send/ receive buffer */
+   HB_ULONG          ulBufferLen;          /* len of socket send/ receive buffer, +1 for term  */
    char *            pBufCrypt;
+   HB_ULONG          ulBufCryptLen;
    int               iZipRecord;
    HB_BOOL           fZipCrypt;
-   HB_ULONG          ulBufCryptLen;
-   int               iBufRefreshTime;      /* BufRefreshTime in 0.01 sec, afterwards buffer refresh */
+   int               iBufRefreshTime;      /* in 0.01 sec, afterwards SKIP buffer refresh */
    HB_USHORT         uiDriver;             /* default driver 0 = NTX, 1 = CDX */
    char              szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];       /* DBF driver NAME */
    HB_USHORT         uiLockSchemeExtend;   /* use default or extended lockscheme !! only info, set by server */
@@ -268,7 +268,7 @@ HB_EXTERN_END
 void LetoInit( void );
 void LetoExit( unsigned int uiFull );
 void LetoSetCdp( const char * szCdp );
-void LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szCommand );
+HB_ERRCODE LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szCommand );
 int LetoGetConnectRes( void );
 int LetoGetCmdItem( char ** pptr, char * szDest );
 const char * LetoFindCmdItem( const char * ptr );
@@ -324,6 +324,7 @@ unsigned int LetoDbFieldDec( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int
 void LetoFreeStr( char * szStr );
 
 long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * sData, unsigned long ulLen );
+unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr );
 LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
 LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort );
 /* int LetoCheckServerVer( LETOCONNECTION * pConnection, HB_USHORT uiVer ); */
