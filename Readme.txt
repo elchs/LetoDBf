@@ -294,6 +294,8 @@ A. Internals
       Pass_for_Manage = 0      -    if 1, user authentication is necessary to use management functions,
                                     e.g. run the monitor console [ Leto_mggetinfo() ]
       Pass_for_Data = 0        -    if 1, user authentication is necessary to have write access to the data;
+      Server_User =                 The Unix/ Linux username from whom UID and GUI are fetched for __LINUX_DAEMON__.
+                                    Have precedence over following two options, if username is given and exists.
       Server_UID = 0                The User-ID and Group-ID for the Linux server to run as daemon.
       Server_GID = 0                Your DBF tables will get this IDs, important for choosing the correct access rights.
                                     Default is empty, then this will be the U-ID and G-ID who started the server.
@@ -987,6 +989,10 @@ A. Internals
  MemoWrit() function.
  ! FIXED ! Notice, that character '26' == 'strg-z' is appened to <cBuf>.
 
+      Leto_Directory( [ cDir ] [, cAttr] )                     ==> aDirectory
+ Returns a content of directory at the server in the same format as Directory() function.
+ With no given <cDir> the DataPath root directory is used.
+
       Leto_DirExist( cPath )                                   ==> lDirExists
  Determine if cirectory exist at the server, analog of Leto_File() function, but
  for directories
@@ -996,6 +1002,16 @@ A. Internals
 
       Leto_DirRemove( cPath )                                  ==> -1 if failed
  Deletes a directory at the server
+
+      Leto_FileSize( cFileName )                               ==> -1 if failed
+ Returns a length of file at the server
+
+      Leto_FileAttr( cFileName [, cNewAttr] )                  ==> cAttr
+ Get ( without given cNewAttr ) or set <cNewAttr> file attributes, where returned value
+ <cAttr> are the active attributes ( after an optional change with <cNewAttr> )
+ <cNewAttr> can contain at first place a "-", to revert the following attribute(s),
+ e.g.; "-A" will remove the 'archive' attribute; "-" will remove all attributes.
+ File attributes are only valid for FileSystem which support them !
 
       Leto_FileRead( cFileName, [ nStart ], [ nLen ], @cBuf )  ==> -1 if failed
  Read a content of file at the server from <nStart> offset and max <nLen> length.
@@ -1021,20 +1037,6 @@ A. Internals
     AEval( aArr, { |aItem| Leto_FCopyFromSrv( aItem[1], aItem[1] } )
  Copy from a logged into HbNetIO server a file to LeoDBf located in RAM:
     Leto_FCopyToSrv( "net:hbnetio.txt", "mem:RAMfile.txt" )
-
-      Leto_FileSize( cFileName )                               ==> -1 if failed
- Returns a length of file at the server
-
-      Leto_FileAttr( cFileName [, cNewAttr] )                  ==> cAttr
- Get ( without given cNewAttr ) or set <cNewAttr> file attributes, where returned value
- <cAttr> are the active attributes ( after an optional change with <cNewAttr> )
- <cNewAttr> can contain at first place a "-", to revert the following attribute(s),
- e.g.; "-A" will remove the 'archive' attribute; "-" will remove all attributes.
- File attributes are only valid for FileSystem which support them !
-
-      Leto_Directory( [ cDir ] [, cAttr] )                          ==> aDirectory
- Returns a content of directory at the server in the same format as Directory() function.
- With no given <cDir> the DataPath root directory is used.
 
 
       7.7 Management functions

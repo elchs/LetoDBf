@@ -260,7 +260,7 @@ PROCEDURE Main( cCommand, cData )
 #ifdef __LINUX_DAEMON__
 
       oApp := HApp():New()
-      IF ! leto_Daemon( oApp:nSUserID, oApp:nSGroupID )
+      IF ! leto_Daemon( oApp:nSUserID, oApp:nSGroupID, oApp:cSUser )
          WrLog( "Can't become a daemon" )
          ErrorLevel( 2 )
       ELSE
@@ -417,6 +417,7 @@ CLASS HApp
    DATA cPassName INIT "leto_users"
    DATA nSUserID  INIT 0
    DATA nSGroupID INIT 0
+   DATA cSUser    INIT NIL
    DATA lCryptTraffic INIT .F.
    DATA cTrigger
    DATA cPendingTrigger
@@ -438,7 +439,7 @@ METHOD New() CLASS HApp
    LOCAL nDebugMode := 0
    LOCAL lHardCommit := .F.
    LOCAL nAutOrder
-   LOCAL nMemoType
+   LOCAL nMemoType := 0
    LOCAL nMemoBlocksize := 0
    LOCAL lOptimize := .T.
    LOCAL lForceOpt := .F.
@@ -511,6 +512,8 @@ METHOD New() CLASS HApp
                   ::lPass4D := ( aIni[ i, 2, j, 2 ] == '1' )
                ELSEIF aIni[ i, 2, j, 1 ] == "PASS_FILE"
                   ::cPassName := aIni[ i, 2, j, 2 ]
+               ELSEIF aIni[ i, 2, j, 1 ] == "SERVER_USER"
+                  ::cSUser := aIni[ i, 2, j, 2 ]
                ELSEIF aIni[ i, 2, j, 1 ] == "SERVER_UID"
                   ::nSUserID := Int( Val( aIni[ i, 2, j, 2 ] ) )
                ELSEIF aIni[ i, 2, j, 1 ] == "SERVER_GID"
@@ -559,12 +562,6 @@ METHOD New() CLASS HApp
                      nMemoType := DB_MEMO_FPT
                   ELSEIF Lower( aIni[ i, 2, j, 2 ] ) $ 'smt'
                      nMemoType := DB_MEMO_SMT
-                  ELSE
-                     IF ::nDriver == LETO_NTX
-                        nMemoType := DB_MEMO_DBT
-                     ELSE
-                        nMemoType := DB_MEMO_FPT
-                     ENDIF
                   ENDIF
                ELSEIF aIni[ i, 2, j, 1 ] == "FORCEOPT"
                   lForceOpt := ( aIni[ i, 2, j, 2 ] == '1' )

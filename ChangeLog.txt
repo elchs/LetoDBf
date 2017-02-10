@@ -2,6 +2,26 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-02-10 18:08 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+    ! FIX LetoDbPutRecord() for > 255 fields;
+      many THANKS to Ron for finding the quite hidden bug
+    % remove one param of leto_SetBlankRecord(); move RecNo nullify into
+      LetoDbAppend()
+
+  * bin/letodb.ini
+  * source/server/leto_lnx.c
+  * source/server/server.prg
+    + add possibility to fetch UID/GID from a given user
+    * default memotype to 0 for invalid type, let the server determine it
+      at C-level
+
+  * utils/manage/console.prg
+    * better handling of server not respondig, then just quit
+
+  * Readme.txt
+    * new Server_User option, move some file explanations
+
 2017-02-08 08:48 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; communication protocol change [Leto_Directory()], recompile all
 

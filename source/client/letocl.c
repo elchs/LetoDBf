@@ -1677,10 +1677,8 @@ static _HB_INLINE_ unsigned int leto_IsBinaryField( unsigned int uiType, unsigne
 }
 
 /* blanks all fields content to ' ', then only binary fields to '\0' */
-static void leto_SetBlankRecord( LETOTABLE * pTable, unsigned int uiAppend )
+static void leto_SetBlankRecord( LETOTABLE * pTable )
 {
-   if( uiAppend )
-      pTable->ulRecNo = 0;  /* needed at server side for transactions to be zero*/
    /* set all to white space, revert later for binary fields to '\0' */
    memset( pTable->pRecord, ' ', pTable->uiRecordLen );
    if( pTable->fHaveBinary )
@@ -2080,7 +2078,7 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
    }
    else if( pTable->fEof )
    {
-      leto_SetBlankRecord( pTable, 0 );
+      leto_SetBlankRecord( pTable );
       ptr += pTable->uiFieldExtent;
    }
    else
@@ -4207,6 +4205,7 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
    {
       LETOFIELD *  pField;
       HB_BOOL      fTwoBytes = ( pTable->uiFieldExtent > 255 );
+      HB_USHORT    uiTmp;
       unsigned int uiLen, uiRealLen;
       char *       ptrEnd;
 
@@ -4220,9 +4219,10 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
                *pData++ = ( HB_BYTE ) ( ui + 1 ) & 0xFF;
             else
             {
-               *pData++ = ( HB_BYTE ) ++ui & 0xFF;
-               ui >>= 8;
-               *pData++ = ( HB_BYTE ) ui-- & 0xFF;
+               uiTmp = ui + 1;
+               *pData++ = ( HB_BYTE ) uiTmp & 0xFF;
+               uiTmp >>= 8;
+               *pData++ = ( HB_BYTE ) uiTmp & 0xFF;
             }
 
             switch( pField->uiType )
@@ -4400,9 +4400,10 @@ HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
    pTable->fBof = pTable->fEof = pTable->fFound = pTable->fDeleted = HB_FALSE;
    pTable->ptrBuf = NULL;
    pTable->ulRecCount++;
+   pTable->ulRecNo = 0;  /* needed at server side for transactions to be zero*/
 
    /* if pTable->fHaveAutoinc, autoinc-values will be received in LetoDbPutRecord() */
-   leto_SetBlankRecord( pTable, 1 );
+   leto_SetBlankRecord( pTable );
    if( LetoDbPutRecord( pTable ) == HB_SUCCESS )
    {
       if( ! pTable->fFLocked && pTable->fShared && ( ! pTable->fHaveAutoinc || ! pTable->ulRecNo ) )

@@ -53,14 +53,33 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <pwd.h>
 
 #include "srvleto.h"
 
+
+static void leto_pwnam( const char * username, uid_t * pw_uid, gid_t * pw_gid )
+{
+   struct passwd * pwd = NULL;
+
+   *pw_uid = 0;
+   *pw_gid = 0;
+
+   if( username && *username )
+      pwd = getpwnam( username );
+   if( pwd )
+   {
+      *pw_uid = pwd->pw_uid;
+      *pw_gid = pwd->pw_gid;
+   }
+}
 
 HB_FUNC( LETO_DAEMON )
 {
    int        iPID, i, numFiles;
    HB_FHANDLE hNull;
+   uid_t      pw_uid;
+   gid_t      pw_gid;
 
    iPID = fork();
 
@@ -71,12 +90,14 @@ HB_FUNC( LETO_DAEMON )
 
       case -1:            /* error - bail out (fork failing is very bad) */
          fprintf( stderr, "Error: initial fork failed: %s\n", strerror( errno ) );
+         leto_writelog( NULL, -1, "ERROR: initial fork failed: %s\n", strerror( errno ) );
          hb_retl( HB_FALSE );
          return;
 
       default:            /* we are the parent, so exit */
+         hb_retl( HB_TRUE );
          hb_vmRequestQuit();
-         break;
+         return;
    }
 
    if( setsid() < 0 )
@@ -105,15 +126,21 @@ HB_FUNC( LETO_DAEMON )
 #  pragma GCC diagnostic ignored "-Wunused-result"
 #endif
 
-   if( HB_IS_INTEGER( hb_param( 2, HB_IT_NUMERIC ) ) && hb_parni( 2 ) > 0 )
-      ( void ) setgid( hb_parni( 2 ) );
-   else
-      ( void ) setgid( getgid() );
+   /* fetch UID/ GOD from optional given user */
+   leto_pwnam( hb_parc( 3 ), &pw_uid, &pw_gid );
+   if( ! pw_uid || ! pw_gid )
+   {
+      if( HB_IS_INTEGER( hb_param( 1, HB_IT_NUMERIC ) ) && hb_parni( 1 ) > 0 )
+         pw_uid = hb_parni( 1 );
+      if( HB_IS_INTEGER( hb_param( 2, HB_IT_NUMERIC ) ) && hb_parni( 2 ) > 0 )
+         pw_gid = hb_parni( 2 );
+   }
 
-   if( HB_IS_INTEGER( hb_param( 1, HB_IT_NUMERIC ) ) && hb_parni( 1 ) > 0 )
-      ( void ) setuid( hb_parni( 1 ) );
-   else
-      ( void ) setuid( getuid() );
+   /* order seem important, and commonly need root rights to change */
+   if( pw_gid )
+      ( void ) setgid( pw_gid );
+   if( pw_uid )
+      ( void ) setuid( pw_uid );
 
 #if defined( __GNUC__ ) && ( ( __GNUC__ * 100 + __GNUC_MINOR__ ) >= 406 )
 #  pragma GCC diagnostic pop
@@ -132,4 +159,5 @@ HB_FUNC( LETO_UMASK )
       umask( mask );
    }
 }
+
 

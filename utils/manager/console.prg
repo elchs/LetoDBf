@@ -780,8 +780,11 @@ RETURN cDriver
 STATIC FUNCTION GetAllConnections( oBrow )
    oBrow:cargo := leto_MgGetUsers()
    IF EMPTY( oBrow:cargo )
-      oBrow:cargo := {}  /* can be NIL */
+      QUIT  /* there must be at least myself */
    ELSE
+      IF LEN( oBrow:cargo[ 1 ] ) < 9
+         QUIT
+      ENDIF
       AEVAL( @oBrow:cargo, { | aConn | aConn[ 7 ] := DriverName( VAL( aConn[ 7 ] ) ) } )
       AEVAL( @oBrow:cargo, { | aConn | aConn[ 5 ] := SecToTimestring( Val( aConn[ 5 ] ) ) } )
       AEVAL( @oBrow:cargo, { | aConn | aConn[ 6 ] := ActionDecode( aConn[ 6 ] ) } )
@@ -792,6 +795,9 @@ STATIC FUNCTION GetTables( nConnection )
  LOCAL aTables := leto_MgGetTables( nConnection )
 
    IF ! EMPTY( aTables )
+      IF LEN( aTables[ 1 ] ) < 7 .OR. VALTYPE( aTables[ 1, 5 ] ) != "L" 
+         QUIT
+      ENDIF
       AEVAL( aTables, {| aData | aData[ 5 ] := IIF( aData[ 5 ] , "shar", "excl" ) } )
       AEVAL( aTables, {| aData | aData[ 7 ] := IIF( aData[ 7 ] == "1" , "DBT", IIF( aData[ 7 ] == "2", "FPT", "SMT" ) ) } )
    ELSE
@@ -804,6 +810,8 @@ STATIC FUNCTION GetIndex( nConnection, cTable )
 
    IF EMPTY( aIndex )
       aIndex := {}
+   ELSEIF LEN( aIndex[ 1 ] ) < 4
+      QUIT
    ENDIF
 RETURN aIndex
 
@@ -988,12 +996,13 @@ RETURN .T.
 
 STATIC FUNCTION BasicInfo()
  STATIC aCpuLoads := {}
- LOCAL aInfo, nSec, nDay, nHour, nMin, oldc, nTransAll, nTransBad
+ LOCAL nSec, nDay, nHour, nMin, oldc, nTransAll, nTransBad
+ LOCAL aInfo := leto_MgGetInfo()
  LOCAL aInfo3 := Leto_MgGetTime()
  LOCAL aInfo4 := Leto_MgSysInfo()
  LOCAL cTmp, nTmp
 
-   IF EMPTY( ( aInfo := leto_MgGetInfo() ) )
+   IF EMPTY( aInfo ) .OR. LEN( aInfo ) < 18 .OR. EMPTY( aInfo4 ) .OR. LEN( aInfo4 ) < 9
       RETURN .F.
    ENDIF
 
