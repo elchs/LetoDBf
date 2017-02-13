@@ -1490,7 +1490,7 @@ HB_FUNC( LETO_TOGGLEZIP )
       if( iZipRecord >= -1 && iZipRecord <= 9 )
 #endif
       {
-         char * szPass = ( char * ) hb_xgrab( ( iKeyLen + 9 ) * 2 );;
+         char * szPass = ( char * ) hb_xgrab( ( iKeyLen + 9 ) * 2 );
 
          if( iKeyLen > 0 && iZipRecord >= 0 )
          {

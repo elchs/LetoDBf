@@ -196,7 +196,6 @@
 #define LETO_FLAG_UPD_UNLOCK   0x08
 #define LETO_FLAG_UPD_FLUSH    0x10
 
-extern HB_I64 leto_DeciSec( void );
 extern HB_I64 leto_MilliSec( void );
 extern HB_U64 leto_MicroSec( void );
 extern int leto_CPUCores( void );

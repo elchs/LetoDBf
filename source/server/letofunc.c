@@ -4201,9 +4201,8 @@ static void leto_RddiGetValue( const char * szDriver, HB_USHORT uiIndex, char * 
             case RDDI_ORDEREXT:       /* single-TAG default */
             case RDDI_TABLEEXT:
             {
-               PHB_ITEM pItem = NULL;
+               PHB_ITEM pItem = hb_itemPutC( NULL, NULL );
 
-               pItem = hb_itemPutC( pItem, NULL );
                SELF_RDDINFO( pRDDNode, uiIndex, 0, pItem );
                if( uiIndex == RDDI_ORDBAGEXT && ! hb_itemGetCLen( pItem ) )
                   SELF_RDDINFO( pRDDNode, RDDI_ORDEREXT, 0, pItem );
@@ -9971,34 +9970,62 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-static HB_BOOL leto_RelationIsCyclic( PUSERSTRU pUStru, AREAP pArea )
+static HB_BOOL leto_RelationIsCyclic( PUSERSTRU pUStru, int iChildArea )
 {
+   PLETO_LIST_ITEM pListItem = pUStru->AreasList.pItem;
+   HB_BOOL         bCyclic = HB_FALSE;
+   PHB_ITEM        pAllParents = hb_itemArrayNew( 0 );
+   PHB_ITEM        pItem = NULL;
    AREAP           pChildArea;
-   PLETO_LIST_ITEM pListItem;
    PAREASTRU       pAStru;
    DBRELINFO *     pRelations;
-   HB_BOOL         bCyclic = HB_FALSE;
+   HB_SIZE         nRel;
+   HB_BOOL         bRegistered;
 
-   pListItem = pUStru->AreasList.pItem;
    while( ! bCyclic && pListItem )
    {
       pAStru = ( PAREASTRU ) ( pListItem + 1 );
-      if( pAStru != pUStru->pCurAStru )
+      pChildArea = ( AREAP ) hb_rddGetWorkAreaPointer( pAStru->ulAreaID );
+      pRelations = pChildArea->lpdbRelations;
+      while( pRelations )
       {
-         pChildArea = ( AREAP ) hb_rddGetWorkAreaPointer( pAStru->ulAreaID );
-         pRelations = pChildArea->lpdbRelations;
-         while( pRelations )
+         nRel = 1;
+         bRegistered = HB_FALSE;
+         while( nRel <= hb_arrayLen( pAllParents ) )
          {
-            if( ( ( AREAP ) pRelations->lpaChild ) == pArea )
+            if( hb_arrayGetNI( pAllParents, nRel ) == pRelations->lpaParent->uiArea )
             {
-               bCyclic = HB_TRUE;
+               bRegistered = HB_TRUE;
                break;
             }
-            pRelations = pRelations->lpdbriNext;
+            nRel++;
          }
+         if( ! bRegistered )
+         {
+            pItem = hb_itemPutNI( pItem, pRelations->lpaParent->uiArea );
+            hb_arrayAdd( pAllParents, pItem );
+         }
+
+         pRelations = pRelations->lpdbriNext;
       }
+
+      nRel = 1;
+      while( nRel <= hb_arrayLen( pAllParents ) )
+      {
+         if( hb_arrayGetNI( pAllParents, nRel ) == iChildArea )
+         {
+            bCyclic = HB_TRUE;
+            break;
+         }
+         nRel++;
+      }
+
       pListItem = pListItem->pNext;
    }
+
+   if( pItem )
+      hb_itemRelease( pItem );
+   hb_itemRelease( pAllParents );
 
    return bCyclic;
 }
@@ -10051,7 +10078,7 @@ static void leto_Relation( PUSERSTRU pUStru, const char * szData )
                      hb_xvmSeqEnd();
                      if( pUStru->iHbError )
                         bFail = HB_TRUE;
-                     if( ! bFail && leto_RelationIsCyclic( pUStru, pArea ) )
+                     if( ! bFail && leto_RelationIsCyclic( pUStru, iAreaChild ) )
                      {
                         pUStru->iHbError = 1;
                         if( ! pUStru->szHbError )

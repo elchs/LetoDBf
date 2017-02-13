@@ -340,11 +340,6 @@ HB_I64 leto_MilliSec( void )
 #endif
 }
 
-HB_I64 leto_DeciSec( void )
-{
-   return leto_MilliSec() / 10;
-}
-
 /* removes all spaces of a literally codeblock, return HB_FALSE if wrong quotated */
 HB_BOOL leto_CbTrim( char * szCodeblock )
 {

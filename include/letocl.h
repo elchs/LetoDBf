@@ -79,6 +79,7 @@
 #define LETO_INDEX_EXCL   0x0200
 
 #define leto_firstchar( pConnection )  pConnection->szBuffer + 1
+#define LETO_CENTISEC()                ( leto_MilliSec() / 10 )
 
 #ifndef LETO_DOPCODE_LEN
    #define LETO_DOPCODE_LEN         7
@@ -183,7 +184,7 @@ typedef struct _LETOTABLE
    unsigned long     ulLocksMax;        /* Number of records locked */
    unsigned long     ulLocksAlloc;      /* Number of records locked (allocated) */
    HB_USHORT         uiLockScheme;      /* elch new */
-   HB_I64            llDeciSec;         /* timepoint last access record[-buffer] data in 1/ 100 s */
+   HB_I64            llCentiSec;         /* timepoint last access record[-buffer] data in 1/ 100 s */
 } LETOTABLE;                            /* 344 */
 
 typedef struct

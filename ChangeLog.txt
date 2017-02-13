@@ -2,6 +2,25 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-02-13 18:08 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    ! FIX cyclic relation detection; old logic relied on relation hierachy
+    * hack against DbInfo( DBI_TABLEEXT ) call in DbTableExt() for unused WA;
+      rddInfo should be called instead
+
+  * include/funcleto.h
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/common/common_c.c
+    % replace leto_DeciSec() with macro LETO_CENTISEC();
+      correct naming of 1/100 second as centisecond
+    % use uiLen as uiTmp, spare one extra variable
+
+  * source/client/letomgmn.c
+    * remove one ';;'
+
 2017-02-10 18:08 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     ! FIX LetoDbPutRecord() for > 255 fields;
