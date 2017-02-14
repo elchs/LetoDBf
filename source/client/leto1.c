@@ -2997,56 +2997,6 @@ static HB_ERRCODE letoClearRel( LETOAREAP pArea )
    return errCode;
 }
 
-static HB_ERRCODE leto_doCyclicCheck( AREAP pArea, void * p )
-{
-   LETOCONNECTION * pConnection = ( LETOCONNECTION * ) p;
-
-   if( pArea->lpdbRelations )
-   {
-      LPDBRELINFO lpDbRel = pArea->lpdbRelations;
-      PHB_ITEM    pItem = NULL;
-      HB_SIZE     nRel;
-      HB_BOOL     fRegistered;
-
-      while( lpDbRel )
-      {
-         nRel = 1;
-         fRegistered = HB_FALSE;
-         while( nRel <= hb_arrayLen( pConnection->whoCares ) )
-         {
-            if( hb_arrayGetNI( pConnection->whoCares, nRel ) == lpDbRel->lpaParent->uiArea )
-            {
-               fRegistered = HB_TRUE;
-               break;
-            }
-            nRel++;
-         }
-         if( ! fRegistered )
-         {
-            pItem = hb_itemPutNI( pItem, lpDbRel->lpaParent->uiArea );
-            hb_arrayAdd( pConnection->whoCares, pItem );
-         }
-
-         lpDbRel = lpDbRel->lpdbriNext;
-      }
-
-      nRel = 1;
-      while( nRel <= hb_arrayLen( pConnection->whoCares ) )
-      {
-         if( hb_arrayGetNI( pConnection->whoCares, nRel ) == pConnection->iConnectRes )
-         {
-            pConnection->iError = pConnection->iConnectRes;
-            break;
-         }
-         nRel++;
-      }
-
-      if( pItem )
-         hb_itemRelease( pItem );
-   }
-   return pConnection->iError ? HB_FAILURE : HB_SUCCESS;
-}
-
 /* can fail at server because of CB with a user function */
 static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
 {
@@ -3055,59 +3005,35 @@ static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
 
    HB_TRACE( HB_TR_DEBUG, ( "letoSetRel(%p, %p)", pArea, pRelInf ) );
 
-   pConnection->whoCares = hb_itemArrayNew( 0 );  /* for collecting relations */
-   pConnection->iError = 0;
-   pConnection->iConnectRes = pRelInf->lpaChild->uiArea;
-   hb_rddIterateWorkAreas( leto_doCyclicCheck, ( void * ) pConnection );
-   pConnection->iConnectRes = 0;
-   hb_itemRelease( pConnection->whoCares );
-   if( pConnection->iError )  /* affected cyclic WA number */
-   {
-      commonError( pArea, EG_SYNTAX, 1020, 0, NULL, 0, "cyclic relations detected" );
-      errCode = HB_FAILURE;
-      if( pRelInf->abKey )
-         hb_itemRelease( pRelInf->abKey );
-      if( pRelInf->itmCobExpr )
-         hb_itemRelease( pRelInf->itmCobExpr );
-      pConnection->iError = 0;
-   }
-   else
-      errCode = SUPER_SETREL( ( AREAP ) pArea, pRelInf );
-
+   errCode = SUPER_SETREL( ( AREAP ) pArea, pRelInf );
    if( errCode == HB_SUCCESS )
    {
-      if( pConnection->uiServerMode >= 3 )  /* only needed in this mode */
+      if( pConnection->uiServerMode >= 3 )  /* only possible in this mode */
       {
-         HB_USHORT   uiCount = 0;
-         HB_ULONG    ulLen = 512, ulTmp;
-         char *      szRelations = ( char * ) hb_xgrab( ulLen );
-         char *      ptr = szRelations;
+         char *   szData = NULL;
+         HB_ULONG ulLen = 0;
 
-         /* parent area is transmitted as server internal ulAreaID,
-          * not as client pRelInf->lpaParent->uiArea */
-         if( uiCount++ == 0 )
-            ptr += eprintf( ptr, "%c;%lu;01;", LETOCMD_rela, pArea->pTable->hTable );
-         ulTmp = ptr - szRelations;
-         if( ulLen - ulTmp < 256 )
-         {
-            ulLen += 255;
-            szRelations = ( char * ) hb_xrealloc( szRelations, ulLen );
-            ptr = szRelations + ulTmp;
-         }
          if( ! HB_IS_STRING( pRelInf->abKey ) || ! hb_itemGetCLen( pRelInf->abKey ) ||
              ! HB_IS_BLOCK( pRelInf->itmCobExpr ) )
          {
             commonError( pArea, EG_SYNTAX, 1020, 0, NULL, 0,
-                         HB_IS_BLOCK( pRelInf->itmCobExpr ) ? "empty relation string" : "empty relation block" );
+                         HB_IS_BLOCK( pRelInf->itmCobExpr ) ? "empty relation string" : "empty relation codeblock" );
             errCode = HB_FAILURE;
          }
          else
-            ptr += eprintf( ptr, "%lu;%s;", ( HB_ULONG ) pRelInf->lpaChild->uiArea,
-                                               hb_itemGetCPtr( pRelInf->abKey ) );
-
-         if( uiCount && errCode == HB_SUCCESS )
          {
-            if( leto_SendRecv( pConnection, pArea, szRelations, ptr - szRelations, 0 ) )
+            ulLen = hb_itemGetCLen( pRelInf->abKey ) + 32;
+            szData = ( char * ) hb_xgrab( ulLen );
+
+            /* parent area is transmitted as server internal ulAreaID, 
+             * not as client pRelInf->lpaParent->uiArea */
+            ulLen = eprintf( szData, "%c;%lu;01;%u;%s;", LETOCMD_rela, pArea->pTable->hTable,
+                                                         pRelInf->lpaChild->uiArea, hb_itemGetCPtr( pRelInf->abKey ) );
+         }
+
+         if( errCode == HB_SUCCESS )
+         {
+            if( leto_SendRecv( pConnection, pArea, szData, ulLen, 0 ) )
             {
                if( leto_CheckError( pArea, pConnection ) )
                   errCode = HB_FAILURE;
@@ -3115,10 +3041,11 @@ static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
             else
                errCode = HB_FAILURE;
          }
-         else
-            errCode = HB_FAILURE;
-         hb_xfree( szRelations );
+
+         if( szData )
+            hb_xfree( szData );
       }
+
       if( errCode == HB_SUCCESS && pArea->area.lpdbRelations )
          return SELF_SYNCCHILDREN( ( AREAP ) pArea );
    }

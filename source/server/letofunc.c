@@ -9970,66 +9970,6 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-static HB_BOOL leto_RelationIsCyclic( PUSERSTRU pUStru, int iChildArea )
-{
-   PLETO_LIST_ITEM pListItem = pUStru->AreasList.pItem;
-   HB_BOOL         bCyclic = HB_FALSE;
-   PHB_ITEM        pAllParents = hb_itemArrayNew( 0 );
-   PHB_ITEM        pItem = NULL;
-   AREAP           pChildArea;
-   PAREASTRU       pAStru;
-   DBRELINFO *     pRelations;
-   HB_SIZE         nRel;
-   HB_BOOL         bRegistered;
-
-   while( ! bCyclic && pListItem )
-   {
-      pAStru = ( PAREASTRU ) ( pListItem + 1 );
-      pChildArea = ( AREAP ) hb_rddGetWorkAreaPointer( pAStru->ulAreaID );
-      pRelations = pChildArea->lpdbRelations;
-      while( pRelations )
-      {
-         nRel = 1;
-         bRegistered = HB_FALSE;
-         while( nRel <= hb_arrayLen( pAllParents ) )
-         {
-            if( hb_arrayGetNI( pAllParents, nRel ) == pRelations->lpaParent->uiArea )
-            {
-               bRegistered = HB_TRUE;
-               break;
-            }
-            nRel++;
-         }
-         if( ! bRegistered )
-         {
-            pItem = hb_itemPutNI( pItem, pRelations->lpaParent->uiArea );
-            hb_arrayAdd( pAllParents, pItem );
-         }
-
-         pRelations = pRelations->lpdbriNext;
-      }
-
-      nRel = 1;
-      while( nRel <= hb_arrayLen( pAllParents ) )
-      {
-         if( hb_arrayGetNI( pAllParents, nRel ) == iChildArea )
-         {
-            bCyclic = HB_TRUE;
-            break;
-         }
-         nRel++;
-      }
-
-      pListItem = pListItem->pNext;
-   }
-
-   if( pItem )
-      hb_itemRelease( pItem );
-   hb_itemRelease( pAllParents );
-
-   return bCyclic;
-}
-
 /* set/ clear relation only for mode s_bNoSaveWA */
 static void leto_Relation( PUSERSTRU pUStru, const char * szData )
 {
@@ -10078,14 +10018,7 @@ static void leto_Relation( PUSERSTRU pUStru, const char * szData )
                      hb_xvmSeqEnd();
                      if( pUStru->iHbError )
                         bFail = HB_TRUE;
-                     if( ! bFail && leto_RelationIsCyclic( pUStru, iAreaChild ) )
-                     {
-                        pUStru->iHbError = 1;
-                        if( ! pUStru->szHbError )
-                           pUStru->szHbError = ( char * ) hb_xgrab( 64 );
-                        strcpy( pUStru->szHbError, "    :12-1006-0-0! cyclic relation detected" );
-                        bFail = HB_TRUE;
-                     }
+
                      if( bFail )
                      {
                         if( pAbKey )
