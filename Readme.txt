@@ -27,7 +27,7 @@ Contents
    4.3 Authentication
 5. How to work with the letodb server
    5.1 Connecting to the server from client programs
-   5.2 Filters
+   5.2 Filters and Relations
    5.3 Database driver
    5.4 Special Data Files in RAM
 6. Variables management
@@ -498,7 +498,7 @@ A. Internals
  For detailed parameters info of leto_Connect() see: 7.1
 
  This will set the default RDD driver to "LETO" after connecting similar done with: RddSetDefault( "LETO" ).
- Also the server is informed about four SET settings: DELETED/ SOFTSEEK/ AUTOPEN/ AUTORDER. 
+ Also the server is informed about four SET settings: DELETED/ SOFTSEEK/ AUTOPEN/ AUTORDER.
  With connection to the server, and later with opening or creating a table, information about codepage
  and dateformat settings are sent to server. This is important for creating index orders containing
  national special characters or index keys containing a date value.
@@ -557,12 +557,16 @@ A. Internals
  no more IPaddress:port prefix more. This is a hint for experienced LetoDB users to think about.
 
 
-      5.2 Filters
+      5.2 Filters and Relations
+
+      5.2,1 Filters
 
  The filter is established usually: by the SET FILTER TO command or by calling DbSetFilter() function.
+ Most important param of DbSetFilter() is the expression, the second param: DbSetFilter( bBlock, cExpression )
+ as only this can be transmitted to the server. ( codeblocks are not exchangeable between applications )
  The filter expression which can be executed at the server is called optimized.
  If the filter can't be executed on the server, it is called: not optimized. Such filter is slow as from the
- server all records must be received, wand the nthe client have to discard all the invalid ones.
+ server all records must be received, and the client have to discard all the invalid records.
 
  To set the optimized filter, it is necessary, that in the expression is solely executable for the server.
  So all the functions therein, like standarf Str(), Upper(), DToS() etc must be known to the server.
@@ -585,6 +589,22 @@ A. Internals
  relationed workarea, in the expression string [ default is .F. == not allow].
  Server mode No_Save_WA = 1 is needed, because in mode '0' LetoDBf server uses internal other named ALIAS
  names as the client, the workareas are different and there is no relation at server active.
+
+      5.2,2 Relations
+
+ In server mode: No_Save_WA = 1 relations are additional active at server side. This is not possible for server
+ mode: No_Save_WA = 0, here the relations are only active at client side.
+ To transmit the relation expression to the server, the second param of DbSetRelation( bBlock, cExpression ) is
+ needed, as only a string can be transfered to the server, no codeblock.
+ By using the command: "SET RELATION TO ... INTO ..." this second param is filled automatically through the
+ header file: <std.ch>, which is anytime included for any Harbour application. This second param have to be set
+ manually if the function DbSetFilter() is used. Be careful that bBlock and cExpression mean the same.
+ If cExpression contains an error, or is not executable at server side because of a function known only in
+ your application ( see 4.2.1 UDF support ) or client application variables ( see 7.9 Server variables ), you will
+ get a RTE with a description what failed at server.
+ Setting a 'cyclic relation', aka a set of relations where one relationed child area refer back to an parent area,
+ lead to infinite cascading seeks in child areas and an immediate crash of your application. Same will happen if
+ parent and relationed child area are the same. 
 
 
       5.3 Database driver

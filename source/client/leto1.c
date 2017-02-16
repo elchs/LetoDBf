@@ -2997,7 +2997,7 @@ static HB_ERRCODE letoClearRel( LETOAREAP pArea )
    return errCode;
 }
 
-/* can fail at server because of CB with a user function */
+/* can fail at server because of CB with a user function/ local variable */
 static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
@@ -3025,7 +3025,7 @@ static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
             ulLen = hb_itemGetCLen( pRelInf->abKey ) + 32;
             szData = ( char * ) hb_xgrab( ulLen );
 
-            /* parent area is transmitted as server internal ulAreaID, 
+            /* parent area is transmitted as server internal ulAreaID,
              * not as client pRelInf->lpaParent->uiArea */
             ulLen = eprintf( szData, "%c;%lu;01;%u;%s;", LETOCMD_rela, pArea->pTable->hTable,
                                                          pRelInf->lpaChild->uiArea, hb_itemGetCPtr( pRelInf->abKey ) );
@@ -3940,7 +3940,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
             else
                hb_xfree( szData2 );
 
-            leto_ParseRecord( pConnection, pArea->pTable, szData );
+            leto_ParseRecord( pConnection, pArea->pTable, leto_firstchar( pConnection ) );
             leto_SetAreaFlags( pArea );
             pTable->ptrBuf = NULL;
             if( pTable->fAutoRefresh )

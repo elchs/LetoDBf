@@ -7857,12 +7857,14 @@ static void leto_Ordfunc( PUSERSTRU pUStru, const char * szData )
                         DBORDERINFO pInfo;
                         HB_USHORT   uiCommand;
                         HB_ULONG    ulBufLen, ulRecNo;
+                        char *      pTmp;
 
                         ulRecNo = strtoul( pNumber, NULL, 10 );
+                        /* DBOI_SKIPWILD, DBOI_SKIPWILDBACK, DBOI_SKIPREGEX, DBOI_SKIPREGEXBACK */
                         uiCommand = ( HB_USHORT ) atoi( pDopFlags );
                         pDopFlags += strlen( pDopFlags ) + 1;
-                        ulBufLen = strtoul( pDopFlags, NULL, 10 );
-                        pDopFlags = strchr( pDopFlags, ';' );
+                        ulBufLen = strtoul( pDopFlags, &pTmp, 10 );
+                        pDopFlags = pTmp;
                         if( pDopFlags )
                         {
                            memset( &pInfo, 0, sizeof( DBORDERINFO ) );
@@ -9990,9 +9992,6 @@ static void leto_Relation( PUSERSTRU pUStru, const char * szData )
                int iAreaChild;
 
                nParam = leto_GetParam( szTmp, &pp1, &pp2, NULL, NULL );
-               if( s_iDebugMode > 10 && nParam > 0 )
-                  leto_wUsLog( pUStru, -1, "DEBUG leto_Relation WA %s %s into %s", pUStru->pCurAStru->szAlias,
-                               nParam > 2 ? pp2 : "", nParam > 1 ? pp1 : "" );
                if( nParam < 3 )  /* includes szTmp */
                   break;
 
@@ -10004,6 +10003,11 @@ static void leto_Relation( PUSERSTRU pUStru, const char * szData )
                {
                   AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
                   AREAP pChildArea = ( AREAP ) hb_rddGetWorkAreaPointer( iAreaChild );
+
+                  if( s_iDebugMode > 10 )
+                     leto_wUsLog( pUStru, -1, "DEBUG leto_Relation WA %s %s into %s", pUStru->pCurAStru->szAlias,
+                                  nParam > 2 ? pp2 : "",
+                                  nParam > 1 ? leto_FindArea( pUStru, ( HB_ULONG ) iAreaChild )->szAlias : "" );
 
                   if( pArea && pChildArea )
                   {

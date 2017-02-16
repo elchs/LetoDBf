@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-02-16 12:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    ! fix of OrdWildSeek(); please verify result
+
+  * Readme.txt
+    * some notes about relations, modified note for filter
+
 2017-02-14 23:43 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/server/letofunc.c
