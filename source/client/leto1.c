@@ -152,10 +152,10 @@ static HB_ERRCODE commonError( LETOAREAP pArea, HB_ERRCODE uiGenCode, HB_ERRCODE
    return errCode;
 }
 
-static long leto_SendRecv( LETOCONNECTION * pConnection, LETOAREAP pArea, const char * sData, HB_ULONG ulLen, int iErr )
+static HB_LONG leto_SendRecv( LETOCONNECTION * pConnection, LETOAREAP pArea, const char * sData, HB_ULONG ulLen, int iErr )
 {
-   long   lRet = leto_DataSendRecv( pConnection, sData, ulLen );
-   char * ptr = pConnection->szBuffer;
+   HB_LONG lRet = leto_DataSendRecv( pConnection, sData, ulLen );
+   char *  ptr = pConnection->szBuffer;
 
    if( ! lRet )
       commonError( pArea, EG_DATAWIDTH, 1000, 0, NULL, 0, "CONNECTION ERROR" );
@@ -1602,7 +1602,7 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
 #else
             if( HB_IS_DATETIME( pItem ) )
             {
-               long lDate, lTime;
+               HB_LONG lDate, lTime;
 
                hb_itemGetTDT( pItem, &lDate, &lTime );
                HB_PUT_LE_UINT32( ptr, lTime );
@@ -1635,7 +1635,7 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
 #else
          if( HB_IS_DATETIME( pItem ) )
          {
-            long lDate, lTime;
+            HB_LONG lDate, lTime;
 
             hb_itemGetTDT( pItem, &lDate, &lTime );
             HB_PUT_LE_UINT32( ptr, lDate );
@@ -2554,7 +2554,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
          break;
       }
 
-      case DBI_LASTUPDATE:  /* stored as long Julian */
+      case DBI_LASTUPDATE:  /* stored as HB_LONG Julian */
          hb_itemPutDL( pItem, pTable->lLastUpdate );
          break;
 
@@ -2997,18 +2997,79 @@ static HB_ERRCODE letoClearRel( LETOAREAP pArea )
    return errCode;
 }
 
+static HB_BOOL leto_TestRelCyclic( PHB_ITEM pParentChain, HB_USHORT uiChildArea )
+{
+   AREAP   pArea = ( AREAP ) hb_rddGetWorkAreaPointer( uiChildArea );
+   HB_BOOL bCyclic = HB_FALSE;
+
+   if( pArea && pArea->lpdbRelations )
+   {
+      LPDBRELINFO lpDbRel = pArea->lpdbRelations;
+      HB_SIZE     nRel, nLen = hb_arrayLen( pParentChain );
+
+      hb_arraySize( pParentChain, nLen + 1 );
+      while( lpDbRel && ! bCyclic )
+      {
+         nRel = 1;
+         while( nRel <= nLen )
+         {
+            if( ( int ) lpDbRel->lpaChild->uiArea == hb_arrayGetNI( pParentChain, nRel ) )
+            {
+               bCyclic = HB_TRUE;
+               break;
+            }
+            nRel++;
+         }
+
+         if( ! bCyclic )
+         {
+            hb_arraySetNI( pParentChain, nLen + 1, lpDbRel->lpaParent->uiArea );
+            bCyclic = leto_TestRelCyclic( pParentChain, lpDbRel->lpaChild->uiArea );
+         }
+
+         lpDbRel = lpDbRel->lpdbriNext;
+      }
+      hb_arraySize( pParentChain, nLen );
+   }
+
+   return bCyclic;
+}
+
 /* can fail at server because of CB with a user function/ local variable */
 static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    HB_ERRCODE errCode;
+   HB_BOOL    bCyclic;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoSetRel(%p, %p)", pArea, pRelInf ) );
+
+   if( pRelInf->lpaParent->uiArea == pRelInf->lpaChild->uiArea )
+      bCyclic = HB_TRUE;
+   else
+   {
+      PHB_ITEM pParentChain = hb_itemArrayNew( 1 );
+
+      hb_arraySetNI( pParentChain, 1, pRelInf->lpaParent->uiArea );
+      bCyclic = leto_TestRelCyclic( pParentChain, pRelInf->lpaChild->uiArea );
+      hb_itemRelease( pParentChain );
+   }
+
+   if( bCyclic )
+   {
+      if( pRelInf->abKey )
+         hb_itemRelease( pRelInf->abKey );
+      if( pRelInf->itmCobExpr )
+         hb_itemRelease( pRelInf->itmCobExpr );
+      commonError( pArea, EG_SYNTAX, 1020, 0, NULL, 0, "Cyclic relation detected" );
+
+      return HB_FAILURE;
+   }
 
    errCode = SUPER_SETREL( ( AREAP ) pArea, pRelInf );
    if( errCode == HB_SUCCESS )
    {
-      if( pConnection->uiServerMode >= 3 )  /* only possible in this mode */
+      if( pConnection->uiServerMode >= 3 )  /* only possible in No_Save_WA = 1 */
       {
          char *   szData = NULL;
          HB_ULONG ulLen = 0;
@@ -3025,8 +3086,7 @@ static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
             ulLen = hb_itemGetCLen( pRelInf->abKey ) + 32;
             szData = ( char * ) hb_xgrab( ulLen );
 
-            /* parent area is transmitted as server internal ulAreaID,
-             * not as client pRelInf->lpaParent->uiArea */
+            /* parent area transmitted as server internal ulAreaID, in this mode same as pRelInf->lpaParent->uiArea */
             ulLen = eprintf( szData, "%c;%lu;01;%u;%s;", LETOCMD_rela, pArea->pTable->hTable,
                                                          pRelInf->lpaChild->uiArea, hb_itemGetCPtr( pRelInf->abKey ) );
          }
@@ -3646,14 +3706,13 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
       {
          HB_ULONG ul = 0;
 
-#if 0  /* nonsense, won't get to here without active index */
          if( ! pTagInfo )
          {
             LetoDbRecCount( pTable, ( HB_ULONG * ) &ul );
             hb_itemPutNL( pOrderInfo->itmResult, ul );
             break;
          }
-#endif
+
          if( pTagInfo && pTagInfo->ulKeyCount && uiIndex != DBOI_KEYCOUNTRAW )
             ul = pTagInfo->ulKeyCount;
          else if( pTagInfo )
@@ -3880,7 +3939,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
 
       case DBOI_SKIPUNIQUE:
       {
-         int      lRet;
+         HB_LONG  lRet;
          HB_ULONG ulLen;
 
          pArea->lpdbPendingRel = NULL;

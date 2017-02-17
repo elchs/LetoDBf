@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-02-17 22:48 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    + re-add cyclic relation test to avoid GPF
+    * tiny correction in letoOrderInfo()
+    * formatting long --> HB_LONG
+
 2017-02-16 12:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/server/letofunc.c
