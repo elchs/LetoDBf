@@ -2119,8 +2119,6 @@ static void letoCreateAlias( const char * szFile, char * szAlias )
       ptrBeg = strrchr( szFile, '/' );
       if( ! ptrBeg )
          ptrBeg = strrchr( szFile, '\\' );
-      else
-         ptrBeg++;
       if( ! ptrBeg )
          ptrBeg = szFile;
       else
@@ -2982,10 +2980,11 @@ static HB_ERRCODE letoClearRel( LETOAREAP pArea )
 
    if( ( ( AREAP ) pArea )->lpdbRelations )
    {
+      LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
+
       errCode = SUPER_CLEARREL( ( AREAP ) pArea );
-      if( errCode == HB_SUCCESS && letoGetConnPool( pArea->pTable->uiConnection )->uiServerMode >= 3 )
+      if( errCode == HB_SUCCESS && pConnection->uiServerMode >= 3 )
       {
-         LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
          char     szData[ 17 ];
          HB_ULONG ulLen;
 

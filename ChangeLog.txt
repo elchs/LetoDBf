@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-02-20 11:05 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    ! FIX of wrong creation of ALIAS of DBF in a subdir if not given
+      ; Thanks to Mario for detecting this silly bug
+    * variable scope change in letoClearRel()
+
 2017-02-17 22:48 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     + re-add cyclic relation test to avoid GPF
