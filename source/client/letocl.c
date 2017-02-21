@@ -2043,6 +2043,11 @@ const char * leto_ParseTagInfo( LETOTABLE * pTable, const char * pBuffer )
             pTagInfo = pTagInfo->pNext;
       }
    }
+   else  /* skip active, must be also 0 */
+   {
+      while( *ptr && *ptr++ != ';' )
+         ;
+   }
    pTable->uiOrders = uiOrders;
 
    return ptr;
@@ -3619,9 +3624,9 @@ HB_EXPORT const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, 
 
    if( pConnection->fTransActive && leto_SearchTransList( pConnection, pTable->hTable, pTable->ulRecNo ) )
    {
-      HB_ULONG  ulTransex;
-      HB_UCHAR  uLenLen;
-      char *    ptr, * ptrPar;
+      HB_ULONG ulTransex;
+      HB_UCHAR uLenLen;
+      char *   ptr, * ptrPar;
 
       ptr = ( char * ) ( pConnection->szTransBuffer + pConnection->uiTBufOffset );
       for( ulTransex = 0; ulTransex < pConnection->ulRecsInTrans; ulTransex++ )
@@ -4175,6 +4180,8 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
 
    if( pTable->fReadonly )
       return HB_FAILURE;
+   hb_rddSetNetErr( HB_FALSE );
+
    for( ui = 0; ui < pTable->uiFieldExtent; ui++ )
    {
       if( pTable->pFieldUpd[ ui ] )
@@ -4183,12 +4190,14 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
    szData = ( char * ) hb_xgrab( pTable->uiRecordLen + ( uiUpd * 8 ) + 20 );
    pData = szData + 4;
 
-   hb_rddSetNetErr( HB_FALSE );
    if( fAppend )
       pData += eprintf( pData, "%c;%lu;%c%c;%d;", LETOCMD_add, pTable->hTable, pTable->fHaveAutoinc ? '0' : ' ',
                                                   ( pTable->uiUpdated & LETO_FLAG_UPD_UNLOCK ) ? '1' : '0', uiUpd );
    else
       pData += eprintf( pData, "%c;%lu;%lu;%d;", LETOCMD_upd, pTable->hTable, pTable->ulRecNo, uiUpd );
+
+   *pData++ = ( pTable->uiUpdated & LETO_FLAG_UPD_DELETE ) ? ( ( pTable->fDeleted ) ? '1' : '2' ) : '0';
+   *pData++ = ';';
 
    if( ( pTable->uiUpdated & LETO_FLAG_UPD_FLUSH ) && ! pConnection->fTransActive )
    {
@@ -4197,9 +4206,6 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
       else
          szData[ 4 ] = LETOCMD_cmtu;
    }
-
-   *pData++ = ( pTable->uiUpdated & LETO_FLAG_UPD_DELETE ) ? ( ( pTable->fDeleted ) ? '1' : '2' ) : '0';
-   *pData++ = ';';
 
    if( uiUpd )  /* updated fields, no memo */
    {

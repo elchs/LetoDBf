@@ -11914,7 +11914,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
       {
          char * szFilePath = ( char * ) hb_xgrab( HB_PATH_MAX );
 
-         if( hb_fileExists( szFile, szFilePath ) )
+         if( ! hb_fileExists( szFileName, NULL ) && hb_fileExists( szFile, szFilePath ) )
          {
             strcpy( szFileName, szFilePath );
             strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
@@ -13030,31 +13030,20 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
          ptr += s_uiDataPathLen;
          *ptr++ = DEF_SEP;
       }
-      strcpy( szFile, ptr2 );
 
-      /* now add possible path to the filename */
-      if( bMemIO || bLeadSep || strchr( szFile, DEF_SEP ) != NULL )
-         strcpy( ptr, szFile );
-      else
+      /* add relative path_to_table if raw index filename given without path */
+      if( ! bMemIO && ! bLeadSep && ! strchr( ptr2, DEF_SEP ) &&
+          pUStru->pCurAStru && strchr( ( char * ) pUStru->pCurAStru->pTStru->szTable, DEF_SEP ) )
       {
-         /* blank filename given: append to relative path_to_table */
-         PHB_FNAME pDbfPath;
+         PHB_FNAME pDbfPath = hb_fsFNameSplit( ( char * ) pUStru->pCurAStru->pTStru->szTable );
 
-         /* UDF may fail here */
-         if( pUStru->pCurAStru && pUStru->pCurAStru->pTStru )
-         {
-            pDbfPath = hb_fsFNameSplit( ( char * ) pUStru->pCurAStru->pTStru->szTable );
-
-            if( pDbfPath && pDbfPath->szPath )
-            {
-               strcpy( ptr, pDbfPath->szPath );
-               ptr += strlen( ptr );
-            }
-            if( pDbfPath )
-               hb_xfree( pDbfPath );
-            strcpy( ptr, szFile );
-         }
+         strcpy( szFile, pDbfPath->szPath );
+         strcpy( szFile + strlen( szFile ), ptr2 );
+         hb_xfree( pDbfPath );
       }
+      else
+         strcpy( szFile, ptr2 );
+      strcpy( ptr, szFile );
 
       if( s_bLowerPath )
       {
@@ -13088,7 +13077,7 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
       {
          char * szFilePath = ( char * ) hb_xgrab( HB_PATH_MAX );
 
-         if( hb_fileExists( szFile, szFilePath ) )
+         if( ! hb_fileExists( szFileName, NULL ) && hb_fileExists( szFile, szFilePath ) )
          {
             strcpy( szFileName, szFilePath );
             strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
@@ -13371,23 +13360,20 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
          ptr += s_uiDataPathLen;
          *ptr++ = DEF_SEP;
       }
-      strcpy( szFile, ptr2 );
 
-      /* now add to path the filename */
-      if( bMemIO || bLeadSep || strchr( szFile, DEF_SEP ) != NULL )
-         strcpy( ptr, szFile );
-      else  /* raw filename given: append to relative path of table */
+      /* add relative path_to_table if raw index filename given without path */
+      if( ! bMemIO && ! bLeadSep && ! strchr( ptr2, DEF_SEP ) &&
+          pUStru->pCurAStru && strchr( ( char * ) pUStru->pCurAStru->pTStru->szTable, DEF_SEP ) )
       {
          PHB_FNAME pDbfPath = hb_fsFNameSplit( ( char * ) pUStru->pCurAStru->pTStru->szTable );
 
-         if( pDbfPath->szPath )
-         {
-            strcpy( ptr, pDbfPath->szPath );
-            ptr += strlen( ptr );
-         }
+         strcpy( szFile, pDbfPath->szPath );
+         strcpy( szFile + strlen( szFile ), ptr2 );
          hb_xfree( pDbfPath );
-         strcpy( ptr, szFile );
       }
+      else
+         strcpy( szFile, ptr2 );
+      strcpy( ptr, szFile );
 
       leto_RddiGetValue( pUStru->pCurAStru->pTStru->szDriver, RDDI_ORDBAGEXT, szDefaultExt );
       if( ! pFilePath->szExtension )

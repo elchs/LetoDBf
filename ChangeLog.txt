@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-02-21 08:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    ! fix of index filepath if table is located in a subdirectory
+    ! fix of client GPF is index order cannot be registered at server
+    * formatting
+
 2017-02-20 11:05 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     ! FIX of wrong creation of ALIAS of DBF in a subdir if not given
