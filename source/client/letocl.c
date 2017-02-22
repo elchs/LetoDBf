@@ -2043,11 +2043,6 @@ const char * leto_ParseTagInfo( LETOTABLE * pTable, const char * pBuffer )
             pTagInfo = pTagInfo->pNext;
       }
    }
-   else  /* skip active, must be also 0 */
-   {
-      while( *ptr && *ptr++ != ';' )
-         ;
-   }
    pTable->uiOrders = uiOrders;
 
    return ptr;

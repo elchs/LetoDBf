@@ -3,7 +3,9 @@
  * with: hbmk2 letoudf -gh
  */
 
+#include "rddleto.ch"
 #include "dbinfo.ch"
+#include "hbsxdef.ch"
 #include "set.ch"
 
 #ifdef __LINUX__
@@ -14,35 +16,66 @@
    #define DEF_CH_SEP   '/'
 #endif
 
+
+/* function is called immediately after loading letoudf.hrb, if it exists */
+FUNCTION UDF_Init
+   RETURN Nil
+
+/* function is needed to use in this HRB a BEGIN SEQUENCE - END SEQUENCE */
 STATIC function __BreakBlock()
    RETURN { | oErr | Break( oErr ) }
 
-/* 
- * File version
- */
+/* File version of this HRB */
 FUNCTION UDF_Version
    RETURN "3.0"
 
-// ------------
-FUNC lagcode(p1,p2)
-RETU p1 + NTOC( p2 ,10,10,"0")
+/* nFieldPos and xTrigVal are ever empty, except for EVENT_PUT/ EVENT_GET; */
+FUNCTION Leto_Trigger( nEvent, nArea, nFieldPos, xTrigVal )
 
-FUNC lagcodenr(cKey)
- * extrahiert die nummer des keys
- LOCAL nRet := 0
-  IF VALTYPE(cKey) == "C"
-    nRet := VAL(CHARONLY("0123456789",cKey))
-  ENDIF
-RETU nRet
+   HB_SYMBOL_UNUSED( nArea )
+   HB_SYMBOL_UNUSED( nFieldPos )
+   HB_SYMBOL_UNUSED( xTrigVal )
 
-// ----------
+   SWITCH nEvent
+   CASE EVENT_PREUSE
+      EXIT
+   CASE EVENT_POSTUSE
+      EXIT
+   CASE EVENT_UPDATE
+      EXIT
+   CASE EVENT_APPEND
+      EXIT
+   CASE EVENT_DELETE
+      EXIT
+   CASE EVENT_RECALL
+      EXIT
+   CASE EVENT_PACK
+      EXIT
+   CASE EVENT_ZAP
+      EXIT
+   CASE EVENT_PUT
+      EXIT
+   CASE EVENT_GET
+      EXIT
+   CASE EVENT_PRECLOSE
+      EXIT
+   CASE EVENT_POSTCLOSE
+      EXIT
+   CASE EVENT_PREMEMOPACK
+      EXIT
+   CASE EVENT_POSTMEMOPACK
+      EXIT
+   ENDSWITCH
 
-FUNCTION UDF_Init
+   RETURN .T.
+
+
 /*
- * This function called immediately after loading letoudf.hrb, if exist
+ *
+ * Below you can throw all away, nonsense among, needs a cleanup
+ *
  */
-   SET AUTORDER TO 1
-   RETURN Nil
+
 
 /*
  * This sample function demonstrates how to use udf function on Letodb server
@@ -258,7 +291,7 @@ FUNCTION UDF_Trans( cTo )
    dbSelectArea( cArea )
    IF ! Empty( cAliasTo )
       lSetDel := Set( _SET_DELETED, .f. )
-      BEGIN SEQUENCE WITH { |e|break( e ) }
+      BEGIN SEQUENCE WITH { | e | break( e ) }
          OrdSetFocus( 0 )
          GO TOP
          WHILE ! eof()
@@ -423,9 +456,6 @@ FUNC rpcelk
   ENDIF
 RETURN .F.
 
-//FUNC leto_ResultSet( aHeads, aFields )
-//   AINS( aFields, 1 )
-   
 
 FUNC leto_ResultHead( cFields )
    LOCAL bAll

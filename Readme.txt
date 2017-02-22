@@ -307,8 +307,13 @@ A. Internals
                                     as the server will need at least 4 times of that value as RAM.
                                     Theoretical! maximum for a single! item is ~ 4 GB, then your server will need
                                     to have 64! GB!! RAM. [ NOT tested ! :-) ]
-      Trigger = <cFuncName>    -    Global function letodb RDDI_TRIGGER
-      PendingTrigger = <cFuncName>- Global function letodb RDDI_PENDINGTRIGGER
+      Trigger = cFuncName      -    Server side trigger function for *every* table. ! USE WITH SPECIAL CARE !
+                                    If given, this trigger function is executed for *all* opened WAs for specific
+                                    actions like record append, update, ...
+                                    Function <cFuncName> must be known at server, and can be a HRB loaded UDF
+                                    function. It receives 4 params: nEvent, nArea, nFieldPos, xTrigVa;
+                                    where nFieldPos and xTrigVal are only filled for events EVENT_PUT and EVENT_GET.
+                                    ( see an example of "Leto_Trigger" in: tests/letoudf.prg )
       Tables_Max = 999         -    Number of *MAXIMUM* designated DBF tables handled by server,
                                     for server mode No_Save_WA == 0 this are physical DBF tables,
                                     for server mode No_Save_WA == 1 this are DBF tables opened by all users.
@@ -603,8 +608,7 @@ A. Internals
  your application ( see 4.2.1 UDF support ) or client application variables ( see 7.9 Server variables ), you will
  get a RTE with a description what failed at server.
  Setting a 'cyclic relation', aka a set of relations where one relationed child area refer back to an parent area,
- lead to infinite cascading seeks in child areas and an immediate crash of your application. Same will happen if
- parent and relationed child area are the same. 
+ lead to an RTE informing you about. The most simple 'cyclic relation' is a relation pointing to itself workarea.
 
 
       5.3 Database driver

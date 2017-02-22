@@ -114,8 +114,7 @@
 #define LETOOPT_MEMOSIZE     24   // N
 #define LETOOPT_LOWERPATH    25   // L
 #define LETOOPT_TRIGGER      26   // P
-#define LETOOPT_PENDTRIGGER  27   // P
-#define LETOOPT_HARDCOMMIT   29   // L
+#define LETOOPT_HARDCOMMIT   27   // L
 
 /* determine if compiler behave case sensitive */
 #define CASESENSITIVE

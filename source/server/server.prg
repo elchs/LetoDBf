@@ -291,20 +291,8 @@ PROCEDURE StartServer()
 
    WrLog( "LetoDBf Server try to start ..." )
    leto_InitSet()
-
-   leto_CreateData( oApp:cAddr, oApp:nPort )
-
    leto_HrbLoad()
-
-#if 0
-   /* elch Todo: that won't work if driver is later changed by client */
-   IF ! Empty( oApp:cTrigger )
-      hb_rddInfo( RDDI_TRIGGER, oApp:cTrigger, leto_DefaultDriver() )
-   ENDIF
-   IF ! Empty( oApp:cPendingTrigger )
-      hb_rddInfo( RDDI_PENDINGTRIGGER, oApp:cPendingTrigger, leto_DefaultDriver() )
-   ENDIF
-#endif
+   leto_CreateData( oApp:cAddr, oApp:nPort )
 
    IF ! leto_Server( oApp:nPort, oApp:cAddr, oApp:nTimeOut, oApp:nZombieCheck )
       WrLog( "Socket error " + hb_socketErrorString( hb_socketGetError() ) )
@@ -420,7 +408,6 @@ CLASS HApp
    DATA cSUser    INIT NIL
    DATA lCryptTraffic INIT .F.
    DATA cTrigger
-   DATA cPendingTrigger
    DATA nZombieCheck INIT 0
 
    METHOD New()
@@ -444,7 +431,6 @@ METHOD New() CLASS HApp
    LOCAL lOptimize := .T.
    LOCAL lForceOpt := .F.
    LOCAL lUDFEnabled := .F.
-   LOCAL lSetTrigger := .F.
 
 #if ! defined( __PLATFORM__WINDOWS )
 
@@ -567,12 +553,8 @@ METHOD New() CLASS HApp
                   lForceOpt := ( aIni[ i, 2, j, 2 ] == '1' )
                ELSEIF aIni[ i, 2, j, 1 ] == "ALLOW_UDF"
                   lUDFEnabled := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "ENABLESETTRIGGER"
-                  lSetTrigger := ( aIni[ i, 2, j, 2] == '1' )
                ELSEIF aIni[ i, 2, j, 1 ] == "TRIGGER"
                   ::cTrigger := aIni[ i, 2, j, 2 ]
-               ELSEIF aIni[ i, 2, j, 1 ] == "PENDINGTRIGGER"
-                  ::cPendingTrigger := aIni[ i, 2, j, 2 ]
                ELSEIF aIni[ i, 2, j, 1 ] == "ZOMBIE_CHECK"
                   ::nZombieCheck := Val( aIni[ i, 2, j, 2 ] )
                ENDIF
@@ -618,7 +600,7 @@ METHOD New() CLASS HApp
          ::lAnyExt, ::lPass4L, ::lPass4M, ::lPass4D, ::cPassName, ::lCryptTraffic, ;
          ::lShare, ::lNoSaveWA, nMaxVars, nMaxVarSize, nCacheRecords, nTables_max, nUsers_max, ;
          nDebugMode, lOptimize, nAutOrder, nMemoType, lForceOpt, ::nBigLock, lUDFEnabled, nMemoBlocksize,;
-         ::lLower, ::cTrigger, ::cPendingTrigger, lSetTrigger, lHardCommit )
+         ::lLower, ::cTrigger, lHardCommit )
 
       RETURN Self
 

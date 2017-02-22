@@ -111,9 +111,7 @@ static HB_USHORT s_uiMemoType = 0;
 static HB_USHORT s_uiMemoBlocksize = 0;
 static int       s_iUserLock = -1;
 static HB_BOOL   s_bLowerPath = HB_FALSE;
-static HB_BOOL   s_bSetTrigger = HB_FALSE;
-static char *    s_pTrigger = NULL;
-static char *    s_pPendTrigger = NULL;
+static char      s_pTrigger[ HB_SYMBOL_NAME_LEN + 1 ] = "";
 static HB_BOOL   s_bHardCommit = HB_FALSE;
 static HB_BOOL   s_bPass4L = HB_FALSE;        //  Pass needs: Login,Manage,Datamodify
 static HB_BOOL   s_bPass4M = HB_FALSE;
@@ -719,17 +717,15 @@ void leto_initSet( void )
       hb_itemPutNI( pItem, leto_lockScheme( s_uiDriverDef ) );
       SELF_RDDINFO( pRDDNode, RDDI_LOCKSCHEME, 0, pItem );
    }
-   /* ToDo ? this would be connections global --> DBI_TRIGGER ?? */
-   if( s_pTrigger )
+
+#if 0
+   if( *s_pTrigger )  /* verified DynSym */
    {
       hb_itemPutC( pItem, s_pTrigger );
       SELF_RDDINFO( pRDDNode, RDDI_TRIGGER, 0, pItem );
    }
-   if( s_pPendTrigger )
-   {
-      hb_itemPutC( pItem, s_pPendTrigger );
-      SELF_RDDINFO( pRDDNode, RDDI_PENDINGTRIGGER, 0, pItem );
-   }
+#endif
+
    if( pItem )
       hb_itemRelease( pItem );
 }
@@ -1425,23 +1421,11 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
    if( HB_ISCHAR( 26 ) )
    {
       uiLen = ( HB_USHORT ) hb_parclen( 26 );
-      s_pTrigger = ( char * ) hb_xgrab( uiLen + 1 );
-      if( uiLen > 0 )
-         memcpy( s_pTrigger, hb_parc( 26 ), uiLen );
-      s_pTrigger[ uiLen ] = '\0';
+      if( uiLen > 0 && uiLen <= HB_SYMBOL_NAME_LEN )
+         strcpy( s_pTrigger, hb_parc( 26 ) );
    }
-   if( HB_ISCHAR( 27 ) )
-   {
-      uiLen = ( HB_USHORT ) hb_parclen( 27 );
-      s_pPendTrigger = ( char * ) hb_xgrab( uiLen + 1 );
-      if( uiLen > 0 )
-         memcpy( s_pPendTrigger, hb_parc( 27 ), uiLen );
-      s_pPendTrigger[ uiLen ] = '\0';
-   }
-   if( HB_ISLOG( 28 ) )
-      s_bSetTrigger = hb_parl( 28 );
-   if( HB_ISLOG( 29 ) )
-      s_bHardCommit = hb_parl( 29 );
+   if( HB_ISLOG( 27 ) )
+      s_bHardCommit = hb_parl( 27 );
 }
 
 /* leto_udf() */
@@ -1494,9 +1478,6 @@ HB_FUNC( LETO_GETAPPOPTIONS )
          break;
       case LETOOPT_TRIGGER:
          hb_retc( s_pTrigger );
-         break;
-      case LETOOPT_PENDTRIGGER:
-         hb_retc( s_pPendTrigger );
          break;
       case LETOOPT_HARDCOMMIT:
          hb_retl( s_bHardCommit );
@@ -2699,12 +2680,17 @@ static char * leto_IndexesInfo( PUSERSTRU pUStru, const char * szFullName, AREAP
             leto_wUsLog( pUStru, -1, "DEBUG leto_IndexesInfo() global ordcount %d versus %d", uiOrdMax, uiRegistered );
          iLen = eprintf( szCount, "%d;", uiRegistered );
          memcpy( pIdxInfo, szCount, iLen );
-         if( iLenLen - iLen )
-            memmove( pIdxInfo + iLen, pIdxInfo + iLenLen, iIdxInfoStart + 1 - iLenLen );  /* move including '\0' */
-         iLenLen -= ( iLenLen - iLen );
+         if( uiRegistered )
+         {
+            if( iLenLen - iLen )
+               memmove( pIdxInfo + iLen, pIdxInfo + iLenLen, iIdxInfoStart + 1 - iLenLen );  /* move including '\0' */
+            iLenLen -= ( iLenLen - iLen );
+         }
+         else
+            pIdxInfo[ iLen ] = '\0';
       }
       /* catch an ignored possible double TagName by user */
-      if( uiOrderActive > uiRegistered || ( uiOrderActive && ! pUStru->pCurAStru->pTagCurrent ) )
+      if( uiRegistered && ( uiOrderActive > uiRegistered || ( uiOrderActive && ! pUStru->pCurAStru->pTagCurrent ) ) )
       {
          leto_wUsLog( pUStru, -1, "ERROR leto_IndexesInfo() corrected active order %d to 0", uiOrderActive );
          iLen = iLenLen;
@@ -3834,6 +3820,14 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
       leto_writelog( NULL, -1, "INFO: LoginPassword=%d, CacheRecords=%d, LockExtended=%d",
                      s_bPass4L, s_uiCacheRecords, s_uiLockExtended );
    }
+
+   if( *s_pTrigger )
+   {
+      PHB_DYNS pTrigger = hb_dynsymFindName( s_pTrigger );
+
+      if( ! pTrigger || ! hb_dynsymIsFunction( pTrigger ) )
+         *s_pTrigger = '\0';
+   }
 }
 
 /* this is an EXIT PROCEDURE for main thread -- so willful no MT locking done */
@@ -4171,6 +4165,10 @@ static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
                   hb_itemRelease( pItem );
                break;
 
+            case RDDI_TRIGGER:
+               sprintf( szInfo, "+%s", s_pTrigger );
+               break;
+
             default:
                strcpy( szInfo, szErr3 );
                break;
@@ -4208,6 +4206,19 @@ static void leto_RddiGetValue( const char * szDriver, HB_USHORT uiIndex, char * 
                   SELF_RDDINFO( pRDDNode, RDDI_ORDEREXT, 0, pItem );
                strcpy( szValue, hb_itemGetCPtr( pItem ) );
                hb_itemRelease( pItem );
+               break;
+            }
+
+            case RDDI_PENDINGTRIGGER:
+            {
+               LPDBFDATA pData = DBFNODE_DATA( pRDDNode );
+
+               if( pData->szPendingTrigger )
+               {
+                  strcpy( szValue, pData->szPendingTrigger );
+                  hb_xfree( pData->szPendingTrigger );
+                  pData->szPendingTrigger = NULL;
+               }
                break;
             }
          }
@@ -11565,21 +11576,25 @@ static void leto_Info( PUSERSTRU pUStru, const char * szData )
          case DBI_TRIGGER:
          {
             PHB_ITEM pItem = hb_itemNew( NULL );
-            char     szData1[ 258 ];
+            char     szData1[ HB_SYMBOL_NAME_LEN + 9 ];
             int      iLen;
 
-            if( *pp1 )
+            if( *pp1 && ! *s_pTrigger )
             {
                if( *pp1 == '.' )
                   hb_itemPutL( pItem, ( *( pp1 + 1 ) == 'T' ) );
-               else
-                  hb_itemPutC( pItem, pp1 );
+               else if( strlen( pp1 ) <= HB_SYMBOL_NAME_LEN )
+               {
+                  PHB_DYNS pTrigger = hb_dynsymFindName( hb_parc( 26 ) );
+
+                  if( pTrigger && hb_dynsymIsFunction( pTrigger ) )
+                     hb_itemPutC( pItem, pp1 );
+               }
             }
+
             SELF_INFO( pArea, DBI_TRIGGER, pItem );
             szData1[ 0 ] = '+';
             iLen = hb_itemGetCLen( pItem );
-            if( iLen > 255 )
-               iLen = 255;
             if( iLen > 0 )
                memcpy( szData1 + 1, hb_itemGetCPtr( pItem ), iLen );
             szData1[ iLen + 1 ] = ';';
@@ -12093,6 +12108,14 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                      errcode = HB_FAILURE;
 
                      leto_CloseTable( ( s_tables + iTableStru ) );
+                  }
+                  else if( *s_pTrigger )
+                  {
+                     PHB_ITEM pItem = hb_itemPutC( NULL, s_pTrigger );
+
+                     SELF_INFO( pArea, DBI_TRIGGER, pItem );
+                     hb_itemRelease( pItem );
+                     /* ToDo: execute event EVENT_POSTUSE */
                   }
                   HB_GC_UNLOCKT();
                   bUnlocked = HB_TRUE;
@@ -12745,6 +12768,15 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
 
                hb_itemPutNI( pItem, leto_lockScheme( uiNtxType ) );
                hb_setSetItem( HB_SET_DBFLOCKSCHEME, pItem );
+
+               if( *s_pTrigger )
+               {
+                  pItem = hb_itemPutC( pItem, s_pTrigger );
+                  pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+                  SELF_INFO( pArea, DBI_TRIGGER, pItem );
+                  /* ToDo: execute event EVENT_POSTUSE */
+               }
+
                if( pItem )
                   hb_itemRelease( pItem );
 
@@ -13037,7 +13069,10 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
       {
          PHB_FNAME pDbfPath = hb_fsFNameSplit( ( char * ) pUStru->pCurAStru->pTStru->szTable );
 
-         strcpy( szFile, pDbfPath->szPath );
+         if( pDbfPath->szPath )
+            strcpy( szFile, pDbfPath->szPath );
+         else
+            szFile[ 0 ] = '\0';
          strcpy( szFile + strlen( szFile ), ptr2 );
          hb_xfree( pDbfPath );
       }
@@ -13367,7 +13402,10 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
       {
          PHB_FNAME pDbfPath = hb_fsFNameSplit( ( char * ) pUStru->pCurAStru->pTStru->szTable );
 
-         strcpy( szFile, pDbfPath->szPath );
+         if( pDbfPath->szPath )
+            strcpy( szFile, pDbfPath->szPath );
+         else
+            szFile[ 0 ] = '\0';
          strcpy( szFile + strlen( szFile ), ptr2 );
          hb_xfree( pDbfPath );
       }

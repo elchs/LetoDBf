@@ -2,6 +2,20 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-02-22 20:45 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    ! fix for the fix from 2017-02-21 08:55 -- revert change in letocl.c,
+      secure to not transmit active order in case of none registered order
+
+  * Readme.txt
+  * include/rddleto.ch
+  * source/client/leto1.c
+  * source/server/letofunc.c
+  * source/server/server.prg
+  * tests/letoudf.prg
+    * cleanup for server side global triggers
+
 2017-02-21 08:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
   * source/server/letofunc.c

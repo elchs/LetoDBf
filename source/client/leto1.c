@@ -2534,7 +2534,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
             ulLen = eprintf( szData, "%c;%lu;%d;.%c.;", LETOCMD_dbi, pTable->hTable, uiIndex,
                              ( hb_itemGetL( pItem ) ? 'T' : 'F' ) );
          }
-         else if( HB_IS_STRING( pItem ) )
+         else if( HB_IS_STRING( pItem ) && hb_itemGetCLen( pItem ) <= HB_SYMBOL_NAME_LEN )
          {
             ulLen = eprintf( szData, "%c;%lu;%d;%s;", LETOCMD_dbi, pTable->hTable, uiIndex,
                              hb_itemGetCPtr( pItem ) );
@@ -5071,6 +5071,32 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          }
          else
             hb_itemPutL( pItem, HB_FALSE );
+         break;
+      }
+
+      case RDDI_TRIGGER:
+      {
+         LETOCONNECTION * pConnection;
+
+         if( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() )
+            pConnection = letoGetConnPool( ( HB_USHORT ) ulConnect - 1 );
+         else
+            pConnection = letoGetCurrConn();
+
+         if( pConnection )
+         {
+            if( LetoRddInfo( pConnection, uiIndex, NULL ) == HB_SUCCESS )
+            {
+               const char * ptr = leto_firstchar( pConnection );
+
+               if( *( ptr - 1 ) == '+' )
+                  hb_itemPutC( pItem, ptr );
+               else
+                  hb_itemPutC( pItem, "" );
+            }
+         }
+         else
+            hb_itemPutC( pItem, "?" );
          break;
       }
 
