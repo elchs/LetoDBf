@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-03-07 10:05 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    * make LetoDBf act like Harbour for OrdDestroy(): throw no RTE in case of
+      index order not exists; not remove active order in case of none argument
+    ; remaining difference: RTE is thrown when order is in use by others
+    * limit maximum ALIAS length in open/ create table
+
 2017-02-22 20:45 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
   * source/server/letofunc.c

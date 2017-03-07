@@ -7389,7 +7389,10 @@ static void leto_Ordfunc( PUSERSTRU pUStru, const char * szData )
                   hb_xvmSeqEnd();
                   hb_itemRelease( pOrderInfo.itmOrder );
                   if( pUStru->iHbError )
+                  {
+                     pData = szErr4;
                      break;
+                  }
                }
             }
 
@@ -7418,7 +7421,7 @@ static void leto_Ordfunc( PUSERSTRU pUStru, const char * szData )
             uiOrder++;
          }
          if( pData == NULL )
-            pData = szErr4;
+            pData = szOk;
 
          HB_GC_UNLOCKT();
       }
@@ -11878,7 +11881,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
       /* Alias */
       if( pp2 && *pp2 )
       {
-         strcpy( szAlias, pp2 );
+         hb_strncpy( szAlias, pp2, HB_RDD_MAX_ALIAS_LEN );
          hb_strUpper( szAlias, strlen( szAlias ) );
       }
       else
@@ -11889,7 +11892,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             ptr2--;
          if( *ptr2 == DEF_SEP || *ptr2 == ':' )
             ptr2++;
-         strcpy( szAlias, ptr2 );
+         hb_strncpy( szAlias, ptr2, HB_RDD_MAX_ALIAS_LEN );
          if( ( ptr2 = strrchr( szAlias, '.' ) ) != NULL )
             *ptr2 = '\0';
          hb_strUpper( szAlias, strlen( szAlias ) );
@@ -11964,7 +11967,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                hb_setSetItem( HB_SET_DATEFORMAT, pItem );
                hb_itemRelease( pItem );
                if( s_iDebugMode > 10 )
-                  leto_wUsLog( pUStru, -1, "DEBUG leto_CreateTable new dateformat %s set", hb_setGetDateFormat() );
+                  leto_wUsLog( pUStru, -1, "DEBUG leto_OpenTable new dateformat %s set", hb_setGetDateFormat() );
             }
          }
       }
@@ -12131,7 +12134,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
          }
          else
          {
-            if( ! ( ( s_tables + iTableStru )->bShared ) || ! bShared )  // todo check for memio
+            if( ! ( ( s_tables + iTableStru )->bShared ) || ! bShared )
             {
                /* The table is already opened exclusive by another user */
                ptr = szReply;
@@ -12515,7 +12518,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
 
       if( pp2 && *pp2 )
       {
-         strcpy( szAlias, pp2 );
+         hb_strncpy( szAlias, pp2, HB_RDD_MAX_ALIAS_LEN );
          hb_strUpper( szAlias, strlen( szAlias ) );
       }
       else
@@ -12526,7 +12529,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
             ptr2--;
          if( *ptr2 == DEF_SEP || *ptr2 == ':' )
             ptr2++;
-         strcpy( szAlias, ptr2 );
+         hb_strncpy( szAlias, ptr2, HB_RDD_MAX_ALIAS_LEN );
          /* cut off extension */
          if( ( ptr2 = strrchr( szAlias, '.' ) ) != NULL )
             *ptr2 = '\0';

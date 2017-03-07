@@ -3510,9 +3510,10 @@ static HB_ERRCODE letoOrderDestroy( LETOAREAP pArea, LPDBORDERINFO pOrderInfo ) 
       leto_PutRec( pArea );
 
    if( ! pTagInfo || ! pTable )
-      return HB_FAILURE;
-   if( ! pOrderInfo->itmOrder && pTable->pTagCurrent )
-      szTagName = pTable->pTagCurrent->TagName;
+      return HB_SUCCESS;
+
+   if( ! pOrderInfo->itmOrder )
+      szTagName = NULL;
    else if( HB_IS_NUMERIC( pOrderInfo->itmOrder ) )
    {
       HB_USHORT ui = ( HB_USHORT ) hb_itemGetNI( pOrderInfo->itmOrder );
@@ -3525,9 +3526,7 @@ static HB_ERRCODE letoOrderDestroy( LETOAREAP pArea, LPDBORDERINFO pOrderInfo ) 
    else if( HB_IS_STRING( pOrderInfo->itmOrder ) )
       szTagName = hb_itemGetCPtr( pOrderInfo->itmOrder );
 
-   if( ! szTagName )
-      return HB_FAILURE;
-   else
+   if( szTagName )
    {
       eprintf( szData, "%c;%lu;13;%s;", LETOCMD_ord, pTable->hTable, szTagName );
       if( ! leto_SendRecv( pConnection, pArea, szData, 0, 0 ) || leto_CheckError( pArea, pConnection ) )
