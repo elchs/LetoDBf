@@ -2,6 +2,27 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-03-13 17:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/rddleto.h
+    * formatting, add fTransRec flag for LETOAREA
+
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    ! missing HB_FT_AUTOINC in leto_UpdateRecord() during transition
+    ! update changed records for both WA before trans/ sort;
+      update target WA afterwards a possible locally processed transition
+    + special handling of DBI_TRANSREC at client: transmit fTransRec flag;
+      use own version of not exported hb_dbfTransCheckCounters()
+    + adding LETO_DBTRANS() of tests/test_tr.prg into client lib
+    ; drop-in replace for __dbTrans() with optional string expressions for
+      FOR/ WHILE expressions instead codeblocks
+    * letoSort()/ letoTrans(): if FOR or WHILE string expression is invalid at
+      server, try to process locally at client; throw RTE if locally invalid
+    * rewrite of leto_dbEval() with fixes and cleanup
+
+  * tests/test_tr.prg
+    * more tests about __dbTrans(); respect Leto_DbTrans() in client lib
+
 2017-03-07 10:05 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/server/letofunc.c

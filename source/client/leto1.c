@@ -2,7 +2,7 @@
  * Harbour Leto RDD
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
- *           2015-16 Rolf 'elch' Beckmann
+ *           2015-17 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1277,7 +1277,7 @@ static HB_ERRCODE letoPutRec( LETOAREAP pArea, HB_BYTE * pBuffer )
       memcpy( pTable->pRecord, pBuffer, pTable->uiRecordLen );
       pTable->uiUpdated |= LETO_FLAG_UPD_CHANGE;
       pTable->fDeleted = ( pTable->pRecord[ 0 ] == '*' );
-      if( pTable->fHaveAutoinc )
+      if( pTable->fHaveAutoinc && ! pArea->fTransRec )
       {
          HB_USHORT uiField = 0;
 
@@ -2141,7 +2141,6 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
    HB_ULONG         ulFieldDups;
    char *           szData, * ptr, * szFieldDup;
    char             szFile[ HB_PATH_MAX ];
-   char             szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
    char             cType;
    const char *     szFieldName;
    HB_ERRCODE       errCode = HB_SUCCESS;
@@ -2305,6 +2304,8 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
       }
       if( ( ! pCreateInfo->atomAlias || ! *pCreateInfo->atomAlias ) && *szFile )  /* create a missing Alias */
       {
+         char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
+
          letoCreateAlias( szFile, szAlias );
          pCreateInfo->atomAlias = szAlias;
       }
@@ -2344,6 +2345,75 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
    return SUPER_CREATE( ( AREAP ) pArea, pCreateInfo );
 }
 
+/* lpdbTransInfo->lpaDest is a LetoDBf WA; ->lpaSrc possible not */
+static void leto_dbfTransCheckCounters( LPDBTRANSINFO lpdbTransInfo )
+{
+   HB_BOOL     fCopyCtr = HB_TRUE;
+   HB_USHORT   uiCount, uiDest;
+   LETOAREAP   pArea = ( LETOAREAP ) lpdbTransInfo->lpaDest;
+   LETOTABLE * pTable = pArea->pTable;
+
+   if( pTable->ulRecCount > 0 || ( pTable->fShared && ! pTable->fFLocked ) )
+      fCopyCtr = HB_FALSE;
+   else if( pTable->fHaveAutoinc )
+   {
+      PHB_ITEM pItem = NULL;
+
+      for( uiCount = 0; uiCount < lpdbTransInfo->uiItemCount; ++uiCount )
+      {
+         HB_USHORT   uiField = lpdbTransInfo->lpTransItems[ uiCount ].uiDest;
+         LETOFIELD * pField = pArea->pTable->pFields + uiField - 1;
+
+         if( ( pField->uiFlags & HB_FF_AUTOINC ) )
+         {
+            if( pItem == NULL )
+               pItem = hb_itemNew( NULL );
+            if( SELF_FIELDINFO( lpdbTransInfo->lpaSource,
+                                lpdbTransInfo->lpTransItems[ uiCount ].uiSource,
+                                DBS_COUNTER, pItem ) != HB_SUCCESS )
+            {
+               fCopyCtr = HB_FALSE;
+               break;
+            }
+         }
+      }
+      if( pItem != NULL )
+         hb_itemRelease( pItem );
+   }
+
+   if( fCopyCtr )
+   {
+      if( pTable->fHaveAutoinc )
+         lpdbTransInfo->uiFlags |= DBTF_CPYCTR;
+   }
+   else
+   {
+      for( uiCount = uiDest = 0; uiCount < lpdbTransInfo->uiItemCount; ++uiCount )
+      {
+         HB_USHORT   uiField = lpdbTransInfo->lpTransItems[ uiCount ].uiDest;
+         LETOFIELD * pField = pArea->pTable->pFields + uiField - 1;
+
+         /* remove ?ALL? autoinc fields and HB_FT_MODTIME field from list */
+         if( ! ( pField->uiFlags & HB_FF_AUTOINC ) && pField->uiType != HB_FT_MODTIME )
+         {
+            if( uiDest != uiCount )
+            {
+               lpdbTransInfo->lpTransItems[ uiDest ].uiSource =
+               lpdbTransInfo->lpTransItems[ uiCount ].uiSource;
+               lpdbTransInfo->lpTransItems[ uiDest ].uiDest =
+               lpdbTransInfo->lpTransItems[ uiCount ].uiDest;
+            }
+            ++uiDest;
+         }
+      }
+      if( uiDest < uiCount )
+      {
+         lpdbTransInfo->uiItemCount = uiDest;
+         lpdbTransInfo->uiFlags &= ~( DBTF_MATCH | DBTF_PUTREC );
+      }
+   }
+}
+
 static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
 {
    LETOTABLE *      pTable = pArea->pTable;
@@ -2354,8 +2424,11 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
    switch( uiIndex )
    {
       case DBI_ISDBF:
-      case DBI_CANPUTREC:
          hb_itemPutL( pItem, HB_TRUE );
+         break;
+
+      case DBI_CANPUTREC:
+         hb_itemPutL( pItem, HB_FALSE );
          break;
 
       case DBI_GETHEADERSIZE:
@@ -2552,6 +2625,36 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
          break;
       }
 
+      case DBI_TRANSREC:
+      {
+         char    szData[ 32 ];
+         HB_BOOL fTransRec = pArea->fTransRec;
+
+         if( HB_IS_LOGICAL( pItem ) )
+            pArea->fTransRec = hb_itemGetL( pItem );
+         else if( HB_IS_POINTER( pItem ) )
+         {
+            LPDBTRANSINFO pTransInfo = hb_dbTransInfoGet( pItem );
+
+            if( pTransInfo )
+            {
+               pArea->fTransRec = HB_TRUE;
+               leto_dbfTransCheckCounters( pTransInfo );
+            }
+         }
+
+         eprintf( szData, "%c;%lu;%d;.%c.;", LETOCMD_dbi, pTable->hTable, uiIndex, ( pArea->fTransRec ? 'T' : 'F' ) );
+         pConnection = letoGetConnPool( pTable->uiConnection );
+         if( ! leto_SendRecv( pConnection, pArea, szData, 0, 0 ) || *pConnection->szBuffer != '+' )
+         {
+            pArea->fTransRec = fTransRec;  /* reset to old state */
+            return HB_FAILURE;
+         }
+
+         hb_itemPutL( pItem, fTransRec );  /* ugly overwrite GCalloc pTransInfo with last state */
+         break;
+      }
+
       case DBI_LASTUPDATE:  /* stored as HB_LONG Julian */
          hb_itemPutDL( pItem, pTable->lLastUpdate );
          break;
@@ -2609,7 +2712,6 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    LETOFIELD *      pField;
    HB_ERRCODE       errCode;
    char             szFile[ HB_PATH_MAX ];
-   char             szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOpen(%p, %p)", pArea, pOpenInfo ) );
 
@@ -2621,6 +2723,8 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    pArea->szDataFileName = hb_strdup( szFile );
    if( ( ! pOpenInfo->atomAlias || ! *pOpenInfo->atomAlias ) && *szFile )  /* create a missing Alias */
    {
+      char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
+
       letoCreateAlias( szFile, szAlias );
       pOpenInfo->atomAlias = szAlias;
    }
@@ -2785,24 +2889,69 @@ static char * leto_PutTransInfo( LETOAREAP pArea, LETOAREAP pAreaDst, LPDBTRANSI
    return ptr;
 }
 
+static PHB_ITEM leto_mkCodeBlock( const char * szExp, HB_ULONG ulLen )
+{
+   PHB_ITEM pBlock = NULL;
+
+   if( ulLen > 0 )
+   {
+      PHB_ITEM pFreshBlock;
+
+      if( szExp[ 0 ] == '{' && szExp[ ulLen - 1 ] == '}' )
+         hb_vmPushString( szExp, ulLen );
+      else
+      {
+         char * szMacro = ( char * ) hb_xgrab( ulLen + 5 );
+
+         szMacro[ 0 ] = '{';
+         szMacro[ 1 ] = '|';
+         szMacro[ 2 ] = '|';
+         memcpy( szMacro + 3, szExp, ulLen );
+         szMacro[ 3 + ulLen ] = '}';
+         szMacro[ 4 + ulLen ] = '\0';
+         hb_vmPushString( szMacro, ulLen + 5 );
+         hb_xfree( szMacro );
+      }
+
+      pFreshBlock = hb_stackItemFromTop( -1 );
+      if( pFreshBlock )
+      {
+         hb_macroGetValue( pFreshBlock, 0, 64 );  /* 64 = HB_MACRO_GEN_REFER */
+         pBlock = hb_itemNew( hb_stackItemFromTop( -1 ) );
+         hb_stackPop();
+      }
+   }
+
+   return pBlock;
+}
+
 static HB_ERRCODE letoSort( LETOAREAP pArea, LPDBSORTINFO pSortInfo )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    LPDBTRANSINFO pTransInfo = &pSortInfo->dbtri;
    LETOAREAP     pAreaDst = ( LETOAREAP ) pTransInfo->lpaDest;
-   HB_ERRCODE    errCode;
+   HB_BOOL       fLetoAreaDst = leto_CheckArea( pAreaDst );
+   HB_ERRCODE    errCode = HB_FAILURE;
    char *        pData, * ptr;
    HB_USHORT     uiIndex;
    HB_ULONG      ulLen;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoSort(%p, %p)", pArea, pSortInfo ) );
 
-   if( ! leto_CheckArea( pAreaDst ) ||
+   if( pArea->pTable->uiUpdated )
+      leto_PutRec( pArea );
+   if( fLetoAreaDst && pAreaDst->pTable->uiUpdated )
+      leto_PutRec( pAreaDst );
+
+   if( ! fLetoAreaDst ||
        ( pArea->pTable->uiConnection != pAreaDst->pTable->uiConnection ) ||
        ( pTransInfo->dbsci.itmCobFor && ! pTransInfo->dbsci.lpstrFor ) ||
        ( pTransInfo->dbsci.itmCobWhile && ! pTransInfo->dbsci.lpstrWhile ) )
    {
-      return SUPER_SORT( ( AREAP ) pArea, pSortInfo );
+      errCode = SUPER_SORT( ( AREAP ) pArea, pSortInfo );
+      if( fLetoAreaDst && pAreaDst->pTable->uiUpdated )
+         leto_PutRec( pAreaDst );
+      return errCode;
    }
 
    ulLen = 92 + LETO_MAX_TAGNAME +
@@ -2826,7 +2975,60 @@ static HB_ERRCODE letoSort( LETOAREAP pArea, LPDBSORTINFO pSortInfo )
                       pSortInfo->lpdbsItem[ uiIndex ].uiFlags );
    }
 
-   errCode = ( leto_SendRecv( pConnection, pArea, pData, ptr - pData, 1021 ) ? HB_SUCCESS : HB_FAILURE );
+   if( ! leto_SendRecv( pConnection, pArea, pData, ptr - pData, 0 ) )
+      ptr = NULL;
+   else
+      ptr = leto_firstchar( pConnection );
+
+   if( ptr && *( ptr - 1 ) == '+' )
+      errCode = HB_SUCCESS;
+   else if( ptr )
+   {
+      if( ( ! pTransInfo->dbsci.itmCobFor && pTransInfo->dbsci.lpstrFor ) ||
+          ( ! pTransInfo->dbsci.itmCobWhile && pTransInfo->dbsci.lpstrWhile ) )
+      {
+         HB_BOOL fValid = HB_TRUE;
+
+         if( pTransInfo->dbsci.lpstrFor )
+         {
+            pTransInfo->dbsci.itmCobFor = leto_mkCodeBlock( hb_itemGetCPtr( pTransInfo->dbsci.lpstrFor ),
+                                                            hb_itemGetCLen( pTransInfo->dbsci.lpstrFor ) );
+            if( ! pTransInfo->dbsci.itmCobFor ||
+                ! HB_IS_LOGICAL( hb_vmEvalBlockOrMacro( pTransInfo->dbsci.itmCobFor ) ) )
+               fValid = HB_FALSE;
+         }
+         if( fValid && pTransInfo->dbsci.lpstrWhile )
+         {
+            pTransInfo->dbsci.itmCobWhile = leto_mkCodeBlock( hb_itemGetCPtr( pTransInfo->dbsci.lpstrWhile ),
+                                                              hb_itemGetCLen( pTransInfo->dbsci.lpstrWhile ) );
+            if( ! pTransInfo->dbsci.itmCobWhile ||
+                ! HB_IS_LOGICAL( hb_vmEvalBlockOrMacro( pTransInfo->dbsci.itmCobWhile ) ) )
+               fValid = HB_FALSE;
+         }
+
+         if( fValid )
+         {
+            errCode = SUPER_SORT( ( AREAP ) pArea, pSortInfo );
+            if( fLetoAreaDst && pAreaDst->pTable->uiUpdated )
+               leto_PutRec( pAreaDst );
+         }
+         else
+            commonError( pArea, EG_SYNTAX, 1031, 0, NULL, 0, pTransInfo->dbsci.lpstrFor ?
+                                                             hb_itemGetCPtr( pTransInfo->dbsci.lpstrFor ) :
+                                                             hb_itemGetCPtr( pTransInfo->dbsci.lpstrWhile ) );
+
+         if( pTransInfo->dbsci.itmCobFor )
+         {
+            hb_vmDestroyBlockOrMacro( pTransInfo->dbsci.itmCobFor );
+            pTransInfo->dbsci.itmCobFor = NULL;
+         }
+         if( pTransInfo->dbsci.itmCobWhile )
+         {
+            hb_vmDestroyBlockOrMacro( pTransInfo->dbsci.itmCobWhile );
+            pTransInfo->dbsci.itmCobWhile = NULL;
+         }
+      }
+   }
    hb_xfree( pData );
 
    return errCode;
@@ -2836,22 +3038,28 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    LETOAREAP  pAreaDst = ( LETOAREAP ) pTransInfo->lpaDest;
-   HB_ERRCODE errCode;
+   HB_BOOL    fLetoAreaDst = leto_CheckArea( pAreaDst );
+   HB_ERRCODE errCode = HB_FAILURE;
    char *     pData, * ptr;
    HB_ULONG   ulLen;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoTrans(%p, %p)", pArea, pTransInfo ) );
 
-   if( ! leto_CheckArea( pAreaDst ) ||
+   if( pArea->pTable->uiUpdated )
+      leto_PutRec( pArea );
+   if( fLetoAreaDst && pAreaDst->pTable->uiUpdated )
+      leto_PutRec( pAreaDst );
+
+   if( ! fLetoAreaDst ||
        ( pArea->pTable->uiConnection != pAreaDst->pTable->uiConnection ) ||
        ( pTransInfo->dbsci.itmCobFor && ! pTransInfo->dbsci.lpstrFor ) ||
        ( pTransInfo->dbsci.itmCobWhile && ! pTransInfo->dbsci.lpstrWhile ) )
    {
-      return SUPER_TRANS( ( AREAP ) pArea, pTransInfo );
+      errCode = SUPER_TRANS( ( AREAP ) pArea, pTransInfo );
+      if( fLetoAreaDst && pAreaDst->pTable->uiUpdated )
+         leto_PutRec( pAreaDst );
+      return errCode;
    }
-
-   if( pAreaDst->pTable->uiUpdated )
-      leto_PutRec( pAreaDst );
 
    ulLen = 82 + LETO_MAX_TAGNAME +
            hb_itemGetCLen( pTransInfo->dbsci.lpstrFor ) +
@@ -2863,10 +3071,13 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
    pData[ 1 ] = ';';
    ptr = leto_PutTransInfo( pArea, pAreaDst, pTransInfo, pData + 2 );
 
-   errCode = ( leto_SendRecv( pConnection, pArea, pData, ptr - pData, 1021 ) ? HB_SUCCESS : HB_FAILURE );
-   if( errCode == HB_SUCCESS )
-   {
+   if( ! leto_SendRecv( pConnection, pArea, pData, ptr - pData, 0 ) )
+      ptr = NULL;
+   else
       ptr = leto_firstchar( pConnection );
+   if( ptr && *( ptr - 1 ) == '+' )
+   {
+      errCode = HB_SUCCESS;
       if( ! memcmp( ptr, "+++;", 4 ) )
       {
          LETOTABLE * pTable = pArea->pTable;
@@ -2877,6 +3088,53 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
             pTable->llCentiSec = LETO_CENTISEC();
       }
       pArea->pTable->ptrBuf = NULL;
+   }
+   else if( ptr )  /* try if expression is vaild at client */
+   {
+      if( ( ! pTransInfo->dbsci.itmCobFor && pTransInfo->dbsci.lpstrFor ) ||
+          ( ! pTransInfo->dbsci.itmCobWhile && pTransInfo->dbsci.lpstrWhile ) )
+      {
+         HB_BOOL fValid = HB_TRUE;
+
+         if( pTransInfo->dbsci.lpstrFor )
+         {
+            pTransInfo->dbsci.itmCobFor = leto_mkCodeBlock( hb_itemGetCPtr( pTransInfo->dbsci.lpstrFor ),
+                                                            hb_itemGetCLen( pTransInfo->dbsci.lpstrFor ) );
+            if( ! pTransInfo->dbsci.itmCobFor ||
+                ! HB_IS_LOGICAL( hb_vmEvalBlockOrMacro( pTransInfo->dbsci.itmCobFor ) ) )
+               fValid = HB_FALSE;
+         }
+         if( fValid && pTransInfo->dbsci.lpstrWhile )
+         {
+            pTransInfo->dbsci.itmCobWhile = leto_mkCodeBlock( hb_itemGetCPtr( pTransInfo->dbsci.lpstrWhile ),
+                                                              hb_itemGetCLen( pTransInfo->dbsci.lpstrWhile ) );
+            if( ! pTransInfo->dbsci.itmCobWhile ||
+                ! HB_IS_LOGICAL( hb_vmEvalBlockOrMacro( pTransInfo->dbsci.itmCobWhile ) ) )
+               fValid = HB_FALSE;
+         }
+
+         if( fValid )
+         {
+            errCode = SUPER_TRANS( ( AREAP ) pArea, pTransInfo );
+            if( fLetoAreaDst && pAreaDst->pTable->uiUpdated )
+               leto_PutRec( pAreaDst );
+         }
+         else
+            commonError( pArea, EG_SYNTAX, 1031, 0, NULL, 0, pTransInfo->dbsci.lpstrFor ?
+                                                             hb_itemGetCPtr( pTransInfo->dbsci.lpstrFor ) :
+                                                             hb_itemGetCPtr( pTransInfo->dbsci.lpstrWhile ) );
+
+         if( pTransInfo->dbsci.itmCobFor )
+         {
+            hb_vmDestroyBlockOrMacro( pTransInfo->dbsci.itmCobFor );
+            pTransInfo->dbsci.itmCobFor = NULL;
+         }
+         if( pTransInfo->dbsci.itmCobWhile )
+         {
+            hb_vmDestroyBlockOrMacro( pTransInfo->dbsci.itmCobWhile );
+            pTransInfo->dbsci.itmCobWhile = NULL;
+         }
+      }
    }
    hb_xfree( pData );
 
@@ -5546,7 +5804,7 @@ static char * leto_AddScopeExp( LETOAREAP pArea, char * pData, int iIndex )
 /* leto_DbEval( cBlock, cFor, cWhile, nNext, nRec, lRest ) */
 HB_FUNC( LETO_DBEVAL )
 {
-   PHB_ITEM * pParams = hb_itemArrayNew( 7 );
+   PHB_ITEM pParams = hb_itemArrayNew( 7 );
 
    hb_arraySetC( pParams, 1, "LETO_DBEVAL" );
 
@@ -5555,11 +5813,10 @@ HB_FUNC( LETO_DBEVAL )
       char * szBlock = hb_strdup( hb_parc( 1 ) );
 
       if( leto_CbTrim( szBlock ) )
-         hb_arraySetC( pParams, 2, szBlock );  // eval block each record
+         hb_arraySetC( pParams, 2, szBlock );
       hb_xfree( szBlock );
    }
-   else
-      hb_arraySetC( pParams, 2, "leto_ResultRow('*')" );
+
    if( HB_ISCHAR( 2 ) && hb_parclen( 2 ) > 0 )
    {
       char * szBlock = hb_strdup( hb_parc( 2 ) );
@@ -5577,11 +5834,17 @@ HB_FUNC( LETO_DBEVAL )
       hb_xfree( szBlock );
    }
 
-   hb_arraySetNL( pParams, 5, HB_ISNUM( 4 ) ? ( HB_ULONG ) hb_parnl( 4 ) : 0 );
+   hb_arraySetNL( pParams, 5, HB_ISNUM( 4 ) ? ( HB_LONG ) hb_parnl( 4 ) : -1 );
    hb_arraySetNL( pParams, 6, HB_ISNUM( 5 ) ? ( HB_ULONG ) hb_parnl( 5 ) : 0 );
    hb_arraySetL( pParams, 7, HB_ISLOG( 6 ) ? ( HB_ULONG ) hb_parl( 6 ) : 0 );
 
-   leto_udp( HB_FALSE, pParams );
+   if( hb_arrayGetType( pParams, 2 ) == HB_IT_STRING )
+      leto_udp( HB_FALSE, pParams );
+   else
+   {
+      hb_itemRelease( pParams );
+      hb_ret();
+   }
 }
 
 HB_FUNC( LETO_GROUPBY )
@@ -5791,6 +6054,85 @@ HB_FUNC( LETO_SUM )
    }
    else
       hb_retni( 0 );
+}
+
+/* replaces __DBTRANS() by alternative use of string expressions instead of codeblocks,
+ * Leto_dbTrans( cnDstArea, aFields, cbFor, cbWhile, nNext, nRecord, lRest ) */
+HB_FUNC( LETO_DBTRANS )
+{
+   AREAP   pSrcArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+   AREAP   pDstArea = NULL;
+   HB_UINT uiDstArea = 0;
+
+   if( HB_ISCHAR( 1 ) )      /* ALIAS = LetoDBf extension */
+      hb_rddGetAliasNumber( hb_parc( 1 ), ( int * ) &uiDstArea );
+   else if( HB_ISNUM( 1 ) )  /* WA number */
+      uiDstArea = hb_parni( 1 );
+   if( uiDstArea )
+      pDstArea = ( AREAP ) hb_rddGetWorkAreaPointer( uiDstArea );
+
+   if( pDstArea && pSrcArea )
+   {
+      PHB_ITEM    pFields = hb_param( 2, HB_IT_ARRAY );
+      DBTRANSINFO dbTransInfo;
+      HB_ERRCODE  errCode;
+
+      memset( &dbTransInfo, 0, sizeof( DBTRANSINFO ) );
+      /* set DBTF_MATCH in case of fields (must be not all) are at same pos & type */
+      errCode = hb_dbTransStruct( pSrcArea, pDstArea, &dbTransInfo, NULL, pFields );
+      if( errCode == HB_SUCCESS )
+      {
+#if ! defined( __HARBOUR30__ )
+         PHB_ITEM pTransItm;
+#endif
+         dbTransInfo.dbsci.itmCobFor   = hb_param( 3, HB_IT_BLOCK );
+         dbTransInfo.dbsci.lpstrFor    = hb_param( 3, HB_IT_STRING );
+         dbTransInfo.dbsci.itmCobWhile = hb_param( 4, HB_IT_BLOCK );
+         dbTransInfo.dbsci.lpstrWhile  = hb_param( 4, HB_IT_STRING );
+         dbTransInfo.dbsci.lNext       = hb_param( 5, HB_IT_NUMERIC );
+         dbTransInfo.dbsci.itmRecID    = HB_ISNIL( 6 ) ? NULL : hb_param( 6, HB_IT_ANY );
+         dbTransInfo.dbsci.fRest       = hb_param( 7, HB_IT_LOGICAL );
+
+         /* different to Harbour: fIgnoreFilter = HB_FALSE -- but nowhere used in HB */
+         dbTransInfo.dbsci.fIgnoreFilter     = HB_TRUE;
+         dbTransInfo.dbsci.fIncludeDeleted   = HB_TRUE;
+         dbTransInfo.dbsci.fLast             = HB_FALSE;
+         dbTransInfo.dbsci.fIgnoreDuplicates = HB_FALSE;
+         dbTransInfo.dbsci.fBackward         = HB_FALSE;
+         dbTransInfo.dbsci.fOptimized        = HB_FALSE;
+
+#if ! defined( __HARBOUR30__ )
+         pTransItm = hb_dbTransInfoPut( NULL, &dbTransInfo );
+         /* call hb_dbfTransCheckCounters() to add DBTF_CPYCTR or remove DBTF_MATCH & DBTF_PUTREC */
+         /* content of pTransItem will be afterwards boolean with state of previous fTransRec */
+         errCode = SELF_INFO( dbTransInfo.lpaDest, DBI_TRANSREC, pTransItm );
+#endif
+         if( errCode == HB_SUCCESS )
+         {
+            if( ! dbTransInfo.uiItemCount )
+               errCode = HB_FAILURE;
+            else
+               errCode = SELF_TRANS( dbTransInfo.lpaSource, &dbTransInfo );
+#if ! defined( __HARBOUR30__ )
+            /* reset state of fTransRec */
+            SELF_INFO( dbTransInfo.lpaDest, DBI_TRANSREC, pTransItm );
+            if( errCode == HB_SUCCESS && ( dbTransInfo.uiFlags & DBTF_CPYCTR ) )
+               hb_dbTransCounters( &dbTransInfo );
+#endif
+         }
+#if ! defined( __HARBOUR30__ )
+         if( pTransItm )
+            hb_itemRelease( pTransItm );
+#endif
+      }
+
+      if( dbTransInfo.lpTransItems )
+         hb_xfree( dbTransInfo.lpTransItems );
+
+      hb_retl( errCode == HB_SUCCESS );
+   }
+   else
+      commonError( ( LETOAREAP ) pSrcArea, EG_ARG, EDBCMD_NOTABLE, 0, NULL, 0, "LETO_DBTRANS" );
 }
 
 HB_FUNC( LETO_COMMIT )

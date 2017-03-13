@@ -1,5 +1,4 @@
 /*
-
  * Header file for Leto RDD
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
@@ -45,7 +44,6 @@
  *
  */
 
-//#include "hbfloat.h"
 #include "hbapi.h"
 #include "hbinit.h"
 #include "hbapiitm.h"
@@ -85,31 +83,19 @@ HB_EXTERN_BEGIN
 
 typedef struct _LETOTAGEXTRAINFO
 {
-   PHB_ITEM pKeyItem;
-   PHB_ITEM pTopScope;
-   PHB_ITEM pBottomScope;
-
-   HB_USHORT  uiFCount;            /* index fields count */
-   HB_SHORT * puiFields;           /* index fields array */
+   PHB_ITEM   pKeyItem;
+   PHB_ITEM   pTopScope;
+   PHB_ITEM   pBottomScope;
+   HB_USHORT  uiFCount;                /* index fields count */
+   HB_SHORT * puiFields;               /* index fields array */
 
 } LETOTAGEXTRAINFO;
 
-
 /*
  *  LETO WORKAREA
- *  --------
- *  The Workarea Structure of Harbour remote Database Server RDD
+ *  -------------
+ *  The local Workarea Structure of Harbour remote Database Server RDD
  *
- *  typedef struct _DBRELINFO
- *  {
- *     PHB_ITEM            itmCobExpr;  // relation codeblock
- *     PHB_ITEM            abKey;       // relation expression
- *     HB_BOOL             isScoped;
- *     HB_BOOL             isOptimized;
- *     struct _AREA      * lpaParent;
- *     struct _AREA      * lpaChild;
- *     struct _DBRELINFO * lpdbriNext;
- *  } DBRELINFO;
  */
 
 typedef struct _LETOAREA_
@@ -125,9 +111,9 @@ typedef struct _LETOAREA_
     */
 
    LETOTABLE * pTable;
-   LPDBRELINFO lpdbPendingRel;   /* Pointer to parent rel struct */
-
-   char * szDataFileName;        /* case sensitive name of data file */
+   LPDBRELINFO lpdbPendingRel;         /* Pointer to parent rel struct */
+   char *      szDataFileName;         /* case sensitive name of data file */
+   HB_BOOL     fTransRec;              /* active target WA for transition */
 
 } LETOAREA;
 
@@ -139,3 +125,4 @@ HB_EXTERN_END
    #define  HB_RDD_MAX_DRIVERNAME_LEN  HARBOUR_MAX_RDD_DRIVERNAME_LENGTH
    #define  HB_RDD_MAX_ALIAS_LEN       HARBOUR_MAX_RDD_ALIAS_LENGTH
 #endif
+
