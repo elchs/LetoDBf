@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-03-22 23:03 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letovars.c
+    ! allow missing: empty, null length string type of Leto_Var
+    % set Leto_Var type only during create
+    * formatting, remove one help var, var focus, notation
+
 2017-03-22 14:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/leto1.c
