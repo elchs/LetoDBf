@@ -1098,11 +1098,86 @@ static void leto_DelAreaID( HB_ULONG ulAreaID )
    ++s_AvailIDS.iCurIndex;
 }
 
-static char leto_ExprGetType( PUSERSTRU pUStru, const char * pExpr, int iLen )
+/* caller must free result: translate client ALIAS to possible different server-side ALIAS */
+static char * leto_AliasTranslate( PUSERSTRU pUStru, const char * szExpr, HB_SIZE * nLen )
 {
-   PHB_ITEM     pItem = hb_itemPutCL( NULL, pExpr, iLen );
+   PAREASTRU pAStru;
+   HB_LONG   lDstLenDif = 32;
+   HB_SIZE   nStart = 0, nDst = 0, nDstLen = *nLen + lDstLenDif, nAliasLen, nDiff;
+   char      szSrcAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
+   char *    szDst = ( char * ) hb_xgrab( nDstLen + 1 );
+   char *    ptr = strstr( szExpr + nStart, "->" );
+
+   while( ptr )
+   {
+      nAliasLen = 0;
+      while( ptr - nAliasLen - 1 >= szExpr )
+      {
+         if( ! HB_ISNEXTIDCHAR( *( ptr - nAliasLen - 1 ) ) )
+            break;
+         nAliasLen++;
+      }
+      nDiff = ptr - ( szExpr + nStart ) - nAliasLen;
+      memcpy( szDst + nDst, szExpr + nStart, nDiff );
+      nDst += nDiff;
+      if( nAliasLen && nAliasLen <= HB_RDD_MAX_ALIAS_LEN )
+      {
+         memcpy( szSrcAlias, ptr - nAliasLen, nAliasLen );
+         szSrcAlias[ nAliasLen ] = '\0';
+         pAStru = leto_FindAlias( pUStru, szSrcAlias );
+         if( ! pAStru && ! leto_stricmp( szSrcAlias, "FIELD" ) )  /* MEMVAR-> not allowed */
+            pAStru = leto_FindAlias( pUStru, NULL );
+         if( pAStru && pAStru->pTStru )
+         {
+            nDiff = strlen( pAStru->pTStru->szLetoAlias );
+            lDstLenDif -= nDiff - nAliasLen;
+            if( lDstLenDif < 0 )
+            {
+               nDstLen += 32;
+               lDstLenDif += 32;
+               szDst = ( char * ) hb_xrealloc( szDst, nDstLen + 1 );
+            }
+            memcpy( szDst + nDst, pAStru->pTStru->szLetoAlias, nDiff );
+            nDst += nDiff;
+         }
+         else if( nAliasLen )
+         {
+            memcpy( szDst + nDst, szSrcAlias, nAliasLen );
+            nDst += nAliasLen;
+         }
+      }
+      *( szDst +nDst++ ) = '-';
+      *( szDst +nDst++ ) = '>';
+
+      nStart += ptr - ( szExpr + nStart ) + 2;
+      ptr = strstr( szExpr + nStart, "->" );
+   }
+
+   if( nStart < *nLen )
+   {
+      memcpy( szDst + nDst, szExpr + nStart, *nLen - nStart );
+      nDst += *nLen - nStart;
+   }
+   szDst[ nDst ] = '\0';
+   *nLen = nDst;
+
+   return szDst;
+}
+
+static char leto_ExprGetType( PUSERSTRU pUStru, const char * pExpr, HB_SIZE nLen )
+{
+   PHB_ITEM     pItem = hb_itemPutCL( NULL, pExpr, nLen );
    const char * szType;
    char         cRet;
+
+   if( strstr( hb_itemGetCPtr( pItem ), "->" ) )
+   {
+      HB_ULONG ulLen = ( HB_ULONG ) nLen;
+      char *   szExpr = leto_AliasTranslate( pUStru, hb_itemGetCPtr( pItem ), &ulLen );
+
+      pItem = hb_itemPutCL( pItem, szExpr, ulLen );
+      hb_xfree( szExpr );
+   }
 
    /* note: removed hb_xvmSeqBegin() for hb_macroGetType() */
    szType = hb_macroGetType( pItem );
@@ -6896,20 +6971,18 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
       hb_xfree( szData1 );
 }
 
-static PHB_ITEM leto_mkCodeBlock( const char * szExp, HB_ULONG ulLen, HB_BOOL bSecured )
+static PHB_ITEM leto_mkCodeBlock( PUSERSTRU pUStru, const char * szExp, HB_ULONG ulLen, HB_BOOL bSecured )
 {
    PHB_ITEM pBlock = NULL;
 
    if( ulLen > 0 )
    {
       char *   szMacro = ( char * ) hb_xgrab( ulLen + 5 );
+      char *   szFree = NULL;
       PHB_ITEM pFreshBlock;
 
       if( szExp[ 0 ] == '{' && szExp[ ulLen - 1 ] == '}' )
-      {
          memcpy( szMacro, szExp, ulLen );
-         szMacro[ ulLen ] = '\0';
-      }
       else
       {
          szMacro[ 0 ] = '{';
@@ -6917,8 +6990,13 @@ static PHB_ITEM leto_mkCodeBlock( const char * szExp, HB_ULONG ulLen, HB_BOOL bS
          szMacro[ 2 ] = '|';
          memcpy( szMacro + 3, szExp, ulLen );
          szMacro[ 3 + ulLen ] = '}';
-         szMacro[ 4 + ulLen ] = '\0';
-         ulLen += 5;
+         ulLen += 4;
+      }
+      szMacro[ ulLen ] = '\0';
+      if( strstr( szMacro, "->" ) )
+      {
+         szFree = szMacro;
+         szMacro = leto_AliasTranslate( pUStru, szMacro, &ulLen );
       }
 
       pBlock = hb_itemNew( NULL );
@@ -6948,6 +7026,8 @@ static PHB_ITEM leto_mkCodeBlock( const char * szExp, HB_ULONG ulLen, HB_BOOL bS
          }
       }
       hb_xfree( szMacro );
+      if( szFree )
+         hb_xfree( szFree );
    }
 
    return pBlock;
@@ -7025,21 +7105,21 @@ HB_FUNC( LETO_DBEVAL )
    hb_xvmSeqBegin();
 
    if( HB_ISCHAR( 1 ) )
-      pBlocks[ 0 ] = leto_mkCodeBlock( hb_parc( 1 ), hb_parclen( 1 ), HB_FALSE );
+      pBlocks[ 0 ] = leto_mkCodeBlock( pUStru, hb_parc( 1 ), hb_parclen( 1 ), HB_FALSE );
    else if( HB_ISEVALITEM( 1 ) || HB_ISBLOCK( 1 ) )
       pBlocks[ 0 ] = hb_itemClone( hb_param( 1, HB_IT_EVALITEM ) );
    if( ! pBlocks[ 0 ] )
       pUStru->iHbError = 1;
 
    if( HB_ISCHAR( 2 ) )
-      pBlocks[ 1 ] = leto_mkCodeBlock( hb_parc( 2 ), hb_parclen( 2 ), HB_FALSE );
+      pBlocks[ 1 ] = leto_mkCodeBlock( pUStru, hb_parc( 2 ), hb_parclen( 2 ), HB_FALSE );
    else if( HB_ISEVALITEM( 2 ) || HB_ISBLOCK( 2 ) )
       pBlocks[ 1 ] = hb_itemClone( hb_param( 2, HB_IT_EVALITEM | HB_IT_BLOCK  ) );
    if( pBlocks[ 1 ] && hb_itemType( hb_vmEvalBlock( pBlocks[ 1 ] ) ) != HB_IT_LOGICAL )
       pUStru->iHbError = 2;
 
    if( HB_ISCHAR( 3 ) )
-      pBlocks[ 2 ] = leto_mkCodeBlock( hb_parc( 3 ), hb_parclen( 3 ), HB_FALSE );
+      pBlocks[ 2 ] = leto_mkCodeBlock( pUStru, hb_parc( 3 ), hb_parclen( 3 ), HB_FALSE );
    else if( HB_ISEVALITEM( 3 ) || HB_ISBLOCK( 3 ) )
       pBlocks[ 2 ] = hb_itemClone( hb_param( 3, HB_IT_EVALITEM | HB_IT_BLOCK ) );
    if( pBlocks[ 2 ] && hb_itemType( hb_vmEvalBlock( pBlocks[ 2 ] ) ) != HB_IT_LOGICAL )
@@ -9865,13 +9945,12 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
    AREAP     pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    HB_ULONG  ulLen = strlen( szData + 2 );
    PAREASTRU pAStru = pUStru->pCurAStru;
-   HB_BOOL   bClear = ( ulLen == 0 );
 
    leto_ResetFilter( pAStru );
    if( s_bNoSaveWA && ! pAStru->pTStru->bMemIO )
       leto_ClearFilter( pArea );
 
-   if( bClear )
+   if( ! ulLen )
       leto_SendAnswer2( pUStru, szOk, 4, HB_TRUE, 1021 );
    else
    {
@@ -9882,15 +9961,15 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
 
       /* pre-test filter for executable at server, and without alias */
       if( hb_setGetOptimize() )
-         bRes = leto_ParseFilter( pUStru, szData, ulLen );
+         bRes = leto_ParseFilter( pUStru, szFilter, ulLen );
 
       if( bRes || bForce )
       {
-         bRes = leto_ExprGetType( pUStru, szFilter, ( int ) ulLen ) == 'L';
+         bRes = leto_ExprGetType( pUStru, szFilter, ulLen ) == 'L';
          if( bRes )
          {
             hb_xvmSeqBegin();
-            pFilterBlock = leto_mkCodeBlock( szFilter, ulLen, HB_FALSE );
+            pFilterBlock = leto_mkCodeBlock( pUStru, szFilter, ulLen, HB_FALSE );
             if( pFilterBlock == NULL )
                bRes = HB_FALSE;
             else
@@ -9988,7 +10067,7 @@ static void leto_Relation( PUSERSTRU pUStru, const char * szData )
                      PHB_ITEM  pRelBlock;
 
                      hb_xvmSeqBegin();
-                     pRelBlock = leto_mkCodeBlock( pp2, strlen( pp2 ), HB_FALSE );
+                     pRelBlock = leto_mkCodeBlock( pUStru, pp2, strlen( pp2 ), HB_FALSE );
                      if( pRelBlock != NULL )
                         hb_vmEvalBlock( pRelBlock );
                      hb_xvmSeqEnd();
@@ -10181,7 +10260,7 @@ static void leto_GroupBy( PUSERSTRU pUStru, const char * szData )
       else
       {
          cGroupType = leto_ExprGetType( pUStru, pGroup, pFields - pGroup - 1 );
-         pGroupBlock = leto_mkCodeBlock( pGroup, pFields - pGroup - 1, HB_TRUE );
+         pGroupBlock = leto_mkCodeBlock( pUStru, pGroup, pFields - pGroup - 1, HB_TRUE );
       }
 
       ptr = pFields;
@@ -10213,7 +10292,7 @@ static void leto_GroupBy( PUSERSTRU pUStru, const char * szData )
             else
                iPos = 0;
             if( ( iPos == 0 ) && leto_ExprGetType( pUStru, ptr, pNext - ptr ) == 'N' )
-               pBlock = leto_mkCodeBlock( ptr, pNext - ptr, HB_TRUE );
+               pBlock = leto_mkCodeBlock( pUStru, ptr, pNext - ptr, HB_TRUE );
          }
 
          if( iPos || pBlock )
@@ -10277,7 +10356,7 @@ static void leto_GroupBy( PUSERSTRU pUStru, const char * szData )
          hb_xvmSeqBegin();
 
          if( *pFilter != '\0' )
-            pFilterBlock = leto_mkCodeBlock( pFilter, strlen( pFilter ), HB_FALSE );
+            pFilterBlock = leto_mkCodeBlock( pUStru, pFilter, strlen( pFilter ), HB_FALSE );
          if( pFilterBlock == NULL && ! ( ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) ) )
             leto_SetFilter( pAStru, pArea, pUStru );
 
@@ -10617,7 +10696,7 @@ static void leto_Sum( PUSERSTRU pUStru, const char * szData )
             }
             else if( leto_ExprGetType( pUStru, ptr, pNext - ptr ) == 'N' )
             {
-               pSums[ uiCount - 1 ].pBlock = leto_mkCodeBlock( ptr, pNext - ptr, HB_TRUE );
+               pSums[ uiCount - 1 ].pBlock = leto_mkCodeBlock( pUStru, ptr, pNext - ptr, HB_TRUE );
                pSums[ uiCount - 1 ].uDec = 0;
             }
             else
@@ -10656,7 +10735,7 @@ static void leto_Sum( PUSERSTRU pUStru, const char * szData )
       hb_xvmSeqBegin();
 
       if( *pFilter != '\0' )
-         pFilterBlock = leto_mkCodeBlock( pFilter, strlen( pFilter ), HB_FALSE );
+         pFilterBlock = leto_mkCodeBlock( pUStru, pFilter, strlen( pFilter ), HB_FALSE );
       if( pFilterBlock == NULL && ! ( ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) ) )
          leto_SetFilter( pAStru, pArea, pUStru );
 
@@ -10822,7 +10901,7 @@ static void leto_Sum( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-static const char * letoFillTransInfo( LPDBTRANSINFO pTransInfo, const char * pData, AREAP pAreaSrc, AREAP pAreaDst )
+static const char * letoFillTransInfo( PUSERSTRU pUStru, LPDBTRANSINFO pTransInfo, const char * pData, AREAP pAreaSrc, AREAP pAreaDst )
 {
    const char * pp1, * pp2;
    HB_ULONG     ulTemp;
@@ -10840,7 +10919,7 @@ static const char * letoFillTransInfo( LPDBTRANSINFO pTransInfo, const char * pD
          pp1++;
       else if( ( pp2 = strchr( pp1 + 1, ';' ) ) != NULL )
       {
-         pTransInfo->dbsci.itmCobFor = leto_mkCodeBlock( pp1, pp2 - pp1, HB_FALSE );
+         pTransInfo->dbsci.itmCobFor = leto_mkCodeBlock( pUStru, pp1, pp2 - pp1, HB_FALSE );
          pTransInfo->dbsci.lpstrFor = NULL;
          pp1 = pp2 + 1;
       }
@@ -10852,7 +10931,7 @@ static const char * letoFillTransInfo( LPDBTRANSINFO pTransInfo, const char * pD
          pp1++;
       else if( ( pp2 = strchr( pp1 + 1, ';' ) ) != NULL )
       {
-         pTransInfo->dbsci.itmCobWhile = leto_mkCodeBlock( pp1, pp2 - pp1, HB_FALSE );
+         pTransInfo->dbsci.itmCobWhile = leto_mkCodeBlock( pUStru, pp1, pp2 - pp1, HB_FALSE );
          pTransInfo->dbsci.lpstrWhile = NULL;
          pp1 = pp2 + 1;
       }
@@ -10991,7 +11070,7 @@ static void leto_Trans( PUSERSTRU pUStru, const char * szData, HB_BOOL bSort )
          {
             DBSORTINFO dbSortInfo;
 
-            pp1 = letoFillTransInfo( &dbSortInfo.dbtri, pp3, pAreaSrc, pAreaDst );
+            pp1 = letoFillTransInfo( pUStru, &dbSortInfo.dbtri, pp3, pAreaSrc, pAreaDst );
 
             if( pp1 && ( pp2 = strchr( pp1, ';' ) ) != NULL )
             {
@@ -11040,7 +11119,7 @@ static void leto_Trans( PUSERSTRU pUStru, const char * szData, HB_BOOL bSort )
          {
             DBTRANSINFO dbTransInfo;
 
-            letoFillTransInfo( &dbTransInfo, pp3, pAreaSrc, pAreaDst );
+            letoFillTransInfo( pUStru, &dbTransInfo, pp3, pAreaSrc, pAreaDst );
 
             if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
                leto_SetAreaEnv( pAStru, pAreaSrc, pUStru );
@@ -13538,7 +13617,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
             if( *szFor )
             {
                lpdbOrdCondInfo->abFor = hb_strdup( szFor );
-               lpdbOrdCondInfo->itmCobFor = leto_mkCodeBlock( szFor, strlen( szFor ), HB_FALSE );
+               lpdbOrdCondInfo->itmCobFor = leto_mkCodeBlock( pUStru, szFor, strlen( szFor ), HB_FALSE );
             }
             else
             {
@@ -13549,7 +13628,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
             if( *szWhile )
             {
                lpdbOrdCondInfo->abWhile = *szWhile ? hb_strdup( szWhile ) : NULL;
-               lpdbOrdCondInfo->itmCobWhile = leto_mkCodeBlock( szWhile, strlen( szWhile ), HB_FALSE );
+               lpdbOrdCondInfo->itmCobWhile = leto_mkCodeBlock( pUStru, szWhile, strlen( szWhile ), HB_FALSE );
             }
             else
             {
@@ -13692,7 +13771,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
                dbCreateInfo.itmOrder = NULL;
                dbCreateInfo.fUnique = bUnique;
                dbCreateInfo.abExpr = hb_itemPutC( NULL, pp3 );  /* szKey */;
-               /* dbOrderInfo.itmCobExpr = leto_mkCodeBlock( pp3, strlen( pp3 ), HB_FALSE ); */
+               /* dbOrderInfo.itmCobExpr = leto_mkCodeBlock( pUStru, pp3, strlen( pp3 ), HB_FALSE ); */
                dbCreateInfo.lpdbConstraintInfo = NULL;
 
                hb_rddSetNetErr( HB_FALSE );

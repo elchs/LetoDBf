@@ -2837,7 +2837,7 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
          ptr += eprintf( ptr, "%c;%s;%s;%s;", LETOCMD_intro,
                          LETO_VERSION_STRING, ( ( pName ) ? pName : "" ),
                          ( ( szModName ) ? szModName + iMod : "LetoClient" ) );
-#if ! defined( __HARBOUR30__ )
+#if ! ( defined( __XHARBOUR__ ) || defined( __HARBOUR30__ ) )
          if( szModName )
             hb_xfree( szModName );
 #endif
@@ -3433,6 +3433,12 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
          hb_rddSetNetErr( HB_TRUE );  /* we set it only for access violation ? */
          pConnection->iError = 103;
       }
+      else if( ptr[ 4 ] == ':' )
+      {
+         unsigned int uErr;
+
+         sscanf( ptr + 5, "%u-%u-", &uErr, &pConnection->iError );
+      }
       else
          pConnection->iError = 1021;
       return NULL;
@@ -3893,6 +3899,9 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
    HB_BOOL          fFound = HB_FALSE;
 
+   if( pTable->pFilterVar )
+      Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
+
    /* check hotbuffer also for same ulRecno */
    if( ulRecNo && pTable->ptrBuf && leto_HotBuffer( pTable ) )
    {
@@ -3949,6 +3958,9 @@ HB_EXPORT HB_ERRCODE LetoDbGoBottom( LETOTABLE * pTable )
    char          sData[ 32 ];
    unsigned long ulLen;
 
+   if( pTable->pFilterVar )
+      Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
+
    ulLen = eprintf( sData, "%c;%lu;-2;%c;", LETOCMD_goto, pTable->hTable,
                            ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
    if( ! leto_SendRecv( pConnection, sData, ulLen, 1021 ) )
@@ -3967,6 +3979,9 @@ HB_EXPORT HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable )
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
    char          sData[ 32 ];
    unsigned long ulLen;
+
+   if( pTable->pFilterVar )
+      Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
 
    ulLen = eprintf( sData, "%c;%lu;-1;%c;", LETOCMD_goto, pTable->hTable,
                            ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
@@ -3987,6 +4002,9 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
    HB_ULONG         ulDataLen;
    const char *     ptr;
    char             sData[ 42 ];
+
+   if( pTable->pFilterVar )
+      Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
 
    if( pTable->ptrBuf && leto_HotBuffer( pTable ) )
    {
@@ -4077,6 +4095,9 @@ HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHO
       LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
       char          szData[ LETO_MAX_KEY + LETO_MAX_TAGNAME + 56 ];
       unsigned long ulLen;
+
+      if( pTable->pFilterVar )
+         Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
 
       ulLen = eprintf( szData, "%c;%lu;%c;", LETOCMD_seek, pTable->hTable,
                        ( char ) ( ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 )
@@ -4862,7 +4883,7 @@ HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, co
 
    if( strchr( szGroup, ';' ) || strchr( szVar, ';' ) )  /* illegal char in name */
       return 0;
-   if( cType < '1' || cType > '4' )
+   if( cType < '1' || cType > '5' )
       return 0;
    cFlag1 |= ( uiFlags & ( LETO_VCREAT | LETO_VOWN | LETO_VDENYWR | LETO_VDENYRD ) );
    if( pRetValue )

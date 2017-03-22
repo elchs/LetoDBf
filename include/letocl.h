@@ -184,7 +184,8 @@ typedef struct _LETOTABLE
    unsigned long     ulLocksMax;        /* Number of records locked */
    unsigned long     ulLocksAlloc;      /* Number of records locked (allocated) */
    HB_USHORT         uiLockScheme;      /* elch new */
-   HB_I64            llCentiSec;         /* timepoint last access record[-buffer] data in 1/ 100 s */
+   HB_I64            llCentiSec;        /* timepoint last access record[-buffer] data in 1/ 100 s */
+   PHB_ITEM          pFilterVar;        /* PHB_ITEM array with LETO_VAR in filter expression to sync */
 } LETOTABLE;                            /* 344 */
 
 typedef struct
@@ -373,4 +374,9 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
 void leto_SetUpdated( LETOTABLE * pTable, HB_USHORT uiUpdated );
 const char * leto_ParseTagInfo( LETOTABLE * pTable, const char * pBuffer );
 void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen, unsigned long * pulLen );
+
+extern HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr );
+extern void Leto_VarExprParse( LETOCONNECTION * pConnection, const char * szSrc, PHB_ITEM pArr, HB_BOOL fOnlySynVar );
+extern HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync );
+extern HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr );
 

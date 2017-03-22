@@ -2,6 +2,52 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-03-22 14:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+  * source/server/letovars.c
+    ! FIX ! for LetoVar string type: one byte too less allocated, missed the
+      terminating char; now also aligned to next higher 16B boundary block to
+      spare new allocation if a new value is just a few bytes bigger
+    + new type DATE as possible type for the Leto_Var*() system
+      ; completing the types list: L-N-C-A-D
+    + add new functions for local memvar syncing with server LetoVar's:
+      Leto_VarExprTest(), Leto_VarExprCreate(), Leto_VarExprVars(),
+      Leto_VarExprClear() and Leto_VarExprSync()
+      ; this function family is for searching memvars by name in string
+        EXPRessions, automatic creating an unique LetoVar, changing the
+        expression to use Leto_VarGet() -- and afterwards to sync these
+        PRIVATE/ PUBLIC memvar with corresponding LetoVars.
+        See Readme.txt for description about how to use.
+    * move main parts of PRG-level LETO_VAR[SET|GET] into C-function
+    * with _SET_FORCEOPT = TRUE: modify filter expression containing memvar
+      to use beforehand created Leto_Var(), sync them with server on table
+      moves: GoTo, Skip, Seek; delete them with clear filter (e.g. close WA).
+      Example: SET FILTER TO field >= xMyLocalMemvar
+      --> optimized dynamic server side filter
+    * error feedback for failed LetoDbOpenTable()
+    - redundant header in letomgmn.c
+
+  * source/server/letofunc.c
+    ! FIX ! a typo for testing filter expression ( missing '+ 2' for a ptr )
+      ; in special cases a filter possible at server was executed locally
+    + add function leto_AliasTranslate() to translate client ALIAS to server
+    * translate client ALIAS names into server ALIAS names in
+      leto_mkCodeBlock() and leto_ExprGetType(); this will cover HbMemIO WA
+      in filter expressions/ table transitions etc.
+
+  * tests/test_var.prg
+    + adding test for DATE type and Leto_VarExpr*() function collection
+
+  * tests/test_filt.prg
+    * add a test of memvar syncing
+
+  * Readme.txt
+    * notes about Leto_VarExpr*() functions, and the automatic use in filter
+      expressins with _SET_FORCEOPT = TRUE
+
 2017-03-13 17:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/rddleto.h
     * formatting, add fTransRec flag for LETOAREA

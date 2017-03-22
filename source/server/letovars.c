@@ -56,6 +56,7 @@
 #define LETOVAR_NUM      '2'
 #define LETOVAR_STR      '3'
 #define LETOVAR_ARR      '4'
+#define LETOVAR_DAT      '5'
 
 struct leto_struLogical
 {
@@ -310,6 +311,7 @@ static char * leto_var_get( LETO_VAR * pItem, HB_ULONG * ulLen, HB_BOOL bWithPre
 
          case LETOVAR_STR:
          case LETOVAR_ARR:
+         case LETOVAR_DAT:
             lVarLen = pItem->item.asString.length;
             if( *ulLen > 0 && *ulLen < ( HB_ULONG ) lVarLen )
                lVarLen = ( long ) *ulLen;
@@ -335,9 +337,9 @@ static void leto_var_del( PUSERSTRU pUStru, LETO_VARGROUPS * pGroup, HB_USHORT u
    {
       leto_ClearVarCache();
       hb_xfree( pItem->szName );
-      if( ( pItem->type == LETOVAR_STR || pItem->type == LETOVAR_ARR ) && pItem->item.asString.value )
+      if( pItem->type >= LETOVAR_STR && pItem->item.asString.allocated )
       {
-         s_ulVarLenAll -= pItem->item.asString.length;
+         s_ulVarLenAll -= pItem->item.asString.allocated;
          hb_xfree( pItem->item.asString.value );
       }
 
@@ -427,21 +429,21 @@ static LETO_VAR * leto_var_find( const char * pVarGroup, const char * pVar, LETO
 
 static void leto_var_set_str( LETO_VAR * pItem, const char * pStr, HB_ULONG ulLen )
 {
-   if( pItem->item.asString.allocated && pItem->item.asString.allocated < ulLen )
+   if( pItem->item.asString.allocated <= ulLen && pItem->item.asString.allocated )
    {
-      s_ulVarLenAll -= pItem->item.asString.length;
+      s_ulVarLenAll -= pItem->item.asString.allocated;
       hb_xfree( pItem->item.asString.value );
       pItem->item.asString.allocated = 0;
    }
    if( ! pItem->item.asString.allocated )
    {
-      pItem->item.asString.value = ( char * ) hb_xgrab( ulLen + 1 );
-      pItem->item.asString.allocated = ulLen + 1;
+      pItem->item.asString.allocated = ( ( ulLen >> 4 ) + 1 ) << 4;  /* align 16 byte */
+      pItem->item.asString.value = ( char * ) hb_xgrab( pItem->item.asString.allocated );
+      s_ulVarLenAll += pItem->item.asString.allocated;
    }
    pItem->item.asString.length = ulLen;
    memcpy( pItem->item.asString.value, pStr, ulLen );
    pItem->item.asString.value[ ulLen ] = '\0';
-   s_ulVarLenAll += ulLen;
 }
 
 static _HB_INLINE_ HB_BOOL leto_var_accessdeny( PUSERSTRU pUStru, LETO_VAR * pItem, HB_UCHAR cFlag )
@@ -490,7 +492,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
             pp4 += uLenLen + 1;
          }
 
-         if( nParam < 5 || ! pValLength || ! *pVarGroup || ! *pVar || *pp3 < '1' || *pp3 > '4' || cFlag1 < ' ' || cFlag2 < ' ' )
+         if( nParam < 5 || ! pValLength || ! *pVarGroup || ! *pVar || *pp3 < '1' || *pp3 > '5' || cFlag1 < ' ' || cFlag2 < ' ' )
             leto_SendAnswer( pUStru, szErr2, 4 );
          else if( ! pItem && ( ! ( cFlag1 & LETO_VCREAT ) || s_ulVarsCurr >= s_ulVarsMax ) )
             leto_SendAnswer( pUStru, szErr3, 4 );
@@ -532,7 +534,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                         pItem->item.asDouble.decimals = ( int ) ( pValLength - ( ptr2 - pp4 + 1 ) );
                      }
                   }
-                  else if( *pp3 == LETOVAR_STR || *pp3 == LETOVAR_ARR )
+                  else if( *pp3 >= LETOVAR_STR )
                      leto_var_set_str( pItem, pp4, pValLength );
 
                   pItem->type = *pp3;
@@ -844,6 +846,10 @@ static PHB_ITEM leto_var_ret( LETO_VAR * pItem )
             pReturn = hb_itemDeserialize( &pTmp, &nSize );
          }
          break;
+      case LETOVAR_DAT:
+         pReturn = hb_itemNew( NULL );
+         hb_itemPutDS( pReturn, pItem->item.asString.value );
+         break;
    }
    return pReturn;
 }
@@ -933,6 +939,11 @@ HB_FUNC( LETO_VARSET )
             pItem->type = LETOVAR_ARR;
             if( pArr )
                hb_xfree( pArr );
+         }
+         else if( HB_ISDATE( 3 ) )
+         {
+           leto_var_set_str( pItem, hb_pards( 3 ), 8 );
+           pItem->type = LETOVAR_DAT;
          }
       }
       if( pItem )

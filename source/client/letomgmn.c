@@ -48,13 +48,16 @@
 #include "rddleto.h"
 
 
-#ifdef __XHARBOUR__
-#include "hbstack.h"
-#endif
-
 #if defined( __XHARBOUR__ )
    #define hb_snprintf  snprintf
 #endif
+
+#define LETOVAR_LOG      '1'
+#define LETOVAR_NUM      '2'
+#define LETOVAR_STR      '3'
+#define LETOVAR_ARR      '4'
+#define LETOVAR_DAT      '5'
+#define LETOVAR_TYPES    ( HB_IT_LOGICAL | HB_IT_NUMERIC | HB_IT_STRING | HB_IT_ARRAY | HB_IT_DATE )
 
 extern LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
 extern LETOCONNECTION * letoGetCurrConn( void );
@@ -266,8 +269,8 @@ static void leto_BufferResize( LETOCONNECTION * pConnection )
 HB_FUNC( LETO_MEMOREAD )
 {
    LETOCONNECTION * pConnection;
-   char szFile[ HB_PATH_MAX ];
-   unsigned long ulMemoLen = 0;
+   char     szFile[ HB_PATH_MAX ];
+   HB_ULONG ulMemoLen = 0;
 
    if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
    {
@@ -343,8 +346,8 @@ HB_FUNC( LETO_MEMOWRITE )
 HB_FUNC( LETO_FILEWRITE )  /* ( cFile, 0 [ nStart ], cBuf ) */
 {
    LETOCONNECTION * pConnection;
-   char szFile[ HB_PATH_MAX ];
-   unsigned long ulBufLen = hb_parclen( 3 );
+   char     szFile[ HB_PATH_MAX ];
+   HB_ULONG ulBufLen = hb_parclen( 3 );
 
    if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 3 ) && ulBufLen &&
        ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
@@ -1579,98 +1582,124 @@ HB_FUNC( LETO_TOGGLEZIP )
       hb_retni( -2 );
 }
 
+static char Leto_VarSet( LETOCONNECTION * pCurrentConn, const char * szGroup, const char * szVar, PHB_ITEM pValue, HB_USHORT uiFlags, char ** pRetValue, HB_UINT * uiRes )
+{
+   char     cType;
+   HB_ULONG ulLen;
+   PHB_ITEM pVarItem;
+   char     szValue[ HB_PATH_MAX ];
+
+   *szValue = '\0';
+   if( HB_IS_LOGICAL( pValue ) )
+   {
+      cType = LETOVAR_LOG;
+      if( hb_itemGetL( pValue ) )
+      {
+         pVarItem = hb_itemPutL( NULL, HB_TRUE );
+         *szValue = '1';
+      }
+      else
+      {
+         pVarItem = hb_itemPutL( NULL, HB_FALSE );
+         *szValue = '0';
+      }
+      *( szValue + 1 ) = '\0';
+      ulLen = 1;
+   }
+   else if( HB_IS_NUMERIC( pValue ) )
+   {
+      cType = LETOVAR_NUM;
+      if( HB_IS_INTEGER( pValue ) || HB_IS_LONG( pValue ) )
+      {
+         pVarItem = hb_itemPutNL( NULL, hb_itemGetNL( pValue ) );
+         sprintf( szValue, "%ld", hb_itemGetNL( pValue ) );
+      }
+      else
+      {
+         int iDec;
+
+         pVarItem = hb_itemNew( NULL );
+         hb_itemCopy( pVarItem, pValue );
+         hb_itemGetNDDec( pVarItem, &iDec );
+         sprintf( szValue, "%.*f", iDec, hb_itemGetND( pValue ) );
+      }
+      ulLen = strlen( szValue );
+   }
+   else if( HB_IS_STRING( pValue ) )
+   {
+      cType = LETOVAR_STR;
+      ulLen = hb_itemGetCLen( pValue );
+      pVarItem = hb_itemPutCL( NULL, hb_itemGetCPtr( pValue), ulLen );
+   }
+   else if( HB_IS_ARRAY( pValue ) )
+   {
+      HB_SIZE nSize = 0;
+      char *  pArr = hb_itemSerialize( pValue, HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
+
+      cType = LETOVAR_ARR;
+      ulLen = ( HB_ULONG ) nSize;
+      pVarItem = hb_itemClone( pValue );
+      *uiRes = LetoVarSet( pCurrentConn, szGroup, szVar, cType, pArr, ( HB_ULONG ) nSize, uiFlags, NULL );
+      if( pArr )
+         hb_xfree( pArr );
+   }
+   else if( HB_IS_DATE( pValue ) )
+   {
+      cType = LETOVAR_DAT;
+      hb_itemGetDS( pValue, szValue );
+      ulLen = strlen( szValue );  /* 8 */
+      pVarItem = hb_itemPutDS( NULL, hb_itemGetCPtr( pValue) );
+   }
+   else
+   {
+      cType = '\0';
+      ulLen = 0;
+      pVarItem = NULL;
+      *uiRes = 0;
+   }
+
+   if( cType && cType != LETOVAR_ARR )
+      *uiRes = LetoVarSet( pCurrentConn, szGroup, szVar, cType,
+                          cType == LETOVAR_STR ? hb_itemGetCPtr( pValue ) : szValue, ulLen,
+                          uiFlags, pRetValue && cType < LETOVAR_STR ? pRetValue : NULL );
+   if( *uiRes )  /* sucessful set */
+      leto_SetVarCache( pVarItem );
+   else
+   {
+      hb_itemRelease( pVarItem );
+      cType = '\0';
+   }
+
+   return cType;
+}
+
 /*
  * LETO_VARSET( cGroupName, cVarName, xValue[, nFlags[, @xRetValue]] ) --> lSuccess
  */
 HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
-   char *       ptr;
-   char         szValue[ HB_PATH_MAX ];
-   unsigned int uiRes = 0;
-   HB_USHORT    uiFlags = ( ! HB_ISNUM( 4 ) ) ? 0 : ( HB_USHORT ) hb_parni( 4 );
-   HB_BOOL      fPrev = HB_ISBYREF( 5 );
-   char *       pRetValue = NULL;
-   PHB_ITEM     pVarItem;
+   unsigned int     uiRes = 0;
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && ( HB_ISLOG( 3 ) || HB_ISNUM( 3 ) || HB_ISCHAR( 3 ) || HB_ISARRAY( 3 ) ) )
+      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && hb_param( 3, LETOVAR_TYPES ) )
       {
-         char     cType;
-         HB_ULONG ulLen;
+         HB_USHORT uiFlags = ( ! HB_ISNUM( 4 ) ) ? 0 : ( HB_USHORT ) hb_parni( 4 );
+         HB_BOOL   fPrev = HB_ISBYREF( 5 );
+         char *    pRetValue = NULL;
+         char      cType = Leto_VarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), hb_param( 3, LETOVAR_TYPES ), uiFlags,
+                                        fPrev ? &pRetValue : NULL, &uiRes );
 
-         if( HB_ISLOG( 3 ) )
+         if( fPrev && uiRes > 3 && pRetValue && cType < LETOVAR_STR )
          {
-            cType = '1';
-            if( hb_parl( 3 ) )
-            {
-               pVarItem = hb_itemPutL( NULL, HB_TRUE );
-               *szValue = '1';
-            }
-            else
-            {
-               pVarItem = hb_itemPutL( NULL, HB_FALSE );
-               *szValue = '0';
-            }
-            *( szValue + 1 ) = '\0';
-            ulLen = 1;
-         }
-         else if( HB_ISNUM( 3 ) )
-         {
-            cType = '2';
-            if( HB_IS_INTEGER( hb_param( 3, HB_IT_NUMERIC ) ) || HB_IS_LONG( hb_param( 3, HB_IT_NUMERIC ) ) )
-            {
-               pVarItem = hb_itemPutNL( NULL, hb_parnl( 3 ) );
-               sprintf( szValue, "%ld", hb_parnl( 3 ) );
-            }
-            else
-            {
-               int iDec;
+            char * ptr = pRetValue;
 
-               pVarItem = hb_itemNew( NULL );
-               hb_itemCopy( pVarItem, hb_param( 3, HB_IT_NUMERIC ) );
-               hb_itemGetNDDec( pVarItem, &iDec );
-               sprintf( szValue, "%.*f", iDec, hb_parnd( 3 ) );
-            }
-            ulLen = strlen( szValue );
-         }
-         else if( HB_ISCHAR( 3 ) )
-         {
-            cType = '3';
-            ulLen = hb_parclen( 3 );
-            pVarItem = hb_itemPutCL( NULL, hb_parc( 3 ), ulLen );
-         }
-         else  /* if( HB_ISARRAY( 3 ) ) */
-         {
-            HB_SIZE nSize = 0;
-            char *  pArr = hb_itemSerialize( hb_param( 3, HB_IT_ARRAY ), HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
-
-            cType = '4';
-            ulLen = ( HB_ULONG ) nSize;
-            pVarItem = hb_itemClone( hb_param( 3, HB_IT_ARRAY ) );
-            uiRes = LetoVarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), cType, pArr, ( HB_ULONG ) nSize, uiFlags, NULL );
-            if( pArr )
-               hb_xfree( pArr );
-         }
-
-         if( cType < '4' )
-            uiRes = LetoVarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), cType,
-                                cType == '3' ? hb_parc( 3 ) : szValue, ulLen,
-                                uiFlags, fPrev && cType != '3' ? &pRetValue : NULL );
-         if( uiRes )  /* sucessful set */
-            leto_SetVarCache( pVarItem );
-         else
-            hb_itemRelease( pVarItem );
-
-         if( fPrev && uiRes > 3 && pRetValue )
-         {
-            ptr = pRetValue;
             cType = *ptr;
             ptr += 2;
-            if( cType == '1' )
+            if( cType == LETOVAR_LOG )
                hb_storl( *ptr == '1', 5 );
-            else if( cType == '2' )
+            else if( cType == LETOVAR_NUM )
             {
                char * pDec = strchr( ptr, '.' );
 
@@ -1683,17 +1712,62 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
                else
                  hb_stornl( atol( ptr ), 5 );
             }
-            else
-               hb_stor( 5 );
          }
       }
-      else
+   }
+
+   hb_retl( uiRes );
+}
+
+static PHB_ITEM Leto_VarGet( LETOCONNECTION * pCurrentConn, const char * szGroup, const char * szVar )
+{
+   HB_ULONG     ulLen = 0;
+   const char * pData;
+   PHB_ITEM     pValue = NULL;
+
+   if( ( pData = LetoVarGet( pCurrentConn, szGroup, szVar, &ulLen ) ) != NULL )
+   {
+      switch( *pData )
       {
-         hb_retl( HB_FALSE );
-         return;
+         case LETOVAR_LOG:
+            pValue = hb_itemPutL( pValue, *( pData + 2 ) == '1' );
+            break;
+
+         case LETOVAR_NUM:
+         {
+            char * ptr = strchr( pData + 2, '.' );
+
+            if( ptr )
+            {
+               int iLen = strlen( pData + 2 );
+
+               pValue = hb_itemPutNDLen( pValue, atof( pData + 2 ), iLen, iLen - ( ptr - pData + 3 ) );
+            }
+            else
+               pValue = hb_itemPutNL( pValue, atol( pData + 2 ) );
+            break;
+         }
+
+         case LETOVAR_STR:
+            pValue = hb_itemPutCL( pValue, pData + 2, ulLen );
+            break;
+
+         case LETOVAR_ARR:
+         {
+            HB_SIZE  nSize = ( HB_SIZE ) ulLen;
+
+            pData += 2;
+            pValue = hb_itemDeserialize( &pData, &nSize );
+            break;
+         }
+
+         case LETOVAR_DAT:
+            pValue = hb_itemPutDS( pValue, pData + 2 );
+            break;
       }
    }
-   hb_retl( uiRes );
+
+   return pValue;
 }
 
 /*
@@ -1702,56 +1776,18 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
 HB_FUNC( LETO_VARGET )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
+   PHB_ITEM pValue = NULL;
 
    if( pCurrentConn )
    {
-      HB_ULONG     ulLen = 0;
-      const char * pData;
-
-      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) )
-      {
-         if( ( pData = LetoVarGet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), &ulLen ) ) != NULL )
-         {
-            switch( *pData )
-            {
-               case '1':  /*boolean */
-                  hb_retl( *( pData + 2 ) == '1' );
-                  break;
-               case '2':  /* numeric */
-               {
-                  char * ptr = strchr( pData + 2, '.' );
-
-                  if( ptr )
-                  {
-                     int iLen = strlen( pData + 2 );
-
-                     hb_retndlen( atof( pData + 2 ), iLen, iLen - ( ptr - pData + 3 ) );
-                  }
-                  else
-                     hb_retnl( atol( pData + 2 ) );
-                  break;
-               }
-               case '3':   /* [ binary ] string */
-                  hb_retclen( pData + 2, ulLen );
-                  break;
-               case '4':   /* array from deserialized string */
-               {
-                  HB_SIZE  nSize = ( HB_SIZE ) ulLen;
-                  PHB_ITEM pArray;
-
-                  pData += 2;
-                  pArray = hb_itemDeserialize( &pData, &nSize );
-                  if( pArray )
-                     hb_itemReturnRelease( pArray );
-                  break;
-               }
-            }
-            return;
-         }
-      }
+      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 )  )
+         pValue = Leto_VarGet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ) );
    }
 
-   hb_ret();
+   if( pValue )
+      hb_itemReturnRelease( pValue );
+   else
+      hb_ret();
 }
 
 /* retrieves THREAD LOCAL last leto_Var[Set|Inc|Dec] *value* */
@@ -1893,11 +1929,11 @@ HB_FUNC( LETO_VARGETLIST )
 
                switch( cType )
                {
-                  case '1':
+                  case LETOVAR_LOG:
                      hb_itemPutL( hb_arrayGetItemPtr( aVar, 2 ), ( *ptr == '1' ) );
                      break;
 
-                  case '2':  /* new: int or double value possible */
+                  case LETOVAR_NUM:  /* new: int or double value possible */
                      ptr2 = ptr;
                      while( ptr2 < ptr + ulValLength )
                      {
@@ -1911,12 +1947,16 @@ HB_FUNC( LETO_VARGETLIST )
                         hb_itemPutND( hb_arrayGetItemPtr( aVar, 2 ), atof( ptr ) );
                      break;
 
-                  case '3':
+                  case LETOVAR_STR:
                      hb_itemPutCL( hb_arrayGetItemPtr( aVar, 2 ), ptr, ulValLength );
                      break;
 
-                  case '4':
+                  case LETOVAR_ARR:
                      hb_itemPutC( hb_arrayGetItemPtr( aVar, 2 ), "{ ... }" );
+                     break;
+
+                  case LETOVAR_DAT:
+                     hb_itemPutDS( hb_arrayGetItemPtr( aVar, 2 ), ptr );
                      break;
                }
                ptr += ulValLength;
@@ -2179,5 +2219,456 @@ HB_FUNC( LETO_UDF )
       leto_udp( HB_FALSE, NULL );
    else
       hb_ret();
+}
+
+/* with szDst == NULL test only and break with first valid memvar -- else collect also into optional 3-dim pArr */
+HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr )
+{
+   HB_SIZE  nStart = 0, nDst = 0, nDstLen = nSrcLen + 1;
+   HB_SIZE  nTmp, nTmpLen;
+   HB_BOOL  fField, fValid = HB_FALSE;
+   HB_UINT  uiRes;
+   PHB_DYNS pDyns;
+   PHB_ITEM pRefValue, pSub;
+   char     szGroup[ 21 ], szVar[ HB_SYMBOL_NAME_LEN + 1 ];
+   char     cTmp;
+
+   if( szDst )
+      **szDst = '\0';
+   while( nStart < nSrcLen )
+   {
+      if( szSrc[ nStart ] == ' ' )
+      {
+         nTmp = nStart + 1;
+         while( nTmp < nSrcLen && szSrc[ nTmp ] == ' ' )
+         {
+            nTmp++;
+         }
+         if( szDst && nDst && nTmp < nSrcLen && HB_ISNEXTIDCHAR( *( *szDst + nDst - 1 ) ) && HB_ISFIRSTIDCHAR( szSrc[ nTmp ] ) )
+            *( *szDst + nDst++ ) = ' ';
+         nStart = nTmp;
+         continue;
+      }
+      else if( szSrc[ nStart ] == '"' || szSrc[ nStart ] == '\'' )
+      {
+         cTmp = szSrc[ nStart ];
+         nTmp = nStart + 1;
+         while( nTmp < nSrcLen && szSrc[ nTmp++ ] != cTmp )
+            ;
+         if( szDst )
+         {
+            nTmpLen = nTmp - nStart;
+            memcpy( *szDst + nDst, szSrc + nStart, nTmpLen );
+            nDst += nTmpLen;
+         }
+         nStart = nTmp;
+         continue;
+      }
+      else if( HB_ISFIRSTIDCHAR( szSrc[ nStart ] ) )
+      {
+         nTmp = nStart + 1;
+         while( nTmp < nSrcLen && HB_ISNEXTIDCHAR( szSrc[ nTmp ] ) )
+         {
+            nTmp++;
+         }
+
+         if( szSrc[ nTmp ] == '-' && nTmp < nSrcLen - 1 && szSrc[ nTmp + 1 ] == '>' )
+         {
+            fField = HB_TRUE;
+            nTmp += 2;
+            while( nTmp <= nSrcLen && HB_ISNEXTIDCHAR( szSrc[ nTmp ] ) )
+            {
+               nTmp++;
+            }
+         }
+         else
+            fField = HB_FALSE;
+
+         nTmpLen = nTmp - nStart;
+         if( szSrc[ nTmp ] != '(' && ! fField && nTmpLen <= HB_SYMBOL_NAME_LEN )
+         {
+            memcpy( szVar, szSrc + nStart, nTmpLen );
+            szVar[ nTmpLen ] = '\0';
+            pDyns = hb_dynsymFindName( szVar );  /* converts to upper */
+            if( pDyns && hb_dynsymIsMemvar( pDyns ) )
+            {
+               pRefValue = hb_memvarGetValueBySym( pDyns );
+               if( pRefValue && ( hb_itemType( pRefValue ) & LETOVAR_TYPES ) )
+               {
+                  if( ! szDst || ! pConnection )
+                  {
+                     fValid = HB_TRUE;
+                     break;
+                  }
+
+                  sprintf( szGroup, "MAIN_%d", pConnection->iConnection );
+                  uiRes = 0;
+                  if( Leto_VarSet( pConnection, szGroup, szVar, pRefValue, LETO_VCREAT | LETO_VOWN, NULL, &uiRes ) )
+                  {
+                     nDstLen += 18 + strlen( szGroup );
+                     *szDst = ( char * ) hb_xrealloc( *szDst, nDstLen );
+                     nDst += sprintf( *szDst + nDst, "Leto_VarGet(%c%s%c,%c%s%c)",
+                                                     '\'', szGroup, '\'', '\'', szVar, '\'' );
+                     fValid = HB_TRUE;
+                     if( pArr )
+                     {
+                        pSub = hb_itemArrayNew( 3 );
+                        hb_itemCloneTo( hb_arrayGetItemPtr( pSub, 3 ), pRefValue );
+                        hb_arraySetC( pSub, 1, szGroup );
+                        hb_arraySetC( pSub, 2, szVar );
+                        hb_arrayAdd( pArr, pSub );
+                        hb_itemRelease( pSub );
+                     }
+                  }
+               }
+            }
+         }
+         if( szDst )
+         {
+            if( ! fValid )
+            {
+               memcpy( *szDst + nDst, szSrc + nStart, nTmpLen );
+               nDst += nTmpLen;
+            }
+            else
+               fValid = HB_FALSE;
+         }
+         nStart = nTmp;
+      }
+      else if( szDst )
+         *( *szDst + nDst++ ) = *( szSrc + nStart++ );
+      else
+         nStart++;
+   }
+
+   if( szDst )
+      *( *szDst + nDst ) = '\0';
+   return fValid;
+}
+
+/* parse into pArr if ! NULL  *_or_*  Leto_VarDel() */
+void Leto_VarExprParse( LETOCONNECTION * pConnection, const char * szSrc, PHB_ITEM pArr, HB_BOOL fOnlySynVar )
+{
+   HB_SIZE  nStart = 0, nLen;
+   PHB_ITEM pSub;
+   PHB_DYNS pDyns;
+   PHB_ITEM pRefValue;
+   char *   ptr, * szUpper;
+   char     cChar;
+   char     szGroup[ HB_SYMBOL_NAME_LEN + 1 ];
+   char     szVar[ HB_SYMBOL_NAME_LEN + 1 ];
+
+   szUpper = hb_strupr( hb_strdup( szSrc ) );
+   while( ( ptr = strstr( szUpper + nStart, "LETO_VARGET(" ) ) != NULL )
+   {
+      *szGroup = '\0';
+      *szVar = '\0';
+      nStart += ( ptr - ( szUpper + nStart ) ) + 12;
+      while( HB_TRUE )
+      {
+         cChar = *( szUpper + nStart );
+         if( ! cChar || cChar == '\'' || cChar == '"' )
+            break;
+         nStart++;
+      }
+      if( cChar )
+         ptr = strchr( szUpper + ++nStart, cChar );
+      else
+         ptr = NULL;
+      if( ptr )
+      {
+         nLen = ptr - ( szUpper + nStart );
+         if( nLen > HB_SYMBOL_NAME_LEN )
+            continue;
+         memcpy( szGroup, szUpper + nStart, nLen );
+         szGroup[ nLen ] = '\0';
+         nStart += nLen + 1;
+
+         while( HB_TRUE )
+         {
+            cChar = *( szUpper + nStart );
+            if( ! cChar || cChar == '\'' || cChar == '"' )
+               break;
+            nStart++;
+         }
+         if( cChar )
+            ptr = strchr( szUpper + ++nStart, cChar );
+         else
+            ptr = NULL;
+         if( ptr )
+         {
+            nLen = ptr - ( szUpper + nStart );
+            if( nLen > HB_SYMBOL_NAME_LEN )
+               continue;
+            memcpy( szVar, szUpper + nStart, nLen );
+            szVar[ nLen ] = '\0';
+            nStart += nLen + 1;
+            if( ! pArr )
+            {
+               if( pConnection && LetoVarDel( pConnection, szGroup, szVar ) )
+                  leto_ClearVarCache();
+            }
+            else  /* collect into return array */
+            {
+               //pDyns = hb_dynsymFindName( szVar );
+               pDyns = hb_dynsymFind( szVar );
+               if( pDyns && hb_dynsymIsMemvar( pDyns ) )
+                  pRefValue = hb_memvarGetValueBySym( pDyns );
+               else
+                  pRefValue = NULL;
+               if( ! pRefValue ? ! fOnlySynVar : HB_TRUE )
+               {
+                  if( pRefValue && ( hb_itemType( pRefValue ) & LETOVAR_TYPES ) )
+                  {
+                     pSub = hb_itemArrayNew( 3 );
+                     hb_itemCloneTo( hb_arrayGetItemPtr( pSub, 3 ), pRefValue );
+                  }
+                  else
+                     pSub = hb_itemArrayNew( 2 );
+                  hb_arraySetC( pSub, 1, szGroup );
+                  hb_arraySetC( pSub, 2, szVar );
+                  hb_arrayAdd( pArr, pSub );
+                  hb_itemRelease( pSub );
+               }
+            }
+         }
+      }
+   }
+   if( szUpper )
+      hb_xfree( szUpper );
+}
+
+/* if type is different, return sync is 'TRUE' aka do not sync in that case */
+static HB_BOOL Leto_VarExprIsSync( PHB_ITEM pRef, PHB_ITEM pArr )
+{
+   HB_BOOL fSync = HB_TRUE;
+   HB_SIZE nLen;
+   HB_TYPE nType;
+
+   if( ! pRef || ! pArr )
+      return fSync;
+   else if( ( nType = hb_itemType( pRef ) ) != hb_itemType( pArr ) )
+   {
+      if( ( nType & ( HB_IT_INTEGER | HB_IT_LONG ) ) && ( hb_itemType( pArr ) & ( HB_IT_INTEGER | HB_IT_LONG ) ) )
+         nType = HB_IT_LONG;
+      else
+         return fSync;
+   }
+
+   switch( nType )
+   {
+      case HB_IT_STRING:
+         nLen = hb_itemGetCLen( pRef );
+         fSync = hb_itemGetCLen( pArr ) == nLen;
+         if( fSync && nLen )
+            fSync = ! memcmp( hb_itemGetCPtr( pRef ), hb_itemGetCPtr( pArr ), nLen );
+         break;
+
+      case HB_IT_INTEGER:
+         fSync = hb_itemGetNI( pRef ) == hb_itemGetNI( pArr );
+         break;
+
+      case HB_IT_LONG:
+         fSync = hb_itemGetNL( pRef ) == hb_itemGetNL( pArr );
+         break;
+
+      case HB_IT_DATE:
+         fSync = hb_itemGetDL( pRef ) == hb_itemGetDL( pArr );
+         break;
+
+      case HB_IT_LOGICAL:
+         fSync = hb_itemGetL( pRef ) == hb_itemGetL( pArr );
+         break;
+
+      case HB_IT_DOUBLE:
+         fSync = hb_itemGetND( pRef ) == hb_itemGetND( pArr );
+         break;
+
+      case HB_IT_TIMESTAMP:
+         fSync = hb_itemGetTD( pRef ) == hb_itemGetTD( pArr );
+         break;
+
+      case HB_IT_ARRAY:
+         nLen = hb_arrayLen( pRef );
+         fSync = hb_arrayLen( pArr ) == nLen;
+         if( fSync )
+         {
+            while( nLen )
+            {
+               fSync = Leto_VarExprIsSync( hb_arrayGetItemPtr( pRef, nLen ), hb_arrayGetItemPtr( pArr, nLen ) );
+               if( ! fSync )
+                  break;
+               nLen--;
+            }
+         }
+         break;
+   }
+
+   return fSync;
+}
+
+HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync )
+{
+   HB_ERRCODE errCode = HB_FAILURE;
+
+   if( pConnection && pArr && ( hb_itemType( pArr ) & HB_IT_ARRAY ) )
+   {
+      HB_SIZE  n = 0;
+      HB_UINT  uiRes = 0;
+      HB_SIZE  nLen = hb_arrayLen( pArr );
+      PHB_ITEM pSub, pRefValue, pValue;
+      PHB_DYNS pDyns;
+
+      while( ++n <= nLen )
+      {
+         pSub = hb_arrayGetItemPtr( pArr, n );  /* { pGroup, pVar, pValue } */
+         if( ( hb_itemType( pSub ) & HB_IT_ARRAY ) && hb_arrayLen( pSub ) == 3 &&
+             ( hb_itemType( hb_arrayGetItemPtr( pSub, 1 ) ) & HB_IT_STRING ) &&
+             ( hb_itemType( hb_arrayGetItemPtr( pSub, 2 ) ) & HB_IT_STRING ) )
+         {
+            pDyns = hb_dynsymFindName( hb_arrayGetCPtr( pSub, 2 ) );
+            if( pDyns && hb_dynsymIsMemvar( pDyns ) )
+            {
+               pRefValue = hb_memvarGetValueBySym( pDyns );
+               if( ! fReSync )
+               {
+                  pValue = hb_arrayGetItemPtr( pSub, 3 );
+                  if( ! Leto_VarExprIsSync( pRefValue, pValue ) )
+                  {
+                     Leto_VarSet( pConnection, hb_arrayGetCPtr( pSub, 1 ), hb_arrayGetCPtr( pSub, 2 ), pRefValue, 0, NULL, &uiRes );
+                     if( uiRes )
+                     {
+                        errCode = HB_SUCCESS;
+                        hb_itemCloneTo( pValue, pRefValue );
+                     }
+                  }
+               }
+               else
+               {
+                  pValue = Leto_VarGet( pConnection, hb_arrayGetCPtr( pSub, 1 ), hb_arrayGetCPtr( pSub, 2 ) );
+                  if( ! Leto_VarExprIsSync( pRefValue, pValue ) )
+                  {
+                     errCode = HB_SUCCESS;
+                     hb_itemCloneTo( pRefValue, pValue );
+                     hb_itemCloneTo( hb_arrayGetItemPtr( pSub, 3 ), pValue );
+                  }
+                  if( pValue )
+                     hb_itemRelease( pValue );
+               }
+            }
+         }
+      }
+   }
+
+   return errCode;
+}
+
+/* pArr{ { pGroup, pVar, pValue } } */
+HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr )
+{
+   HB_ERRCODE errCode = HB_SUCCESS;
+
+   if( pConnection && pArr && ( hb_itemType( pArr ) & HB_IT_ARRAY ) )
+   {
+      HB_SIZE  nLen = hb_arrayLen( pArr );
+      HB_SIZE  n = 0;
+      PHB_ITEM pSub;
+
+      while( ++n <= nLen )
+      {
+         pSub = hb_arrayGetItemPtr( pArr, n );
+         if( ( hb_itemType( pSub ) & HB_IT_ARRAY ) && hb_arrayLen( pSub ) >= 2 &&
+             ( hb_itemType( hb_arrayGetItemPtr( pSub, 1 ) ) & HB_IT_STRING ) &&
+             ( hb_itemType( hb_arrayGetItemPtr( pSub, 2 ) ) & HB_IT_STRING ) )
+         {
+            if( LetoVarDel( pConnection, hb_arrayGetCPtr( pSub, 1 ), hb_arrayGetCPtr( pSub, 2 ) ) )
+               leto_ClearVarCache();
+         }
+         else
+            errCode = HB_FAILURE;
+      }
+   }
+
+   return errCode;
+}
+
+HB_FUNC( LETO_VAREXPRTEST )
+{
+   const char * szSrc = ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) ) ? hb_parc( 1 ) : NULL;
+
+   if( szSrc )
+      hb_retl( Leto_VarExprCreate( NULL, szSrc, hb_parclen( 1 ), NULL, NULL ) );
+   else
+      hb_retl( HB_FALSE );
+}
+
+/* search for PRIVATE/ PUBLIC var in expression; unique replace them with Leto_VarGet();
+ * call Leto_VarCreate() with LETO_VCREAT | LETO_VOWN flag for them */
+HB_FUNC( LETO_VAREXPRCREATE )
+{
+   LETOCONNECTION * pCurrentConn = letoGetCurrConn();
+   const char *     szSrc = ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) ) ? hb_parc( 1 ) : NULL;
+   char *           szDst = NULL;
+   PHB_ITEM         pArr = NULL;
+
+   if( pCurrentConn && szSrc )
+   {
+      szDst = ( char * ) hb_xgrab( hb_parclen( 1 ) + 1 );
+      if( HB_ISBYREF( 2 ) )
+         pArr = hb_itemArrayNew( 0 );
+      Leto_VarExprCreate( pCurrentConn, szSrc, hb_parclen( 1 ), &szDst, pArr );
+      if( pArr )
+         hb_itemParamStoreRelease( 2, pArr );
+   }
+
+   hb_retc_buffer( szDst );
+}
+
+/* search for LETO_VARGET in expression and return 2-dim array about them */
+HB_FUNC( LETO_VAREXPRVARS )
+{
+   LETOCONNECTION * pCurrentConn = letoGetCurrConn();
+   const char *     szSrc = ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) ) ? hb_parc( 1 ) : NULL;
+   HB_BOOL          fOnlySynVar = hb_parldef( 2, 0 );
+   PHB_ITEM         pArr = hb_itemArrayNew( 0 );
+
+   if( pCurrentConn && szSrc )
+      Leto_VarExprParse( pCurrentConn, szSrc, pArr, fOnlySynVar );
+
+   hb_itemReturnRelease( pArr );
+}
+
+/* search for LETO_VARGET in expression and call Leto_VarDel() for them */
+HB_FUNC( LETO_VAREXPRCLEAR )
+{
+   LETOCONNECTION * pCurrentConn = letoGetCurrConn();
+   const char *     szSrc = ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) ) ? hb_parc( 1 ) : NULL;
+   PHB_ITEM         pArr = hb_param( 1, HB_IT_ARRAY );
+   HB_BOOL          fOnlySynVar = hb_parldef( 2, 0 );
+
+   if( pCurrentConn && ( szSrc || pArr ) )
+   {
+      if( szSrc )
+         Leto_VarExprParse( pCurrentConn, szSrc, NULL, fOnlySynVar );
+      else if( pArr )
+         Leto_VarExprClear( pCurrentConn, pArr );
+      hb_retl( HB_TRUE );
+   }
+   else
+      hb_retl( HB_FALSE );
+}
+
+/* two way sync PRIVATE/ PUBLIC variables with Leto_Var's; array collected by LETO_EXPRVARS */
+HB_FUNC( LETO_VAREXPRSYNC )
+{
+   LETOCONNECTION * pCurrentConn = letoGetCurrConn();
+   PHB_ITEM         pArr = hb_param( 1, HB_IT_ARRAY );
+   HB_BOOL          fReSync = hb_parldef( 2, 0 );
+   HB_BOOL          fSuccess = HB_FALSE;
+
+   if( pCurrentConn && pArr )
+      fSuccess = Leto_VarExprSync( pCurrentConn, pArr, fReSync ) == HB_SUCCESS;
+
+   hb_retl( fSuccess );
 }
 

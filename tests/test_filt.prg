@@ -54,7 +54,7 @@ Function Main( cPath )
    aStru := dbStruct()
    ? "Fields:", Len( aStru )
    FOR i := 1 TO Len( aStru )
-      ? i, aStru[i,1], aStru[i,2], aStru[i,3], aStru[i,4]
+      ? i, PadR( aStru[i,1], 10 ), aStru[i,2], aStru[i,3], aStru[i,4]
    NEXT
 
    FOR ii := 1 TO 21
@@ -73,12 +73,6 @@ Function Main( cPath )
    INDEX ON NUM TAG NUM ADDITIVE
    ? "INDEX KEY 2:", IndexKey( 2 )
    ? "File has been indexed; "
-
-#if 0
-   DbCloseAll()
-   DbUseArea(.T.,,"test1" )
-   ? OrdListAdd("test1")
-#endif
 
    ?? DBORDERINFO( DBOI_ORDERCOUNT )
    ?? " active orders, ", IIF( DBORDERINFO( DBOI_ORDERCOUNT ) == 2, "- Ok", "- Failure" )
@@ -108,7 +102,6 @@ Function Main( cPath )
    SET FILTER TO NUM >= 1004 .AND. NUM <= 1010
    ?
    ? DbFilter(), "; optimized:", LETO_ISFLTOPTIM()
-   ? LETO_RECONNECT(,,,,,,10)
    GO TOP
    ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
 
@@ -127,10 +120,29 @@ Function Main( cPath )
    nNumTop := 1004
    nNumBot := 1010
    SET FILTER TO NUM >= nNumTop .AND. NUM <= nNumBot
-   ?
+   ? "with FORCEOPT = .F."
    ? DbFilter(), "; optimized:", LETO_ISFLTOPTIM()
+
+   ?
+   SET( _SET_FORCEOPT, .T. )
+   SET FILTER TO NUM >= nNumTop .AND. NUM <= nNumBot
+   ? "with FORCEOPT = .T."
+   ? DbFilter()
+   ? "--> optimized:", LETO_ISFLTOPTIM()
+
    GO TOP
    ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
+
+   IF LETO_ISFLTOPTIM()  /* memvar nNumTop/ nNumBot will be synced with server */
+      ? "change nNumTop to 1006"
+      nNumTop := 1006
+      GO TOP
+      ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
+      ? "change nNumTop back to 1004"
+      nNumTop := 1004
+      DbSkip( -42 )
+      ? "go top    ", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
+   ENDIF
 
    GO BOTTOM
    ? "go bottom ", NUM, NAME, DINFO, Iif( NUM == 1008, "- Ok","- Failure" )
@@ -140,6 +152,7 @@ Function Main( cPath )
    SEEK "Andre"
    ? "seek      ", NUM, NAME, DINFO, Iif( NUM == 1010, "- Ok","- Failure" )
 
+   SET( _SET_FORCEOPT, .F. )
    ?
    ? "Press any key to continue..."
    Inkey( 0 )
@@ -148,7 +161,7 @@ Function Main( cPath )
    cName := "Alex"
    SET FILTER TO cName $ NAME
    ?
-   ? DbFilter(), "; <cName> == '", cName, "' - optimized:", LETO_ISFLTOPTIM()
+   ? DbFilter(), "; '" + cName + "' $ NAME", " - optimized:", LETO_ISFLTOPTIM()
    GO TOP
    ? "go top    ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Alexander", "- Ok","- Failure" )
 
@@ -188,7 +201,6 @@ Function Main( cPath )
 
 
    SET SCOPE TO "Ivan", "Nikolay"
-   ? LETO_RECONNECT(,,,,,,10 )
    ?
    ? "SCOPE >= ", OrdScope( TOPSCOPE ), " <= ", OrdScope( BOTTOMSCOPE )
    GO TOP

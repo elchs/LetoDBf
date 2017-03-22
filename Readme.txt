@@ -85,8 +85,10 @@ A. Internals
  Get latest source of LetoDBf
     with GIT:
        git clone https://github.com/elchs/LetoDBf.git
-    or as ZIP package at:
+    or as packed package at:
        https://github.com/elchs/LetoDBf
+       ZIP: https://github.com/elchs/LetoDBf/zipball/master
+       TAR: https://github.com/elchs/LetoDBf/tarball/master
     and change in command window into the the root directory of download package.
 
 
@@ -586,14 +588,26 @@ A. Internals
  Thes are lightning fast, a pleasure to work with.
  To test, whether a filter is an optimized, just check for with the LETO_ISFLTOPTIM() function, returns TRUE.
 
- These two settings limit the use of optimized filters:
+ Following two settings influence the use of optimized, server side filters:
+
  SET( _SET_OPTIMIZE, .F. ) will disable any filter evalution at server, so every filter will become a
  non-optimized filter to be executed by client [ the default is .T. == allow them ].
  Only in server mode: No_save_WA = 1 and then setting:
+
  SET( _SET_FORCEOPT, .T. ) will enable filter expressions at server, even those with ALIAS names, maybe of an
- relationed workarea, in the expression string [ default is .F. == not allow].
- Server mode No_Save_WA = 1 is needed, because in mode '0' LetoDBf server uses internal other named ALIAS
- names as the client, the workareas are different and there is no relation at server active.
+ relationed workarea, in the expression string [ default is .F. == not allowed ].
+ Server mode No_Save_WA = 1 is needed with ALIAS names other than the active WA, because in mode '0' LetoDBf
+ server uses WA detaching/ requesting technics and other WA are not available/ detached, and so there is no
+ relation active at server.
+ With ForceOpt = TRUE a filter expression MUST be valid at server, else a RTE is thrown -- it will NOT be
+ evaluated alernatively at client as without ForceOptimize.
+ [NEW] If the filter expression contains a PRIVATE/ PUBLIC memvar, they will be synced between client and server
+ with help of the LetoVar() system. A unique Leto_VarCreate() with value of the memvar is executed, the filter
+ string expression modified to use a Leto_VarGet() instead of the memvar.
+ With each move ( GoTo[p|bottom], Skip, Seek ) in the WA, a possible changed memvar value is automatic synced
+ with a new Leto_VarSet() call. Example: 'SET FILTER TO table->field > xMemvar' will work as without LeotDBf.
+ See Leto_VarExpr*() functions if you want to do it manually.
+
 
       5.2,2 Relations
 
@@ -1195,6 +1209,7 @@ A. Internals
    integer ( without decimals, can be incremented and decremented )
    decimal ( integer with decimals, e.g. 4.321 )
    limited in size !:
+   date    ( [NEW] date format, will be internally handled as YYYYMMDD
    string  ( [NEW] also binary string, means containg any char like e.g. CHR( 0 ) )
    array   ( [NEW] { ... } with any item type, limited in size )
 
@@ -1268,6 +1283,52 @@ A. Internals
  Tip: if there are millions of records, and filter condition reduces them to just a few,
  it may increase performance lowering default amount of returned records with
  leto_setSkipBuffer() if not as many [ default: 10 ]records with one DbSkip() request needed.
+
+
+ Leto_VarExpr*() function family dealing with memvars ( PRIVATE/ PUBLIC ) in EXPRession
+ strings.  The expression <cExpression> itself must *not* be a valid executable expression,
+ it is basically enough that a memvar name appears in it.
+ So when you want to sync variables with server, do:
+ cExpr := Leto_VarExprCreate( "Memvar1 [, MemvarX ] )
+ aArr  := Leto_VarExprVars( cExpr )
+ repeatedly call after each occasion of changed value: Leto_VarExprSync( aArr )
+ Leto_VarExprClear( aArr )
+
+      LETO_VAREXPRTEST( cExpression )                          ==> lContainMemvar
+
+ Return TRUE ( .T. ) if <cExpression> contains memvars
+
+      LETO_VAREXPRCREATE( cExpression [, @aLetoVar ] )         ==> cModifiedExpression
+
+ Return a modified <cExpression>, where the name of memvars are replaces by a connection
+ unique Leto_VarGet(). Each of these Leto_Vars are created during the call with a
+ Leto_VarCreate() containing the value of the memvar, and have the LETO_VOWN flag,
+ so they will be automatic deleted with application end.
+ If optinal 2nd param <@aLetoVar> is given by reference ( @ ), a 3-dim array with
+ LetoVars for related memvars is assigned to the param variable, wich will spare an extra
+ call of Leto_VarExprVars().
+
+      LETO_VAREXPRVARS( cModifiedExpression [, lOnlyMemvar ] ) ==> aLetoVar
+
+ Scans <cModifiedExpression> result of Leto_VarExprCreate() for Leto_Vars, and return a
+ 3-dim array to be used with LetoVarExprSync() and Leto_VarExprClear().
+ Optional param <lOnlyMemvar> have default TRUE ( .T. ): then only LetoVars with a
+ related memvar are added into the result array.
+
+      LETO_VAREXPRCLEAR( cModifiedExpression | aLetoVar[, lOnlyMemvar ] )
+                                                               ==> lVarDeleted
+ Scans <cModifiedExpression> for LetoVars with default TRUE ( .T. ), which have
+ a releated Memvar. For each found LetoVar a Leto_VarDel() will be executed.
+ Instead the string expression can be the result <aLetoVar> of LetoVarExprVars() used.
+
+      LETO_VAREXPRSYNC( aLetoVar [, fSyncLetoToMemvar ] )      ==> lVarSynced
+ For all LetoVars in <aLetoVar> a LetoVarSet() will be excuted, if the value of the
+ related memvar have meanwhile changed ( but the type must be the same ).
+ TRUE ( .t. ) is returned only for case of a sync was executed, in all other cases:
+ LetoVar equal to memvar, no connection or empty/ invalid aLetoVar array FALSE (.F. ).
+ Changing <fSyncLetoToMemvar> default TRUE ( .T. ) to FALSE will sync the reverse way:
+ then a changed LetoVar value, maybe at server by an UDF or by other connection, will
+ be applied to the local memvar.
 
 
       7.10 Calling udf-functions on the server

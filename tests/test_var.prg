@@ -6,8 +6,13 @@ REQUEST LETO
 
 #include "rddleto.ch"
 
+MEMVAR cPub, aPriv
+
 Function Main( cPath )
- LOCAL aArr, cTest, lRes, nRes, i, xPrevious
+ LOCAL aArr, cTest, lRes, nRes, i, xPrevious, dTest
+ PUBLIC cPub := "init"
+ PRIVATE aPriv := { "first" }
+
 
    IF Empty( cPath )
       cPath := "//127.0.0.1:2812/"
@@ -37,9 +42,10 @@ Function Main( cPath )
 
    ? "Test: is a variable with attribute 'LETO_VOWN' from my last run deleted ?"
    ? IIF( EMPTY( leto_varGet( "main", "var_dec" ) ) .AND.;
-          EMPTY( leto_varGet( "main","var_binary" ) ), ".. all fine deleted", "ups, BUG alarm" )
+          EMPTY( leto_varGet( "main","var_binary" ) ), ".. all fine deleted", "ups, BUG! alarm" )
 
-   ?  "Adding 'var_int' = 100 to [main] [Err (3)] "
+   /* test error: missing LETO_VCREAT flag */
+   ?  "Adding 'var_int' = 100 to [main] [Err (0)] "
    lRes := leto_varSet( "main", "var_int", 100 )
    IF lRes
       ?? "Ok"
@@ -113,7 +119,24 @@ Function Main( cPath )
    IF lRes
       aArr = leto_varGet( "main","var_arr" )
       IF VALTYPE( aArr ) == "A" .AND. LEN( aArr ) == 3
-         ?? 'OK', HB_BLEN( hb_Serialize( aArr ) ), "bytes" 
+         ?? 'OK', HB_BLEN( hb_Serialize( aArr ) ), "bytes"
+      ELSE
+         ?? 'failure'
+      ENDIF
+   ELSE
+      ?? "Err (" + Ltrim( Str( leto_ferror() ) ) + ")"
+   ENDIF
+
+   dTest := hb_SToD( "19690815" )
+   ?  "Adding 'var_date' = " + DToC( dTest ) + " to [main] [Ok] "
+   lRes := leto_varSet( "main", "var_date", dTest, LETO_VCREAT + LETO_VOWN )
+   IF lRes
+      dTest = leto_varGet( "main","var_date" )
+      IF VALTYPE( dTest ) == "D"
+         ?? 'OK'
+         IF dTest == hb_SToD( "19690815" )
+            ?? ' !'
+         ENDIF
       ELSE
          ?? 'failure'
       ENDIF
@@ -206,11 +229,81 @@ Function Main( cPath )
       ?? IIF( lRes, "Ok", "failure" )
    ENDIF
 
+   ?
+   ?
+   cTest := "FIELD > cPub .AND. aPriv[ 1 ] == 'first'"
+   ? "test   expression: "
+   IF Leto_VarExprTest( cTest )
+      ?? "found memvar variables"
+   ELSE
+      ?? "failed to detect memvar"
+   ENDIF
+
+   ? "create expression: "
+   ? cTest
+   ? "==> "
+   cTest := Leto_VarExprCreate( cTest, @aArr )
+   IF UPPER( cTest ) == UPPER( "FIELD>LETO_VARGET('MAIN_0','CPUB').AND.LETO_VARGET('MAIN_0','aPriv')[1]=='FIRST'" )
+      ?? "ok"
+   ELSE
+      ?? "failed"
+   ENDIF
+   ? cTest
+
+   ? "sync   expression: "
+   IF EMPTY( aArr )
+      ?? "failed to read memvar into array"
+   ELSE
+      cPub := "magic"
+      AADD( aPriv, "second" )
+      Leto_VarExprSync( aArr )
+      IF Leto_VarGet( "MAIN_0", "cPub" ) == "magic" .AND. LEN( Leto_VarGet( "MAIN_0", "aPriv" ) ) == 2
+         ?? "ok"
+      ELSE
+         ?? "failed ( magic, 2 ) :", Leto_VarGet( "MAIN_0", "cPub" ), LEN( Leto_VarGet( "MAIN_0", "aPriv" ) )
+      ENDIF
+      nRes := hb_milliseconds()
+      FOR i := 1 TO 10000
+         IF i % 2 == 1
+            cPub := "Magical"
+         ELSE
+            cPub := "magic"
+         ENDIF
+         Leto_VarExprSync( aArr )
+      NEXT i
+      ? "10 K sync :", STR( ( hb_milliseconds() - nRes ) / 1000, 7, 2 ), "s"
+
+      nRes := hb_milliseconds()
+      FOR i := 1 TO 1000000
+         Leto_VarExprSync( aArr )
+      NEXT i
+      ? " 1 M check:", STR( ( hb_milliseconds() - nRes ) / 1000, 7, 2 ), "s"
+
+      ? "resync expression: "
+      Leto_VarSet( "MAIN_0", "cPub", "totally magic" )
+      Leto_VarSet( "MAIN_0", "aPriv", { "first", "second", "third" } )
+      Leto_VarExprSync( aArr, .T. )
+      IF cPub == "totally magic" .AND. LEN( aPriv ) == 3
+         ?? "ok", cPub
+      ELSE
+         ?? "failed ( totally magic, 3  ) :", cPub, LEN( aPriv )
+      ENDIF
+
+   ENDIF
+
+   ? "delete expression: "
+   Leto_VarExprClear( cTest )
+   IF Leto_Varget( "MAIN_0", "cPub" ) == NIL .OR. Leto_VarGet( "MAIN_0", "aPriv" ) == NIL
+      ?? "ok"
+   ELSE
+      ?? "failed",  Leto_VarGet( "MAIN_0", "cPub" ), Leto_VarGet( "MAIN_0", "aPriv" )
+   ENDIF
+
+   ?
    ShowVars()
    ?
-   ? "No explicite need to delete var_dec or var_binary,"
+   ? "No explicite need to delete var_dec, var_binary or var_date,"
    ? "<LETO_VOWN> variables will automatic deleted, this is checked in next run .."
-
    ?
    ? "Press any key to finish..."
    Inkey( 0 )

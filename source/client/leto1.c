@@ -2736,7 +2736,12 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    if( ! pTable )
    {
       if( pConnection->iError != 103 )  /* no runtime error, only NetErr() ? */
-         commonError( pArea, EG_DATATYPE, 1021, 0, pArea->szDataFileName, 0, NULL );  /* EDBF_DATAWIDTH */
+      {
+         if( ! pConnection->iError )
+            commonError( pArea, EG_DATATYPE, 1021, 0, pArea->szDataFileName, 0, NULL );  /* EDBF_DATAWIDTH */
+         else
+            commonError( pArea, EG_OPEN, pConnection->iError, 0, pArea->szDataFileName, 0, NULL );  /* EDBF_DATAWIDTH */
+      }
       else
          commonError( pArea, EG_OPEN, 103, 32, pArea->szDataFileName, EF_CANDEFAULT, NULL );
       return HB_FAILURE;
@@ -4513,6 +4518,14 @@ static HB_ERRCODE letoClearFilter( LETOAREAP pArea )
       {
          if( LetoDbClearFilter( pTable ) )
             return HB_FAILURE;
+         if( pTable->pFilterVar )
+         {
+            LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+
+            Leto_VarExprClear( pConnection, pTable->pFilterVar );
+            hb_itemRelease( pTable->pFilterVar );
+            pTable->pFilterVar = NULL;
+         }
       }
    }
 
@@ -4543,6 +4556,26 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
       /* test available filter text for validity at server */
       if( pFilterInfo->abFilterText && hb_itemGetCLen( pFilterInfo->abFilterText ) )
       {
+         PHB_ITEM pFilter = NULL;
+
+         if( hb_setGetForceOpt() )
+         {
+            LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+            HB_SIZE nLen = hb_itemGetCLen( pFilterInfo->abFilterText );
+
+            /* first test for memvar in expression */
+            if( Leto_VarExprCreate( NULL, hb_itemGetCPtr( pFilterInfo->abFilterText ), nLen, NULL, NULL ) )
+            {
+               PHB_ITEM pArr = hb_itemArrayNew( 0 );
+               char *   szFilter = ( char * ) hb_xgrab( nLen + 1 );
+
+               pFilter = hb_itemPutCL( pFilter, hb_itemGetCPtr( pFilterInfo->abFilterText ), nLen );
+               Leto_VarExprCreate( pConnection, hb_itemGetCPtr( pFilterInfo->abFilterText ), nLen, &szFilter, pArr );
+               pFilterInfo->abFilterText = hb_itemPutC( pFilterInfo->abFilterText, szFilter );
+               pTable->pFilterVar = pArr;
+               hb_xfree( szFilter );
+            }
+         }
          if( ! LetoDbSetFilter( pTable, hb_itemGetCPtr( pFilterInfo->abFilterText ), hb_setGetForceOpt() ) )
          {
             /* server can evaluate expression -> optimized */
@@ -4560,6 +4593,13 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
                return HB_FAILURE;
             }
 
+            if( pFilter )  /* reset to unmodified expression */
+               pFilterInfo->abFilterText = hb_itemPutC( pFilterInfo->abFilterText, hb_itemGetCPtr( pFilter ) );
+            if( pTable->pFilterVar )
+            {
+               hb_itemRelease( pTable->pFilterVar );
+               pTable->pFilterVar = NULL;
+            }
             pFilterInfo->fOptimized = HB_FALSE;
 #if 0  /* throw ? error of server - or ignore it ? */
             if( hb_setGetForceOpt() )
@@ -4571,6 +4611,8 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
             }
 #endif
          }
+         if( pFilter )
+            hb_itemRelease( pFilter );
       }
 
       if( pFilterInfo->itmCobExpr )
@@ -6520,7 +6562,7 @@ HB_FUNC( LETO_SET )
       if( setId != HB_SET_SOFTSEEK && setId != HB_SET_DELETED &&
           setId != HB_SET_AUTOPEN && setId != HB_SET_AUTORDER )
       {
-         PHB_DYNS pDo = hb_dynsymFindName( "SET" );
+         PHB_DYNS pDo = hb_dynsymFind( "SET" );
          PHB_ITEM pSet = hb_param( 2, HB_IT_ANY );
          PHB_ITEM pExtra = hb_param( 3, HB_IT_ANY );
 
