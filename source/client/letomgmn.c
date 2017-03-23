@@ -2312,8 +2312,9 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
                      fValid = HB_TRUE;
                      if( pArr )
                      {
-                        pSub = hb_itemArrayNew( 3 );
+                        pSub = hb_itemArrayNew( 4 );
                         hb_itemCloneTo( hb_arrayGetItemPtr( pSub, 3 ), pRefValue );
+                        hb_arraySetSymbol( pSub, 4, pDyns );
                         hb_arraySetC( pSub, 1, szGroup );
                         hb_arraySetC( pSub, 2, szVar );
                         hb_arrayAdd( pArr, pSub );
@@ -2420,8 +2421,9 @@ void Leto_VarExprParse( LETOCONNECTION * pConnection, const char * szSrc, PHB_IT
                {
                   if( pRefValue && ( hb_itemType( pRefValue ) & LETOVAR_TYPES ) )
                   {
-                     pSub = hb_itemArrayNew( 3 );
+                     pSub = hb_itemArrayNew( 4 );
                      hb_itemCloneTo( hb_arrayGetItemPtr( pSub, 3 ), pRefValue );
+                     hb_arraySetSymbol( pSub, 4, pDyns );
                   }
                   else
                      pSub = hb_itemArrayNew( 2 );
@@ -2507,6 +2509,45 @@ static HB_BOOL Leto_VarExprIsSync( PHB_ITEM pRef, PHB_ITEM pArr )
    return fSync;
 }
 
+/* without incrementing reference counters of pSrc */
+static void Leto_VarExprClone( PHB_ITEM pDst, PHB_ITEM pSrc )
+{
+   switch( hb_itemType( pSrc ) )
+   {
+      case HB_IT_STRING:
+         hb_itemPutCL( pDst, hb_itemGetCPtr( pSrc ), hb_itemGetCLen( pSrc ) );
+         break;
+
+      case HB_IT_INTEGER:
+         hb_itemPutNI( pDst, hb_itemGetNI( pSrc ) );
+         break;
+
+      case HB_IT_LONG:
+         hb_itemPutNL( pDst, hb_itemGetNL( pSrc ) );
+         break;
+
+      case HB_IT_DATE:
+         hb_itemPutDL( pDst,  hb_itemGetDL( pSrc ) );
+         break;
+
+      case HB_IT_LOGICAL:
+         hb_itemPutL( pDst, hb_itemGetL( pSrc ) );
+         break;
+
+      case HB_IT_DOUBLE:
+         hb_itemPutND( pDst, hb_itemGetND( pSrc ) );
+         break;
+
+      case HB_IT_TIMESTAMP:
+         hb_itemPutTD( pDst, hb_itemGetTD( pSrc ) );
+         break;
+
+      case HB_IT_ARRAY:
+         hb_arrayCloneTo( pDst, pSrc );
+         break;
+   }
+}
+
 HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync )
 {
    HB_ERRCODE errCode = HB_FAILURE;
@@ -2522,12 +2563,19 @@ HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOO
       while( ++n <= nLen )
       {
          pSub = hb_arrayGetItemPtr( pArr, n );  /* { pGroup, pVar, pValue } */
-         if( ( hb_itemType( pSub ) & HB_IT_ARRAY ) && hb_arrayLen( pSub ) == 3 &&
+         if( ( hb_itemType( pSub ) & HB_IT_ARRAY ) && hb_arrayLen( pSub ) >= 3 &&
              ( hb_itemType( hb_arrayGetItemPtr( pSub, 1 ) ) & HB_IT_STRING ) &&
              ( hb_itemType( hb_arrayGetItemPtr( pSub, 2 ) ) & HB_IT_STRING ) )
          {
-            pDyns = hb_dynsymFindName( hb_arrayGetCPtr( pSub, 2 ) );
-            if( pDyns && hb_dynsymIsMemvar( pDyns ) )
+            if( hb_arrayLen( pSub ) >= 4 && ( hb_itemType( hb_arrayGetItemPtr( pSub, 4 ) ) & HB_IT_SYMBOL ) )
+               pDyns = hb_arrayGetSymbol( pSub, 4 );
+            else
+            {
+               pDyns = hb_dynsymFindName( hb_arrayGetCPtr( pSub, 2 ) );
+               if( pDyns && ! hb_dynsymIsMemvar( pDyns ) )
+                  pDyns = NULL;
+            }
+            if( pDyns )
             {
                pRefValue = hb_memvarGetValueBySym( pDyns );
                if( ! fReSync )
@@ -2539,7 +2587,7 @@ HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOO
                      if( uiRes )
                      {
                         errCode = HB_SUCCESS;
-                        hb_itemCloneTo( pValue, pRefValue );
+                        Leto_VarExprClone( pValue, pRefValue );  /* like hb_itemCloneTo() */
                      }
                   }
                }

@@ -85,7 +85,6 @@ struct leto_struString
 typedef struct
 {
    char *    szName;
-   HB_USHORT uiNameLen;
    HB_USHORT uiUser;
    char      type;
    char      cFlag;
@@ -101,7 +100,6 @@ typedef struct
 typedef struct
 {
    char *     szName;
-   HB_USHORT  uiNameLen;
    HB_USHORT  uiItems;
    HB_USHORT  uiAlloc;
    LETO_VAR * pItems;
@@ -230,7 +228,6 @@ static LETO_VAR * leto_var_create( PUSERSTRU pUStru, LETO_VARGROUPS * pGroup, co
          pGroup->szName = ( char * ) hb_xgrab( uiVarGroupLen + 1 );
          memcpy( pGroup->szName, pp1, uiVarGroupLen );
          pGroup->szName[ uiVarGroupLen ] = '\0';
-         pGroup->uiNameLen = uiVarGroupLen;
          pGroup->uiAlloc = VARS_ALLOC;
          pGroup->pItems = ( LETO_VAR * ) hb_xgrabz( sizeof( LETO_VAR ) * pGroup->uiAlloc );
          s_ulVarsCurr += VARS_ALLOC;
@@ -258,7 +255,6 @@ static LETO_VAR * leto_var_create( PUSERSTRU pUStru, LETO_VARGROUPS * pGroup, co
       pItem->szName = ( char * ) hb_xgrab( uiVarLen + 1 );
       memcpy( pItem->szName, pp2, uiVarLen );
       pItem->szName[ uiVarLen ] = '\0';
-      pItem->uiNameLen = uiVarLen;
       pItem->cFlag = cFlag;
       if( pItem->cFlag & LETO_VOWN )
       {
@@ -395,7 +391,7 @@ static LETO_VAR * leto_var_find( const char * pVarGroup, const char * pVar, LETO
    for( uiGroup = 0; uiGroup < s_uiVarGroupsAlloc; uiGroup++ )
    {
       pGroup = s_pVarGroups + uiGroup;
-      if( pGroup->uiNameLen )
+      if( pGroup->szName )  /* leto_stricmp() need verified ptr */
       {
          if( ! leto_stricmp( pVarGroup, pGroup->szName ) )
          {
