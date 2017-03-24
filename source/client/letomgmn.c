@@ -581,6 +581,30 @@ HB_FUNC( LETO_DIRREMOVE )
       hb_retni( -1 );
 }
 
+static int Leto_MgID( LETOCONNECTION * pConnection )
+{
+   int iRet = pConnection->iConnectSrv;
+
+   if( iRet < 0 )
+   {
+      char szData[ 6 ];
+
+      eprintf( szData, "%c;08;", LETOCMD_mgmt );
+      if( leto_DataSendRecv( pConnection, szData, 5 ) )
+      {
+         const char * ptr = leto_firstchar( pConnection );
+
+         if( *ptr == '+' && *( ptr + 3 ) == ';' )
+         {
+            iRet = atoi( ptr + 4 );
+            pConnection->iConnectSrv = iRet;
+         }
+      }
+   }
+
+   return iRet;
+}
+
 HB_FUNC( LETO_CONNECT )
 {
    LETOCONNECTION * pConnection;
@@ -597,7 +621,11 @@ HB_FUNC( LETO_CONNECT )
 
    if( ! HB_ISCHAR( 1 ) || ! hb_parclen( 1 ) )
    {
-      hb_retni( iRet );
+      pConnection = letoGetCurrConn();
+      if( pConnection )
+         hb_retni( Leto_MgID( pConnection ) );
+      else
+         hb_retni( iRet );
       return;
    }
    memset( szPath, 0, 96 );
@@ -1084,18 +1112,7 @@ HB_FUNC( LETO_MGID )
    int iRet = -1;
 
    if( pConnection )
-   {
-      char szData[ 6 ];
-
-      eprintf( szData, "%c;08;", LETOCMD_mgmt );
-      if( leto_DataSendRecv( pConnection, szData, 5 ) )
-      {
-         const char * ptr = leto_firstchar( pConnection );
-
-         if( *ptr == '+' && *( ptr + 3 ) == ';' )
-            iRet = atoi( ptr + 4 );
-      }
-   }
+      iRet = Leto_MgID( pConnection );
 
    hb_retni( iRet );
 }
@@ -2230,7 +2247,7 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
    HB_UINT  uiRes;
    PHB_DYNS pDyns;
    PHB_ITEM pRefValue, pSub;
-   char     szGroup[ 21 ], szVar[ HB_SYMBOL_NAME_LEN + 1 ];
+   char     szGroup[ 16 ], szVar[ HB_SYMBOL_NAME_LEN + 1 ];
    char     cTmp;
 
    if( szDst )
@@ -2301,7 +2318,7 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
                      break;
                   }
 
-                  sprintf( szGroup, "MAIN_%d", pConnection->iConnection );
+                  sprintf( szGroup, "%s%d", LETO_VPREFIX, Leto_MgID( pConnection ) );
                   uiRes = 0;
                   if( Leto_VarSet( pConnection, szGroup, szVar, pRefValue, LETO_VCREAT | LETO_VOWN, NULL, &uiRes ) )
                   {

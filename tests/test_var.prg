@@ -9,7 +9,7 @@ REQUEST LETO
 MEMVAR cPub, aPriv
 
 Function Main( cPath )
- LOCAL aArr, cTest, lRes, nRes, i, xPrevious, dTest
+ LOCAL aArr, cTest, lRes, nRes, i, xPrevious, dTest, cGroup
  PUBLIC cPub := "init"
  PRIVATE aPriv := { "first" }
 
@@ -243,7 +243,8 @@ Function Main( cPath )
    ? cTest
    ? "==> "
    cTest := Leto_VarExprCreate( cTest, @aArr )
-   IF UPPER( cTest ) == UPPER( "FIELD>LETO_VARGET('MAIN_0','CPUB').AND.LETO_VARGET('MAIN_0','aPriv')[1]=='FIRST'" )
+   cGroup := LETO_VPREFIX + hb_NToS( Leto_Connect() )  /* variable group name */ 
+   IF UPPER( cTest ) == UPPER( "FIELD>LETO_VARGET('" + cGroup + "','CPUB').AND.LETO_VARGET('" + cGroup + "','aPriv')[1]=='FIRST'" )
       ?? "ok"
    ELSE
       ?? "failed"
@@ -257,11 +258,13 @@ Function Main( cPath )
       cPub := "magic"
       AADD( aPriv, "second" )
       Leto_VarExprSync( aArr )
-      IF Leto_VarGet( "MAIN_0", "cPub" ) == "magic" .AND. LEN( Leto_VarGet( "MAIN_0", "aPriv" ) ) == 2
+      IF Leto_VarGet( cGroup, "cPub" ) == "magic" .AND. LEN( Leto_VarGet( cGroup, "aPriv" ) ) == 2
          ?? "ok"
       ELSE
-         ?? "failed ( magic, 2 ) :", Leto_VarGet( "MAIN_0", "cPub" ), LEN( Leto_VarGet( "MAIN_0", "aPriv" ) )
+         ?? "failed ( magic, 2 ) :", Leto_VarGet( cGroup, "cPub" ), LEN( Leto_VarGet( cGroup, "aPriv" ) )
       ENDIF
+
+      /* benchmark of Leto_VarSet() with one change var */
       nRes := hb_milliseconds()
       FOR i := 1 TO 10000
          IF i % 2 == 1
@@ -273,6 +276,7 @@ Function Main( cPath )
       NEXT i
       ? "10 K sync :", STR( ( hb_milliseconds() - nRes ) / 1000, 7, 2 ), "s"
 
+      /* benchmark of checks without changes */
       nRes := hb_milliseconds()
       FOR i := 1 TO 1000000
          Leto_VarExprSync( aArr )
@@ -280,8 +284,8 @@ Function Main( cPath )
       ? " 1 M check:", STR( ( hb_milliseconds() - nRes ) / 1000, 7, 2 ), "s"
 
       ? "resync expression: "
-      Leto_VarSet( "MAIN_0", "cPub", "totally magic" )
-      Leto_VarSet( "MAIN_0", "aPriv", { "first", "second", "third" } )
+      Leto_VarSet( cGroup, "cPub", "totally magic" )
+      Leto_VarSet( cGroup, "aPriv", { "first", "second", "third" } )
       Leto_VarExprSync( aArr, .T. )
       IF cPub == "totally magic" .AND. LEN( aPriv ) == 3
          ?? "ok", cPub
@@ -293,10 +297,10 @@ Function Main( cPath )
 
    ? "delete expression: "
    Leto_VarExprClear( cTest )
-   IF Leto_Varget( "MAIN_0", "cPub" ) == NIL .OR. Leto_VarGet( "MAIN_0", "aPriv" ) == NIL
+   IF Leto_Varget( cGroup, "cPub" ) == NIL .OR. Leto_VarGet( cGroup, "aPriv" ) == NIL
       ?? "ok"
    ELSE
-      ?? "failed",  Leto_VarGet( "MAIN_0", "cPub" ), Leto_VarGet( "MAIN_0", "aPriv" )
+      ?? "failed",  Leto_VarGet( cGroup, "cPub" ), Leto_VarGet( cGroup, "aPriv" )
    ENDIF
 
    ?

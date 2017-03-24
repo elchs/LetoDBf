@@ -271,53 +271,44 @@ static LETO_VAR * leto_var_create( PUSERSTRU pUStru, LETO_VARGROUPS * pGroup, co
       return NULL;
 }
 
-static char * leto_var_get( LETO_VAR * pItem, HB_ULONG * ulLen, HB_BOOL bWithPrefix )
+static char * leto_var_get( LETO_VAR * pItem, HB_ULONG * ulLen )
 {
    char * pData = NULL;
 
    if( pItem )
    {
-      char * ptr = pData = ( char * ) hb_xgrab( 32 );
-      int    iPrefix;
-      long   lVarLen = 0;
+      HB_ULONG ulVarLen;
 
-      if( bWithPrefix )
-      {
-         *ptr++ = '+';
-         *ptr++ = pItem->type;
-         *ptr++ = ';';
-         iPrefix = 3;
-      }
-      else
-         iPrefix = 0;
+      pData = ( char * ) hb_xgrab( 32 );
+      pData[ 0 ] = '+';
+      pData[ 1 ] = pItem->type;
+      pData[ 2 ] = ';';
 
       switch( pItem->type )
       {
          case LETOVAR_LOG:
-            *ptr = ( pItem->item.asLogical.value ) ? '1' : '0';
-            lVarLen = 1;
+            pData[ 3 ] = ( pItem->item.asLogical.value ) ? '1' : '0';
+            ulVarLen = 1;
             break;
 
          case LETOVAR_NUM:
             if( ! pItem->item.asDouble.length )
-               lVarLen = sprintf( ptr, "%ld", pItem->item.asLong.value );
+               ulVarLen = sprintf( pData + 3, "%ld", pItem->item.asLong.value );
             else
-               lVarLen = sprintf( ptr, "%.*f", pItem->item.asDouble.decimals, pItem->item.asDouble.value );
+               ulVarLen = sprintf( pData + 3, "%.*f", pItem->item.asDouble.decimals, pItem->item.asDouble.value );
             break;
 
-         case LETOVAR_STR:
-         case LETOVAR_ARR:
-         case LETOVAR_DAT:
-            lVarLen = pItem->item.asString.length;
-            if( *ulLen > 0 && *ulLen < ( HB_ULONG ) lVarLen )
-               lVarLen = ( long ) *ulLen;
-            if( lVarLen > 32 - iPrefix )
-               pData = ( char * ) hb_xrealloc( pData, lVarLen + iPrefix );
-            memcpy( pData + iPrefix, pItem->item.asString.value, lVarLen );
+         default:  /* LETOVAR_STR, LETOVAR_ARR, LETOVAR_DAT */
+            ulVarLen = pItem->item.asString.length;
+            if( *ulLen > 0 && *ulLen < ulVarLen )
+               ulVarLen = *ulLen;
+            if( ulVarLen > 32 - 3 )
+               pData = ( char * ) hb_xrealloc( pData, ulVarLen + 3 );
+            memcpy( pData + 3, pItem->item.asString.value, ulVarLen );
             break;
       }
 
-      *ulLen = ( HB_ULONG ) ( iPrefix + lVarLen );
+      *ulLen = ulVarLen + 3;
    }
    else
       *ulLen = 0;
@@ -385,7 +376,7 @@ static void leto_var_delgroup( PUSERSTRU pUStru, LETO_VARGROUPS * pGroup )
 static LETO_VAR * leto_var_find( const char * pVarGroup, const char * pVar, LETO_VARGROUPS ** ppGroup, HB_USHORT * puiItem )
 {
    LETO_VARGROUPS * pGroup;
-   LETO_VAR *       pItem = NULL;
+   LETO_VAR *       pItem = NULL, * pItemTmp;
    HB_USHORT        uiGroups = 0, uiGroup, uiItem, ui;
 
    for( uiGroup = 0; uiGroup < s_uiVarGroupsAlloc; uiGroup++ )
@@ -400,11 +391,12 @@ static LETO_VAR * leto_var_find( const char * pVarGroup, const char * pVar, LETO
             {
                for( uiItem = 0, ui = 0; uiItem < pGroup->uiAlloc; uiItem++ )
                {
-                  if( ( pGroup->pItems + uiItem )->szName )
+                  pItemTmp = pGroup->pItems + uiItem;
+                  if( pItemTmp->szName )
                   {
-                     if( ! leto_stricmp( pVar, ( pGroup->pItems + uiItem )->szName ) )
+                     if( ! leto_stricmp( pVar, pItemTmp->szName ) )
                      {
-                        pItem = pGroup->pItems + uiItem;
+                        pItem = pItemTmp;
                         *puiItem = uiItem;
                         break;
                      }
@@ -483,7 +475,6 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
 
          if( nParam > 3 && ( uLenLen = ( ( ( HB_UCHAR ) *pp4 ) & 0xFF ) ) < 10 )
          {
-            nParam++;
             ulValLength = leto_b2n( pp4 + 1, uLenLen );
             pp4 += uLenLen + 1;
             if( ! ulValLength && *pp3 != LETOVAR_STR )
@@ -518,7 +509,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                {
                   ulLen = 0;
                   if( *pp3 < LETOVAR_STR && ( cFlag2 & LETO_VPREVIOUS ) )
-                     pData = leto_var_get( pItem, &ulLen, HB_TRUE );
+                     pData = leto_var_get( pItem, &ulLen );
 
                   if( *pp3 == LETOVAR_LOG )
                      pItem->item.asLogical.value = ( *pp4 != '0' );
@@ -559,7 +550,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
             leto_SendAnswer( pUStru, szErr3, 4 );
          else if( leto_var_accessdeny( pUStru, pItem, LETO_VDENYRD ) )
             leto_SendAnswer( pUStru, szErrAcc, 4 );
-         else if( ( pData = leto_var_get( pItem, &ulLen, HB_TRUE ) ) == NULL )
+         else if( ( pData = leto_var_get( pItem, &ulLen ) ) == NULL )
             leto_SendAnswer( pUStru, szErr4, 4 );
          else
             leto_SendAnswer( pUStru, pData, ulLen );
@@ -598,7 +589,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
             {
                if( cFlag2 & LETO_VPREVIOUS )
                {
-                  if( ( pData = leto_var_get( pItem, &ulLen, HB_TRUE ) ) != NULL )
+                  if( ( pData = leto_var_get( pItem, &ulLen ) ) != NULL )
                      leto_SendAnswer( pUStru, pData, ulLen );
                   else
                      leto_SendAnswer( pUStru, szErr1, 4 );
@@ -611,7 +602,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
 
                if( ! ( cFlag2 & LETO_VPREVIOUS ) )
                {
-                  if( ( pData = leto_var_get( pItem, &ulLen, HB_TRUE ) ) != NULL )
+                  if( ( pData = leto_var_get( pItem, &ulLen ) ) != NULL )
                      leto_SendAnswer( pUStru, pData, ulLen );
                   else
                      leto_SendAnswer( pUStru, szErr1, 4 );
@@ -698,13 +689,13 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                               ulVarLen = uiMaxLen;
                            else
                               ulVarLen = HB_MIN( 5, uiMaxLen );  /* will be symbolic presented */
-                           pVarData = leto_var_get( pItem, &ulVarLen, HB_FALSE );
-                           /* add length of content */
-                           uiLenLen = leto_n2b( ptrTmp + 1, ulVarLen );
+                           pVarData = leto_var_get( pItem, &ulVarLen );
+                           ulVarLen -= 3;  /* remove prefix '+T;' */
+                           uiLenLen = leto_n2b( ptrTmp + 1, ulVarLen );  /* add length of content */
                            *ptrTmp = ( uiLenLen & 0xFF );
                            ptrTmp += uiLenLen + 1;
 
-                           memcpy( ptrTmp, pVarData, ulVarLen );
+                           memcpy( ptrTmp, pVarData + 3, ulVarLen );
                            if( pVarData )
                               hb_xfree( pVarData );
                            ptrTmp += ulVarLen;
@@ -827,6 +818,7 @@ static PHB_ITEM leto_var_ret( LETO_VAR * pItem )
          pReturn = hb_itemNew( NULL );
          hb_itemPutL( pReturn, pItem->item.asLogical.value );
          break;
+
       case LETOVAR_NUM:
          pReturn = hb_itemNew( NULL );
          if( ! pItem->item.asDouble.length )
@@ -834,10 +826,12 @@ static PHB_ITEM leto_var_ret( LETO_VAR * pItem )
          else
             hb_itemPutND( pReturn, pItem->item.asDouble.value );
          break;
+
       case LETOVAR_STR:
          pReturn = hb_itemNew( NULL );
          hb_itemPutCL( pReturn, pItem->item.asString.value, pItem->item.asString.length );
          break;
+
       case LETOVAR_ARR:
          if( ! pItem->item.asString.length )
             pReturn = hb_itemArrayNew( 0 );
@@ -849,6 +843,7 @@ static PHB_ITEM leto_var_ret( LETO_VAR * pItem )
             pReturn = hb_itemDeserialize( &pTmp, &nSize );
          }
          break;
+
       case LETOVAR_DAT:
          pReturn = hb_itemNew( NULL );
          hb_itemPutDS( pReturn, pItem->item.asString.value );
@@ -1122,3 +1117,4 @@ HB_FUNC( LETO_VARGETLIST )
 
    hb_itemReturnForward( pArray );
 }
+

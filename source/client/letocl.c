@@ -2758,6 +2758,7 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
       unsigned int uiAddrLen = strlen( szAddr );
 
       pConnection->iConnection = ui;
+      pConnection->iConnectSrv = -1;
       pConnection->hSocket = hSocket;
       pConnection->hSocketErr = HB_NO_SOCKET;
       pConnection->iPort = iPort;

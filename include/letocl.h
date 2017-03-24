@@ -204,6 +204,7 @@ typedef struct _LETOCONNECTION_
 {
    unsigned int      iConnection;          /* ID of connection */
    int               iConnectRes;          /* error state of connection -- just after connect */
+   int               iConnectSrv;          /* ID of connection at server */
    int               iError;               /* formerly static s_iError */
    HB_SOCKET         hSocket;
    HB_SOCKET         hSocketErr;

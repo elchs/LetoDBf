@@ -74,6 +74,8 @@
 
 #define LETO_VPREVIOUS        1
 
+#define LETO_VPREFIX          "S_"
+
 /* LetoDBf specific rddinfo() */
 #define RDDI_REFRESHCOUNT     101
 #define RDDI_BUFKEYNO         102

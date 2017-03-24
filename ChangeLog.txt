@@ -2,6 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-03-24 15:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/letocl.c
+    + buffered connection ID at server
+
+  * include/rddleto.ch
+  * source/client/letomgmn.c
+  * tests/test_var.prg
+    * return server connection ID for LETO_CONNECT() without param
+    * make prefix of group for synced variables adapt- and predict-able
+    ; connection-ID is added to make variables unique per connection
+
+  * source/server/letovars.c
+    % formatting, optimize leto_var_get()
+
 2017-03-23 13:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     % double performance of Leto_VarExprSync() by using optional 4th array
