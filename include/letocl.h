@@ -354,7 +354,7 @@ const char * LetoVarGet( LETOCONNECTION * pConnection, const char * szGroup, con
 long LetoVarIncr( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, unsigned int uiFlags );
 long LetoVarDecr( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, unsigned int uiFlags );
 int LetoVarDel( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar );
-const char * LetoVarGetList( LETOCONNECTION * pConnection, const char * szGroup, unsigned int uiMaxLen );
+const char * LetoVarGetList( LETOCONNECTION * pConnection, const char * szGroup, HB_LONG lMaxLen );
 
 HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile );
 HB_BYTE LetoFileErase( LETOCONNECTION * pConnection, const char * szFile );

@@ -444,7 +444,7 @@ static _HB_INLINE_ HB_BOOL leto_var_accessdeny( PUSERSTRU pUStru, LETO_VAR * pIt
 void leto_Variables( PUSERSTRU pUStru, const char * szData )
 {
    char *       pData = NULL;
-   const char * pVarGroup, * pVar, * pp3, * pp4;
+   const char * pVarGroup, * pVar, * pp3;
    int          nParam = leto_GetParam( szData, &pVarGroup, &pVar, &pp3, NULL );
    HB_USHORT    uiItem = 0;
    HB_ULONG     ulLen;
@@ -466,12 +466,12 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
 
       if( *szData == LETOSUB_set )
       {
-         HB_UCHAR uLenLen;
-         HB_ULONG ulValLength = 0;
+         const char * pp4 = pp3 + 4;
+         HB_UCHAR     uLenLen;
+         HB_ULONG     ulValLength = 0;
 
          cFlag1 = *( pp3 + 1 );
          cFlag2 = *( pp3 + 2 );
-         pp4 = pp3 + 4;
 
          if( nParam > 3 && ( uLenLen = ( ( ( HB_UCHAR ) *pp4 ) & 0xFF ) ) < 10 )
          {
@@ -637,86 +637,111 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
       }
       else if( *szData == LETOSUB_list )
       {
-         char *    ptrTmp;
          HB_USHORT uiItemCount = 0, uiLen;
 
          ulLen = 0;
-         if( *pVarGroup )
+         if( *pVarGroup )  /* vars in group */
          {
-            if( pGroup )  /* vars in group */
+            if( pGroup )
             {
-               HB_ULONG     ulVarLen;
-               unsigned int uiMaxLen = 0;
-               char *       pVarData;
-               HB_UCHAR     uiLenLen;
-               HB_USHORT    ui;
+               HB_ULONG  ulVarLen, ulPos = 0;
+               HB_LONG   lMaxLen = -1;
+               char *    pVarData;
+               HB_UCHAR  uiLenLen;
+               HB_USHORT ui;
 
-               if( *pp3 && strlen( pp3 ) < 4 )
-                  uiMaxLen = ( unsigned int ) atol( pp3 );
+               if( *pp3 && strlen( pp3 ) < 8 )
+                  lMaxLen = atol( pp3 );
+
                for( uiItem = 0, ui = 0; uiItem < pGroup->uiAlloc; uiItem++ )
                {
                   pItem = pGroup->pItems + uiItem;
                   if( pItem->szName )
                   {
-                     if( ! ( uiMaxLen && leto_var_accessdeny( pUStru, pItem, LETO_VDENYRD ) ) )
-                     {
-                        ulLen += strlen( pItem->szName ) + 1 + 4 + uiMaxLen;
+                     if( ! leto_var_accessdeny( pUStru, pItem, LETO_VDENYRD ) )
                         uiItemCount++;
-                     }
                      if( ++ui >= pGroup->uiItems )
                         break;
                   }
                }
-               ptrTmp = pData = ( char * ) hb_xgrab( ulLen + 16 );
-               ptrTmp += sprintf( pData, "+%d;", uiItemCount );
+               ulLen = ( uiItemCount * 32 ) + 16;
+               pData = ( char * ) hb_xgrab( ulLen );
+               ulPos += sprintf( pData + ulPos, "+%d;", uiItemCount );
                for( uiItem = 0, ui = 0; uiItem < pGroup->uiAlloc; uiItem++ )
                {
                   pItem = pGroup->pItems + uiItem;
                   if( pItem->szName )
                   {
-                     uiLen = ( HB_USHORT ) strlen( pItem->szName );
-                     memcpy( ptrTmp, pItem->szName, uiLen );
-                     ptrTmp += uiLen;
-                     if( uiMaxLen )
+                     if( ! leto_var_accessdeny( pUStru, pItem, LETO_VDENYRD ) )
                      {
-                        if( ! leto_var_accessdeny( pUStru, pItem, LETO_VDENYRD ) )
+                        uiLen = ( HB_USHORT ) strlen( pItem->szName );
+                        if( ulPos + uiLen >= ulLen - 16 )
                         {
-                           *ptrTmp++ = ';';
-                           *ptrTmp++ = pItem->type;
-                           *ptrTmp++ = ';';
-
-                           if( pItem->type != LETOVAR_ARR )
-                              ulVarLen = uiMaxLen;
-                           else
-                              ulVarLen = HB_MIN( 5, uiMaxLen );  /* will be symbolic presented */
-                           pVarData = leto_var_get( pItem, &ulVarLen );
-                           ulVarLen -= 3;  /* remove prefix '+T;' */
-                           uiLenLen = leto_n2b( ptrTmp + 1, ulVarLen );  /* add length of content */
-                           *ptrTmp = ( uiLenLen & 0xFF );
-                           ptrTmp += uiLenLen + 1;
-
-                           memcpy( ptrTmp, pVarData + 3, ulVarLen );
-                           if( pVarData )
-                              hb_xfree( pVarData );
-                           ptrTmp += ulVarLen;
+                           ulLen += ( ( uiLen >> 5 ) + 1 ) << 5;
+                           pData = ( char * ) hb_xrealloc( pData, ulLen );
                         }
+                        memcpy( pData + ulPos, pItem->szName, uiLen );
+                        ulPos += uiLen;
+
+                        if( lMaxLen >= 0 )
+                        {
+                           pData[ ulPos++ ] = ';';
+                           pData[ ulPos++ ] = pItem->type;
+                           pData[ ulPos++ ] = ';';
+
+                           ulVarLen = 0;
+                           if( lMaxLen > 0 )
+                           {
+                              if( pItem->type == LETOVAR_ARR )
+                                 ulVarLen = 7;
+                              else if( pItem->type == LETOVAR_STR )
+                                 ulVarLen = lMaxLen;
+                           }
+                           if( pItem->type != LETOVAR_ARR || ! lMaxLen )
+                           {
+                              pVarData = leto_var_get( pItem, &ulVarLen );
+                              ulVarLen -= 3;  /* remove prefix '+x;' */
+                           }
+                           else
+                              pVarData = NULL;
+                           uiLenLen = leto_n2b( pData + ulPos + 1, ulVarLen );  /* add length of content */
+                           pData[ ulPos ] = ( uiLenLen & 0xFF );
+                           ulPos += uiLenLen + 1;
+
+                           if( ulPos + ulVarLen >= ulLen )
+                           {
+                              ulLen += ( ( ulVarLen >> 5 ) + 1 ) << 5;
+                              pData = ( char * ) hb_xrealloc( pData, ulLen );
+                           }
+                           if( pItem->type != LETOVAR_ARR || ! lMaxLen )
+                           {
+                              memcpy( pData + ulPos, pVarData + 3, ulVarLen );
+                              if( pVarData )
+                                 hb_xfree( pVarData );
+                           }
+                           else
+                              memcpy( pData + ulPos, "{ ... }", ulVarLen );
+                           ulPos += ulVarLen;
+                        }
+                        else
+                           pData[ ulPos++ ] = ';';
                      }
-                     else
-                        *ptrTmp++ = ';';
                      if( ++ui >= pGroup->uiItems )
                         break;
                   }
                }
-               *ptrTmp = '\0';
-               leto_SendAnswer( pUStru, pData, ptrTmp - pData );
+               pData[ ulPos++ ] = '\0';
+               leto_SendAnswer( pUStru, pData, ulPos );
             }
             else
                leto_SendAnswer( pUStru, szErr2, 4 );
          }
-         else  /* all vars (all group) */
+         else  /* all var groups */
          {
             HB_USHORT uiGroup;
+            char *    ptrTmp;
 
+            ulLen = 0;
             for( uiGroup = 0; uiGroup < s_uiVarGroupsAlloc; uiGroup++ )
             {
                if( ( s_pVarGroups + uiGroup )->szName )
@@ -1049,7 +1074,7 @@ HB_FUNC( LETO_VARGETLIST )
 {
    PUSERSTRU    pUStru = letoGetsUStru();
    const char * pVarGroup = hb_parc( 1 );
-   HB_BOOL      bValue = ( HB_ISLOG( 2 ) ? hb_parl( 2 ) : HB_FALSE );
+   HB_BOOL      bValue = ( HB_ISLOG( 2 ) ? hb_parl( 2 ) : ( HB_ISNUM( 2 ) ? HB_TRUE : HB_FALSE ) );
    HB_USHORT    uiPos = 0;
    PHB_ITEM     pArray = hb_itemNew( NULL );
 
@@ -1062,11 +1087,11 @@ HB_FUNC( LETO_VARGETLIST )
 
       HB_GC_LOCKV();
 
-      leto_var_find( pVarGroup, NULL, &pGroup, &uiItem );
+      leto_var_find( pVarGroup, "", &pGroup, &uiItem );
       if( pGroup )
       {
          LETO_VAR * pItem;
-         PHB_ITEM   pSubarray = NULL;
+         PHB_ITEM   pSubarray = NULL, pVar;
 
          if( bValue )
             pSubarray = hb_itemNew( NULL );
@@ -1081,8 +1106,11 @@ HB_FUNC( LETO_VARGETLIST )
                   hb_arrayNew( pSubarray, 2 );
 
                   hb_arraySetC( pSubarray, 1, pItem->szName );
-                  hb_arraySet( pSubarray, 2, leto_var_ret( pItem ) );
+                  pVar = leto_var_ret( pItem );
+                  hb_arraySet( pSubarray, 2, pVar );
                   hb_arrayAddForward( pArray, pSubarray );
+                  if( pVar )
+                     hb_itemRelease( pVar );
                }
                else
                {
@@ -1115,6 +1143,6 @@ HB_FUNC( LETO_VARGETLIST )
       HB_GC_UNLOCKV();
    }
 
-   hb_itemReturnForward( pArray );
+   hb_itemReturnRelease( pArray );
 }
 

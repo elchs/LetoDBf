@@ -571,22 +571,23 @@ A. Internals
  The filter is established usually: by the SET FILTER TO command or by calling DbSetFilter() function.
  Most important param of DbSetFilter() is the expression, the second param: DbSetFilter( bBlock, cExpression )
  as only this can be transmitted to the server. ( codeblocks are not exchangeable between applications )
- The filter expression which can be executed at the server is called optimized.
- If the filter can't be executed on the server, it is called: not optimized. Such filter is slow as from the
- server all records must be received, and the client have to discard all the invalid records.
+ The filter expression which can be executed at the server is called "optimized".
+ If the filter must be executed locally at client, it is called: "not optimized". Such filter is slow as all
+ records must be received from the server, and the client have to discard all the invalid records.
+ In case of an optimized filter, only valid records are send to the client application.
 
- To set the optimized filter, it is necessary, that in the expression is solely executable for the server.
- So all the functions therein, like standarf Str(), Upper(), DToS() etc must be known to the server.
- If your expression contains an own function from yourself, this can be loaded with as HRB file any time during
+ To get an optimized filter, it is necessary, that the expression is solely executable for the server.
+ So all the functions therein, like standard Str(), Upper(), DToS() etc must be known to the server.
+ If your expression contains an own function from yourself, this can be loaded with a HRB file any time during
  a running server, see therefore 4.2.1 UDF supprt.
- If your expression contains a variable only know to you application, the mighty Leto_Var*() system comes into
- game play. With this you can share the content of a variable at client side with the server, and vice versa.
+ If your expression contains a variable only known to you application, the mighty Leto_Var*() system comes into
+ action. With this you can share the content of a variable at client side with the server, and vice versa.
  See therefore section 7.9 Server variables.
 
  So with the help of leto_Var*() functions plus UDF loadable functions plus a rich set of classic Harbour
  commands, it is possible to turn any non-optimized filter into an optimized.
- Thes are lightning fast, a pleasure to work with.
- To test, whether a filter is an optimized, just check for with the LETO_ISFLTOPTIM() function, returns TRUE.
+ These are lightning fast and a pleasure to work with. To test, whether a filter is an optimized, just check
+ for with the LETO_ISFLTOPTIM() function, if it returns TRUE.
 
  Following two settings influence the use of optimized, server side filters:
 
@@ -594,8 +595,8 @@ A. Internals
  non-optimized filter to be executed by client [ the default is .T. == allow them ].
  Only in server mode: No_save_WA = 1 and then setting:
 
- SET( _SET_FORCEOPT, .T. ) will enable filter expressions at server, even those with ALIAS names, maybe of an
- relationed workarea, in the expression string [ default is .F. == not allowed ].
+ SET( _SET_FORCEOPT, .T. ) will enable filter expressions at server with ALIAS names, maybe of an relationed
+ workarea. [ default is .F. == ALIAS not allowed ].
  Server mode No_Save_WA = 1 is needed with ALIAS names other than the active WA, because in mode '0' LetoDBf
  server uses WA detaching/ requesting technics and other WA are not available/ detached, and so there is no
  relation active at server.
@@ -603,10 +604,12 @@ A. Internals
  evaluated alernatively at client as without ForceOptimize.
  [NEW] If the filter expression contains a PRIVATE/ PUBLIC memvar, they will be synced between client and server
  with help of the LetoVar() system. A unique Leto_VarCreate() with value of the memvar is executed, the filter
- string expression modified to use a Leto_VarGet() instead of the memvar.
+ string expression is automatically modified to use a Leto_VarGet() instead of the memvar.
  With each move ( GoTo[p|bottom], Skip, Seek ) in the WA, a possible changed memvar value is automatic synced
- with a new Leto_VarSet() call. Example: 'SET FILTER TO table->field > xMemvar' will work as without LeotDBf.
- See Leto_VarExpr*() functions if you want to do it manually.
+ with a new Leto_VarSet() call. Clearing the filter, also done with closing the table, will Leto_VarDel() all
+ created LetoVars.
+ Example: 'SET FILTER TO table->field > xMemvar' will work as without LeotDBf, but as optimized filter.
+ See also Leto_VarExpr*() functions if you want to do it manually, or for other occasions.
 
 
       5.2,2 Relations
@@ -1248,9 +1251,16 @@ A. Internals
 
       LETO_VARGETLIST( [cGroupName [, nMaxLen]] )              ==> aList
 
- Function return two-dimensional array with variables: { {<cVarName>, <value>}, ...}
- Array variables are displayed symbolic with a: "{ ... }".
- <nMaxLen> relates to string variables, will cut them off at the given value.
+ Function returns
+ # without a string param for <cGroupName>:
+   array with group names { <cGroupName1>, ... }
+ # with valid <cGroupName>, without <nMaxLen> param or < 0:
+   array with variable names in the group
+ # with valid <cGroupName>, and with <nMaxLen> >= 0:
+   two-dimensional array with variables: { {<cVarName>, <value>}, ...}
+   <nMaxLen> == 0 means unlimited string values, else these are limited in size
+   and cut off if longer as <nMaxLen>.
+   IF <nMaxLen> > 0, array variables have a symbolic string value: "{ ... }"
 
       LETO_VARGETCACHED()                                      ==> xValue [NIL]
 

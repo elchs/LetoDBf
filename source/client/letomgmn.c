@@ -1771,7 +1771,7 @@ static PHB_ITEM Leto_VarGet( LETOCONNECTION * pCurrentConn, const char * szGroup
 
          case LETOVAR_ARR:
          {
-            HB_SIZE  nSize = ( HB_SIZE ) ulLen;
+            HB_SIZE nSize = ( HB_SIZE ) ulLen;
 
             pData += 2;
             pValue = hb_itemDeserialize( &pData, &nSize );
@@ -1896,13 +1896,11 @@ HB_FUNC( LETO_VARGETLIST )
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
    const char * ptr;
    const char * pGroup = ( ! HB_ISCHAR( 1 ) ) ? NULL : hb_parc( 1 );
-   HB_USHORT    uiMaxLen = ( HB_ISNUM( 2 ) ) ? ( HB_USHORT ) hb_parni( 2 ) : 0;
+   HB_LONG      lMaxLen = ( HB_ISNUM( 2 ) ) ? hb_parnl( 2 ) : -1;
 
    if( pCurrentConn )
    {
-      if( ! pGroup || uiMaxLen > 999 )
-         uiMaxLen = 0;
-      if( ( ptr = LetoVarGetList( pCurrentConn, pGroup, uiMaxLen ) ) != NULL )
+      if( ( ptr = LetoVarGetList( pCurrentConn, pGroup, lMaxLen ) ) != NULL )
       {
          PHB_ITEM     pTmp;
          PHB_ITEM     aInfo, aVar;
@@ -1918,7 +1916,7 @@ HB_FUNC( LETO_VARGETLIST )
 
          while( ui <= uiItems )
          {
-            if( pGroup && uiMaxLen )
+            if( pGroup && lMaxLen >= 0 )
             {
                char cType;
 
@@ -1938,10 +1936,10 @@ HB_FUNC( LETO_VARGETLIST )
                   ulValLength = leto_b2n( ptr + 1, uLenLen );
                   ptr += uLenLen + 1;
                }
-               else
+               else  /* should never happen */
                {
-                  ulValLength = 0;
-                  ptr++;
+                  ui++;
+                  continue;
                }
 
                switch( cType )
@@ -1969,7 +1967,18 @@ HB_FUNC( LETO_VARGETLIST )
                      break;
 
                   case LETOVAR_ARR:
-                     hb_itemPutC( hb_arrayGetItemPtr( aVar, 2 ), "{ ... }" );
+                     if( lMaxLen == 0 )
+                     {
+                        const char * ptrTmp = ptr;
+                        HB_SIZE      nSize = ( HB_SIZE ) ulValLength;
+                        PHB_ITEM     pArr = hb_itemDeserialize( &ptrTmp, &nSize );
+
+                        hb_itemMove( hb_arrayGetItemPtr( aVar, 2 ), pArr );
+                        if( pArr )
+                           hb_itemRelease( pArr );
+                     }
+                     else
+                        hb_itemPutC( hb_arrayGetItemPtr( aVar, 2 ), "{ ... }" );
                      break;
 
                   case LETOVAR_DAT:

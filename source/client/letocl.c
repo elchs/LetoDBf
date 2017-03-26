@@ -5050,14 +5050,14 @@ HB_EXPORT int LetoVarDel( LETOCONNECTION * pConnection, const char * szGroup, co
    return 0;
 }
 
-HB_EXPORT const char * LetoVarGetList( LETOCONNECTION * pConnection, const char * szGroup, unsigned int uiMaxLen )
+HB_EXPORT const char * LetoVarGetList( LETOCONNECTION * pConnection, const char * szGroup, HB_LONG lMaxLen )
 {
    unsigned long ulLen = 32 + ( ( szGroup ) ? strlen( szGroup ) : 0 );
    char *        pData;
    unsigned int  uiRes;
 
    pData = ( char * ) hb_xgrab( ulLen );
-   ulLen = eprintf( pData, "%c;%c;%s;;%u;", LETOCMD_var, LETOSUB_list, ( szGroup ) ? szGroup : "", uiMaxLen );
+   ulLen = eprintf( pData, "%c;%c;%s;;%ld;", LETOCMD_var, LETOSUB_list, ( szGroup ) ? szGroup : "", lMaxLen );
 
    uiRes = leto_DataSendRecv( pConnection, pData, ulLen );
    hb_xfree( pData );

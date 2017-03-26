@@ -2,6 +2,20 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-03-26 20:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+  * source/server/letovars.c
+    ! fix of 'null pointer dereference' in LETO_VARGETLIST() for server UDF
+      ; thank goes to Itamar's compiler
+    * limit return value size only for LETOVAR_STR and LETOVAR_ARR;
+      array with any size limit is transmitted as symbolic string
+    * transmit LETOVAR_ARR as array value if no size limit for list
+
+  * Readme.txt
+    * typos, note about Leto_VarGetList
+
 2017-03-24 15:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/letocl.c
