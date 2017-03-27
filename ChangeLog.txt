@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-03-27 14:54 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letovars.c
+    ! FIX that *non* fractional value given for LETOVAR_NUM is stored as
+      double when it was before such type
+    ; a fractional value will change an integer type into double, not reverse
+    % tiny optimize of leto_var_ret(), to let hb_itemPut*() create item to
+      spare one check for HB_IS_COMPLEX; use hb_itemPutNDLen and fill in
+      length and decimals
+    * formatting
+
 2017-03-26 20:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/letocl.c

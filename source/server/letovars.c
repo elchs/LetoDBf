@@ -517,13 +517,13 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                   {
                      char * ptr2 = strchr( pp4, '.' );
 
-                     if( ! ptr2 )
+                     if( ! ptr2 && ! pItem->item.asDouble.length )
                         pItem->item.asLong.value = atol( pp4 );
                      else
                      {
                         pItem->item.asDouble.value = atof( pp4 );
                         pItem->item.asDouble.length = ( int ) ulValLength;
-                        pItem->item.asDouble.decimals = ( int ) ( ulValLength - ( ptr2 - pp4 + 1 ) );
+                        pItem->item.asDouble.decimals = ptr2 ? ( int ) ( ulValLength - ( ptr2 - pp4 + 1 ) ) : 0;
                      }
                   }
                   else  /* if( *pp3 >= LETOVAR_STR ) */
@@ -557,7 +557,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
       }
       else if( *szData == LETOSUB_inc || *szData == LETOSUB_dec )
       {
-         HB_BOOL bInc = ( *szData == LETOSUB_inc );
+         HB_BOOL fInc = ( *szData == LETOSUB_inc );
 
          ulLen = 0;
          cFlag1 = *( pp3 + 1 );
@@ -582,7 +582,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
             else if( pItem->type != LETOVAR_NUM )
                leto_SendAnswer( pUStru, szErr4, 4 );
             else if( pItem->item.asDouble.length )
-               leto_SendAnswer( pUStru, szErr2, 4 );
+               leto_SendAnswer( pUStru, szErr4, 4 );
             else if( leto_var_accessdeny( pUStru, pItem, LETO_VDENYWR ) )
                leto_SendAnswer( pUStru, szErrAcc, 4 );
             else
@@ -595,7 +595,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                      leto_SendAnswer( pUStru, szErr1, 4 );
                }
 
-               if( bInc )
+               if( fInc )
                   pItem->item.asLong.value++;
                else
                   pItem->item.asLong.value--;
@@ -835,26 +835,24 @@ void leto_vars_release( void )
 
 static PHB_ITEM leto_var_ret( LETO_VAR * pItem )
 {
-   PHB_ITEM pReturn = NULL;
+   PHB_ITEM pReturn;
 
    switch( pItem->type )
    {
       case LETOVAR_LOG:
-         pReturn = hb_itemNew( NULL );
-         hb_itemPutL( pReturn, pItem->item.asLogical.value );
+         pReturn = hb_itemPutL( NULL, pItem->item.asLogical.value );
          break;
 
       case LETOVAR_NUM:
-         pReturn = hb_itemNew( NULL );
          if( ! pItem->item.asDouble.length )
-            hb_itemPutNL( pReturn, pItem->item.asLong.value );
+            pReturn = hb_itemPutNL( NULL, pItem->item.asLong.value );
          else
-            hb_itemPutND( pReturn, pItem->item.asDouble.value );
+            pReturn = hb_itemPutNDLen( NULL, pItem->item.asDouble.value,
+                                             pItem->item.asDouble.length, pItem->item.asDouble.decimals );
          break;
 
       case LETOVAR_STR:
-         pReturn = hb_itemNew( NULL );
-         hb_itemPutCL( pReturn, pItem->item.asString.value, pItem->item.asString.length );
+         pReturn = hb_itemPutCL( NULL, pItem->item.asString.value, pItem->item.asString.length );
          break;
 
       case LETOVAR_ARR:
@@ -870,10 +868,13 @@ static PHB_ITEM leto_var_ret( LETO_VAR * pItem )
          break;
 
       case LETOVAR_DAT:
-         pReturn = hb_itemNew( NULL );
-         hb_itemPutDS( pReturn, pItem->item.asString.value );
+         pReturn = hb_itemPutDS( NULL, pItem->item.asString.value );
          break;
+
+      default:  /* should not happen */
+         pReturn = NULL;
    }
+
    return pReturn;
 }
 
@@ -934,7 +935,8 @@ HB_FUNC( LETO_VARSET )
          }
          else if( HB_ISNUM( 3 ) )
          {
-            if( HB_IS_INTEGER( hb_param( 3, HB_IT_ANY ) ) || HB_IS_LONG( hb_param( 3, HB_IT_ANY ) ) )
+            if( ( HB_IS_INTEGER( hb_param( 3, HB_IT_ANY ) ) || HB_IS_LONG( hb_param( 3, HB_IT_ANY ) ) ) &&
+                ! pItem->item.asDouble.length )
                pItem->item.asLong.value = hb_parnl( 3 );
             else
             {
@@ -982,7 +984,7 @@ HB_FUNC( LETO_VARSET )
       hb_ret();
 }
 
-static void leto_var_incdec( HB_BOOL bInc )
+static void leto_var_incdec( HB_BOOL fInc )
 {
    PUSERSTRU    pUStru = letoGetsUStru();
    const char * pVarGroup = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
@@ -1003,17 +1005,15 @@ static void leto_var_incdec( HB_BOOL bInc )
       if( pItem && pItem->type == LETOVAR_NUM && ! pItem->item.asDouble.length &&
           ! leto_var_accessdeny( pUStru, pItem, LETO_VDENYWR ) )
       {
-         if( bInc )
+         if( fInc )
             pItem->item.asLong.value++;
          else
             pItem->item.asLong.value--;
-      }
-
-      if( pItem )
-      {
          leto_SetVarCache( pItem );
          hb_itemReturnRelease( leto_var_ret( pItem ) );
       }
+      else if( pItem )
+         pItem = NULL;
 
       HB_GC_UNLOCKV();
    }
