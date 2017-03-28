@@ -2,6 +2,26 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-03-28 12:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; recompile server and client if flag: LETO_VPREVIOUS for the Leto_Var*()
+    functions was used, e.g. as in tests/test_var.prg
+
+  * include/rddleto.ch
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    ! FIX inherited bug: overlapping flag LETO_VPREVIOUS with LETO_VCREAT
+    * new default to set LETO_VCREAT, disabled by new LETO_VNOCREAT
+    * move invalid char test ';' in name of group/ var into HB_FUNCs
+
+  * source/server/letovars.c
+    % optimize in leto_Variables(), esp. for action LETOSUB_set
+
+  * tests/test_var.prg
+    * corrections to use of LETO_VPREVIOUS, formatting
+
+  * Readme.txt
+    * typos, changed note about LETO_VPREVIOUS, new LETO_VNOCREAT
+
 2017-03-27 14:54 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letovars.c
     ! FIX that *non* fractional value given for LETOVAR_NUM is stored as

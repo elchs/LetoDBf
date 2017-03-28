@@ -1700,15 +1700,17 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && hb_param( 3, LETOVAR_TYPES ) )
+      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) && hb_param( 3, LETOVAR_TYPES ) )
       {
          HB_USHORT uiFlags = ( ! HB_ISNUM( 4 ) ) ? 0 : ( HB_USHORT ) hb_parni( 4 );
          HB_BOOL   fPrev = HB_ISBYREF( 5 );
          char *    pRetValue = NULL;
-         char      cType = Leto_VarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), hb_param( 3, LETOVAR_TYPES ), uiFlags,
-                                        fPrev ? &pRetValue : NULL, &uiRes );
+         char      cType = '\0';
 
-         if( fPrev && uiRes > 3 && pRetValue && cType < LETOVAR_STR )
+         if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
+            cType = Leto_VarSet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), hb_param( 3, LETOVAR_TYPES ), uiFlags,
+                                 fPrev ? &pRetValue : NULL, &uiRes );
+         if( fPrev && uiRes > 3 && pRetValue && cType && cType < LETOVAR_STR )
          {
             char * ptr = pRetValue;
 
@@ -1798,7 +1800,10 @@ HB_FUNC( LETO_VARGET )
    if( pCurrentConn )
    {
       if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 )  )
-         pValue = Leto_VarGet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ) );
+      {
+         if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
+            pValue = Leto_VarGet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ) );
+      }
    }
 
    if( pValue )
@@ -1824,19 +1829,22 @@ HB_FUNC( LETO_VARINCR )
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) )
+      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
       {
-         int iFlag = ( ! HB_ISNUM( 3 ) ) ? 0 : hb_parni( 3 );
-
-         lValue = LetoVarIncr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag );
-         if( ! pCurrentConn->iError )
+         if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
          {
-            leto_SetVarCache( hb_itemPutNL( NULL, lValue ) );
-            hb_retnl( lValue );
-            return;
+            int iFlag = ( ! HB_ISNUM( 3 ) ) ? 0 : hb_parni( 3 );
+
+            lValue = LetoVarIncr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag );
+            if( ! pCurrentConn->iError )
+            {
+               leto_SetVarCache( hb_itemPutNL( NULL, lValue ) );
+               hb_retnl( lValue );
+               return;
+            }
+            else
+               pCurrentConn->iError = 0;
          }
-         else
-            pCurrentConn->iError = 0;
       }
    }
    hb_ret();
@@ -1852,19 +1860,22 @@ HB_FUNC( LETO_VARDECR )
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) )
+      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
       {
-         int iFlag = ( ! HB_ISNUM( 3 ) ) ? 0 : hb_parni( 3 );
-
-         lValue = LetoVarDecr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag );
-         if( ! pCurrentConn->iError )
+         if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
          {
-            leto_SetVarCache( hb_itemPutNL( NULL, lValue ) );
-            hb_retnl( lValue );
-            return;
+            int iFlag = ( ! HB_ISNUM( 3 ) ) ? 0 : hb_parni( 3 );
+
+            lValue = LetoVarDecr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag );
+            if( ! pCurrentConn->iError )
+            {
+               leto_SetVarCache( hb_itemPutNL( NULL, lValue ) );
+               hb_retnl( lValue );
+               return;
+            }
+            else
+               pCurrentConn->iError = 0;
          }
-         else
-            pCurrentConn->iError = 0;
       }
    }
    hb_ret();
@@ -1876,16 +1887,21 @@ HB_FUNC( LETO_VARDEL )
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) )
+      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
       {
-         if( LetoVarDel( pCurrentConn, hb_parc( 1 ), HB_ISCHAR( 2 ) ? hb_parc( 2 ) : "" ) )
+         const char * szVar = HB_ISCHAR( 2 ) ? hb_parc( 2 ) : "";
+
+         if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( szVar, ';' ) )  /* illegal char in name */
          {
-            leto_ClearVarCache();
-            hb_retl( HB_TRUE );
+            if( LetoVarDel( pCurrentConn, hb_parc( 1 ), szVar ) )
+            {
+               leto_ClearVarCache();
+               hb_retl( HB_TRUE );
+            }
+            else
+               hb_retl( HB_FALSE );
+            return;
          }
-         else
-            hb_retl( HB_FALSE );
-         return;
       }
    }
    hb_retl( HB_FALSE );
@@ -1900,7 +1916,8 @@ HB_FUNC( LETO_VARGETLIST )
 
    if( pCurrentConn )
    {
-      if( ( ptr = LetoVarGetList( pCurrentConn, pGroup, lMaxLen ) ) != NULL )
+      if( ( ! pGroup || ! strchr( pGroup, ';' ) ) &&  /* illegal char in name */
+          ( ptr = LetoVarGetList( pCurrentConn, pGroup, lMaxLen ) ) != NULL )
       {
          PHB_ITEM     pTmp;
          PHB_ITEM     aInfo, aVar;
@@ -2437,7 +2454,6 @@ void Leto_VarExprParse( LETOCONNECTION * pConnection, const char * szSrc, PHB_IT
             }
             else  /* collect into return array */
             {
-               //pDyns = hb_dynsymFindName( szVar );
                pDyns = hb_dynsymFind( szVar );
                if( pDyns && hb_dynsymIsMemvar( pDyns ) )
                   pRefValue = hb_memvarGetValueBySym( pDyns );

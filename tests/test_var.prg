@@ -46,7 +46,7 @@ Function Main( cPath )
 
    /* test error: missing LETO_VCREAT flag */
    ?  "Adding 'var_int' = 100 to [main] [Err (0)] "
-   lRes := leto_varSet( "main", "var_int", 100 )
+   lRes := leto_varSet( "main", "var_int", 100, LETO_VNOCREAT )
    IF lRes
       ?? "Ok"
    ELSE
@@ -57,7 +57,7 @@ Function Main( cPath )
    lRes := leto_varSet( "main", "var_int", 99, LETO_VCREAT )
    IF lRes
       ?? "Ok"
-      lRes := leto_varSet( "main", "var_int", 100, LETO_VPREVIOUS, @xPrevious )
+      lRes := leto_varSet( "main", "var_int", 100,, @xPrevious )
       IF lRes .AND. VALTYPE( xPrevious ) == "N" .AND. xPrevious == 99
         ?? "!"
       ELSE
@@ -73,7 +73,7 @@ Function Main( cPath )
       IF leto_varGet( "main", "var_dec" ) == 123.455
          ?? "Ok"
       ENDIF
-      lRes := leto_varSet( "main", "var_dec", 123.456, LETO_VPREVIOUS, @xPrevious )
+      lRes := leto_varSet( "main", "var_dec", 123.456,, @xPrevious )
       IF lRes .AND. VALTYPE( xPrevious ) == "N" .AND. xPrevious == 123.455
         ?? "!"
       ELSE
@@ -104,7 +104,7 @@ Function Main( cPath )
    ?  "Adding 'var_binary' containing: 'CHR(0);CHR(1);CHR(0)' to [main] [Ok] "
    lRes := leto_varSet( "main","var_binary", CHR(0) + ";" + CHR(1) + ";" + CHR(0), LETO_VCREAT + LETO_VOWN )
    IF lRes
-      cTest := leto_varGet( "main","var_binary" )
+      cTest := leto_varGet( "main", "var_binary" )
       IF cTest == CHR(0) + ";" + CHR(1) + ";" + CHR(0) .AND. hb_BLen( cTest ) == 5
          ?? 'OK'
       ELSE
@@ -154,11 +154,11 @@ Function Main( cPath )
    Inkey( 0 )
    ?
 
-   ? "Increment var_int, current value is [100]",leto_varIncr( "main", "var_int", LETO_VPREVIOUS )
-   ? "Increment var_int, next    value is [102]",leto_varIncr( "main", "var_int" )
-   ? "Decrement var_int, current value is [102]",leto_varDecr( "main", "var_int", LETO_VPREVIOUS )
-   ? "Decrement var_int, next    value is [100]",leto_varDecr( "main", "var_int" )
-   ? "Decrement var_dec, no valid integer [NIL]",leto_varDecr( "main", "var_dec" )
+   ? "Increment var_int, current value is [100]", leto_varIncr( "main", "var_int", LETO_VPREVIOUS )
+   ? "Increment var_int, next    value is [102]", leto_varIncr( "main", "var_int" )
+   ? "Decrement var_int, current value is [102]", leto_varDecr( "main", "var_int", LETO_VPREVIOUS )
+   ? "Decrement var_int, next    value is [100]", leto_varDecr( "main", "var_int" )
+   ? "Decrement var_dec, no valid integer [NIL]", leto_varDecr( "main", "var_dec" )
 
    ? "Press any key to continue..."
    Inkey( 0 )
@@ -327,7 +327,7 @@ Local i, j, arr, arr1
          NEXT
          arr1 := leto_varGetlist( arr[ i ], 12 )
          FOR j := 1 TO Len( arr1 )
-            ? "   " + arr1[ j, 1 ] + ":",arr1[ j, 2 ]
+            ? "   " + arr1[ j, 1 ] + ":", arr1[ j, 2 ]
          NEXT
       NEXT
    ELSE

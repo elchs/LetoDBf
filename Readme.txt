@@ -1214,7 +1214,7 @@ A. Internals
    limited in size !:
    date    ( [NEW] date format, will be internally handled as YYYYMMDD
    string  ( [NEW] also binary string, means containg any char like e.g. CHR( 0 ) )
-   array   ( [NEW] { ... } with any item type, limited in size )
+   array   ( [NEW] { ... } with any above item type, limited in size )
 
  String/ array are limited by default to be all in sum max 64 MB, maximum can be changed in
  letodb.ini with config option "Max_Var_Size". A single string/ array limits to 1/4 of total
@@ -1222,15 +1222,19 @@ A. Internals
  This is for security reasons, so that crazy users cannot fill up the whole server memory.
  It is only allowed to assign a new value of same type to an existing variable.
  Group- and Var- names are NOT trimmed of white spaces, but char: ';' is an invalid char.
+ IF <@xRetValue> is given by reference ( @ ), it will hold up the old value before the new
+ one was set. This will only be done for boolean and numeric types, not for string etc. 
 
  Optional parameter <nFlags> defines the variable create mode/ limitations.
  These flags can be combined by aggregating ( + ) the constants:
- LETO_VCREAT    - if variable doesn't exist, it is created
+ LETO_VCREAT    - [NEW as default] create variable if it doesn't exist;
+                  doesn't hurt if variable already exists, this case without further effect
+ LETO_VNOCREAT  - [NEW] set this if you do not want above automatic create
  LETO_VOWN      - own user variable (deleted after user disconnect)
  LETO_VDENYWR   - write deny for other users
  LETO_VDENYRD   - read deny for other users
- LETO_VPREVIOUS - return previous value to < xRetValue > by reference given parameter,
-                  not done for strings and arrays
+ LETO_VPREVIOUS - only a valid flag for Leto_VarIncr() and Leto_VarDecr():
+                  return the value before variable increment/ decrement
 
       LETO_VARGET( cGroupName, cVarName )                      ==> xValue
 
@@ -1299,10 +1303,11 @@ A. Internals
  strings.  The expression <cExpression> itself must *not* be a valid executable expression,
  it is basically enough that a memvar name appears in it.
  So when you want to sync variables with server, do:
- cExpr := Leto_VarExprCreate( "Memvar1 [, MemvarX ] )
- aArr  := Leto_VarExprVars( cExpr )
- repeatedly call after each occasion of changed value: Leto_VarExprSync( aArr )
- Leto_VarExprClear( aArr )
+    cExpr := Leto_VarExprCreate( "Memvar1 [, MemvarX ]", @aArr )
+ Repeatedly call after each occasion of changed value:
+    Leto_VarExprSync( aArr )
+ Clean up with:
+    Leto_VarExprClear( aArr )
 
       LETO_VAREXPRTEST( cExpression )                          ==> lContainMemvar
 
@@ -1314,7 +1319,7 @@ A. Internals
  unique Leto_VarGet(). Each of these Leto_Vars are created during the call with a
  Leto_VarCreate() containing the value of the memvar, and have the LETO_VOWN flag,
  so they will be automatic deleted with application end.
- If optinal 2nd param <@aLetoVar> is given by reference ( @ ), a 3-dim array with
+ If optional 2nd param <@aLetoVar> is given by reference ( @ ), a 3-dim array with
  LetoVars for related memvars is assigned to the param variable, wich will spare an extra
  call of Leto_VarExprVars().
 

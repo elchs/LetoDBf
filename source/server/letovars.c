@@ -133,6 +133,7 @@ static HB_ULONG         s_ulVarLenAllMax = 0x4000000;  /* 64 MB size of all stri
 
 extern int leto_GetParam( const char * szData, const char ** pp2, const char ** pp3, const char ** pp4, const char ** pp5 );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
+extern void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB_BOOL bAllFine, int iError );
 extern PUSERSTRU letoGetsUStru( void );  /* fetch the static TLS in letofunc */
 extern void leto_wUsLog( PUSERSTRU pUStru, int n, const char* s, ... );
 
@@ -443,11 +444,8 @@ static _HB_INLINE_ HB_BOOL leto_var_accessdeny( PUSERSTRU pUStru, LETO_VAR * pIt
 
 void leto_Variables( PUSERSTRU pUStru, const char * szData )
 {
-   char *       pData = NULL;
    const char * pVarGroup, * pVar, * pp3;
    int          nParam = leto_GetParam( szData, &pVarGroup, &pVar, &pp3, NULL );
-   HB_USHORT    uiItem = 0;
-   HB_ULONG     ulLen;
 
    if( nParam < 3 )
       leto_SendAnswer( pUStru, szErr2, 4 );
@@ -455,33 +453,36 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
    {
       LETO_VARGROUPS * pGroup = NULL;
       LETO_VAR *       pItem;
-      char             cFlag1, cFlag2;
+      HB_USHORT        uiItem;
+      HB_ULONG         ulLen;
+      char *           pData = NULL;
 
       HB_GC_LOCKV();
 
       if( *pVarGroup )
          pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem );
       else
+      {
          pItem = NULL;
+         uiItem = 0;
+      }
 
       if( *szData == LETOSUB_set )
       {
          const char * pp4 = pp3 + 4;
+         char         cFlag1 = *( pp3 + 1 );
          HB_UCHAR     uLenLen;
          HB_ULONG     ulValLength = 0;
-
-         cFlag1 = *( pp3 + 1 );
-         cFlag2 = *( pp3 + 2 );
 
          if( nParam > 3 && ( uLenLen = ( ( ( HB_UCHAR ) *pp4 ) & 0xFF ) ) < 10 )
          {
             ulValLength = leto_b2n( pp4 + 1, uLenLen );
             pp4 += uLenLen + 1;
             if( ! ulValLength && *pp3 != LETOVAR_STR )
-               cFlag1 = cFlag2 = 0;  /* --> error */
+               cFlag1 = '\0';  /* --> error */
          }
 
-         if( ! *pVarGroup || ! *pVar || *pp3 < '1' || *pp3 > '5' || cFlag1 < ' ' || cFlag2 < ' ' )
+         if( ! *pVarGroup || ! *pVar || *pp3 < '1' || *pp3 > '5' || cFlag1 < ' ' )
             leto_SendAnswer( pUStru, szErr2, 4 );
          else if( ! pItem && ( ! ( cFlag1 & LETO_VCREAT ) || s_ulVarsCurr >= s_ulVarsMax ) )
             leto_SendAnswer( pUStru, szErr3, 4 );
@@ -507,9 +508,17 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                   leto_SendAnswer( pUStru, szErr3, 4 );
                else
                {
-                  ulLen = 0;
-                  if( *pp3 < LETOVAR_STR && ( cFlag2 & LETO_VPREVIOUS ) )
+                  if( *pp3 < LETOVAR_STR && ( *( pp3 + 2 ) & LETO_VPREVIOUS ) )  /* cFlag2 */
+                  {
+                     ulLen = 0;
                      pData = leto_var_get( pItem, &ulLen );
+                     if( pData )
+                        leto_SendAnswer( pUStru, pData, ulLen );
+                     else  /* should not happen */
+                        leto_SendAnswer( pUStru, szErr2, 4 );
+                  }
+                  else
+                     leto_SendAnswer( pUStru, szOk, 4 );
 
                   if( *pp3 == LETOVAR_LOG )
                      pItem->item.asLogical.value = ( *pp4 != '0' );
@@ -529,15 +538,6 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                   else  /* if( *pp3 >= LETOVAR_STR ) */
                      leto_var_set_str( pItem, pp4, ulValLength );
 
-                  if( *pp3 < LETOVAR_STR && ( cFlag2 & LETO_VPREVIOUS ) )
-                  {
-                     if( pData )
-                        leto_SendAnswer( pUStru, pData, ulLen );
-                     else
-                        leto_SendAnswer( pUStru, "+?;", 3 );
-                  }
-                  else
-                     leto_SendAnswer( pUStru, szOk, 4 );
                   leto_SetVarCache( pItem );
                }
             }
@@ -558,11 +558,10 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
       else if( *szData == LETOSUB_inc || *szData == LETOSUB_dec )
       {
          HB_BOOL fInc = ( *szData == LETOSUB_inc );
+         char    cFlag1 = *( pp3 + 1 );
+         char    cFlag2 = *( pp3 + 2 );
 
-         ulLen = 0;
-         cFlag1 = *( pp3 + 1 );
-         cFlag2 = *( pp3 + 2 );
-         if( nParam < 4 || ! *pVarGroup || ! *pVar || *pp3 != '2' || cFlag1 < ' ' || cFlag2 < ' ' )
+         if( nParam < 4 || ! *pVarGroup || ! *pVar || *pp3 != '2' || cFlag1 < ' ' )
             leto_SendAnswer( pUStru, szErr2, 4 );
          else if( ! pItem && ( ! ( cFlag1 & LETO_VCREAT ) || s_ulVarsCurr >= s_ulVarsMax ) )
             leto_SendAnswer( pUStru, szErr3, 4 );
@@ -587,6 +586,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                leto_SendAnswer( pUStru, szErrAcc, 4 );
             else
             {
+               ulLen = 0;
                if( cFlag2 & LETO_VPREVIOUS )
                {
                   if( ( pData = leto_var_get( pItem, &ulLen ) ) != NULL )
@@ -771,10 +771,10 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
          leto_SendAnswer( pUStru, szErr2, 4 );
 
       HB_GC_UNLOCKV();
-   }
 
-   if( pData )
-      hb_xfree( pData );
+      if( pData )
+         hb_xfree( pData );
+   }
 }
 
 void leto_varsown_release( PUSERSTRU pUStru )

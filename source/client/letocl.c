@@ -4879,14 +4879,13 @@ HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, co
                           const char * pValue, unsigned int uiLength, unsigned int uiFlags, char ** pRetValue )
 {
    unsigned long ulLen = 24 + strlen( szGroup ) + strlen( szVar ) + ( uiLength ? uiLength : strlen( pValue ) );
-   char *        pData, * ptr, cFlag1 = ' ', cFlag2 = ' ';
+   char *        pData, * ptr;
+   char          cFlag1 = ( ' ' | LETO_VCREAT ), cFlag2 = ' ';  /* LETO_VCREAT now default */
    unsigned int  uiRes;
 
-   if( strchr( szGroup, ';' ) || strchr( szVar, ';' ) )  /* illegal char in name */
-      return 0;
-   if( cType < '1' || cType > '5' )
-      return 0;
    cFlag1 |= ( uiFlags & ( LETO_VCREAT | LETO_VOWN | LETO_VDENYWR | LETO_VDENYRD ) );
+   if( ( uiFlags & LETO_VNOCREAT ) )
+      cFlag1 &= ~LETO_VCREAT;
    if( pRetValue )
       cFlag2 |= LETO_VPREVIOUS;
 
@@ -4907,21 +4906,13 @@ HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, co
       if( *( ptr - 1 ) != '+' )
          uiRes = 0;
    }
-   else
-      return 0;
 
-   if( uiRes )
+   if( uiRes && pRetValue )
    {
-      if( pRetValue )
-      {
-         if( uiRes < 3 )
-         {
-            *pRetValue = NULL;
-            uiRes = 0;
-         }
-         else
-            *pRetValue = ptr;
-      }
+      if( uiRes < 3 )
+         uiRes = 0;
+      else
+         *pRetValue = ptr;
    }
 
    return uiRes;
@@ -4964,8 +4955,6 @@ HB_EXPORT long LetoVarIncr( LETOCONNECTION * pConnection, const char * szGroup, 
    unsigned int  uiRes;
 
    cFlag1 |= ( uiFlags & ( LETO_VCREAT | LETO_VOWN | LETO_VDENYWR | LETO_VDENYRD ) );
-   if( uiFlags & LETO_VOWN )
-      cFlag1 |= LETO_VOWN;
    cFlag2 |= ( uiFlags & LETO_VPREVIOUS );
 
    pData = ( char * ) hb_xgrab( ulLen );
@@ -4999,8 +4988,6 @@ HB_EXPORT long LetoVarDecr( LETOCONNECTION * pConnection, const char * szGroup, 
    unsigned int  uiRes;
 
    cFlag1 |= ( uiFlags & ( LETO_VCREAT | LETO_VOWN | LETO_VDENYWR | LETO_VDENYRD ) );
-   if( uiFlags & LETO_VOWN )
-      cFlag1 |= LETO_VOWN;
    cFlag2 |= ( uiFlags & LETO_VPREVIOUS );
 
    pData = ( char * ) hb_xgrab( ulLen );

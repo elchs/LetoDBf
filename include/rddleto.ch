@@ -71,8 +71,8 @@
 #define LETO_VOWN             2
 #define LETO_VDENYWR          4
 #define LETO_VDENYRD          8
-
-#define LETO_VPREVIOUS        1
+#define LETO_VPREVIOUS       16
+#define LETO_VNOCREAT        64
 
 #define LETO_VPREFIX          "S_"
 
