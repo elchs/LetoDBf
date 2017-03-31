@@ -1309,7 +1309,7 @@ static _HB_INLINE_ unsigned long leto_SendRecv( LETOCONNECTION * pConnection, co
    unsigned long ulRet;
 
    ulRet = leto_DataSendRecv( pConnection, szData, ulLen );
-   if( ulRet && *( pConnection->szBuffer ) == '-' && iErr )
+   if( ulRet && iErr && *( pConnection->szBuffer ) == '-' )
    {
       pConnection->iError = iErr;
       ulRet = 0;
@@ -3675,7 +3675,7 @@ HB_EXPORT const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, 
 
    ulLen = eprintf( szData, "%c;%lu;%c;%lu;%d;",
                     LETOCMD_memo, pTable->hTable, LETOSUB_get, pTable->ulRecNo, uiIndex + 1 );
-   if( leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
+   if( leto_SendRecv( pConnection, szData, ulLen, 0 ) )
       return leto_DecryptText( pConnection, ulLenMemo, pConnection->szBuffer );
    else
       return NULL;

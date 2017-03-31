@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-03-31 09:17 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+    ! VERY IMPORTANT FUNDAMENTAL BUG FIX about requesting memo fields,
+      many THANKS goes to Itamar pointing it out
+    ; memo fields with a length of 45 [ '-' ] or multiple failed because
+      wrong used leto_SendRecv() with an error number for a HB_GET_LE_UINT32
+      leading buffer
+
 2017-03-28 12:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; recompile server and client if flag: LETO_VPREVIOUS for the Leto_Var*()
     functions was used, e.g. as in tests/test_var.prg
