@@ -2102,6 +2102,20 @@ static LETOCONNECTION * leto_OpenConnection( LETOAREAP pArea, LPDBOPENINFO pOpen
    return pConnection;
 }
 
+static void letoCreateAliasWA( char * szAlias )
+{
+   HB_USHORT    uiArea = 1;
+   PHB_STACKRDD pRddInfo = hb_stackRDD();
+
+   while( uiArea < pRddInfo->uiWaNumMax )
+   {
+      if( pRddInfo->waNums[ uiArea ] == 0 )
+         break;
+      uiArea++;
+   }
+   eprintf( szAlias, "TmpWA%d", uiArea );
+}
+
 static void letoCreateAlias( const char * szFile, char * szAlias )
 {
    const char * ptrBeg, * ptrEnd;
@@ -2306,7 +2320,10 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
       {
          char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
 
-         letoCreateAlias( szFile, szAlias );
+         if( pCreateInfo->atomAlias )  /* explicitely given blank alias convert to: "TmpWA" + first free WA number */
+            letoCreateAliasWA( szAlias );
+         else
+            letoCreateAlias( szFile, szAlias );
          pCreateInfo->atomAlias = szAlias;
       }
 

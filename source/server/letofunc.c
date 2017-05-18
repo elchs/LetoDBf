@@ -5919,7 +5919,6 @@ static void leto_Unlock( PUSERSTRU pUStru, const char * szData )
             break;
 
          case 'f':  /* Unlock table */
-            //hb_xvmSeqBegin();
             iRes = leto_TableUnlock( pUStru->pCurAStru, HB_FALSE, NULL ) ? 0 : 1021;  /* also record locks */
             if( ! iRes )
                leto_SendAnswer2( pUStru, szOk, 4, ! iRes, iRes );
@@ -5938,15 +5937,14 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
 {
    PAREASTRU    pAStru = pUStru->pCurAStru;
    int          iRes = 0;
-   const char * pUpd, * pDelRecall;
-   int          nParam = leto_GetParam( szData, &pUpd, &pDelRecall, NULL, NULL );
+   char *       ptrPar;
+   HB_ULONG     ulRecNo = strtoul( szData, &ptrPar, 10 );  /* record number or bUnlockAll ( for append ) */
 
-   if( nParam < 3 )
+   if( *ptrPar != ';' )
       iRes = 2;
    else
    {
-      HB_ULONG  ulRecNo = strtoul( szData, NULL, 10 );  /* record number or bUnlockAll ( for append ) */
-      HB_USHORT uiUpd = ( HB_USHORT ) atoi( pUpd );  /* number of updated fields */
+      HB_USHORT uiUpd = ( HB_USHORT ) strtoul( ++ptrPar, &ptrPar, 10 );  /* number of updated fields */
 
       if( ! pArea )
          pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
@@ -5996,29 +5994,26 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
       }
       else
       {
-#if 0  // ToDo verify my else is fine, then remove ultimately
-         if( ( ! pTA || ulRecNo ) && pAStru->pTStru->bShared &&
-            ! ( pAStru->bLocked || leto_IsRecLocked( pAStru, ulRecNo ) ) )
-#else
-         if( ulRecNo && ! pTA && pAStru->pTStru->bShared &&
-             ! ( pAStru->bLocked || leto_IsRecLocked( pAStru, ulRecNo ) ) )
-#endif
+         if( ! pTA )  /* transactions locks already ensured by client */
          {
-            /*  The table is opened in shared mode, but the record/ table is not locked */
-            if( ! pTA )
+            if( ulRecNo && pAStru->pTStru->bShared &&
+                ! ( pAStru->bLocked || leto_IsRecLocked( pAStru, ulRecNo ) ) )
+            {
+               /*  table opened in shared mode, but the record/ table is not locked */
                hb_xvmSeqEnd();
-            return 201;
+               return 201;
+            }
+            else
+               leto_GotoIf( pArea, ulRecNo );
          }
-         else if( ! pTA )
-            SELF_GOTO( pArea, ulRecNo );
          else
             pTA->ulRecNo = ulRecNo;
       }
 
-      if( *pDelRecall != '0' )  /* bDelete || bRecall */
+      if( *( ++ptrPar ) != '0' )  /* bDelete || bRecall */
       {
-         HB_BOOL bDelete = *pDelRecall == '1' ? HB_TRUE : HB_FALSE;
-         HB_BOOL bRecall = *pDelRecall == '2' ? HB_TRUE : HB_FALSE;
+         HB_BOOL bDelete = *ptrPar == '1' ? HB_TRUE : HB_FALSE;
+         HB_BOOL bRecall = *ptrPar == '2' ? HB_TRUE : HB_FALSE;
 
          if( pTA )
             pTA->uiFlag = ( ( bDelete ) ? 1 : 0 ) | ( ( bRecall ) ? 2 : 0 );
@@ -6041,7 +6036,7 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
          PHB_ITEM     pItem = hb_itemNew( NULL );
          HB_USHORT    uiFieldCount = pArea->uiFieldCount;  // SELF_FIELDCOUNT( pArea, &uiFieldCount ) | pAStru->pTStru->uiFields
          HB_UCHAR     uLenLen, n255 = uiFieldCount > 255 ? 2 : 1;
-         const char * ptr = pDelRecall + 2;
+         const char * ptr = ptrPar + 2;
          int          i;
 
          if( pTA )
@@ -6173,6 +6168,7 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
                case HB_FT_INTEGER:
                case HB_FT_CURRENCY:
                case HB_FT_AUTOINC:
+               case HB_FT_ROWVER:
                   if( pField->uiDec )
                   {
                      int    iLen;
@@ -6206,8 +6202,9 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
                            iRes = 3;
                            break;
                      }
-                     hb_itemPutNDLen( pItem, hb_numDecConv( dVal, ( int ) pField->uiDec ),
-                                      iLen, ( int ) pField->uiDec );
+                     if( ! iRes )
+                        hb_itemPutNDLen( pItem, hb_numDecConv( dVal, ( int ) pField->uiDec ),
+                                         iLen, ( int ) pField->uiDec );
                   }
                   else
                   {
@@ -6237,6 +6234,8 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
                            break;
                      }
                   }
+                  if( ! iRes )
+                     ptr += pField->uiLen;
                   break;
 
                case HB_FT_DOUBLE:
@@ -6321,18 +6320,19 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
                      }
                   }
                   break;
+
+               default:  /* unhandled field type */
+                  iRes = 3;
+                  break;
             }
 
             if( iRes )
-               break;
-
-            if( pTA )
             {
-               pTA->puiIndex[ i ] = uiField;
-               pTA->pItems[ i ] = hb_itemNew( pItem );
-               hb_itemClear( pItem );
+               leto_wUsLog( pUStru, -1, "ERROR leto_UpdateRecord( %lu:%d ) put value invalid", ulRecNo, uiField );
+               break;
             }
-            else
+
+            if( ! pTA )
             {
                if( SELF_PUTVALUE( pArea, uiField, pItem ) != HB_SUCCESS )
                {
@@ -6340,12 +6340,11 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
                   iRes = 102;
                   break;
                }
-               else if( pUStru->iHbError )
-               {
-                  leto_wUsLog( pUStru, 0, "ERROR leto_UpdateRecord() record locking" );
-                  iRes = 102;
-                  break;
-               }
+            }
+            else
+            {
+               pTA->puiIndex[ i ] = uiField;
+               pTA->pItems[ i ] = hb_itemNew( pItem );
             }
          }
 
@@ -6398,18 +6397,19 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
                   }
                   else
                   {
-                     char * ptr = szData1;
-
-                     *ptr++ = '+';
-                     ptr += ultostr( ulRecNo, ptr );
-                     *ptr++ = ';';
-                     *ptr = '\0';
+                     szData1[ 0 ] = '+';
+                     ulLen = ultostr( ulRecNo, szData1 + 1 ) + 1;
+                     szData1[ ulLen++ ] = ';';
+                     szData1[ ulLen ] = '\0';
                      pData = szData1;
                   }
                }
             }
             else
+            {
+               ulLen = 4;
                pData = szOk;
+            }
             break;
 
          case 2:
@@ -6839,30 +6839,25 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    PAREASTRU    pAStru = pUStru->pCurAStru;
-   char *       szData1 = NULL;
+   char *       szData1 = NULL, * ptr;
    const char * pData = NULL;
-   const char * pRecNo, * pFlags, * pHotBuffer;
-   HB_ULONG     ulRecNo;
-   HB_ULONG     ulLen = 4;
-   HB_LONG      lSkip;
+   HB_ULONG     ulRecNo, ulLen = 4;
+   HB_LONG      lSkip = strtol( szData, &ptr, 10 );;
    HB_BOOL      bMutex, bHotBuffer;
-   int          nParam = leto_GetParam( szData, &pRecNo, &pFlags, &pHotBuffer, NULL );
 
-   if( nParam < 3 || ! pArea )
+   if( *ptr != ';' )
       pData = szErr2;
    else
    {
-      lSkip = atol( szData );
-      ulRecNo = strtoul( pRecNo, NULL, 10 );
-      if( pUStru->bDeleted != ( *pFlags & 0x01 ) )
+      ulRecNo = strtoul( ++ptr, &ptr, 10 );
+      ptr++;
+      if( pUStru->bDeleted != ( *ptr & 0x01 ) )
       {
-         pUStru->bDeleted = ( *pFlags & 0x01 );
+         pUStru->bDeleted = ( *ptr & 0x01 );
          leto_setSetDeleted( pUStru->bDeleted );
       }
-      if( pHotBuffer )
-         bHotBuffer = *pHotBuffer == 'T';
-      else
-         bHotBuffer = HB_TRUE;
+      ptr += 2;
+      bHotBuffer = *ptr == 'T';
       bMutex = ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO && pAStru->itmFltExpr );
 
       if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
@@ -7148,30 +7143,29 @@ static void leto_Goto( PUSERSTRU pUStru, const char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    PAREASTRU    pAStru = pUStru->pCurAStru;
-   char *       szData1 = NULL;
-   const char * pData, * pFlags;
+   char *       szData1 = NULL, * ptr;
+   const char * pData;
    HB_ULONG     ulLen;
+   HB_LONG      lRecNo = strtol( szData, &ptr, 10 );
    HB_ERRCODE   errCode;
-   int          nParam = leto_GetParam( szData, &pFlags, NULL, NULL, NULL );
 
-   if( nParam < 2 || ! pArea )
+   if( *ptr != ';' )
    {
       pData = szErr2;
       ulLen = 4;
    }
    else
    {
-      HB_LONG lRecNo = atol( szData );
-
       if( lRecNo > 0 )
          errCode = SELF_GOTO( pArea, ( HB_ULONG ) lRecNo );
       else if( ( lRecNo == -1 ) || ( lRecNo == -2 ) )
       {
          HB_BOOL bTop = lRecNo == -1;
 
-         if( pUStru->bDeleted != ( *pFlags & 0x01 ) )
+         ptr++;
+         if( pUStru->bDeleted != ( *ptr & 0x01 ) )
          {
-            pUStru->bDeleted = ( *pFlags & 0x01 );
+            pUStru->bDeleted = ( *ptr & 0x01 );
             leto_setSetDeleted( pUStru->bDeleted );
          }
          if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
@@ -7213,21 +7207,21 @@ static void leto_Goto( PUSERSTRU pUStru, const char * szData )
 static int leto_Memo( PUSERSTRU pUStru, const char * szData, TRANSACTSTRU * pTA, AREAP pArea )
 {
    PAREASTRU    pAStru = pUStru->pCurAStru;
-   const char * pNumRec, * pField, * pData = NULL;
+   const char * pData = NULL;
    int          iRes = 0;
-   int          nParam = leto_GetParam( szData, &pNumRec, &pField, /*pMemo*/ NULL, NULL );
    HB_BOOL      bPut = HB_FALSE;
    HB_ULONG     ulLen = 4;
 
-   if( nParam < 3 )
+   if( *( szData + 1 ) != ';' )
    {
       pData = szErr2;
       iRes = 2;
    }
    else
    {
-      HB_ULONG  ulRecNo = strtoul( pNumRec, NULL, 10 );
-      HB_USHORT uiField = ( HB_USHORT ) atoi( pField );
+      char *    ptrPar;
+      HB_ULONG  ulRecNo = strtoul( szData + 2, &ptrPar, 10 );
+      HB_USHORT uiField = ( HB_USHORT ) strtoul( ++ptrPar, &ptrPar, 10 );
       HB_BOOL   bAdd = HB_FALSE;
 
       if( ( ! ulRecNo && ! pTA ) || ! uiField )
@@ -7285,7 +7279,7 @@ static int leto_Memo( PUSERSTRU pUStru, const char * szData, TRANSACTSTRU * pTA,
 
             if( bPut )
             {
-               const char * pMemo = pField + strlen( pField ) + 1;  /* possible binary data */
+               const char * pMemo = ptrPar + 1;  /* possible binary data */
                HB_UCHAR     uLenLen;
                HB_ULONG     ulMemoLen;
 
@@ -9765,11 +9759,13 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
                if( ! ulRecNo )
                {
                   for( i1 = i - 1; i1 >= 0; i1-- )
+                  {
                      if( pArea == pTA[ i1 ].pArea && pTA[ i1 ].bAppend )
                      {
                         ulRecNo = pTA[ i1 ].ulRecNo;
                         break;
                      }
+                  }
                }
                SELF_GOTO( pArea, ulRecNo );
             }
@@ -11733,7 +11729,7 @@ static void leto_OrderInfo( PUSERSTRU pUStru, const char * szData )
             case DBOI_CUSTOM:
             case DBOI_UNIQUE:
                pOrderInfo.itmResult = hb_itemPutL( NULL, HB_FALSE );
-               if( nParam > 3 && pOrdPar[ 0 ] )
+               if( nParam > 2 && pOrdPar[ 0 ] )
                   pOrderInfo.itmNewVal = hb_itemPutL( NULL, ( pOrdPar[ 0 ] == 'T' ) );
                break;
 
@@ -11756,11 +11752,17 @@ static void leto_OrderInfo( PUSERSTRU pUStru, const char * szData )
 
             default:
                pOrderInfo.itmResult = hb_itemPutL( NULL, HB_FALSE );
-               if( nParam > 3 && pOrdPar[ 0 ] )
+               if( nParam > 2 && pOrdPar[ 0 ] )
                   pOrderInfo.itmNewVal = hb_itemPutC( NULL, pOrdPar );
          }
 
+         hb_xvmSeqBegin();
          SELF_ORDINFO( pArea, uiCommand, &pOrderInfo );
+         hb_xvmSeqEnd();
+
+         if( pUStru->iHbError )
+            pOrderInfo.itmResult = hb_itemPutL( pOrderInfo.itmResult, HB_FALSE );
+
          szData1[ 0 ] = '+';
          szData1[ 1 ] = hb_itemGetL( pOrderInfo.itmResult ) ? 'T' : 'F';
          szData1[ 2 ] = ';';

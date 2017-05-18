@@ -2,6 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-05-18 14:15 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+    ! fix creating a missing ALIAS for creating table:
+      in case ALIAS is explicitely blank ( "" ), create a temporary one not
+      derived from filename to avoid duplicate ALIAS e.g. for COPY TO same
+      filename but in different directory
+
+  * source/server/letofunc.c
+    ! fix updating HB_FT_INTEGER, HB_FT_CURRENCY, HB_FT_AUTOINC field types:
+      missing buffer pointer increment;
+      add type HB_FT_ROWVER -- this and above are rarely used FP field types
+    % optimize away one temp ptr, cleanings in leto_UpdateRecord()
+    % simplify leto_Skip(), leto_Goto(), leto_UpdateRecord() and leto_Memo()
+      by substitute of leto_GetParam() call
+
 2017-03-31 09:17 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     ! VERY IMPORTANT FUNDAMENTAL BUG FIX about requesting memo fields,
