@@ -790,7 +790,7 @@ static HB_BOOL leto_DetachArea( PAREASTRU pAStru )
       {
          if( ! pArea->atomAlias )
             pArea = NULL;
-         else if( leto_stricmp( hb_dynsymName( (PHB_DYNS ) pArea->atomAlias ), pAStru->pTStru->szLetoAlias ) )
+         else if( leto_stricmp( hb_dynsymName( ( PHB_DYNS ) pArea->atomAlias ), pAStru->pTStru->szLetoAlias ) )
             pArea = NULL;
       }
 
@@ -955,7 +955,7 @@ static AREAP leto_SelectArea( PUSERSTRU pUStru, HB_ULONG ulAreaID )
       {
          if( pAStru->bNotDetached )
          {
-            int      iArea;
+            int iArea;
 
             if( s_bNoSaveWA && ! pAStru->pTStru->bMemIO )  // ToDo memio alias
                iArea = ( int ) ulAreaID;  /*same as client */
@@ -1038,14 +1038,10 @@ HB_FUNC( LETO_SELECTAREA )
    PUSERSTRU pUStru = letoGetUStru();
    HB_ULONG  ulAreaID = hb_parnl( 1 );
 
-   //HB_GC_LOCKT();
-
    if( pUStru->pCurAStru && leto_SelectArea( pUStru, ulAreaID ) )
       hb_retl( HB_TRUE );
    else
       hb_retl( HB_FALSE );
-
-   //HB_GC_UNLOCKT();
 }
 
 /* HB_GC_LOCKT() must be ensured by caller */
@@ -1054,31 +1050,22 @@ static HB_ULONG leto_CreateAreaID( void )
    HB_ULONG ulRetVal;
 
    if( s_AvailIDS.iCurIndex <= 0 )
-   {
-      ++s_AvailIDS.ulNextID;
-      ulRetVal = s_AvailIDS.ulNextID;
-   }
+      ulRetVal = ++s_AvailIDS.ulNextID;
    else
-   {
-      --s_AvailIDS.iCurIndex;
-      ulRetVal = s_AvailIDS.pulAreaID[ s_AvailIDS.iCurIndex ];
-   }
+      ulRetVal = s_AvailIDS.pulAreaID[ --s_AvailIDS.iCurIndex ];
 
    return ulRetVal;
 }
 
 /* HB_GC_LOCKT() must be ensured by caller */
-static void leto_DelAreaID( HB_ULONG ulAreaID )
+static void leto_DelAreaID( const char * szAlias )
 {
-   if( ! ulAreaID )
-   {
-      leto_writelog( NULL, 0, "ERROR leto_DelAreaID! param, inform server developer" );
-      return;
-   }
+   HB_ULONG ulAreaID = *szAlias ? strtoul( szAlias + 1, NULL, 10 ) : 0;
 
-   if( ulAreaID > s_AvailIDS.ulNextID )
+   if( ! ulAreaID || ulAreaID > s_AvailIDS.ulNextID )  /* should never happen */
    {
-      leto_writelog( NULL, 0, "ERROR leto_DelAreaID! nAreaID > s_AvailIDS.ulNextID, inform server developer" );
+      leto_writelog( NULL, -1, "ERROR leto_DelAreaID! nAreaID (%lu) invalid, s_AvailIDS.ulNextID == %lu )",
+                               ulAreaID, s_AvailIDS.ulNextID );
       return;
    }
 
@@ -1094,8 +1081,7 @@ static void leto_DelAreaID( HB_ULONG ulAreaID )
       s_AvailIDS.pulAreaID = ( HB_ULONG * ) hb_xrealloc( s_AvailIDS.pulAreaID, sizeof( HB_ULONG ) * s_AvailIDS.iAllocIndex );
    }
 
-   s_AvailIDS.pulAreaID[ s_AvailIDS.iCurIndex ] = ulAreaID;
-   ++s_AvailIDS.iCurIndex;
+   s_AvailIDS.pulAreaID[ s_AvailIDS.iCurIndex++ ] = ulAreaID;
 }
 
 /* caller must free result: translate client ALIAS to possible different server-side ALIAS */
@@ -2870,9 +2856,8 @@ static void leto_CloseGlobe( PGLOBESTRU pGStru )
 /* HB_GC_LOCKT() must be ensured by caller */
 static void leto_CloseTable( PTABLESTRU pTStru )
 {
-   /* HB_GC_LOCKT(); */
    if( ! s_bNoSaveWA || pTStru->bMemIO )
-      leto_DelAreaID( pTStru->ulAreaID );
+      leto_DelAreaID( pTStru->szLetoAlias );
 
    if( pTStru->szTable )
    {
@@ -2908,8 +2893,6 @@ static void leto_CloseTable( PTABLESTRU pTStru )
    s_uiTablesCurr--;
    if( ( pTStru - s_tables ) / sizeof( TABLESTRU ) < s_uiTablesFree )
       s_uiTablesFree = ( pTStru - s_tables ) / sizeof( TABLESTRU );
-
-   /* HB_GC_UNLOCKT(); */
 }
 
 static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT uiTable, HB_USHORT uiLen, const char * szCdp, unsigned char uMemoType )
@@ -4598,6 +4581,104 @@ static HB_BOOL leto_DirMake( const char * szTarget, HB_BOOL bFilename )
 
    return bRet;
 }
+
+/* leto_udf() */
+HB_FUNC( LETO_FOPEN )  // ToDo: add handle to an array to be verified closed at connection end
+{
+   /* PUSERSTRU pUStru = letoGetUStru(); */
+
+   if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+   {
+      char szPath[ HB_PATH_MAX ];
+
+      leto_DataPath( hb_parc( 1 ), szPath );
+      hb_retnint( ( HB_NHANDLE ) hb_fsOpen( szPath, ( HB_USHORT ) hb_parnidef( 2, FO_READ | FO_COMPAT ) ) );
+      hb_fsSetFError( hb_fsError() );
+   }
+   else
+   {
+      hb_retni( -1 );
+      hb_fsSetFError( 0 );
+   }
+}
+
+/* leto_udf() */
+HB_FUNC( LETO_FCREATE )  // ToDo: add handle to an array to be verified closed at connection end
+{
+   /* PUSERSTRU pUStru = letoGetUStru(); */
+
+   if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+   {
+      char szPath[ HB_PATH_MAX ];
+
+      leto_DataPath( hb_parc( 1 ), szPath );
+      hb_retnint( ( HB_NHANDLE ) hb_fsCreate( szPath, hb_parnidef( 2, FC_NORMAL ) ) );
+      hb_fsSetFError( hb_fsError() );
+   }
+   else
+   {
+      hb_retni( -1 );
+      hb_fsSetFError( 0 );
+   }
+}
+
+/* leto_udf() */
+HB_FUNC( LETO_FCLOSE )
+{
+   if( s_bFileFunc && HB_ISNUM( 1 ) && hb_parni( 1 ) >= 0 )
+   {
+      HB_ERRCODE uiError;
+
+      hb_fsClose( hb_numToHandle( hb_parnint( 1 ) ) );
+      uiError = hb_fsError();
+      hb_retl( uiError == 0 );
+      hb_fsSetFError( uiError );
+   }
+   else
+   {
+      hb_retl( HB_FALSE );
+      hb_fsSetFError( 0 );
+   }
+}
+
+/* leto_udf() */
+HB_FUNC( LETO_FERASE )
+{
+   if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+   {
+      char szSrc[ HB_PATH_MAX ];
+
+      leto_DataPath( hb_parc( 1 ), szSrc );
+      hb_retni( hb_fsDelete( szSrc ) ? 0 : -1 );
+      hb_fsSetFError( hb_fsError() );
+   }
+   else
+   {
+      hb_retni( -1 );
+      hb_fsSetFError( 3 );
+   }
+}
+
+/* leto_udf() */
+HB_FUNC( LETO_FRENAME )
+{
+   if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+   {
+      char szSrc[ HB_PATH_MAX ];
+      char szDst[ HB_PATH_MAX ];
+
+      leto_DataPath( hb_parc( 1 ), szSrc );
+      leto_DataPath( hb_parc( 2 ), szDst );
+      hb_retni( hb_fsRename( szSrc, szDst ) ? 0 : -1 );
+      hb_fsSetFError( hb_fsError() );
+   }
+   else
+   {
+      hb_retni( -1 );
+      hb_fsSetFError( 2 );
+   }
+}
+
 
 static HB_BOOL leto_FilePathChk( const char * szPath )
 {
@@ -11436,7 +11517,7 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
                   hb_itemRelease( pArray );
                if( ! pUStru->iHbError )
                {
-                  char *   pParam = hb_itemSerialize( hb_param( -1, HB_IT_ANY ),
+                  char *   pParam = hb_itemSerialize( hb_param( -1, HB_IT_ANY ),  /* not for HB_IT_POINTER */
                                                       HB_SERIALIZE_NUMSIZE, &nSize );
                   HB_ULONG ulLen = leto_CryptText( pUStru, pParam, nSize, 0 );
 
@@ -12105,7 +12186,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             if( ( s_bNoSaveWA && ! bMemIO ) )
             {
                strcpy( szRealAlias, szAlias );
-               ulAreaID =  ulSelectID;
+               ulAreaID = ulSelectID;
                uiArea = ( HB_USHORT ) ulSelectID;
             }
             else
@@ -12139,8 +12220,8 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
 
             if( errcode != HB_SUCCESS )
             {
-               if( s_bNoSaveWA && bMemIO )
-                  leto_DelAreaID( ulAreaID );
+               if( ! s_bNoSaveWA || bMemIO )
+                  leto_DelAreaID( szRealAlias );
                if( pUStru->iHbError == 32 || hb_rddGetNetErr() )
                   sprintf( szReply, "%s%s%s", szErr4, pUStru->szHbError ? pUStru->szHbError + 4 : ":21-1023-0-0\t", szFile );  /* EDBF_SHARED */
                else
@@ -12148,12 +12229,10 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             }
             else
             {
-               PHB_ITEM pItem = hb_itemNew( NULL );
+               PHB_ITEM pItem = hb_itemPutNI( NULL, leto_lockScheme( uiNtxType ) );
 
-               pItem = hb_itemPutNI( pItem, leto_lockScheme( uiNtxType ) );
                hb_setSetItem( HB_SET_DBFLOCKSCHEME, pItem );
-               if( pItem )
-                  hb_itemRelease( pItem );
+               hb_itemRelease( pItem );
 
                if( ! ulSelectID )
                   ulSelectID = hb_rddGetCurrentWorkAreaNumber();
@@ -12187,6 +12266,8 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                }
                else
                {
+                  if( ! s_bNoSaveWA || bMemIO )
+                     leto_DelAreaID( szRealAlias );
                   pData = szErr3;
                   errcode = HB_FAILURE;
                }
@@ -12800,8 +12881,8 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
 
          if( errcode != HB_SUCCESS )
          {
-            if( s_bNoSaveWA && bMemIO )
-               leto_DelAreaID( ulAreaID );
+            if( ! s_bNoSaveWA || bMemIO )
+               leto_DelAreaID( szRealAlias );
             if( pUStru->szHbError )
                sprintf( szReply, "%s%s", szErr4, pUStru->szHbError + 4 );
             else
@@ -12821,6 +12902,8 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
             }
             else
             {
+               if( ! s_bNoSaveWA || bMemIO )
+                  leto_DelAreaID( szRealAlias );
                pData = szErr3;
                errcode = HB_FAILURE;
             }

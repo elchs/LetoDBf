@@ -2,6 +2,20 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-05-30 14:33 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    ! correct re-using server internal! ALIAS names for MemIO tables,
+      when these are closed/ failed to open;
+      same for all tables in mode No_Save_WA=0 in case of failed open
+    * minor formatting
+    + add server side UDP functions:
+      Leto_FOpen, Leto_FCreate, Leto_FClose ( Leto_FRename, Leto_FErase )
+
+  * source/server/server.prg
+    * add low level file-IO Fxxxx() functions to be linked to server;
+      except FOpen and FCreate, but herfore Leto_FOpen/ LetoFCreate.
+      These work like Harbour functions, but add the server datapath
+
 2017-05-18 14:15 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     ! fix creating a missing ALIAS for creating table:

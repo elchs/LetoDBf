@@ -121,14 +121,16 @@ REQUEST hb_idleSleep, hb_milliSeconds
 
 REQUEST dbGoTop, dbGoBottom, dbSkip, dbGoto, dbSeek, Bof, Eof, dbEval, dbInfo, dbStruct
 REQUEST dbAppend, dbDelete, dbRecall, dbCommit
-REQUEST __dbJoin
 REQUEST ordKeyVal, dbOrderInfo, RDDinfo, Alias, Select, dbSelectArea
+
+REQUEST FSEEK, FREAD, FREADSTR, FWRITE, FCLOSE, FERROR  /* !NO! FOPEN, FCREATE  */
+REQUEST LETO_FOPEN, LETO_FCREATE, LETO_FCLOSE, LETO_FRENAME, LETO_FERASE
 
 REQUEST LETO_VARSET, LETO_VARGET, LETO_VARINCR, LETO_VARDECR, LETO_VARDEL, LETO_VARGETLIST
 REQUEST LETO_VARGETCACHED, LETO_BVALUE, LETO_BSEARCH
 
 REQUEST LETO_GETUSTRUID, LETO_WUSLOG, LETO_GETAPPOPTIONS
-REQUEST LETO_SELECT, LETO_SELECTAREA, LETO_ALIAS, LETO_AREAID, LETO_SELECTAREA
+REQUEST LETO_SELECT, LETO_SELECTAREA, LETO_ALIAS, LETO_AREAID
 REQUEST LETO_RECLOCK, LETO_RECLOCKLIST, LETO_RECUNLOCK, LETO_TABLELOCK, LETO_TABLEUNLOCK
 REQUEST LETO_DBUSEAREA, LETO_DBCLOSEAREA, LETO_ORDLISTADD
 REQUEST LETO_DBCREATE, LETO_ORDCREATE
@@ -515,7 +517,7 @@ METHOD New() CLASS HApp
                      nCacheRecords := 10
                   ENDIF
                ELSEIF aIni[ i, 2, j, 1 ] == "TABLES_MAX"
-                  IF ( nTables_max := Val( aIni[ i, 2, j, 2 ] ) ) <= 100 .OR. nTables_max > 200000
+                  IF ( nTables_max := Val( aIni[ i, 2, j, 2 ] ) ) <= 100 .OR. nTables_max > 1000000
                      nTables_max := NIL
                   ENDIF
                ELSEIF aIni[ i, 2, j, 1 ] == "USERS_MAX"
