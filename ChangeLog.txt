@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-05-31 14:41 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letomgmn.c
+    + add Leto_Fread(), same Params as Fread()
+      ; calls FReadStr as UDF and emulate @ param by reference
+
 2017-05-30 14:33 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     ! correct re-using server internal! ALIAS names for MemIO tables,

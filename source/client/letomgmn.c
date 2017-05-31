@@ -250,6 +250,37 @@ HB_FUNC( LETO_FCOPY )
       hb_retni( -1 );
 }
 
+HB_FUNC( LETO_FREAD )
+{
+   HB_MAXINT nHandle = hb_parnint( 1 );
+   HB_SIZE   nLen = hb_parns( 3 ), nRead = 0;
+
+   if( HB_ISNUM( 1 ) && HB_ISCHAR( 2 ) && HB_ISBYREF( 2 ) && HB_ISNUM( 3 ) )
+   {
+      PHB_DYNS pDo = hb_dynsymFind( "LETO_UDF" );
+
+      if( pDo && nLen <= hb_parcsiz( 2 ) )
+      {
+         PHB_ITEM pRetVal;
+
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushString( "FReadStr", 8 );
+         hb_vmPushNumInt( nHandle );
+         hb_vmPushNumInt( nLen );
+         hb_vmDo( 3 );
+         pRetVal = hb_stackReturnItem();
+         if( hb_itemTypeStr( pRetVal)[ 0 ] == 'C' )
+         {
+            hb_storc( hb_itemGetCPtr( pRetVal ), 2 );
+            nRead = hb_itemGetCLen( pRetVal );
+         }
+      }
+   }
+
+   hb_retns( nRead );
+}
+
 static void leto_BufferResize( LETOCONNECTION * pConnection )
 {
    if( pConnection->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
