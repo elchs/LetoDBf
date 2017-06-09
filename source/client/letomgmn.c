@@ -397,7 +397,10 @@ HB_FUNC( LETO_FREAD )
 
       if( pDo && nLen <= hb_parcsiz( 2 ) )
       {
-         PHB_ITEM pRetVal;
+         PHB_ITEM pRefVal = hb_param( 2, HB_IT_STRING );
+         PHB_ITEM pResult;
+         HB_SIZE  nSize;
+         char *   pBuffer;
 
          hb_vmPushDynSym( pDo );
          hb_vmPushNil();
@@ -405,12 +408,12 @@ HB_FUNC( LETO_FREAD )
          hb_vmPushNumInt( nHandle );
          hb_vmPushNumInt( nLen );
          hb_vmDo( 3 );
-         pRetVal = hb_stackReturnItem();
-         if( hb_itemTypeStr( pRetVal )[ 0 ] == 'C' )
+         pResult = hb_stackReturnItem();
+         if( ( hb_itemType( pResult ) & HB_IT_STRING ) &&
+             hb_itemGetWriteCL( pRefVal, &pBuffer, &nSize ) )
          {
-            nRead = hb_itemGetCLen( pRetVal );
-            hb_storclen( hb_itemGetCPtr( pRetVal ), nRead, 2  );
-            nRead = hb_itemGetCLen( pRetVal );
+            nRead = hb_itemGetCLen( pResult );
+            memcpy( pBuffer, hb_itemGetCPtr( pResult ), nRead );
          }
       }
    }

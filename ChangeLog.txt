@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-06-09 23:17 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letomgmn.c
+    * Leto_Fread() not to resize the referenced string buffer, but to copy the
+      result into param instead using hb_storclen()
+
 2017-06-09 19:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     + add wrappers for: Leto_FOpen, Leto_FCreate, Leto_FClose,
