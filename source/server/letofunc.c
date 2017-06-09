@@ -3510,6 +3510,18 @@ void leto_CloseUS( PUSERSTRU pUStru )
       hb_xfree( pUStru->szUsername );
       pUStru->szUsername = NULL;
    }
+   if( pUStru->ulOpenHandles )
+   {
+      HB_ULONG ulPos;
+
+      for( ulPos = 0; ulPos < pUStru->ulOpenHandles; ulPos++ )
+      {
+         hb_fsClose( hb_numToHandle( pUStru->pOpenHandles[ ulPos ] ) );
+      }
+      hb_xfree( pUStru->pOpenHandles );
+      pUStru->pOpenHandles = NULL;
+      pUStru->ulOpenHandles = 0;
+   }
 
    leto_varsown_release( pUStru );
 
@@ -4582,17 +4594,66 @@ static HB_BOOL leto_DirMake( const char * szTarget, HB_BOOL bFilename )
    return bRet;
 }
 
-/* leto_udf() */
-HB_FUNC( LETO_FOPEN )  // ToDo: add handle to an array to be verified closed at connection end
+static void leto_AddHandle( PUSERSTRU pUStru, HB_MAXINT nHandle )
 {
-   /* PUSERSTRU pUStru = letoGetUStru(); */
+   if( nHandle >= 0 )
+   {
+      if( ! pUStru->ulOpenHandles )
+      {
+         pUStru->ulOpenHandles = 1;
+         pUStru->pOpenHandles = ( HB_MAXINT * ) hb_xgrab( sizeof( HB_MAXINT ) );
+      }
+      else
+         pUStru->pOpenHandles = hb_xrealloc( pUStru->pOpenHandles, sizeof( HB_MAXINT ) * ++pUStru->ulOpenHandles );
+      pUStru->pOpenHandles[ pUStru->ulOpenHandles - 1 ] = nHandle;
+   }
+}
+
+static HB_BOOL leto_DelHandle( PUSERSTRU pUStru, HB_MAXINT nHandle )
+{
+   if( nHandle >= 0 && pUStru->ulOpenHandles )
+   {
+      HB_ULONG ulPos;
+
+      for( ulPos = 0; ulPos < pUStru->ulOpenHandles; ulPos++ )
+      {
+         if( pUStru->pOpenHandles[ ulPos ] == nHandle )
+         {
+            if( ulPos + 1 < pUStru->ulOpenHandles )
+            {
+               memmove( pUStru->pOpenHandles + ulPos, pUStru->pOpenHandles + ulPos + 1,
+                        sizeof( HB_MAXINT ) * pUStru->ulOpenHandles - ( ulPos - 1 ) );
+            }
+            if( --pUStru->ulOpenHandles )
+               pUStru->pOpenHandles = hb_xrealloc( pUStru->pOpenHandles, sizeof( HB_MAXINT ) * pUStru->ulOpenHandles );
+            else
+            {
+               hb_xfree( pUStru->pOpenHandles );
+               pUStru->pOpenHandles = NULL;
+            }
+
+            return HB_TRUE;
+         }
+      }
+   }
+
+   return HB_FALSE;
+}
+
+/* leto_udf() */
+HB_FUNC( LETO_FOPEN )
+{
+   PUSERSTRU pUStru = letoGetUStru();
 
    if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
    {
-      char szPath[ HB_PATH_MAX ];
+      char      szPath[ HB_PATH_MAX ];
+      HB_MAXINT nHandle;
 
       leto_DataPath( hb_parc( 1 ), szPath );
-      hb_retnint( ( HB_NHANDLE ) hb_fsOpen( szPath, ( HB_USHORT ) hb_parnidef( 2, FO_READ | FO_COMPAT ) ) );
+      nHandle = ( HB_NHANDLE ) hb_fsOpen( szPath, ( HB_USHORT ) hb_parnidef( 2, FO_READ | FO_COMPAT ) );
+      leto_AddHandle( pUStru, nHandle );
+      hb_retnint( nHandle );
       hb_fsSetFError( hb_fsError() );
    }
    else
@@ -4603,21 +4664,50 @@ HB_FUNC( LETO_FOPEN )  // ToDo: add handle to an array to be verified closed at 
 }
 
 /* leto_udf() */
-HB_FUNC( LETO_FCREATE )  // ToDo: add handle to an array to be verified closed at connection end
+HB_FUNC( LETO_FCREATE )
 {
-   /* PUSERSTRU pUStru = letoGetUStru(); */
+   PUSERSTRU pUStru = letoGetUStru();
 
    if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
    {
-      char szPath[ HB_PATH_MAX ];
+      char      szPath[ HB_PATH_MAX ];
+      HB_MAXINT nHandle;
 
       leto_DataPath( hb_parc( 1 ), szPath );
-      hb_retnint( ( HB_NHANDLE ) hb_fsCreate( szPath, hb_parnidef( 2, FC_NORMAL ) ) );
+      nHandle = ( HB_NHANDLE ) hb_fsCreate( szPath, hb_parnidef( 2, FC_NORMAL ) );
+      leto_AddHandle( pUStru, nHandle );
+      hb_retnint( nHandle );
       hb_fsSetFError( hb_fsError() );
    }
    else
    {
       hb_retni( -1 );
+      hb_fsSetFError( 0 );
+   }
+}
+
+/* leto_udf() -- similar hb_FReadLen() */
+HB_FUNC( LETO_FREAD )
+{
+   if( s_bFileFunc && HB_ISNUM( 1 ) && ( HB_ISNUM( 2 ) ) )
+   {
+      HB_MAXINT nHandle = hb_numToHandle( hb_parnint( 1 ) );
+      HB_SIZE   nBytes = hb_parns( 2 );
+      char *    pBuffer;
+      
+      if( nBytes > 0 )
+      {
+         pBuffer = ( char * ) hb_xgrab( nBytes + 1 );
+         nBytes = hb_fsReadLarge( nHandle, pBuffer, nBytes );
+         hb_retclen_buffer( pBuffer, nBytes );
+         hb_fsSetFError( hb_fsError() );
+      }
+      else
+         hb_retc_null();
+   }
+   else
+   {
+      hb_retc_null();
       hb_fsSetFError( 0 );
    }
 }
@@ -4625,12 +4715,21 @@ HB_FUNC( LETO_FCREATE )  // ToDo: add handle to an array to be verified closed a
 /* leto_udf() */
 HB_FUNC( LETO_FCLOSE )
 {
+   PUSERSTRU  pUStru = letoGetUStru();
+   HB_ERRCODE uiError = 0;
+
    if( s_bFileFunc && HB_ISNUM( 1 ) && hb_parni( 1 ) >= 0 )
    {
-      HB_ERRCODE uiError;
 
-      hb_fsClose( hb_numToHandle( hb_parnint( 1 ) ) );
-      uiError = hb_fsError();
+      HB_MAXINT  nHandle = hb_parnint( 1 );
+
+      if( leto_DelHandle( pUStru, nHandle ) )
+      {
+         hb_fsClose( hb_numToHandle( nHandle ) );
+         uiError = hb_fsError();
+      }
+      else
+         uiError = 2;
       hb_retl( uiError == 0 );
       hb_fsSetFError( uiError );
    }
@@ -6332,9 +6431,14 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
                   {
                      hb_itemPutTDT( pItem, 0, HB_GET_LE_INT32( ptr ) );
                      ptr += pField->uiLen;
-                     break;
                   }
-                  /* no break */
+                  else
+                  {
+                     hb_itemPutTDT( pItem, HB_GET_LE_INT32( ptr ), HB_GET_LE_INT32( ptr + 4 ) );
+                     ptr += pField->uiLen;
+                  }
+                  break;
+
                case HB_FT_MODTIME:
                case HB_FT_TIMESTAMP:
                   hb_itemPutTDT( pItem, HB_GET_LE_INT32( ptr ), HB_GET_LE_INT32( ptr + 4 ) );
@@ -7075,11 +7179,12 @@ static PHB_ITEM leto_mkCodeBlock( PUSERSTRU pUStru, const char * szExp, HB_ULONG
          szMacro = leto_AliasTranslate( pUStru, szMacro, &ulLen );
       }
 
+      if( bSecured )
+         hb_xvmSeqBegin();
+
       pBlock = hb_itemNew( NULL );
       hb_vmPushString( szMacro, ulLen );
 
-      if( bSecured )
-         hb_xvmSeqBegin();
       pFreshBlock = hb_stackItemFromTop( -1 );
       if( pFreshBlock )
       {
@@ -11335,11 +11440,13 @@ static HB_THREAD_STARTFUNC( threadX )
          hb_vmPushNil();
          if( pArray && HB_IS_ARRAY( pArray ) )
          {
-            HB_SIZE nALen = hb_arrayLen( pArray ), nIndex;
+            HB_SIZE nIndex;
 
-            for( nIndex = 1; nIndex <= nALen; nIndex++ )
+            nPCount = hb_arrayLen( pArray );
+            for( nIndex = 1; nIndex <= nPCount; nIndex++ )
+            {
                hb_vmPush( hb_arrayGetItemPtr( pArray, nIndex ) );
-            nPCount += nALen;
+            }
          }
 
          hb_vmDo( ( HB_USHORT ) nPCount );
@@ -11406,6 +11513,10 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
    else
    {
       PHB_DYNS pSym = hb_dynsymFindName( pp4 );
+      PHB_ITEM pBlock = NULL;
+
+      if( uCommand != 3 && uCommand != 9 && ! pSym )
+         pBlock = leto_mkCodeBlock( pUStru, pp4, strlen( pp4 ), HB_TRUE );
 
       if( uCommand == 3 ) /* leto_udfexist */
       {
@@ -11414,7 +11525,7 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
          sprintf( szData1, "+%c;", ( pSym ) ? 'T' : 'F' );
          leto_SendAnswer( pUStru, szData1, 3 );
       }
-      else if( pSym )
+      else if( pSym || pBlock )
       {
          HB_SIZE   nSize;
          PHB_ITEM  pArray = NULL;
@@ -11500,17 +11611,34 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
             if( hb_vmRequestReenter() )
             {
                hb_xvmSeqBegin();
-               hb_vmPushDynSym( pSym );
-               hb_vmPushNil();
+
+               if( pSym )
+               {
+                  hb_vmPushDynSym( pSym );
+                  hb_vmPushNil();
+               }
+               else  /* pBlock */
+               {
+                  hb_vmPushEvalSym();
+                  hb_vmPush( pBlock );
+               }
+
                if( pArray && HB_IS_ARRAY( pArray ) )
                {
-                  HB_SIZE nALen = hb_arrayLen( pArray ), nIndex;
+                  HB_SIZE nIndex;
 
-                  for( nIndex = 1; nIndex <= nALen; nIndex++ )
+                  nPCount = hb_arrayLen( pArray );
+                  for( nIndex = 1; nIndex <= nPCount; nIndex++ )
+                  {
                      hb_vmPush( hb_arrayGetItemPtr( pArray, nIndex ) );
-                  nPCount += nALen;
+                  }
                }
-               hb_vmProc( ( HB_USHORT ) nPCount );
+
+               if( pSym )
+                  hb_vmProc( ( HB_USHORT ) nPCount );
+               else
+                  hb_vmSend( ( HB_USHORT ) nPCount );
+
                hb_xvmSeqEnd();
 
                if( pArray )
@@ -11538,7 +11666,7 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
                hb_vmRequestRestore();
 
                /* detach all areas new requested by LETO_ALIAS() */
-               if( ! s_bNoSaveWA && ulAreaID )
+               if( ulAreaID )
                   leto_FreeArea( pUStru, ulAreaID, HB_TRUE );
                /* close all tables left open after create/ open by udf */
                leto_CloseUdfAreas( pUStru );
@@ -11569,6 +11697,9 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
       }
       else
          leto_SendAnswer( pUStru, szErr2, 4 );
+
+      if( pBlock )
+         hb_vmDestroyBlockOrMacro( pBlock );
    }
 }
 
@@ -12598,8 +12729,8 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
    char         szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
    unsigned int uiReplyBufLen = 1023;
    char *       szReply = hb_xgrab( uiReplyBufLen + 1 );
-   char *       szCdp = NULL;
    char *       ptr, * ptr2, * ptrTmp;
+   const char * szCdp = NULL;
    const char * pData = NULL;
    const char * szMemoExt = NULL;
    const char * pp2 = NULL, * pp3 = NULL, * pp4, * pp5;
@@ -12783,14 +12914,10 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
          {
             *ptrTmp = '\0';
             if( hb_cdpFind( pp5 ) )
-               strcpy( szCdp, pp5 );
-            else
-               szCdp = NULL;
+               szCdp = pp5;
             pp5 = ptrTmp + 1;
          }
       }
-      else
-         szCdp = NULL;
 
       if( pp5 && ( ptrTmp = strchr( pp5, ';' ) ) != NULL && ptrTmp - pp5 > 1 )
       {

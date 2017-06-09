@@ -17,7 +17,7 @@
 
 -debug
 # tracing
--cflag='-DHB_TR_LEVEL=5'
+-cflag=-DHB_TR_LEVEL=5
 # into source:
 # hb_tracelevel(5)
 # hb_traceFile( "/tmp/trace.txt" )

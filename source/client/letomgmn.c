@@ -184,9 +184,26 @@ HB_FUNC( LETO_FERROR )
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
 
    if( pCurrentConn )
-      hb_retni( pCurrentConn->iError );
+   {
+      if( HB_ISLOG( 1 ) && hb_parl( 1 ) )
+      {
+         PHB_DYNS pDo = hb_dynsymFind( "LETO_UDF" );
+
+         if( pDo )
+         {
+            hb_vmPushDynSym( pDo );
+            hb_vmPushNil();
+            hb_vmPushString( "FError", 6 );
+            hb_vmDo( 1 );
+         }
+         else
+            hb_retni( -1 );
+      }
+      else
+         hb_retni( pCurrentConn->iError );
+   }
    else
-      hb_retni( -1 );
+      hb_retni( 0 );
 }
 
 HB_FUNC( LETO_FILE )
@@ -250,6 +267,125 @@ HB_FUNC( LETO_FCOPY )
       hb_retni( -1 );
 }
 
+HB_FUNC( LETO_FOPEN )
+{
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   {
+      PHB_DYNS pDo = hb_dynsymFind( "LETO_UDF" );
+
+      if( pDo )
+      {
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushString( "Leto_FOpen", 10 );
+         hb_vmPushString( hb_parc( 1 ), hb_parclen( 1 ) );
+         if( HB_ISNUM( 2 ) )
+         {
+            hb_vmPushInteger( hb_parni( 2 ) );
+            hb_vmDo( 3 );
+         }
+         else
+            hb_vmDo( 2 );
+         return;
+      }
+   }
+
+   hb_retni( -1 );
+}
+
+HB_FUNC( LETO_FCREATE )
+{
+   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   {
+      PHB_DYNS pDo = hb_dynsymFind( "LETO_UDF" );
+
+      if( pDo )
+      {
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushString( "Leto_FCreate", 12 );
+         hb_vmPushString( hb_parc( 1 ), hb_parclen( 1 ) );
+         if( HB_ISNUM( 2 ) )
+         {
+            hb_vmPushInteger( hb_parni( 2 ) );
+            hb_vmDo( 3 );
+         }
+         else
+            hb_vmDo( 2 );
+         return;
+      }
+   }
+
+   hb_retni( -1 );
+}
+
+HB_FUNC( LETO_FCLOSE )
+{
+   if( HB_ISNUM( 1 ) )
+   {
+      PHB_DYNS pDo = hb_dynsymFind( "LETO_UDF" );
+
+      if( pDo )
+      {
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushString( "Leto_FClose", 11 );
+         hb_vmPushNumInt( hb_parnint( 1 ) );
+         hb_vmDo( 2 );
+         return;
+      }
+   }
+
+   hb_retl( HB_FALSE );
+}
+
+HB_FUNC( LETO_FSEEK )
+{
+   if( HB_ISNUM( 1 ) && HB_ISNUM( 2 ) )
+   {
+      PHB_DYNS pDo = hb_dynsymFind( "LETO_UDF" );
+
+      if( pDo )
+      {
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushString( "FSeek", 5 );
+         hb_vmPushNumInt( hb_parnint( 1 ) );
+         hb_vmPushNumInt( hb_parnint( 2 ) );
+         if( HB_ISNUM( 3 ) )
+         {
+            hb_vmPushInteger( hb_parni( 3 ) );
+            hb_vmDo( 4 );
+         }
+         else
+            hb_vmDo( 3 );
+         return;
+      }
+   }
+
+   hb_retni( -1 );
+}
+
+HB_FUNC( LETO_FEOF )
+{
+   if( HB_ISNUM( 1 ) )
+   {
+      PHB_DYNS pDo = hb_dynsymFind( "LETO_UDF" );
+
+      if( pDo )
+      {
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushString( "HB_FEOF", 7 );
+         hb_vmPushNumInt( hb_parnint( 1 ) );
+         hb_vmDo( 2 );
+         return;
+      }
+   }
+
+   hb_retl( HB_TRUE );
+}
+
 HB_FUNC( LETO_FREAD )
 {
    HB_MAXINT nHandle = hb_parnint( 1 );
@@ -265,20 +401,95 @@ HB_FUNC( LETO_FREAD )
 
          hb_vmPushDynSym( pDo );
          hb_vmPushNil();
-         hb_vmPushString( "FReadStr", 8 );
+         hb_vmPushString( "HB_FReadLen", 11 );
          hb_vmPushNumInt( nHandle );
          hb_vmPushNumInt( nLen );
          hb_vmDo( 3 );
          pRetVal = hb_stackReturnItem();
-         if( hb_itemTypeStr( pRetVal)[ 0 ] == 'C' )
+         if( hb_itemTypeStr( pRetVal )[ 0 ] == 'C' )
          {
-            hb_storc( hb_itemGetCPtr( pRetVal ), 2 );
+            nRead = hb_itemGetCLen( pRetVal );
+            hb_storclen( hb_itemGetCPtr( pRetVal ), nRead, 2  );
             nRead = hb_itemGetCLen( pRetVal );
          }
       }
    }
 
    hb_retns( nRead );
+}
+
+HB_FUNC( LETO_FREADSTR )
+{
+   if( HB_ISNUM( 1 ) && HB_ISNUM( 2 ) )
+   {
+      PHB_DYNS  pDo = hb_dynsymFind( "LETO_UDF" );
+      HB_MAXINT nHandle = hb_parnint( 1 );
+      HB_SIZE   nLen = hb_parns( 2 );
+
+      if( pDo )
+      {
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushString( "FReadStr", 8 );
+         hb_vmPushNumInt( nHandle );
+         hb_vmPushNumInt( nLen );
+         hb_vmDo( 3 );
+         return;
+      }
+   }
+
+   hb_retc_null();
+}
+
+HB_FUNC( LETO_FREADLEN )
+{
+   if( HB_ISNUM( 1 ) && HB_ISNUM( 2 ) )
+   {
+      PHB_DYNS  pDo = hb_dynsymFind( "LETO_UDF" );
+      HB_MAXINT nHandle = hb_parnint( 1 );
+      HB_SIZE   nLen = hb_parns( 2 );
+
+      if( pDo )
+      {
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushString( "HB_FReadLen", 11 );
+         hb_vmPushNumInt( nHandle );
+         hb_vmPushNumInt( nLen );
+         hb_vmDo( 3 );
+         return;
+      }
+   }
+
+   hb_retc_null();
+}
+
+HB_FUNC( LETO_FWRITE )
+{
+   if( HB_ISNUM( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+   {
+      PHB_DYNS  pDo = hb_dynsymFind( "LETO_UDF" );
+      HB_MAXINT nHandle = hb_parnint( 1 );
+
+      if( pDo )
+      {
+         hb_vmPushDynSym( pDo );
+         hb_vmPushNil();
+         hb_vmPushString( "FWrite", 6 );
+         hb_vmPushNumInt( nHandle );
+         hb_vmPushString( hb_parc( 2 ), hb_parclen( 2 ) );
+         if( HB_ISNUM( 3 ) )
+         {
+            hb_vmPushNumInt( hb_parns( 3 ) );
+            hb_vmDo( 4 );
+         }
+         else
+            hb_vmDo( 3 );
+         return;
+      }
+   }
+
+   hb_retni( 0 );
 }
 
 static void leto_BufferResize( LETOCONNECTION * pConnection )
@@ -2169,7 +2380,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
    }
 
    uLen = ( HB_USHORT ) strlen( szFuncName );
-   if( strchr( szFuncName, ';' ) != NULL || uLen > 20 )
+   if( strchr( szFuncName, ';' ) != NULL || uLen > HB_PATH_MAX )  /* pDynSym is max 63 */
    {
       hb_retl( HB_FALSE );
       return;
@@ -2177,7 +2388,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
    else if( uLen > 2 && szFuncName[ uLen - 2 ] == '(' && szFuncName[ uLen - 1 ] == ')' )
       szFuncName[ uLen - 2 ] = '\0';
 
-   if( pArea )
+   if( pArea && ! pConnection )  /* ToDo: conflict with connection possible given in first param */
       pConnection = letoGetConnPool( pArea->pTable->uiConnection );
 
 #if 0  /* ToDo_ this limit is not forcible needed, but advised */
@@ -2207,7 +2418,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
          pArray = hb_arrayFromParams( 0 );
 #endif
       }
-      if( hb_arrayLen( pArray ) > 1 )  /* first item = funtion name */
+      if( hb_arrayLen( pArray ) > 1 )  /* first item = function name/ codeblock */
       {
          hb_arrayDel( pArray, 1 );
          hb_arraySize( pArray, hb_arrayLen( pArray ) - 1 );

@@ -141,12 +141,12 @@ typedef struct
    char *            szBagName;                /* filename plus extension */
    char *            szFullPath;               /* complete non relative path to index */
    char *            szOrdKey;                 /* key expression of index */
-   char              cKeyType;                  /* type of expression */
    HB_USHORT         uiAreas;
    HB_BOOL           bCompound;                /* multiple TAGs in one index, e.g. CDX */
    HB_BOOL           bClear;                   /* temporary help var for OrdListClear() */
    HB_BOOL           bProduction;              /* CDX autoopened production order */
    HB_BOOL           bShared;                  /* temporary private index order */
+   char              cKeyType;                 /* type of expression */
 } INDEXSTRU, * PINDEXSTRU;                     /* 48 */
 
 typedef struct _LETOTAG
@@ -160,25 +160,24 @@ typedef struct _LETOTAG
 
 typedef struct
 {
-   HB_USHORT         uiAreas;                  /* Number of references */
-   HB_BOOL           bLocked;                  /* table filelock [ not reclock ] */
-   unsigned char     uMemoType;                /* MEMO type DBT 1/ FPT 2/ SMT 3 */
    char *            szCdp;                    /* CP or NULL for default */
    HB_BYTE *         szTable;                  /* may include leading [back]slash, name of table */
-   HB_U32            uiCrc;                    /* hash value for szTable speed search */
    HB_ULONG          ulRecCount;               /* Count of records in table */
+   HB_U32            uiCrc;                    /* hash value for szTable speed search */
 #if defined( HB_SPINLOCK_INIT ) && ! defined( HB_HELGRIND_FRIENDLY )
    HB_SPINLOCK_T     pMutex;
 #else
    HB_CRITICAL_T     pMutex;
 #endif
+   HB_BOOL           bLocked;                  /* table filelock [ not reclock ] */
+   unsigned char     uMemoType;                /* MEMO type DBT 1/ FPT 2/ SMT 3 */
+   HB_USHORT         uiAreas;                  /* Number of references */
 } GLOBESTRU, * PGLOBESTRU;                     /* 48 */
 
 typedef struct
 {
    HB_ULONG          ulAreaID;                 /* Global area number (virtual) */
    char *            szDriver;                 /* human readable driver used for this table, HB_RDD_MAX_DRIVERNAME_LEN */
-   HB_USHORT         uiAreas;                  /* Number of references, 1 for s_bNoSaveWA */
    HB_BOOL           bShared;                  /* TRUE = non-exclusive opened */
    HB_BOOL           bReadonly;                /* TRUE = not write- lock- able */
    HB_BOOL           bMemIO;                   /* is this a HbMemIO table = special handling */
@@ -186,11 +185,12 @@ typedef struct
    HB_BYTE *         szTable;                  /* may include leading [back]slash, name of table */
    char              szLetoAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];  /* server internal alias: 7 + 1 or No_save_WA: 63 + 1 */
    HB_U32            uiCrc;                    /* hash value for szTable speed search */
+   HB_USHORT         uiAreas;                  /* Number of references, 1 for s_bNoSaveWA */
    HB_USHORT         uiRecordLen;
    HB_USHORT         uiFields;                 /* number of fields per record */
+   HB_USHORT         uiIndexCount;             /* index count opend by [all] users */
    LETO_LIST         LocksList;                /* List of records locked */
    LETO_LIST         IndexList;                /* Index List */
-   HB_USHORT         uiIndexCount;             /* index count opend by [all] users */
    HB_ULONG          ulFlags;                  /* Lock flags, some prehistoric relict ;-) */
    PGLOBESTRU        pGlobe;                   /* 1 to 1 relation into GLOBESTRU, for s_bNoSaveWA: n to 1 */
 } TABLESTRU, * PTABLESTRU;                     /* 200 */
@@ -234,11 +234,11 @@ typedef struct
    unsigned int      uiMinorVer;
    HB_BYTE *         szAddr;                  /* ip address, empty for headless UDF */
    HB_BYTE *         szNetname;
-   HB_BYTE           szExename[ 21 ];
+   HB_BYTE           szExename[ 24 ];
    HB_BYTE *         szUsername;
    PHB_CODEPAGE      cdpage;                  /* codepage */
    HB_USHORT         uiDriver;                /* contains a '1' for NTX index mode */
-   char              szDriver[ 32 ];          /* last used = active RDD */
+   char              szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];   /* last used = active RDD */
    char *            szDateFormat;
    unsigned int      uiEpoch;
    HB_BOOL           bDeleted;                /* value to spare unnecessary leto_setSetDeleted() calls */
@@ -275,6 +275,8 @@ typedef struct
    HB_ULONG          ulUdfAreaID;             /* active workarea-id when the UDF started */
    HB_BYTE           uSrvLock;                /* 0 or type of server 'lock for e.g. replication' mode */
    HB_BOOL           bGCCollect;              /* true if this thread is designated to do GC */
+   HB_MAXINT *       pOpenHandles;            /* list of files opened by Leto_Fopen()/ Leto_FCreate() */
+   HB_ULONG          ulOpenHandles;           /* number of open file handles */
 } USERSTRU, * PUSERSTRU;                      /* 536 */
 
 typedef struct

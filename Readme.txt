@@ -320,7 +320,7 @@ A. Internals
                                     for server mode No_Save_WA == 0 this are physical DBF tables,
                                     for server mode No_Save_WA == 1 this are DBF tables opened by all users.
                                     This number can *not* be increased during runtime of server.
-                                    Theoretically maximum value: 1000000, minimum: 10.
+                                    Theoretically maximum value: 1000000, minimum: 100.
                                     Increase default value big enough to your needs,
                                     Example for No_Save_WA == 0: 2 * physical existing DBF
                                     Example for No_Save_WA == 1: Users_Max * physical existing DBF
@@ -373,17 +373,18 @@ A. Internals
 
       4.2.1 UDF support
 
- Aside calling single Harbour command with leto_UDF( "cCommand"[, xParam] ), you can load your own PRG-level
- functions with a <HRB> file also during the server is running.
+ Aside calling single Harbour command with leto_UDF( "cCommand"[, xParam] ),
+ you can load your own PRG-level functions with a <HRB> file also during the server is running.
  A very basic example is found in: tests/letoudf.prg.
  How to compile a PRG to a HRB, look into letoudf.hbp. This is called with: hbmk2 letoudf.
  Place the resulting <HRB> file in same directory as the server executable.
- After the "reload" command or tigether with server start you have an entry in letodbf.log if they
+ After the "reload" command or together with server start you have an entry in letodbf.log if they
  were successful loaded. In case of error you shell also find a short text what have failed.
+ See further at Leto_Udf() ... 
 
  For the execution of single Harbour functions at server side, or when your functions in the HRB file
- need Harbour commands ( like "STR", "DTOC" ), these Harbour functions must during compile process linked into
- executable.
+ need Harbour commands ( like "STR", "DTOC" ), these Harbour functions must during compile process linked
+ into the executable.
  There are already very !many! available. If really one is missing, it must be added at top in:
  source/server/server.prg, done like the others there with a: REQUEST <cFunction>
 
@@ -391,6 +392,17 @@ A. Internals
  Herefore comment out 2 lines in source/server/server.prg.
  Or if you need the full set of the Harbour Cl*pper tools contrib [CT], another two lines must be
  outcommented.
+
+
+ * In server mode No_Save_WA=0: for all tables; and for all HbMemIO tables in any server mode: *
+ at server side the ALIAS name for a workarea is *different* to that used in your application.
+ Client ALIAS is *automatically* translated if part of <cCommand> string e.g. in codeblocks.
+ If you want to access at multiple workareas simultanous in your UDF, and such WA is not the active one,
+ UDFs functions in HRB are needed. Here then to work with Leto_Select() for above specified WA and
+ Leto_Alias() for all other tables to query for the WA ALIAS name at server.
+ The ALIAS at server for these tables is not predictable because dynmically created,
+ ( FYI: scheme is: "Exxxxxxx", where x is a number of sequential occurance to create such an ALIAS global
+   to server for all connections -- it is re-used after a workarea is lastly closed. )
 
 
       4.2.2 Codepage support
@@ -1003,8 +1015,9 @@ A. Internals
  Such an connection is established with recommended: Leto_Connect() -or- after a aingle LetoDbf command
  by using correct connection prefix. After connection is established, can leave away all this IP:port ...
 
-      Leto_FError()                                            ==> nError
- Returns an error code of ( some, not for all ) file function.
+      Leto_FError( [ lAskServer ] )                            ==> nError
+ Returns an error code set by ( some, not for all ) file functions at client.
+ NEW: with optional <lAskServer> set to TRUE ( .T. ) a query is send to the server.
 
       Leto_File( cFileName )                                   ==> lFileExists
  Determine if file exist at the server, analog of File() function.
@@ -1078,6 +1091,28 @@ A. Internals
     AEval( aArr, { |aItem| Leto_FCopyFromSrv( aItem[1], aItem[1] } )
  Copy from a logged into HbNetIO server a file to LeoDBf located in RAM:
     Leto_FCopyToSrv( "net:hbnetio.txt", "mem:RAMfile.txt" )
+
+
+      Leto_FOpen( cFile [, nMode ] )                           ==> nHandle
+      Leto_FCreate( cFile [, nMode ] )                         ==> nHandle
+      Leto_FSeek( nHandle, nBytes [, nOffset ] )               ==> nPos
+      Leto_FRead( nHandle, @cBuffer, nLen )                    ==> nRead
+      Leto_FWrite( nHandle, cBuffer [, nLen ] )                ==> nWritten
+      Leto_FClose( nHandle )                                   ==> lSuccess
+      Leto_FEof( nHandle )                                     ==> lEndOfFile
+
+      Leto_FReadStr( nHandle, nLen )                           ==> cBytes
+ Stops reading at CHR( 0 )
+
+      Leto_FReadLen( nHandle, nLen )                           ==> cBytes
+ Binary version of Leto_FReadStr() including any! char to read
+
+ Above functions do the same and with same params as the Harbour pendants without 'Leto_'
+ prefix, aka Leto_FOpen() == FOpen(), but they act on files at server. File names <cFile>
+ respect the server datapath, are relative to it.
+ It is ensured, that all opened/ created files are closed with connection end,
+ and Leto_FClose() will close only files opened/ created with Leto_FOpen/ Leto_FCreate.
+
 
 
       7.7 Management functions
@@ -1348,13 +1383,18 @@ A. Internals
 
       7.10 Calling udf-functions on the server
 
-      LETO_UDF( cSeverFunc, xParam1, ... )                     ==> xResult
+      LETO_UDF( cSeverFunc [, xParam1, ... ] )                 ==> xResult
  This function is called from client application. The string <cServerFunc> can
  optional contains a server connection string, minimum is udf function name:
  [ //ip_address:port/ ]funcname
  A <funcname> function should be defined on the letodb server.
- Udf function can return result (any type) to client.
+ Udf function can return result (any type except pointers) to client.
  Examples of udf-functions are in the tests/letoudf.prg
+
+      LETO_UDF( cCodeBlock [, xParam1, ... ] )                 ==> xResult
+ If <cCodeBlock> contains a valid codeblock string, it is evaluated at server.
+ Maximum length of <cCodeBlock> is 255 characters.
+ Example: leto_Udf( "{|x| UPPER( x ) }", "to_upper" )
 
       LETO_RPC( cSeverFunc, xParam1, ... )                     ==> NIL !
  ! Use with care !, it needs well designed UDF functions.

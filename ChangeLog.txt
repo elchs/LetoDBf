@@ -2,6 +2,40 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-06-09 19:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letomgmn.c
+    + add wrappers for: Leto_FOpen, Leto_FCreate, Leto_FClose,
+      Leto_FSeek, Leto_FReadStr, Leto_FReadLen, Leto_FWrite, Leto_FEOF;
+      same as F*() functions but to work at server invoked by Leto_Udf()
+    * add boolean as first param to Leto_FError(): if true query the server
+    * extend string limit for leto_udp() to HB_PATH_MAX to enable literally
+      codeblocks
+
+  * include/srvleto.h
+    % move some items in structs to optimize aligning
+    + add two items in USERSTRU for file handle handling
+
+  * source/server/letofunc.c
+    ! fix 2 warnings of Mingw 7.1, one was a bug; Thanks! to Itamar
+    * implement logic to close all opened files with connection end;
+      Leto_FClose() to only close files opened by Leto_FOpen/ Leto_FCreate
+    ! tiny fix in leto_Udf() about not detaching MemIO tables
+    * add possibility to execute literally given codeblock in leto_Udf() with
+      possible params; example: leto_Udf( "{|a,b,c| func(a,b,c) }", 3, 2, 1 )
+    ! fix in leto_mkCodeBlock() if error is handled inside
+
+  * source/server/server.prg
+    + add more needed file function REQUESTs
+
+  * letodb.hbc
+    + add request for Leto_Udf, needed for new Leto_F*()
+
+  * rddletodebug.hbp
+    * removing straying single quotation marks for a cflag
+
+  * Readme.txt
+    + add note about new Leto_F*() functions
+
 2017-05-31 14:41 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     + add Leto_Fread(), same Params as Fread()
