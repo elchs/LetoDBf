@@ -3919,6 +3919,8 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
                leto_refrSkipBuf( pTable );
                leto_ParseRecord( pConnection, pTable, ( char * ) pTable->ptrBuf );
             }
+            else
+               pTable->fBof = pTable->fEof = pTable->fFound = HB_FALSE;
 #ifdef LETO_CLIENTLOG
             leto_clientlog( NULL, 0, "LetoDbGoTo found record %lu in skip buffer", pTable->ulRecNo );
 #endif
