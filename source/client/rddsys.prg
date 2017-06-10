@@ -49,6 +49,7 @@
 ANNOUNCE RDDLETO
 
 REQUEST LETORDD
+REQUEST LETO_UDF
 REQUEST HB_ZCOMPRESS
 
 /* place holder to activate init functions here and in leto1.c */

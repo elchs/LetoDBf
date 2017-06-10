@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-06-10 13:12 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * letodb.hbc
+  * source/client/rddsys.prg
+    * instead requests= in .hbc add a REQUEST into .prg for LETO_UDF
+    ; needed in Leto_F*() functions
+
 2017-06-09 23:57 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     ! refresh BOF/ EOF/ FOUND flags in case the cached record is not re-read
