@@ -2,6 +2,22 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-06-19 00:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letomgmn.c
+    + add function translate old LETO_MAKEDIR -> LETO_DIRMAKE
+
+  * source/server/letofunc.c
+  * source/server/server.prg
+    - remove obsolete Leto_FRead
+
+  * tests/test_file.prg
+    + add test sequence about new Leto_F*() functions
+
+  * Readme.txt
+    + new first chapter: td;dr
+      compact quick instruction for experienced Harbour users
+    * modify some comments on server options
+
 2017-06-10 13:12 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * letodb.hbc
   * source/client/rddsys.prg

@@ -4686,32 +4686,6 @@ HB_FUNC( LETO_FCREATE )
    }
 }
 
-/* leto_udf() -- similar hb_FReadLen() */
-HB_FUNC( LETO_FREAD )
-{
-   if( s_bFileFunc && HB_ISNUM( 1 ) && ( HB_ISNUM( 2 ) ) )
-   {
-      HB_MAXINT nHandle = hb_numToHandle( hb_parnint( 1 ) );
-      HB_SIZE   nBytes = hb_parns( 2 );
-      char *    pBuffer;
-      
-      if( nBytes > 0 )
-      {
-         pBuffer = ( char * ) hb_xgrab( nBytes + 1 );
-         nBytes = hb_fsReadLarge( nHandle, pBuffer, nBytes );
-         hb_retclen_buffer( pBuffer, nBytes );
-         hb_fsSetFError( hb_fsError() );
-      }
-      else
-         hb_retc_null();
-   }
-   else
-   {
-      hb_retc_null();
-      hb_fsSetFError( 0 );
-   }
-}
-
 /* leto_udf() */
 HB_FUNC( LETO_FCLOSE )
 {

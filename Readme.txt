@@ -12,6 +12,7 @@
 Contents
 --------
 
+0. tl;dr
 1. Directory structure
 2. Building binaries
    2.1 via hbmk2
@@ -50,6 +51,26 @@ Contents
 10 Abbreviations and remarks
 A. Internals
 
+
+
+      0. tl;dr
+
+ In following chapters with many words is described the extended use of the pair:
+ <client> and <server>.
+ The <server> is an executable running in a network,
+ and <client> communicating with the server is your project linked with this library,
+ So you get a R-eplaceable D-atabase D-river ("LETO"), selected as default driver if not explicitely
+ given in functions like DbUseArea().
+ Databases and index orders are then used by the server, the client requests the server about
+ records and timed caches them in client RAM for further access.
+
+ For a quick early test, Harbour users need to read/ make: 
+ # 2.1 --> building server executable // client lib:
+   hbmk2 letodb[ svc ] // hbmk2 rddletoaddon
+ # adapt server data- & log- path in bin/letodb.ini
+   3. --> start executable[ or service ]
+ # 5.1 --> add Leto_Connect( "//DNSname|IP/" ) in main() before using workareas,
+   build your project: hbmk2 yourapp[.prg|.hbp] letodb.hbc
 
 
       1. Directory structure
@@ -103,9 +124,11 @@ A. Internals
  Client library:
     -- all OS:          hbmk2 rddleto
  Recommended is to integrate LetoDbf client library into your Harbour environment as an 'addon':
+    -- all OS:          hbmk2 rddletoaddon
+
     If Linux user have 'installed' Harbour, you need root rights to also install LetoDBf as 'addon':
     -- Linux:           [ sudo ] hbmk2 rddletoaddon
-    -- all OS:          hbmk2 rddletoaddon
+
 
  Resulting server executable will be found in the "bin" directory, library will be in "lib".
  In the "bin" directory is also the "letodb.ini" file to configure the server.
@@ -236,32 +259,32 @@ A. Internals
       Port = 2812              -    Server port number, default is 2812 [ then 2813 used for second socket ]
                                     There are two! ports used by server, this and the following number.
                                     ! You ever connect to first port number !
-                                    [ may read Internals: second socket .. ]
       DataPath =               -    PATH to a base directory on a server with your databases,
                                     may include also a drive letter for poor Windows systems
-      LogPath =                -    PATH to a directory (with write access) for all log files,
-                                    created mainly for debugging purpose.
+      LogPath =                -    if config option <DEBUG> level is greater zero [ 0 ],     
+                                    PATH to a directory (with write access) for all log files.
                                     File letodbf.log for the main server will contain some info from settings
                                     at server starttime, plus info about new connected and disconneted clients
-                                    if config option <DEBUG> level is greater zero [ 0 ].
-      Share_Tables = 0         -    if 0 [ default ], LetoDB opens all tables in an exclusive mode,
-                                    what leads to significant performance increase.
-                                    If 1, tables are opened in the same mode [shared/exclusive] as client
-                                    applications opened them, what allows LetoDB to work in coexistence with
-                                    other applications [ non LetoDB users ] simultanous on the same DBF tables.
-      No_Save_WA = 0           -    When this mode is set to '1', each dbUseArea() will cause a real file open
-                                    operation and creating workareas on the server with same workarea settings
-                                    as at client [ WA number, alias, filter conditions, relations ]
-                                    ( in default mode '0' each file is opened only one time and have only one
-                                    virtual workarea for all users -- no relations at server are active, Alias
-                                    names at server internally different ).
-                                    When set to '1', it is also combined with "Share_Tables" setting, where
-                                    "Share_Tables = 1" signalizes LetoDB that there will be 3rd party
-                                    [non LetoDBf application] simultanous access to DBF tables.
-                                    With "Share_Tables = 0" some internal performance increasing shortcuts
-                                    are done.
-                                    Choose this to '1', if you plan to execute server side UDF functions.
-                                    Each connection will get an own log file [ if DEBUG level is increased ].
+      No_Save_WA = 1           -    server mode of internally handling database tables 
+                                    1  each dbUseArea() will cause a real file open operation by the OS,
+                                       identical to what client requested, so workareas at the server are same as
+                                       at client side. [ WA number, alias, filter conditions, relations ]
+                                    0  each table is opened only one time, this workarea 'exchanged' in between client
+                                       requests. so only one connection will have access to the table at a time.
+                                       No relations active at server, Alias names at server are different from 
+                                       the client.
+                                    Recommend '1' if you plan to execute functions at server side ( UDF ).
+      Share_Tables = 0         -    other software simultanous access tables used by server,
+                                    which changes logical or physical locking -- in dependance:
+                                    # No_Save_WA = 0    
+                                    0  server open all tables in exclusive mode, what leads to
+                                       performance increase as e.g. record-/ file- locks are not applied by OS.
+                                    1  tables are opened in the same mode [shared/exclusive] as client
+                                       applications opened them, what allows LetoDB to work in coexistence with
+                                       other applications [ non LetoDB users ] simultanous on the same DBF tables.
+                                    # No_Save_WA = 1
+                                    1  physical record-/ file- locks set with the OS are viewable for other
+                                    0  only logical internally locking
       Default_Driver = CDX     -    default RDD to open DBF tables in at server, if not given explicitely in
                                     your sourcecode. Possible values: CDX NTX
                                     If the server is linked with rushmore index support, CDX gets BMCDX and
@@ -337,12 +360,11 @@ A. Internals
                                     A value >= 15 will include partly communication traffic to server,
                                     with a value > 20 the full communication protocol is logged.
                                     !! USE WITH CARE !!, the log files can get very quick VERY BIG.
-                                    Set it for normal use to '1', '0' will avoid any debug feedback from
-                                    server, then only errors are reported in these log files.
-                                    ONLY increase value in case of problems, when core developer explicit
-                                    ask for information to be found in the log files.
                                     It can be changed 'on the fly' for critcal sections with new
                                     RDDI_DEBUGLEVEL -- see 7.5
+                                    ONLY increase value in case of problems, to trace what happened at server,
+                                    and the actions from client. Each connection will get an own log file with
+                                    connection-ID as file extension; new created when a connection starts. 
       HardCommit = 0           -    if 0, SET HARDCOMMIT OFF, this is now DEFAULT.
                                     It is recommended for UNSTABLE running server to set it to <1>,
                                     which means that each change at data tables are immedeate written to
@@ -784,12 +806,17 @@ A. Internals
  'one block'. In practical life, only record/ file locks are set at server ( no DbAppend() lock ),
  and all data changes are buffered at client side. If you DbSeek()/ DbSkip() to a record with changed
  data, you will see at client your changes still not applied at server side.
+ When committing the transaction, one single request about all changes is send to server, which will
+ start processing data changes firstly after complete receiving the request and further pre-checks.
+ Up to this point is ensured *all or nothing* of a transaction is processed.
+ If the server experience hardware problems during processing the sequence, like a power loss, parts
+ of a transaction will miss ...
 
  As a side effect, transactions are nice for Flock()ed or non-shared, exclusive opened tables, because
  for these it leads to a !drastical! improved performance to append 10000 records in a fraction of a second.
  For RLock() an insane tremendous overhead is needed, if really **many** records need to be
  changed. Example: to Rlock() the 1000th record at server, it must search through 999 existing locks.
- In sum it have been done 499500 times for the 1000th record. When the transaction is applied at
+ In sum a compare have been done 499500 times for the 1000th record. When the transaction is applied at
  server, these Rlocks are again verified, then are 1000 * 1000 = 1 million checks needed.
  Only 1000 Rlock() record changes of above example are taken just on the fly, but if there are 10th
  of thousands ...

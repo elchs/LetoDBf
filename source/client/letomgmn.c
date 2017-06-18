@@ -799,6 +799,9 @@ HB_FUNC( LETO_DIRMAKE )
       hb_retni( -1 );
 }
 
+/* compatibility to former function name */
+HB_FUNC_TRANSLATE( LETO_MAKEDIR, LETO_DIRMAKE )
+
 HB_FUNC( LETO_DIREXIST )
 {
    LETOCONNECTION * pConnection;

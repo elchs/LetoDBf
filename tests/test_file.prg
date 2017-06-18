@@ -4,11 +4,12 @@
  */
 REQUEST LETO
 #include "rddleto.ch"
+#include "fileio.ch"
 
 REQUEST hb_vfExists, hb_vfOpen, hb_vfClose
 
 Function Main( cPath )
- LOCAL cBuf, arr, i, lTmp
+ LOCAL cBuf, arr, i, lTmp, nTmp, nHandle
  LOCAL nPort := 2812
 
    ALTD()
@@ -39,7 +40,7 @@ Function Main( cPath )
    ?? Iif( lTmp, "Ok", "No" )
    i := Leto_fError()
    ? 'file functions working ? - ' + Iif( i == 100, "disabled",;
-      Iif( i == IIF( lTmp, 0, 2 ), "well well", "ups, error: " + STR( leto_fError(), 5, 0 ) ) ) 
+      Iif( i == IIF( lTmp, 0, 2 ), "well well", "ups, error: " + STR( leto_fError(), 5, 0 ) ) )
 
    ? 'leto_memowrite( "test1.txt", "A test N1" ) - '
    ?? Iif( leto_memowrite( "test1.txt", "A test N1" ), "Ok", "Failure" )
@@ -77,7 +78,7 @@ Function Main( cPath )
 
    ? 'leto_filesize( "test2.txt" ) - '
    ?? leto_filesize( "test2.txt" )
-   
+
    ? 'leto_filewrite( "test2.txt", 0, 2048 * "A" ) - '
    ?? Iif( leto_filewrite( "test2.txt", 0, REPLICATE( "A", 2048 ) ), "Ok", "Failure" )
 
@@ -108,6 +109,52 @@ Function Main( cPath )
       ?? " fine"
    else
       ?? " wrong"
+   ENDIF
+
+   ? 'leto_FCreate( "test3.txt" ) - '
+   nHandle := leto_FCreate( "test3.txt" )
+   ?? Iif( nHandle >= 0, "Ok", "Failure -- no further tests leto_F*() test" )
+   IF nHandle >= 0
+      ? "Press any key to continue..."
+      Inkey( 0 )
+      ? 'leto_FClose( nHandle ) - '
+      ?? IiF( leto_FClose( nHandle ),  "Ok", "Failure" )
+      ?? IiF( ! leto_FClose( nHandle ),  "!", "Fail" )
+      ? 'leto_FOpen( "test3.txt", READWRITE ) - '
+      nHandle := leto_FOpen( "test3.txt", FO_READWRITE )
+      ?? Iif( nHandle >= 0, "Ok", "Failure" )
+      IF nHandle >= 0
+         ? 'leto_FWrite( nHandle, "testx12" ) - '
+         nTmp := leto_FWrite( nHandle, "testx21" )
+         ?? Iif( nTmp == 7, "Ok", "Failure" )
+         ? 'leto_FSeek( nHandle, 4, 0 ) - '
+         nTmp := leto_FSeek( nHandle, 4, 0 )
+         ?? Iif( nTmp == 4, "Ok", "Failure" )
+         leto_FWrite( nHandle, "3" )
+         ? 'leto_FSeek( nHandle, 0, 2 ) - '
+         nTmp := leto_FSeek( nHandle, 0, 2 )
+         ?? Iif( nTmp == 7, "Ok", "Failure" )
+         ?? " --- EOF - " + IiF( LETO_FEOF( nHandle ), "Ok", "Failure" )
+         leto_FWrite( nHandle, "0" + CHR( 0 ) )
+         cBuf := SPACE( 12 )
+         leto_FSeek( nHandle, 0, 0 )
+         ? 'leto_FRead( nHandle, @cBuf, 10 ) - '
+         nTmp := leto_FRead( nHandle, @cBuf, 10 )
+         ?? Iif( nTmp == 9, "Ok", "Failure" )
+         ?? Iif( LEN( cBuf ) == 12 .AND. LEFT( cBuf, 9 ) == "test3210" + CHR( 0 ), " !!", "" )
+         leto_FSeek( nHandle, 0, 0 )
+         ? 'leto_FReadSTR( nHandle, 10 ) - '
+         cBuf := leto_FReadStr( nHandle, 10 )
+         ?? Iif( LEN( cBuf ) == 8 .AND. LEFT( cBuf, 8 ) == "test3210", "Ok", "Failure" )
+         leto_FSeek( nHandle, 0, 0 )
+         ? 'leto_FReadLEN( nHandle, 10 ) - '
+         cBuf := leto_FReadLen( nHandle, 10 )
+         ?? Iif( LEN( cBuf ) == 9 .AND. LEFT( cBuf, 9 ) == "test3210" + CHR( 0 ), "Ok", "Failure" )
+         leto_FClose( nHandle )
+         ?
+      ENDIF
+      ? "Press any key to continue..."
+      Inkey( 0 )
    ENDIF
 
    ? 'leto_DirMake( "TEST" ) - '
