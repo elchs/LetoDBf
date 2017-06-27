@@ -55,6 +55,7 @@
 #include "fileio.ch"
 #include "error.ch"
 #include "rddleto.ch"
+#include "hbsocket.ch"
 
 #ifndef HB_HRB_BIND_DEFAULT
    #define HB_HRB_BIND_DEFAULT 0x0
@@ -296,7 +297,7 @@ PROCEDURE StartServer()
    leto_HrbLoad()
    leto_CreateData( oApp:cAddr, oApp:nPort )
 
-   IF ! leto_Server( oApp:nPort, oApp:cAddr, oApp:nTimeOut, oApp:nZombieCheck )
+   IF ! leto_Server( oApp:nPort, oApp:cAddr, oApp:nTimeOut, oApp:nZombieCheck, oApp:cBCService, oApp:cBCInterface, oApp:nBCPort )
       WrLog( "Socket error " + hb_socketErrorString( hb_socketGetError() ) )
 #if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
       ? "Socket error starting LetoDBf ..."
@@ -411,6 +412,9 @@ CLASS HApp
    DATA lCryptTraffic INIT .F.
    DATA cTrigger
    DATA nZombieCheck INIT 0
+   DATA cBCService
+   DATA cBCInterface
+   DATA nBCPort
 
    METHOD New()
 
@@ -559,6 +563,18 @@ METHOD New() CLASS HApp
                   ::cTrigger := aIni[ i, 2, j, 2 ]
                ELSEIF aIni[ i, 2, j, 1 ] == "ZOMBIE_CHECK"
                   ::nZombieCheck := Val( aIni[ i, 2, j, 2 ] )
+               ELSEIF aIni[ i, 2, j, 1 ] == "BC_SERVICES"
+                  ::cBCService := aIni[ i, 2, j, 2 ]
+                  IF RIGHT( ::cBCService, 1 ) != ";"
+                     ::cBCService += ";"
+                  ENDIF
+               ELSEIF aIni[ i, 2, j, 1 ] == "BC_INTERFACE"
+                  ::cBCInterface := aIni[ i, 2, j, 2 ]
+                  IF ! leto_isValidIP4( ::cBCInterface )
+                     ::cBCInterface := IPForInterface( ::cBCInterface )
+                  ENDIF
+               ELSEIF aIni[ i, 2, j, 1 ] == "BC_PORT"
+                  ::nBCPort := VAL( aIni[ i, 2, j, 2 ] )
                ENDIF
             NEXT
          ELSEIF aIni[ i, 1 ] == "DATABASE"
@@ -675,6 +691,28 @@ FUNCTION leto_ClearEnv( xScope, xScopeBottom, xOrder, cFilter )
 
 FUNCTION leto_Set( nSet, xPar1, xPar2 )
    RETURN Set( nSet, xPar1, xPar2 )
+
+/* try to find IP address for an interface name -- or return the first found with a MAC */
+STATIC FUNCTION IPForInterface( cName )
+ LOCAL aIFace := hb_socketGetIFaces( HB_SOCKET_AF_INET, .T. )
+ LOCAL nIFace := 0
+ LOCAL cIP    := ""
+
+  IF LEN( aIFace ) > 0
+    IF ! EMPTY( cName )
+      cName := UPPER( cName )
+      nIFace := ASCAN( aIFace, { | aItm | UPPER( aItm[ HB_SOCKET_IFINFO_NAME ] ) == cName } )
+    ELSE
+      /* first interface with guilty MAC address */
+      nIFace := ASCAN( aIFace, { | aItm | ! EMPTY( aItm[ HB_SOCKET_IFINFO_HWADDR ] ) .AND.;
+                                          ! aItm[ HB_SOCKET_IFINFO_HWADDR ] == "00:00:00:00:00:00" } )
+    ENDIF
+  ENDIF
+  IF nIFace > 0
+    cIP := aIFace[ nIFace, HB_SOCKET_IFINFO_ADDR ]
+  ENDIF
+RETURN cIP
+
 
 /* don't ! use, elch historical needed mixkey */
 #pragma BEGINDUMP

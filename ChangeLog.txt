@@ -2,6 +2,46 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-06-27 16:51 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; update client and server: tiny protocol change for Leto_UDF()
+
+  * bin/letodb.ini
+  + tests/rddleto.ini
+  * source/client/rddsys.prg
+    - nowhere referenced LETO_INIT()
+  * source/common/common_c.c
+  * source/server/server.prg
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+    + integrate UDP broadcast service as optional extra thread into server
+    + provide counterpart Leto_Detect() for client lib
+    + experimental: init procedure LETO_AUTOCONNECT:
+      if "rddleto.ini" ( example in /tests ) or "<exe-name>.ini" is found
+      in dir of executable, with minimum scheme:
+      "Server = [//]IP|DNSname[:port][/]",
+      --> automatic Leto_Connect() during application start, quit if failed.
+      'DETECT' as server name will cause Leto_Detect() to broadcast for one.
+
+  * source/client/letomgmn.c
+    ! fix in leto_udp() if WA is not LETO --> call UDF_FUN as without WA,
+      and now switch at server to WA 0
+    ! GPF caused by unexpected error code in response.
+      THANKS to Maurício for pointing out
+  * source/server/letofunc.c
+    ! fix for special lengths of result for leto_udp(): add '+' prefix
+    * for leto_udp() without WA switch to virtual WA 0, reset afterwards
+
+  * include/rddleto.ch
+    * change single-run flag to: RDDLETO_CH_
+      intended to be the official flag if LetoDBf is available;
+      useful to extend your source specific to LetoDBf client lib usage:
+      #ifdef RDDLETO_CH_ ... [ #else ] ... #endif
+    + add macro LETO_DEFAULT_PORT
+
+  * source/client/letocl.c
+    * add 2. param to Leto_MgID() to force refresh connect status
+    * use macro LETO_DEFAULT_PORT
+
 2017-06-19 00:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     + add function translate old LETO_MAKEDIR -> LETO_DIRMAKE

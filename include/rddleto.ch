@@ -48,8 +48,12 @@
 
 /* ! also used in C source ! */
 
-#ifndef LETO_CH_
-#define LETO_CH_
+#ifndef RDDLETO_CH_
+#define RDDLETO_CH_
+
+#ifndef LETO_DEFAULT_PORT
+   #define LETO_DEFAULT_PORT  2812
+#endif
 
 /* login error conditions */
 #define LETO_ERR_CONNECT      1
@@ -131,4 +135,4 @@
 #endif
 #define SET( _HB_SETTING, XSET )   LETO_SET( _HB_SETTING, XSET )
 
-#endif /* LETO_CH_ */
+#endif /* RDDLETO_CH_ */

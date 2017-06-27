@@ -829,14 +829,15 @@ HB_FUNC( LETO_DIRREMOVE )
       hb_retni( -1 );
 }
 
-static int Leto_MgID( LETOCONNECTION * pConnection )
+static int Leto_MgID( LETOCONNECTION * pConnection, HB_BOOL fRefresh )
 {
    int iRet = pConnection->iConnectSrv;
 
-   if( iRet < 0 )
+   if( iRet <= 0 || fRefresh )
    {
       char szData[ 6 ];
 
+      pConnection->iConnectSrv = iRet = -1;
       eprintf( szData, "%c;08;", LETOCMD_mgmt );
       if( leto_DataSendRecv( pConnection, szData, 5 ) )
       {
@@ -871,7 +872,7 @@ HB_FUNC( LETO_CONNECT )
    {
       pConnection = letoGetCurrConn();
       if( pConnection )
-         hb_retni( Leto_MgID( pConnection ) );
+         hb_retni( Leto_MgID( pConnection, HB_TRUE ) );
       else
          hb_retni( iRet );
       return;
@@ -1360,7 +1361,7 @@ HB_FUNC( LETO_MGID )
    int iRet = -1;
 
    if( pConnection )
-      iRet = Leto_MgID( pConnection );
+      iRet = Leto_MgID( pConnection, HB_TRUE );
 
    hb_retni( iRet );
 }
@@ -2367,6 +2368,20 @@ HB_FUNC( LETO_UDFEXIST )
       hb_retl( HB_FALSE );
 }
 
+static HB_BOOL leto_IsLetoArea( LETOAREAP pArea )
+{
+   if( pArea )
+   {
+      HB_USHORT uiRddID;
+      LPRDDNODE pRDDNode = hb_rddFindNode( "LETO", &uiRddID );
+
+      if( pRDDNode && pArea->area.rddID == uiRddID )
+         return HB_TRUE;
+   }
+
+   return HB_FALSE;
+}
+
 void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
 {
    LETOCONNECTION * pConnection;
@@ -2374,7 +2389,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
    char             szFuncName[ HB_PATH_MAX ];
    HB_ULONG         ulMemSize;
    HB_USHORT        uLen;
-   /* HB_BOOL          fLeto = leto_CheckArea( pArea ); ==> if( pArea ) */
+   HB_BOOL          fLetoArea = leto_IsLetoArea( pArea );
 
    if( ! pArray )
       pConnection = letoParseParam( hb_parc( 1 ), szFuncName );
@@ -2394,7 +2409,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
    else if( uLen > 2 && szFuncName[ uLen - 2 ] == '(' && szFuncName[ uLen - 1 ] == ')' )
       szFuncName[ uLen - 2 ] = '\0';
 
-   if( pArea && ! pConnection )  /* ToDo: conflict with connection possible given in first param */
+   if( fLetoArea && ! pConnection )  /* ToDo: conflict with connection possible given in first param */
       pConnection = letoGetConnPool( pArea->pTable->uiConnection );
 
 #if 0  /* ToDo_ this limit is not forcible needed, but advised */
@@ -2436,7 +2451,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
       szData = hb_xgrab( ulMemSize );
 
       ptr = ( szFuncName[ 0 ] == '/' ) ? szFuncName + 1 : szFuncName;
-      if( pArea )
+      if( fLetoArea )  /* valid LETOAREA pArea */
          hb_snprintf( szData, ulMemSize, "%c;%lu;%c;%c;%lu;%s;%c;%" HB_PFS "u;", LETOCMD_udf_dbf, pArea->pTable->hTable,
                       fInThread ? '9' : '1', ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ),
                       pArea->pTable->ulRecNo, ptr, fExclusive ? 'T' : 'F', nSize );
@@ -2456,39 +2471,36 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
          hb_ret();
       else
       {
-         HB_BOOL fIsRPC = HB_FALSE;
-
          ptr = pConnection->szBuffer;
-         if( ptr[ 0 ] == '-' )
-         {
-            if( ! strncmp( ptr + 1, "ACC", 3 ) )       /* no data access rights */
-               pConnection->iError = -11;
-            else if( ! strncmp( ptr + 1, "002", 3 ) )  /* unknown command */
-               pConnection->iError = -2;
-            else if( ! strncmp( ptr + 1, "004", 3 ) )  /* error during exec on server */
-               pConnection->iError = -4;
-         }
-         else if( ! strncmp( ptr, "+321", 4 ) )        /* positive ack from starting thread */
-         {
-            fIsRPC = HB_TRUE;
-            pConnection->iError = 0;
-         }
-
-         if( pConnection->iError )
-            hb_ret();
-         else if( fIsRPC )
-            hb_retl( HB_TRUE );
-         else
+         if( fInThread )
+            hb_retl( ! strncmp( ptr, "+321", 4 ) );
+         else if( ptr[ 0 ] == '+' )  /* NEW: pre-leading '+' before valid [ zero ] result */
          {
             HB_ULONG     ulLen;
-            const char * ptrTmp = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer );
+            const char * ptrTmp = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer + 1 );
 
             if( ulLen )
                hb_itemReturnRelease( hb_itemDeserialize( &ptrTmp, ( HB_SIZE * ) &ulLen ) );
             else
                hb_ret();
          }
-         pConnection->iError = 0;  /* ToDo check for */
+         else
+         {
+#if 0   /* throw RTE ? */
+            if( ptr[ 0 ] == '-' )
+            {
+               if( ! strncmp( ptr + 1, "ACC", 3 ) )       /* no data access rights */
+                  pConnection->iError = -11;
+               else if( ! strncmp( ptr + 1, "002", 3 ) )  /* unknown command */
+                  pConnection->iError = -2;
+               else if( ! strncmp( ptr + 1, "004", 3 ) )  /* error during exec on server */
+                  pConnection->iError = -4;
+               else
+                  pConnection->iError = -1;
+            }
+#endif
+            hb_ret();
+         }
       }
       hb_xfree( szData );
    }
@@ -2592,7 +2604,7 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
                      break;
                   }
 
-                  sprintf( szGroup, "%s%d", LETO_VPREFIX, Leto_MgID( pConnection ) );
+                  sprintf( szGroup, "%s%d", LETO_VPREFIX, Leto_MgID( pConnection, HB_FALSE ) );
                   uiRes = 0;
                   if( Leto_VarSet( pConnection, szGroup, szVar, pRefValue, LETO_VCREAT | LETO_VOWN, NULL, &uiRes ) )
                   {

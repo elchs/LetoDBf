@@ -50,6 +50,8 @@
 #include "hbdefs.h"
 #include "hbthread.h"
 #include "hbatomic.h"
+#include "hbsocket.h"
+#include "rddleto.ch"
 
 #if defined( HB_OS_UNIX )
    #include <unistd.h>
@@ -709,5 +711,74 @@ int eprintf( char * d, const char * fmt, ... )
    va_end( ap );
 
    return ( d - dst );
+}
+
+HB_FUNC( LETO_ISVALIDIP4 )
+{
+   HB_BOOL fValid;
+
+   if( hb_parclen( 1 ) )
+   {
+      void *   pSockAddr;
+      unsigned uiLen;
+      int      iPort = HB_ISNUM( 2 ) ? hb_parni( 2 ) : LETO_DEFAULT_PORT;
+      /* ToDo ? extract port of address after ':' */
+
+      fValid = hb_socketInetAddr( &pSockAddr, &uiLen, hb_parc( 1 ), iPort );
+      if( pSockAddr )
+         hb_xfree( pSockAddr );
+   }
+   else
+      fValid = HB_FALSE;
+
+   hb_retl( fValid );
+}
+
+/* translate address with netmask to a valid broadcast IP4:  broadcast = ip | ( ~ subnet ) */
+HB_FUNC( LETO_BROADCASTIP )
+{
+   char *  szBroadcast = ( char * ) hb_xgrab( HB_PATH_MAX );
+   HB_SIZE nPosBC = 0;
+
+   szBroadcast[ 0 ] = '\0';
+   if( hb_parclen( 1 ) && hb_parclen( 2 ) )
+   {
+      HB_SIZE      nTuple = 1;
+      HB_SIZE      nPosIP, nPosNM;
+      const char * cAddr = hb_parc( 1 );
+      const char * cNetm = hb_parc( 2 );
+      const char * ptr;
+
+      while( nTuple <= 4 )
+      {
+         ptr = strstr( cAddr, "." ) ;
+         if( ! ptr && nTuple < 4 )  /* wrong IP */
+            break;
+         else
+         {
+            nPosIP = atoi( cAddr );
+            if( ptr )
+               cAddr += ( ptr - cAddr ) + 1;
+         }
+
+         ptr = strstr( cNetm, "." );
+         if( ! ptr && nTuple < 4 )  /* wrong NM */
+            break;
+         else
+         {
+            nPosNM = atoi( cNetm );
+            if( ptr )
+               cNetm += ( ptr - cNetm ) + 1;
+         }
+      
+         nPosBC += sprintf( szBroadcast + nPosBC, "%d", ( HB_UCHAR ) ( nPosIP | ( ~ nPosNM ) ) );
+         if( nTuple++ < 4 )
+            szBroadcast[ nPosBC++ ] = '.';
+      }
+      if( nTuple <= 4 )
+         nPosBC = 0;
+   }
+
+   hb_retclen_buffer( szBroadcast, nPosBC );
 }
 

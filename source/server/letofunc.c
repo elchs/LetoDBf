@@ -93,7 +93,6 @@ static HB_CRITICAL_NEW( s_ThxMtx );
 /* ToDo: make a static struct over all one time set config settings, instead each as single static */
 static int       s_iDebugMode = 1;
 static char *    s_szServerAddr = NULL;
-static int       s_iServerPort = 2812;
 static char *    s_pDataPath = NULL;
 static HB_USHORT s_uiDataPathLen = 0;
 static HB_USHORT s_uiDriverDef = 0;
@@ -171,6 +170,7 @@ static HB_CRITICAL_NEW( s_TStruMtx );    /* also used for s_uiIndexCurr */
 extern HB_U64 leto_Statistics( int iEntry );
 extern int leto_ExitGlobal( HB_BOOL fExit );
 extern void leto_SrvShutDown( unsigned int uiWait );
+extern void leto_SrvSetPort( int iPort );
 
 extern char * leto_memoread( const char * szFilename, HB_ULONG * pulLen );
 extern HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG ulStart, HB_ULONG * ulLen );
@@ -1085,7 +1085,7 @@ static void leto_DelAreaID( const char * szAlias )
 }
 
 /* caller must free result: translate client ALIAS to possible different server-side ALIAS */
-static char * leto_AliasTranslate( PUSERSTRU pUStru, const char * szExpr, HB_SIZE * nLen )
+static char * leto_AliasTranslate( PUSERSTRU pUStru, const char * szExpr, HB_ULONG * nLen )
 {
    PAREASTRU pAStru;
    HB_LONG   lDstLenDif = 32;
@@ -3869,7 +3869,7 @@ HB_FUNC( LETO_GETDRIVER )
 HB_FUNC( LETO_CREATEDATA )  /* during server startup */
 {
    const char * szAddr = HB_ISCHAR( 1 ) && hb_parclen( 1 ) ? hb_parc( 1 ) : "";
-   const int    iPort = HB_ISNUM( 2 ) ? hb_parni( 2 ) : 2812;
+   const int    iPort = HB_ISNUM( 2 ) ? hb_parni( 2 ) : LETO_DEFAULT_PORT;
 
    if( ! s_users )
    {
@@ -3881,7 +3881,7 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
       s_ulStartDateSec = ( unsigned long ) hb_dateMilliSeconds() / 1000;
       if( szAddr )
          s_szServerAddr = hb_strdup( szAddr );
-      s_iServerPort = iPort;
+      leto_SrvSetPort( iPort );
 
       leto_writelog( NULL, -1, "INFO: %s %s, will run at %s%s:%d ( internal also used :%d )",
                      LETO_RELEASE_STRING, LETO_VERSION_STRING, strlen( szAddr ) ? "IP " : "port ", szAddr, iPort, iPort + 1 );
@@ -7001,7 +7001,7 @@ static void leto_Skip( PUSERSTRU pUStru, const char * szData )
    char *       szData1 = NULL, * ptr;
    const char * pData = NULL;
    HB_ULONG     ulRecNo, ulLen = 4;
-   HB_LONG      lSkip = strtol( szData, &ptr, 10 );;
+   HB_LONG      lSkip = strtol( szData, &ptr, 10 );
    HB_BOOL      bMutex, bHotBuffer;
 
    if( *ptr != ';' )
@@ -11572,8 +11572,14 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
                   leto_SetAreaEnv( pAStru, pArea, pUStru );
                }
                leto_GotoIf( pArea, strtoul( pp3, NULL, 10 ) );
+               pUStru->ulUdfAreaID = pUStru->ulCurAreaID;
             }
-            pUStru->ulUdfAreaID = pUStru->ulCurAreaID;
+            else if( hb_rddGetCurrentWorkAreaPointer() )
+            {
+               pUStru->ulUdfAreaID = ( HB_ULONG ) hb_rddGetCurrentWorkAreaNumber();
+               hb_rddSelectWorkAreaNumber( 0 );
+            }
+
             nSize = strtoul( pp6, &ptr, 10 );
             if( nSize )
             {
@@ -11621,9 +11627,10 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
                {
                   char *   pParam = hb_itemSerialize( hb_param( -1, HB_IT_ANY ),  /* not for HB_IT_POINTER */
                                                       HB_SERIALIZE_NUMSIZE, &nSize );
-                  HB_ULONG ulLen = leto_CryptText( pUStru, pParam, nSize, 0 );
+                  HB_ULONG ulLen = leto_CryptText( pUStru, pParam, nSize, 1 );
 
-                  leto_SendAnswer( pUStru, ( char * ) pUStru->pBufCrypt, ulLen );
+                  pUStru->pBufCrypt[ 0 ] = '+';    /* NEW: '+' prefix */
+                  leto_SendAnswer( pUStru, ( char * ) pUStru->pBufCrypt, ulLen + 1 );
                   if( pParam )
                      hb_xfree( pParam );
                   if( pUStru->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
@@ -11642,6 +11649,11 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
                /* detach all areas new requested by LETO_ALIAS() */
                if( ulAreaID )
                   leto_FreeArea( pUStru, ulAreaID, HB_TRUE );
+               else if( pUStru->ulUdfAreaID )
+               {
+                  hb_rddSelectWorkAreaNumber( pUStru->ulUdfAreaID );
+                  pUStru->ulUdfAreaID = 0;
+               }
                /* close all tables left open after create/ open by udf */
                leto_CloseUdfAreas( pUStru );
                pUStru->ulUdfAreaID = 0;

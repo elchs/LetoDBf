@@ -75,6 +75,7 @@
 #endif
 
 #define LETO_CPU_STATISTIC
+#define LETO_UDP_TIMEOUT    60000
 
 static const char * szOk = "++++";
 static const char * szErr1 = "-001";
@@ -85,6 +86,10 @@ static int       s_iSocksMax = 0;
 static int       s_iTimeOut = -1;
 static int       s_iZombieCheck = 0;     /* dead connection check time interval */
 static char **   s_szCmdSetDesc = NULL;
+static int       s_iServerPort = LETO_DEFAULT_PORT;
+static HB_SOCKET s_hSocketUDP = HB_NO_SOCKET;
+static char      s_szUDPService[ HB_PATH_MAX ] = { 0 };
+static char      s_UDPServer[ HB_PATH_MAX ] = { 0 };
 
 /* statistics */
 static HB_U64 s_ullOperations = 0;
@@ -117,6 +122,11 @@ extern void leto_FreeCurrArea( PUSERSTRU pUStru );
 extern void leto_CommandSetInit( void );
 extern void leto_setTimeout( HB_ULONG iTimeOut );
 
+
+void leto_SrvSetPort( int iPort )
+{
+   s_iServerPort = iPort;
+}
 
 HB_U64 leto_Statistics( int iEntry )
 {
@@ -302,12 +312,11 @@ void leto_SrvShutDown( unsigned int uiWait )
 #if defined( HB_OS_WIN )
 #  define LETO_SOCK_GETERROR()       WSAGetLastError()
 #  define LETO_SOCK_IS_EINTR( err )  ( ( err ) == WSAEINTR )
-#elif defined( HB_OS_OS2 ) && defined( __WATCOMC__ )
-#  define LETO_SOCK_GETERROR()       sock_errno()
-#  define LETO_SOCK_IS_EINTR( err )  ( ( err ) == EINTR )
+#  define LETO_SOCK_IS_EAGAIN( err ) ( ( err ) == WSAEAGAIN )
 #else
 #  define LETO_SOCK_GETERROR()       errno
 #  define LETO_SOCK_IS_EINTR( err )  ( ( err ) == EINTR )
+#  define LETO_SOCK_IS_EAGAIN( err ) ( ( err ) == EAGAIN )
 #endif
 
 
@@ -889,6 +898,197 @@ HB_FUNC( LETO_SENDMESSAGE )
    hb_retl( bRetVal );
 }
 
+/* UDP service request answer thread loop */
+static HB_THREAD_STARTFUNC( udpsvc )
+{
+   int          iLenRcv;
+   char *       szBuffer = ( char * ) hb_xgrabz( 2048 );
+   void *       pSockAddr = NULL;
+   unsigned int uiLen;
+   char *       szServiceName = ( char * ) hb_xgrabz( 128 );
+   char *       szTmp = ( char * ) hb_xgrabz( 256 );
+   const char * ptr;
+   char *       ptr2, * ptr3;
+   HB_BOOL      bAnswered;
+   int          iLenAddr, iLenCmp;
+   HB_SYMBOL_UNUSED( Cargo );
+
+   hb_vmThreadInit( NULL );
+
+   while( ! leto_ExitGlobal( HB_FALSE ) )
+   {
+      iLenRcv = hb_socketRecvFrom( s_hSocketUDP, szBuffer, 2047, 0 , &pSockAddr, &uiLen, LETO_UDP_TIMEOUT );
+
+      if( iLenRcv < 0 && hb_socketGetError() != HB_SOCKET_ERR_TIMEOUT )
+      {
+         int iErr = hb_socketGetError();
+
+         if( iErr == HB_SOCKET_ERR_TIMEOUT )
+            continue;
+         else if( iErr == HB_SOCKET_ERR_CONNRESET )
+         {
+            if( iDebugMode() > 10 )
+               leto_writelog( NULL, 0, "DEBUG service request connection reset" );
+            continue;
+         }
+         else if( iErr != HB_SOCKET_ERR_INVALIDHANDLE )  /* when closed by server shutdown */
+            leto_writelog( NULL, -1, "ERROR service request stop, %d, error: %d -- %s",
+                           iLenRcv, iErr, hb_socketErrorStr( iErr ) );
+         break;
+      }
+      else if( iLenRcv > 0 )
+      {
+         char * szSendToIP = hb_socketAddrGetName( pSockAddr, uiLen );
+
+         bAnswered = HB_FALSE;
+         szBuffer[ iLenRcv ] = '\0';
+         ptr = s_szUDPService;
+         while( ptr && ( ptr2 = strchr( ptr, ';' ) ) != NULL )
+         {
+            /* extract one service identifier out of list */
+            iLenCmp = HB_MIN( ptr2 - ptr, 127 );
+            strncpy( szServiceName, ptr, iLenCmp );
+            szServiceName[ iLenCmp ] = '\0';
+
+            /* IP address option in szServiceName ? -> separate it */
+            if( ( ptr3 = strchr( szServiceName, ':' ) ) != NULL )
+            {
+               iLenAddr = iLenCmp - 1 - ( ptr3 - szServiceName );
+               iLenCmp = ( ptr3 - szServiceName );
+               szServiceName[ iLenCmp ] = '\0';
+               ptr3++;
+            }
+            else
+               iLenAddr = 0;
+
+            ptr = ptr2 + 1;  /* next idetifier in s_szUDPService */
+            iLenCmp += 2;
+
+            if( iLenCmp != iLenRcv ) /* different length -> try next service identifier */
+               continue;
+
+            /* compare request with actual service identifier -> send answer */
+            sprintf( szTmp, "%c%s%c", '\5', szServiceName, '\0' );
+            if( strncmp( szBuffer, szTmp, iLenCmp ) == 0 )
+            {
+               szTmp[ 0 ] = '\6';
+               if( iLenAddr > 0 )  /* add optional string (address) after ':' in szServiceName */
+               {
+                  strncpy( szTmp + iLenCmp, ptr3, iLenAddr );
+                  if( s_iServerPort != LETO_DEFAULT_PORT && ! strchr( ptr3, ':' ) )
+                     iLenAddr += sprintf( szTmp + iLenCmp + iLenAddr, ":%d", s_iServerPort );
+                  szTmp[ iLenCmp + iLenAddr ] = '\0';
+               }
+               else if( s_UDPServer[ 0 ] )  /* Uhura started for specific interface - add that IP address */
+               {
+                  iLenAddr = strlen( s_UDPServer );
+                  strncpy( szTmp + iLenCmp, s_UDPServer, iLenAddr );
+                  if( s_iServerPort != LETO_DEFAULT_PORT )
+                     iLenAddr += sprintf( szTmp + iLenCmp + iLenAddr, ":%d", s_iServerPort );
+               }
+               else if( s_iServerPort != LETO_DEFAULT_PORT )
+                  iLenAddr += sprintf( szTmp + iLenCmp + iLenAddr, ":%d", s_iServerPort );
+
+               hb_socketSendTo( s_hSocketUDP, szTmp, iLenCmp + iLenAddr, 0, pSockAddr, uiLen, 1000 );
+               bAnswered = HB_TRUE;
+               if( iDebugMode() > 10 )
+                  leto_writelog( NULL, -1, "DEBUG service request <%s:%s> answered: %s", szSendToIP, szBuffer + 1, szTmp + iLenCmp );
+               break;
+            }
+         }
+
+         if( ! bAnswered && iDebugMode() > 20 )
+            leto_writelog( NULL, -1, "DEBUG service request <%s:%s> here unknown", szSendToIP, szBuffer + 1 );
+
+         if( szSendToIP )
+            hb_xfree( szSendToIP );
+      }
+      if( pSockAddr )
+      {
+          hb_xfree( pSockAddr );
+          pSockAddr = NULL;
+      }
+   }
+
+   if( iDebugMode() > 0 )
+      leto_writelog( NULL, 0, "DEBUG thread for UDP services shut down" );
+
+   hb_xfree( szBuffer );
+   hb_xfree( szServiceName );
+   hb_xfree( szTmp );
+
+   hb_vmThreadQuit();
+   HB_THREAD_END
+}
+
+
+/* translate address with netmask to a valid broadcast IP4:  broadcast = ip | ( ~ subnet ) */
+static HB_BOOL leto_BroadcastIP( const char * szAddr, char * szBroadcast )
+{
+   PHB_ITEM     pIFaces = hb_socketGetIFaces( HB_SOCKET_AF_INET, HB_TRUE );
+   const char * szNetM = NULL;
+   HB_BOOL      fSuccess = HB_FALSE;
+
+   /* get the netmask */
+   if( *szAddr && pIFaces && hb_arrayLen( pIFaces ) )
+   {
+      HB_SIZE nIFace = 1;
+
+      while( nIFace <= hb_arrayLen( pIFaces ) )
+      {
+         if( ! strcmp( hb_arrayGetCPtr( hb_arrayGetItemPtr( pIFaces, nIFace ), HB_SOCKET_IFINFO_ADDR ), szAddr ) )
+         {
+            szNetM = hb_arrayGetCPtr( hb_arrayGetItemPtr( pIFaces, nIFace ), HB_SOCKET_IFINFO_NETMASK );
+            break;
+         }
+         nIFace++;
+      }
+   }
+
+   szBroadcast[ 0 ] = '\0';
+   if( szNetM )
+   {
+      HB_SIZE      nTuple = 1;
+      HB_SIZE      nPosIP, nPosNM, nPosBC = 0;
+      const char * ptr;
+
+      while( nTuple <= 4 )
+      {
+         ptr = strstr( szAddr, "." ) ;
+         if( nTuple < 4 && ! ptr )  /* wrong IP */
+            break;
+         else
+         {
+            nPosIP = atoi( szAddr );
+            if( ptr )
+               szAddr += ( ptr - szAddr ) + 1;
+         }
+
+         ptr = strstr( szNetM, "." );
+         if( nTuple < 4 && ! ptr )  /* wrong NM */
+            break;
+         else
+         {
+            nPosNM = atoi( szNetM );
+            if( ptr )
+               szNetM += ( ptr - szNetM ) + 1;
+         }
+
+         nPosBC += sprintf( szBroadcast + nPosBC, "%d", ( HB_USHORT ) ( ( nPosIP & 0xFF ) | ( ( ~ nPosNM ) & 0xFF ) ) );
+         if( nTuple < 4 )
+            szBroadcast[ nPosBC++ ] = '.';
+
+         nTuple++;
+      }
+      if( nTuple > 4 )
+         fSuccess = HB_TRUE;
+   }
+
+   if( pIFaces )
+      hb_itemRelease( pIFaces );
+
+   return fSuccess;
+}
 
 /*
  * Note: without HVM
@@ -1637,7 +1837,7 @@ HB_FUNC( LETO_SERVER )
 #endif
 
    if( iServerPort <= 0 )
-      iServerPort = 2812;
+      iServerPort = LETO_DEFAULT_PORT;
    if( HB_ISNUM( 3 ) )
    {
       s_iTimeOut = hb_parni( 3 );
@@ -1719,6 +1919,7 @@ HB_FUNC( LETO_SERVER )
       hb_retl( HB_FALSE );
       return;
    }
+   s_hSocketMain = hSocketMain;
 
    /* the zombie watch thread -- socket not created if not wanted */
    if( s_iZombieCheck && hSocketErr != HB_NO_SOCKET )
@@ -1727,8 +1928,6 @@ HB_FUNC( LETO_SERVER )
       if( th_h )
          hb_threadDetach( th_h );
    }
-
-   s_hSocketMain = hSocketMain;
 
    /* the second socket advisor thread3 */
    if( hb_fsPipeCreate( hThreadPipe ) )
@@ -1740,7 +1939,57 @@ HB_FUNC( LETO_SERVER )
          hb_threadDetach( th_h );
    }
 
-   /* ToDo -- integrate uhura ? */
+   /* 'Uhura' UDP broadcast service thread */
+   if( hb_parclen( 5 ) )
+   {
+      char szUDPBroadcast[ HB_PATH_MAX ];  /* INET_ADDRSTRLEN */
+
+      hb_strncpy( s_szUDPService, hb_parc( 5 ), HB_PATH_MAX - 1 );
+      if( hb_parclen( 6 ) )
+         strcpy( s_UDPServer, hb_parc( 6 ) );
+      else
+         s_UDPServer[ 0 ] = '\0';
+
+      /* calculate broadcast IP */
+      if( s_UDPServer[ 0 ] )
+         leto_BroadcastIP( s_UDPServer, szUDPBroadcast );
+      else
+         strcpy( szUDPBroadcast, "0.0.0.0" );
+
+      if( ( s_hSocketUDP = hb_socketOpen( HB_SOCKET_AF_INET, HB_SOCKET_PT_DGRAM, 0 ) ) != HB_NO_SOCKET )
+      {
+         HB_SIZE nPort = HB_ISNUM( 7 ) ? hb_parni( 7 ) : LETO_DEFAULT_PORT;
+
+#if 0
+         #if ! defined( HB_OS_UNIX )
+            if( strncmp( szUDPBroadcast, "0.0.0.0", 7 ) )
+               strcpy( szUDPBroadcast, s_UDPServer );
+         #endif
+#endif
+         hb_socketInetAddr( &pSockAddr, &uiLen, szUDPBroadcast, nPort );
+         hb_socketSetBroadcast( s_hSocketUDP, HB_TRUE );
+         if( hb_socketBind( s_hSocketUDP, pSockAddr, uiLen ) == 0 )
+         {
+            th_h = hb_threadCreate( &th_id, udpsvc, NULL );
+            if( th_h )
+               hb_threadDetach( th_h );
+            leto_writelog( NULL, -1, "DEBUG UDP services <%s> broadcasted at %s", s_szUDPService, szUDPBroadcast );
+         }
+         else
+         {
+           hb_socketClose( s_hSocketUDP );
+           s_hSocketUDP = HB_NO_SOCKET;
+           leto_writelog( NULL, -1, "ERROR failed to start UDP services at %s", szUDPBroadcast );
+         }
+         if( pSockAddr )
+         {
+            hb_xfree( pSockAddr );
+            pSockAddr = NULL;
+         }
+      }
+      else
+         leto_writelog( NULL, -1, "ERROR failed to open IFACE %s for UDP services", szUDPBroadcast );
+   }
 
 #if 1 && defined( HB_HAS_POLL )  /* using poll() instead FD_SET() for Linux */
    pPoll[ 0 ].fd = hSocketMain;
@@ -1948,6 +2197,13 @@ HB_FUNC( LETO_SERVER )
       const char cToPipe[ 1 ] = { '@' };
 
       hb_fsPipeWrite( hThreadPipe[ 1 ], cToPipe, 1, 0 );
+   }
+
+   if( s_hSocketUDP != HB_NO_SOCKET )
+   {
+      hb_socketShutdown( s_hSocketUDP, HB_SOCKET_SHUT_RDWR  );
+      hb_socketClose( s_hSocketUDP );
+      s_hSocketUDP = HB_NO_SOCKET;
    }
 
    if( hSocketErr != HB_NO_SOCKET )

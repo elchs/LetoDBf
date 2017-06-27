@@ -1452,7 +1452,7 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
          }
          fWithPort = HB_FALSE;
          if( ! *piPort )
-            *piPort = 2812;
+            *piPort = LETO_DEFAULT_PORT;
       }
       else if( strchr( ptrPort, '/' ) == NULL )  /* no ... / */
       {
