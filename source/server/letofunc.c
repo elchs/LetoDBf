@@ -642,6 +642,8 @@ static int leto_lockScheme( int iIndexType )
 #else
          iLockScheme = DB_DBFLOCK_CLIPPER2;
 #endif
+      else if( s_uiLockExtended == DB_DBFLOCK_HB64 )
+         iLockScheme = DB_DBFLOCK_HB64;
       else if( s_uiLockExtended != DB_DBFLOCK_COMIX )
          iLockScheme = DB_DBFLOCK_HB32;
       else
@@ -4689,13 +4691,12 @@ HB_FUNC( LETO_FCREATE )
 /* leto_udf() */
 HB_FUNC( LETO_FCLOSE )
 {
-   PUSERSTRU  pUStru = letoGetUStru();
-   HB_ERRCODE uiError = 0;
+   PUSERSTRU pUStru = letoGetUStru();
 
    if( s_bFileFunc && HB_ISNUM( 1 ) && hb_parni( 1 ) >= 0 )
    {
-
       HB_MAXINT  nHandle = hb_parnint( 1 );
+      HB_ERRCODE uiError;
 
       if( leto_DelHandle( pUStru, nHandle ) )
       {
@@ -5263,27 +5264,26 @@ static HB_BOOL leto_RecLock( PUSERSTRU pUStru, PAREASTRU pAStru, HB_ULONG ulRecN
 
          dbLockInfo.itmRecID = hb_itemPutNL( NULL, ulRecNo );
          dbLockInfo.uiMethod = DBLM_MULTIPLE;
+         dbLockInfo.fResult = HB_FALSE;
          do
          {
-            dbLockInfo.fResult = HB_FALSE;
             SELF_LOCK( pArea, &dbLockInfo );
-            if( dbLockInfo.fResult )
+            if( dbLockInfo.fResult || iTimeOut < 21 )
                break;
-            else if( iTimeOut > 21 )
-            {
-               hb_threadReleaseCPU();
-               hb_threadReleaseCPU();
-               iTimeOut -= 42;
-               continue;
-            }
             else
             {
-               bWasLocked = HB_TRUE;
-               break;
+               hb_threadReleaseCPU();
+               iTimeOut -= 20;
+               if( iTimeOut > 100 )
+               {
+                  hb_threadReleaseCPU();
+                  iTimeOut -= 20;
+               }
             }
          }
          while( iTimeOut > 0 );
 
+         bWasLocked = ! dbLockInfo.fResult;
          hb_itemRelease( dbLockInfo.itmRecID );
       }
 
@@ -5907,7 +5907,7 @@ HB_FUNC( LETO_RECLOCK )
       {
          HB_BOOL bAppend = HB_ISLOG( 3 ) ? hb_parl( 3 ) : HB_FALSE;
 
-         if( bAppend && ! pAStru-> bLocked )
+         if( ! pAStru->bLocked )
             hb_retl( leto_RecLock( pUStru, pAStru, ulRecNo, bAppend,
                      HB_ISNUM( 2 ) ? ( int ) ( hb_parnd( 2 ) * 1000 ) : 0 ) );
          else
@@ -11763,6 +11763,27 @@ static void leto_Info( PUSERSTRU pUStru, const char * szData )
                   hb_itemRelease( pPasswd );
             }
             break;
+
+         case DBI_LOCKTEST:
+         {
+            PHB_ITEM pItem = hb_itemNew( NULL );
+            HB_ULONG ulRecNo = strtoul( pp1, NULL, 10 );
+
+            if( ulRecNo )
+               pItem = hb_itemPutNI( pItem, ulRecNo );
+
+            if( SELF_INFO( pArea, DBI_LOCKTEST, pItem ) == HB_SUCCESS )
+            {
+               char szData1[ 32 ];
+
+               sprintf( szData1, "+%d;", hb_itemGetNI( pItem ) );
+               leto_SendAnswer( pUStru, szData1, strlen( szData1 ) );
+            }
+            else
+               leto_SendAnswer( pUStru, szErr1, 4 );
+            hb_itemRelease( pItem );
+            break;
+         }
 
          case DBI_LOCKCOUNT:
          case DBI_GETLOCKARRAY:

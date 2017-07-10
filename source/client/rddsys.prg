@@ -71,7 +71,6 @@ INIT PROCEDURE LETO_LOOKERROR
 
    RETURN
 
-
 INIT PROCEDURE LETO_CONNECTAUTO
    LOCAL hIni, nConnection, cServer, cService
    LOCAL cUser, cPW, nTimeOut, nBufRefr
@@ -94,10 +93,12 @@ INIT PROCEDURE LETO_CONNECTAUTO
          cServer := Leto_Detect( cService )  /* default 'letodb' */
       ENDIF
       IF ! EMPTY( cServer )
-         /* ToDO: interactive user/ password entrance forced by a "!",
-          * makes sense only with LetoDBf authentication activated */
+         /* user name can be used without PW */
          cUser       := hb_HGetDef( hIni, "USER", NIL )
+         /* ToDO: interactive password entrance forced by e.g. "!",
+          * makes sense only with LetoDBf authentication activated */
          cPW         := NIL
+
          IF hb_HPos( hIni, "TIMEOUT" ) > 0
             nTimeOut    := VAL( hb_HGet( hIni, "TIMEOUT" ) )
          ENDIF
@@ -115,9 +116,10 @@ INIT PROCEDURE LETO_CONNECTAUTO
             Set( _SET_PATH, hb_HGet( hIni, "PATH_SEARCH" ) )
          ENDIF
 
-         /* ToDo: feedback about connecting in progress and result ? */
+         OutStd( "connecting to LetoDBf " + cServer + " ..." )
          nConnection := Leto_Connect( cServer, cUser, cPW, nTimeOut, nBufRefr )
          IF nConnection < 0
+            OutErr( "LetoDBf connect failed of: " + leto_Connect_Err( .T. ) )
             QUIT
          ENDIF
       ENDIF
@@ -133,7 +135,7 @@ FUNCTION Leto_Detect( cService, nNrOfPossible, nPort )
    LOCAL aBroadCasted := {}
    LOCAL nFound := 0
 
-   hb_default( @cService, "letodb" )        /* "keyword" the wanted server configured to be responsible */ 
+   hb_default( @cService, "letodb" )        /* "keyword" the wanted server configured to be responsible */
    hb_default( @nNrOfPossible, 1 )          /* if multiple server found in a network, take the n-TH */
    hb_default( @nPort, LETO_DEFAULT_PORT )  /* port to send the broadcast LETO_DEFAULT_PORT */
 

@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-07-10 18:08 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    ! fix silly bug in leto_RecLock() for opt. timeout in mode no_save_WA = 1,
+      leading to possible wrong positive result
+    ! fix UDF function LETO_RECLOCK
+    + add missing useability of DB_DBFLOCK_HB64 lock scheme
+    + add DBI_LOCKTEST to query server for F|R-lock
+
+  * source/client/rddsys.prg
+  * source/client/letomgmn.c
+    * minor changes
+
 2017-06-27 16:51 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; update client and server: tiny protocol change for Leto_UDF()
 

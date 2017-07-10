@@ -2537,6 +2537,23 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
          hb_itemPutNI( pItem, pTable->uiMemoBlocksize );
          break;
 
+      case DBI_LOCKTEST:
+         pConnection = letoGetConnPool( pTable->uiConnection );
+         if( ! pConnection )
+            return HB_FAILURE;
+         else
+         {
+            char szData[ 64 ];
+
+            eprintf( szData, "%c;%lu;%d;%lu;", LETOCMD_dbi, pTable->hTable, uiIndex, ( HB_ULONG ) hb_itemGetNL( pItem ) );
+            if( ! leto_SendRecv( pConnection, pArea, szData, 0, 0 ) )
+               return HB_FAILURE;
+            else if( *pConnection->szBuffer != '+' )
+               return HB_FAILURE;
+            hb_itemPutNL( pItem, strtoul( leto_firstchar( pConnection ), NULL, 10 ) );
+         }
+         break;
+
       case DBI_LOCKSCHEME:
          hb_itemPutNI( pItem, pTable->uiLockScheme );
          break;
@@ -2544,15 +2561,13 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
       case DBI_ISENCRYPTED:
       {
          char   szData[ 32 ];
-         char * ptr;
 
          pConnection = letoGetConnPool( pTable->uiConnection );
          eprintf( szData, "%c;%lu;%d;;", LETOCMD_dbi, pTable->hTable, uiIndex );
-         if( ! leto_SendRecv( pConnection, pArea, szData, 0, 1021 ) )
+         if( ! leto_SendRecv( pConnection, pArea, szData, 0, 0 ) )
             return HB_FAILURE;
 
-         ptr = leto_firstchar( pConnection );
-         if( *( ptr - 1 ) == '+' )
+         if( *pConnection->szBuffer == '+' )
             pTable->fEncrypted = HB_TRUE;
          else
             pTable->fEncrypted = HB_FALSE;
@@ -2642,6 +2657,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
          break;
       }
 
+#if ! defined( __HARBOUR30__ )
       case DBI_TRANSREC:
       {
          char    szData[ 32 ];
@@ -2671,6 +2687,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
          hb_itemPutL( pItem, fTransRec );  /* ugly overwrite GCalloc pTransInfo with last state */
          break;
       }
+#endif
 
       case DBI_LASTUPDATE:  /* stored as HB_LONG Julian */
          hb_itemPutDL( pItem, pTable->lLastUpdate );
@@ -5058,6 +5075,8 @@ static int leto_LockScheme( LETOCONNECTION * pConnection )
 #else
          iLockScheme = DB_DBFLOCK_CLIPPER2;
 #endif
+      else if( pConnection->uiLockSchemeExtend == DB_DBFLOCK_HB64 )
+         iLockScheme = DB_DBFLOCK_HB64;
       else if( pConnection->uiLockSchemeExtend != DB_DBFLOCK_COMIX )
          iLockScheme = DB_DBFLOCK_HB32;
       else
