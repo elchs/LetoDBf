@@ -97,13 +97,15 @@ REQUEST HB_MEMIO
    #define DEF_CH_SEP   '/'
 #endif
 
-/* comment out 2 lines for the complete Harbour core command/ function set */
-// REQUEST __HB_EXTERN__
-// #include "hbextern.ch"
-
-/* comment out 2 lines for the complete hbct contrib */
-// #define __HBEXTERN__HBCT__REQUEST 1
-// #include "hbct.hbx"
+/* full command sets for UDF usage */
+#ifdef LETO_FULLCMDSET_HB
+   REQUEST __HB_EXTERN__
+   #include "hbextern.ch"
+#endif
+#ifdef LETO_FULLCMDSET_CT
+   #define __HBEXTERN__HBCT__REQUEST 1
+   #include "hbct.hbx"
+#endif
 
 /* following selected functions are linked into server executable with REQUEST */
 REQUEST ABS, ALLTRIM, AT, CHR, CTOD, DATE, DAY, DELETED, DESCEND, DTOC, DTOS, ;

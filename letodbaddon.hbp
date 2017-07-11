@@ -6,6 +6,11 @@
 # outcomment following line to enable all by Harbour known codepages in LetoDBf
 #-prgflag=-D__HB_EXT_CDP__=yes
 
+# to enable full Harbour command set useable for UDF functions
+#-prgflag=-DLETO_FULLCMDSET_HB=1
+# to enable full CT contrib command set useable for UDF functions
+#-prgflag=-DLETO_FULLCMDSET_CT=1
+
 # Uncomment "plugrand" line for a random password used by server to encrypt the
 # users/passwords/rights file. Then 'nobody' know the password,
 # but with each new server build the file must be deleted/ new created.

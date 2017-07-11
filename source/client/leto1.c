@@ -2327,27 +2327,28 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
          pCreateInfo->atomAlias = szAlias;
       }
 
-      pTable = LetoDbCreateTable( pConnection, szFile, pCreateInfo->atomAlias, szData,
-                                  pCreateInfo->uiArea, pCreateInfo->cdpId );
+      do
+      {
+         pTable = LetoDbCreateTable( pConnection, szFile, pCreateInfo->atomAlias, szData,
+                                     pCreateInfo->uiArea, pCreateInfo->cdpId );
+         if( pTable )
+            break;
+         if( ! pConnection->iError )
+            pConnection->iError = EG_CREATE;
+         else if( pConnection->iError == 1 || pConnection->iError == 1000 )
+            pConnection->iError = EG_SYNTAX;
+         else if( pConnection->iError == EDBF_SHARED )
+            hb_rddSetNetErr( HB_TRUE );
+      }
+      while( commonError( pArea, EG_CREATE, pConnection->iError, 0, szFile, EF_CANRETRY | EF_CANDEFAULT, NULL ) == E_RETRY );
    }
    else
       pTable = NULL;
 
    hb_xfree( szFieldDup );
    hb_xfree( szData );
-
    if( ! pTable )
-   {
-      if( pConnection->iError == EDBF_SHARED )  /* NetErr() */
-         commonError( pArea, EG_OPEN, EDBF_SHARED, 32, pArea->szDataFileName, EF_CANDEFAULT, NULL );
-      else if( pConnection->iError == 1 || pConnection->iError == 1000 )
-         commonError( pArea, EG_SYNTAX, pConnection->iError, 0, NULL, 0, NULL );
-      else if( ! pConnection->iError )
-         commonError( pArea, EG_CREATE, EDBF_CORRUPT, 0, szFile, 0, NULL );
-      else
-         hb_rddSetNetErr( HB_TRUE );
       return HB_FAILURE;
-   }
 
    pArea->pTable = pTable;
    if( pCreateInfo->cdpId )
@@ -2763,21 +2764,23 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
       pOpenInfo->atomAlias = szAlias;
    }
 
-   /* sets pTable->pTagCurrent */
-   pTable = LetoDbOpenTable( pConnection, szFile, pOpenInfo->atomAlias,
-                             pOpenInfo->fShared, pOpenInfo->fReadonly,
-                             pOpenInfo->cdpId ? pOpenInfo->cdpId : "", pOpenInfo->uiArea );
+   do
+   {
+      /* sets pTable->pTagCurrent */
+      pTable = LetoDbOpenTable( pConnection, szFile, pOpenInfo->atomAlias,
+                                pOpenInfo->fShared, pOpenInfo->fReadonly,
+                                pOpenInfo->cdpId ? pOpenInfo->cdpId : "", pOpenInfo->uiArea );
+      if( pTable )
+         break;
+      if( ! pConnection->iError )
+         pConnection->iError = 1021;
+      else if( pConnection->iError == 103 )
+         pConnection->iError = EDBF_SHARED;
+   }
+   while( commonError( pArea, EG_OPEN, pConnection->iError, 0, szFile, EF_CANRETRY | EF_CANDEFAULT, NULL ) == E_RETRY );
    if( ! pTable )
    {
-      if( pConnection->iError != 103 )  /* no runtime error, only NetErr() ? */
-      {
-         if( ! pConnection->iError )
-            commonError( pArea, EG_DATATYPE, 1021, 0, pArea->szDataFileName, 0, NULL );  /* EDBF_DATAWIDTH */
-         else
-            commonError( pArea, EG_OPEN, pConnection->iError, 0, pArea->szDataFileName, 0, NULL );  /* EDBF_DATAWIDTH */
-      }
-      else
-         commonError( pArea, EG_OPEN, 103, 32, pArea->szDataFileName, EF_CANDEFAULT, NULL );
+      SELF_CLOSE( ( AREAP ) pArea );
       return HB_FAILURE;
    }
    pArea->pTable = pTable;
