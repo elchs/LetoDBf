@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-07-12 17:17 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    ! fix in letoFlush: test if WA have valid table before for updated data;
+      Thanks Sergy for his patience to unravel his error handler
+    % only for modified (locked) record, DBCOMMIT will send along with changed
+      data also a 'flush' to server, else it is discarded
+
 2017-07-11 12:08 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     * error handling for open/ create table: add retry and default option
