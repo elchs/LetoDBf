@@ -801,8 +801,7 @@ static HB_ERRCODE letoAppend( LETOAREAP pArea, HB_BOOL fUnLockAll )
    {
       if( fUnLockAll )
          pTable->ulLocksMax = 0;
-      if( pTable->fRecLocked )
-         leto_AddRecLock( pTable, pTable->ulRecNo );
+      leto_AddRecLock( pTable, pTable->ulRecNo );
    }
 
    if( pArea->area.lpdbRelations )
@@ -1617,10 +1616,39 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
 #endif
             else
                fTypeError = HB_TRUE;
-            break;
          }
-         /* no break */
+         else
+         {
+#ifdef __XHARBOUR__
+            if( HB_IS_DATE( pItem ) )
+            {
+               HB_PUT_LE_UINT32( ptr, hb_itemGetDL( pItem ) );
+               HB_PUT_LE_UINT32( ptr + 4, hb_itemGetT( pItem ) );
+            }
+#else
+            if( HB_IS_DATETIME( pItem ) )
+            {
+               HB_LONG lDate, lTime;
+
+               hb_itemGetTDT( pItem, &lDate, &lTime );
+               HB_PUT_LE_UINT32( ptr, lDate );
+               HB_PUT_LE_UINT32( ptr + 4, lTime );
+            }
+            else if( HB_IS_STRING( pItem ) )
+            {
+               HB_LONG lJulian, lMillisec;
+
+               hb_timeStampStrGetDT( hb_itemGetCPtr( pItem ), &lJulian, &lMillisec );
+               HB_PUT_LE_UINT32( ptr, lJulian );
+               HB_PUT_LE_UINT32( ptr + 4, lMillisec );
+            }
+#endif
+            else
+               fTypeError = HB_TRUE;
+         }
+         break;
       }
+
       case HB_FT_TIMESTAMP:
       case HB_FT_MODTIME:
       {
@@ -2303,7 +2331,7 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
       else
          ptr += eprintf( ptr, "%s;%c;%d;%d;", szFieldName, cType, pField->uiLen, pField->uiDec );
 
-      if( pField->uiDec > 99 )  /* avoid ptr buffer overflow */
+      if( ! pField->uiLen || pField->uiDec > HB_MIN( 99, pField->uiLen ) )  /* avoid ptr buffer overflow */
          errCode = HB_FAILURE;
 
       pField++;
@@ -2827,11 +2855,20 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
       dbFieldInfo.uiLen = pField->uiLen;
       dbFieldInfo.uiDec = pField->uiDec;
       dbFieldInfo.uiFlags = pField->uiFlags;
-      errCode = SELF_ADDFIELD( ( AREAP ) pArea, &dbFieldInfo );
+      if( pField->uiType == HB_FT_STRING && pField->uiDec )
+      {
+         pField->uiLen += pField->uiDec * 256;
+         pField->uiDec = 0;
+      }
+      if( ! pField->uiLen || pField->uiDec > HB_MIN( 99, pField->uiLen ) )
+         errCode = HB_FAILURE;
+      else
+         errCode = SELF_ADDFIELD( ( AREAP ) pArea, &dbFieldInfo );
    }
 
    if( errCode != HB_SUCCESS || SUPER_OPEN( ( AREAP ) pArea, pOpenInfo ) != HB_SUCCESS )
    {
+      commonError( pArea, EG_OPEN, EDBF_CORRUPT, 0, szFile, EF_CANDEFAULT, NULL );
       SELF_CLOSE( ( AREAP ) pArea );
       hb_rddSetNetErr( HB_TRUE );
       return HB_FAILURE;

@@ -1553,8 +1553,14 @@ HB_FUNC( LETO_GETAPPOPTIONS )
          hb_xfree( pCrash );
          hb_retni( 1 );
 #else
+         PUSERSTRU pUStru = letoGetUStru();
+
          leto_writelog( NULL, -1, "INFO: USERSTRU %d, AREASTRU %d, TABLESTRU %d, GLOBESTRU %d INDEXSTRU %d ",
                         sizeof( USERSTRU ), sizeof( AREASTRU ), sizeof( TABLESTRU ), sizeof( GLOBESTRU ), sizeof( INDEXSTRU )  );
+         /* test delayed error */
+         if( pUStru->hSocketErr )
+            leto_SendAnswer2( pUStru, "3210", 4, HB_FALSE, 1000 );
+
 #endif
          break;
       }
@@ -3082,6 +3088,7 @@ static HB_BOOL leto_TableLock( PAREASTRU pAStru, int iTimeOut )
 
          dbLockInfo.itmRecID = NULL;
          dbLockInfo.uiMethod = DBLM_FILE;
+         iTimeOut++;
          do
          {
             dbLockInfo.fResult = HB_FALSE;
@@ -3089,12 +3096,16 @@ static HB_BOOL leto_TableLock( PAREASTRU pAStru, int iTimeOut )
             bRet = dbLockInfo.fResult ? HB_TRUE : HB_FALSE;
             if( bRet )
                break;
-            else if( ! pAStru->pTStru->pGlobe->bLocked && iTimeOut > 21 )
+            else if( ! pAStru->pTStru->pGlobe->bLocked && iTimeOut > 20 )
             {
                /*  it's a 3rd party lock */
                hb_threadReleaseCPU();
-               hb_threadReleaseCPU();
-               iTimeOut -= 42;
+               iTimeOut -= 20;
+               if( iTimeOut > 100 )
+               {
+                  hb_threadReleaseCPU();
+                  iTimeOut -= 20;
+               }
                continue;
             }
             else
@@ -5265,6 +5276,7 @@ static HB_BOOL leto_RecLock( PUSERSTRU pUStru, PAREASTRU pAStru, HB_ULONG ulRecN
          dbLockInfo.itmRecID = hb_itemPutNL( NULL, ulRecNo );
          dbLockInfo.uiMethod = DBLM_MULTIPLE;
          dbLockInfo.fResult = HB_FALSE;
+         iTimeOut++;
          do
          {
             SELF_LOCK( pArea, &dbLockInfo );

@@ -2,6 +2,27 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-07-17 12:47 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/client/letocl.c
+    * tiny change about lock register in Leto[Db]Append
+    * ensure field lengths > 0 for letoCreate()/ letoOpen()
+    ! fix MinGW warning of (by intention) fall trough in case switch
+    ! re-work of leto_elch() to use local values instead pConnection->items,
+      as struct may be already freed during app shutdown
+
+  * source/server/server.prg
+    + some more REQUEST
+
+  * source/server/letofunc.c
+    * increase in leto_TableLock()/ leto_RecLock() given timeout value by 1:
+      0.02 s == 20 + 1 --> 2 lock tries
+    * add internal delayed error test, invoked by
+      leto_UDF( "Leto_GetAppOptions", 42 )  --> RTE
+
+  * letodbsvc.hbp
+    + compile flags to REQUEST full command set for HB & CT contrib
+
 2017-07-12 17:17 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     ! fix in letoFlush: test if WA have valid table before for updated data;

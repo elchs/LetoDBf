@@ -2472,30 +2472,32 @@ static HB_THREAD_STARTFUNC( leto_elch )
 {
    LETOCONNECTION * pConnection = ( LETOCONNECTION * ) Cargo;
    HB_SOCKET        hSocket = pConnection->hSocketErr;
+   HB_BOOL          fPipeControl = pConnection->hSockPipe[ 0 ] != FS_ERROR;
+   HB_FHANDLE       hPipe = pConnection->hSockPipe[ 0 ];
    int              iChange;
    char             szBuffer[ 256 ];
    fd_set           readfds;
-   int              nfds = 0;
+   int              nfds = ( int ) hSocket;
+#ifdef LETO_CLIENTLOG
+   unsigned int     uiConnection = pConnection->iConnection;
+#endif
 
    /* without HVM ! */
 
    szBuffer[ 0 ] = '\0';
 
-   while( pConnection->hSockPipe[ 0 ] != FS_ERROR && pConnection->hSocketErr != HB_NO_SOCKET )
+   while( hSocket != HB_NO_SOCKET )
    {
       FD_ZERO( &readfds );
       FD_SET( hSocket, &readfds );
-      if( pConnection->hSockPipe[ 0 ] != FS_ERROR )
+      if( fPipeControl )
       {
-         if( ( int ) pConnection->hSockPipe[ 0 ] > ( int ) pConnection->hSocketErr )
-            nfds = ( int ) pConnection->hSockPipe[ 0 ];
-         else
-            nfds = ( int ) pConnection->hSocketErr;
+         if( ( int ) hPipe > ( int ) hSocket )
+            nfds = ( int ) hPipe;
          FD_SET( ( unsigned int ) pConnection->hSockPipe[ 0 ], &readfds );
       }
-      hb_vmUnlock();
+
       iChange = select( nfds + 1, &readfds, NULL, NULL, NULL );
-      hb_vmLock();
       if( iChange <= 0 )
       {
          if( iChange == 0 )
@@ -2510,20 +2512,20 @@ static HB_THREAD_STARTFUNC( leto_elch )
          HB_ULONG ulMsgLen;
          long     lRet;
 
-         /* each action at pipe means shell end this thread */
-         if( pConnection->hSockPipe[ 0 ] == FS_ERROR )
-            break;
-         else if( FD_ISSET( ( int ) pConnection->hSockPipe[ 0 ], &readfds ) )
+         if( fPipeControl )  /* each action at pipe means to end this thread */
          {
-            char c[ 1 ];
+            if( FD_ISSET( ( int ) hPipe, &readfds ) )
+            {
+               char c[ 1 ];
 
-            hb_fsPipeRead( pConnection->hSockPipe[ 0 ], &c, 1, 0 );
-            break;
+               hb_fsPipeRead( hPipe, &c, 1, 0 );
+               break;
+            }
          }
 
          do
          {
-            lRet = hb_socketRecv( pConnection->hSocketErr, ptr + ulRead, LETO_MSGSIZE_LEN - ulRead, 0, -1 );
+            lRet = hb_socketRecv( hSocket, ptr + ulRead, LETO_MSGSIZE_LEN - ulRead, 0, -1 );
 
             if( lRet > 0 )
                ulRead += lRet;
@@ -2550,10 +2552,7 @@ static HB_THREAD_STARTFUNC( leto_elch )
          ulRead = 0;
          do
          {
-            hb_vmUnlock();
-            lRet = hb_socketRecv( pConnection->hSocketErr, ptr + ulRead, ulMsgLen - ulRead, 0, -1 );
-            hb_vmLock();
-
+            lRet = hb_socketRecv( hSocket, ptr + ulRead, ulMsgLen - ulRead, 0, -1 );
             if( lRet > 0 )
                ulRead += lRet;
 #ifndef __SOCKET_EAGAIN__
@@ -2696,7 +2695,7 @@ static HB_THREAD_STARTFUNC( leto_elch )
    }
 
 #ifdef LETO_CLIENTLOG
-   leto_clientlog( NULL, 0, "%s", "DEBUG thread leto_elch() ended" );
+   leto_clientlog( NULL, 0, "DEBUG thread leto_elch( %u ) ended", uiConnection );
 #endif
 
    HB_THREAD_END
@@ -3117,6 +3116,7 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
       hb_socketShutdown( pConnection->hSocketErr, HB_SOCKET_SHUT_RDWR  );
       hb_socketClose( pConnection->hSocketErr );
       pConnection->hSocketErr = HB_NO_SOCKET;
+      hb_threadReleaseCPU();
    }
 
    if( pConnection->hSockPipe[ 1 ] != FS_ERROR )  /* wake up leto_elch() */
@@ -4430,7 +4430,7 @@ HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
    leto_SetBlankRecord( pTable );
    if( LetoDbPutRecord( pTable ) == HB_SUCCESS )
    {
-      if( ! pTable->fFLocked && pTable->fShared && ( ! pTable->fHaveAutoinc || ! pTable->ulRecNo ) )
+      if( ! pTable->fFLocked && pTable->fShared && ! pTable->fReadonly )
          pTable->fRecLocked = HB_TRUE;
       if( pTable->fAutoRefresh )
          pTable->llCentiSec = LETO_CENTISEC();
