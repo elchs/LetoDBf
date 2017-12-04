@@ -951,9 +951,9 @@ static AREAP leto_SelectArea( PUSERSTRU pUStru, HB_ULONG ulAreaID )
    /* is wanted WA not the same as last used ? */
    if( ulAreaID != pUStru->ulCurAreaID || ! pUStru->pCurAStru )
    {
-      PAREASTRU pAStru;
+      PAREASTRU pAStru = leto_FindArea( pUStru, ulAreaID );
 
-      if( ( pAStru = leto_FindArea( pUStru, ulAreaID ) ) != NULL )
+      if( pAStru )
       {
          if( pAStru->bNotDetached )
          {
@@ -10204,12 +10204,10 @@ static void leto_Relation( PUSERSTRU pUStru, const char * szData )
          {
             const char * szTmp = szData;
             const char * pp1 = NULL, * pp2 = NULL;
-            int          nParam;
+            int          nParam, iAreaChild;
 
             for( ;; )
             {
-               int iAreaChild;
-
                nParam = leto_GetParam( szTmp, &pp1, &pp2, NULL, NULL );
                if( nParam < 3 )  /* includes szTmp */
                   break;
@@ -10224,9 +10222,13 @@ static void leto_Relation( PUSERSTRU pUStru, const char * szData )
                   AREAP pChildArea = ( AREAP ) hb_rddGetWorkAreaPointer( iAreaChild );
 
                   if( s_iDebugMode > 10 )
-                     leto_wUsLog( pUStru, -1, "DEBUG leto_Relation WA %s %s into %s", pUStru->pCurAStru->szAlias,
-                                  nParam > 2 ? pp2 : "",
-                                  nParam > 1 ? leto_FindArea( pUStru, ( HB_ULONG ) iAreaChild )->szAlias : "" );
+                  {
+                     PAREASTRU pChildAStru = leto_FindArea( pUStru, ( HB_ULONG ) iAreaChild );
+
+                     leto_wUsLog( pUStru, -1, "DEBUG leto_Relation %s->(%s) into %s",
+                                              pUStru->pCurAStru->szAlias, pp2,
+                                              pChildAStru ? pChildAStru->szAlias : "?" );
+                  }
 
                   if( pArea && pChildArea )
                   {
@@ -12373,9 +12375,11 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                if( ! s_bNoSaveWA || bMemIO )
                   leto_DelAreaID( szRealAlias );
                if( pUStru->iHbError == 32 || hb_rddGetNetErr() )
-                  sprintf( szReply, "%s%s%s", szErr4, pUStru->szHbError ? pUStru->szHbError + 4 : ":21-1023-0-0\t", szFile );  /* EDBF_SHARED */
+                  sprintf( szReply, "%s%s\t%s", szErr4, pUStru->szHbError ? pUStru->szHbError + 4 : ":21-1023-0-0", szFile );  /* EDBF_SHARED */
                else
-                  sprintf( szReply, "%s%s%s", szErr3, pUStru->szHbError ? pUStru->szHbError + 4 : ":21-1001-0-0\t", szFile );  /* EDBF_OPEN_DBF */
+                  sprintf( szReply, "%s%s\t%s", szErr3, pUStru->szHbError ? pUStru->szHbError + 4 : ":21-1001-0-0", szFile );  /* EDBF_OPEN_DBF */
+               pUStru->ulCurAreaID = 0;
+               pUStru->pCurAStru = NULL;
             }
             else
             {

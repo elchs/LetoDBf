@@ -216,7 +216,7 @@ static _HB_INLINE_ HB_BOOL leto_CheckAreaConn( AREAP pArea, LETOCONNECTION * pCo
 {
    /* return leto_CheckArea( ( LETOAREAP ) pArea ) && */
    return pArea && pArea->rddID == s_uiRddIdLETO &&
-          ( letoGetConnPool( ( ( LETOAREAP ) pArea )->pTable->uiConnection ) == pConnection );
+          ( ( LETOAREAP ) pArea )->pTable->uiConnection == pConnection->iConnection;
 }
 
 static HB_ERRCODE leto_doClose( AREAP pArea, void * p )
@@ -1990,6 +1990,48 @@ static void leto_FreeTag( LETOTAGINFO * pTagInfo )
    }
 }
 
+static HB_ERRCODE leto_doFreeTable( AREAP pArea, void * p )
+{
+   if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) )
+   {
+      LETOTABLE * pTable = ( ( LETOAREAP ) pArea )->pTable;
+
+      if( pTable )
+      {
+         LETOTAGINFO * pTagInfo = pTable->pTagInfo;
+
+         if( pTable->pFieldOffset )
+            hb_xfree( pTable->pFieldOffset );
+         if( pTable->pFieldIsBinary )
+            hb_xfree( pTable->pFieldIsBinary );
+         if( pTable->pFieldUpd )
+            hb_xfree( pTable->pFieldUpd );
+         if( pTable->pRecord )
+            hb_xfree( pTable->pRecord );
+         if( pTable->pFields )
+            hb_xfree( pTable->pFields );
+         if( pTable->szTags )
+            hb_xfree( pTable->szTags );
+         if( pTable->Buffer.pBuffer )
+            hb_xfree( pTable->Buffer.pBuffer );
+         if( pTable->pLocksPos )
+            hb_xfree( pTable->pLocksPos );
+
+         while( pTagInfo )
+         {
+            LETOTAGINFO * pTagNext = pTagInfo->pNext;
+
+            LetoDbFreeTag( pTagInfo );
+            pTagInfo = pTagNext;
+         }
+         hb_xfree( pTable );
+         ( ( LETOAREAP ) pArea )->pTable = NULL;
+      }
+   }
+
+   return HB_SUCCESS;
+}
+
 static HB_ERRCODE letoClose( LETOAREAP pArea )
 {
    LETOTABLE * pTable = pArea->pTable;
@@ -2000,7 +2042,7 @@ static HB_ERRCODE letoClose( LETOAREAP pArea )
       leto_PutRec( pArea );
 
    pArea->lpdbPendingRel = NULL;
-   if( pTable )
+   if( pTable )   /* shortcut: else no need to handle filter/ Relation in hb_waClose() */
       SUPER_CLOSE( ( AREAP ) pArea );
 
    if( pTable && pTable->pTagInfo )
@@ -2024,6 +2066,7 @@ static HB_ERRCODE letoClose( LETOAREAP pArea )
       {
          LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
 
+         hb_rddIterateWorkAreas( leto_doFreeTable, ( void * ) pConnection );
          commonError( pArea, EG_SYNTAX, pConnection->iError, 0, NULL, 0, NULL );
       }
       pArea->pTable = NULL;
@@ -2169,7 +2212,7 @@ static void letoCreateAlias( const char * szFile, char * szAlias )
    uLen = ( HB_USHORT ) ( ptrEnd - ptrBeg );
    if( uLen > HB_RDD_MAX_ALIAS_LEN )
       uLen = HB_RDD_MAX_ALIAS_LEN;
-   strncpy( szAlias, ptrBeg, uLen );
+   hb_strncpy( szAlias, ptrBeg, uLen );
    szAlias[ uLen ] = '\0';
    hb_strUpper( szAlias, uLen );
 }
@@ -2367,7 +2410,7 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
          else if( pConnection->iError == 1 || pConnection->iError == 1000 )
             pConnection->iError = EG_SYNTAX;
          else if( pConnection->iError == EDBF_SHARED )
-            hb_rddSetNetErr( HB_TRUE );
+            break;  /* with hb_rddSetNetErr() set soon */
       }
       while( commonError( pArea, EG_CREATE, pConnection->iError, 0, szFile, EF_CANRETRY | EF_CANDEFAULT, NULL ) == E_RETRY );
    }
@@ -2464,7 +2507,6 @@ static void leto_dbfTransCheckCounters( LPDBTRANSINFO lpdbTransInfo )
       }
    }
 }
-
 
 static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
 {
@@ -2791,6 +2833,7 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    LETOFIELD *      pField;
    HB_ERRCODE       errCode;
    char             szFile[ HB_PATH_MAX ];
+   char             szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOpen(%p, %p)", pArea, pOpenInfo ) );
 
@@ -2802,8 +2845,6 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    pArea->szDataFileName = hb_strdup( szFile );
    if( ( ! pOpenInfo->atomAlias || ! *pOpenInfo->atomAlias ) && *szFile )  /* create a missing Alias */
    {
-      char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
-
       letoCreateAlias( szFile, szAlias );
       pOpenInfo->atomAlias = szAlias;
    }
@@ -2819,10 +2860,11 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
 
       if( ! pConnection->iError )
          pConnection->iError = 1021;
-      else if( pConnection->iError == 103 )
-         pConnection->iError = EDBF_SHARED;
+      else if( pConnection->iError == EDBF_SHARED )  /* no RTE, only NetErr() */
+         break;
    }
    while( commonError( pArea, EG_OPEN, pConnection->iError, 0, szFile, EF_CANRETRY | EF_CANDEFAULT, NULL ) == E_RETRY );
+
    if( ! pTable )
    {
       SELF_CLOSE( ( AREAP ) pArea );
@@ -3335,17 +3377,22 @@ static HB_ERRCODE letoClearRel( LETOAREAP pArea )
 
    if( ( ( AREAP ) pArea )->lpdbRelations )
    {
-      LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
+      LETOTABLE * pTable = pArea->pTable;
 
       errCode = SUPER_CLEARREL( ( AREAP ) pArea );
-      if( errCode == HB_SUCCESS && pConnection->uiServerMode >= 3 )
+      if( errCode == HB_SUCCESS && pTable )
       {
-         char     szData[ 17 ];
-         HB_ULONG ulLen;
+         LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
 
-         ulLen = eprintf( szData, "%c;%lu;02;", LETOCMD_rela, pArea->pTable->hTable );
-         if( ! leto_SendRecv( pConnection, pArea, szData, ulLen, 1026 ) )
-            errCode = HB_FAILURE;
+         if( pConnection->uiServerMode >= 3 )
+         {
+            char     szData[ 17 ];
+            HB_ULONG ulLen;
+
+            ulLen = eprintf( szData, "%c;%lu;02;", LETOCMD_rela, pArea->pTable->hTable );
+            if( ! leto_SendRecv( pConnection, pArea, szData, ulLen, 1026 ) )
+               errCode = HB_FAILURE;
+         }
       }
    }
    return errCode;
@@ -3389,7 +3436,7 @@ static HB_BOOL leto_TestRelCyclic( PHB_ITEM pParentChain, HB_USHORT uiChildArea 
    return bCyclic;
 }
 
-/* can fail at server because of CB with a user function/ local variable */
+/* can fail at server because of CB with a user function/ local variable, ignored if ! FORCEOPT */
 static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
@@ -3423,7 +3470,8 @@ static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
    errCode = SUPER_SETREL( ( AREAP ) pArea, pRelInf );
    if( errCode == HB_SUCCESS )
    {
-      if( pConnection->uiServerMode >= 3 )  /* only possible in No_Save_WA = 1 */
+      if( pConnection->uiServerMode >= 3 &&  /* only possible in No_Save_WA = 1 */
+          leto_CheckArea( ( LETOAREAP ) hb_rddGetWorkAreaPointer( pRelInf->lpaChild->uiArea ) ) )
       {
          char *   szData = NULL;
          HB_ULONG ulLen = 0;
@@ -3449,7 +3497,7 @@ static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
          {
             if( leto_SendRecv( pConnection, pArea, szData, ulLen, 0 ) )
             {
-               if( leto_CheckError( pArea, pConnection ) )
+               if( hb_setGetForceOpt() && leto_CheckError( pArea, pConnection ) )
                   errCode = HB_FAILURE;
             }
             else
@@ -3963,7 +4011,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
             char szTagName[ LETO_MAX_TAGNAME + 1 ];
 
             memset( szTagName, '\0', LETO_MAX_TAGNAME + 1 );
-            strncpy( szTagName, hb_itemGetCPtr( pOrderInfo->itmOrder ), LETO_MAX_TAGNAME );
+            hb_strncpy( szTagName, hb_itemGetCPtr( pOrderInfo->itmOrder ), LETO_MAX_TAGNAME );
             if( *szTagName )
             {
                pTagInfo = pTable->pTagInfo;
@@ -4598,16 +4646,16 @@ static HB_ERRCODE letoClearFilter( LETOAREAP pArea )
 
    HB_TRACE( HB_TR_DEBUG, ( "letoClearFilter(%p)", pArea ) );
 
-   pTable->ptrBuf = NULL;
-   if( pTable->hTable && pArea->area.dbfi.fFilter )
+   if( pArea->area.dbfi.itmCobExpr )
    {
-      if( pArea->area.dbfi.itmCobExpr )
-      {
-         hb_vmDestroyBlockOrMacro( pArea->area.dbfi.itmCobExpr );
-         pArea->area.dbfi.itmCobExpr = NULL;
-      }
+      hb_vmDestroyBlockOrMacro( pArea->area.dbfi.itmCobExpr );
+      pArea->area.dbfi.itmCobExpr = NULL;
+   }
 
-      if( pArea->area.dbfi.fOptimized )  /* else no filter at server */
+   if( pTable )
+   {
+      pTable->ptrBuf = NULL;
+      if( pArea->area.dbfi.fFilter && pArea->area.dbfi.fOptimized )  /* else no filter at server */
       {
          if( LetoDbClearFilter( pTable ) )
             return HB_FAILURE;
@@ -4793,7 +4841,7 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
 
       case FILE_UNLOCK:
       case HEADER_UNLOCK:
-         if( LetoDbFileUnLock( pTable ) )
+         if( ( pTable->fFLocked || pTable->fRecLocked || pTable->ulLocksMax ) && LetoDbFileUnLock( pTable ) )
          {
             pConnection = letoGetConnPool( pTable->uiConnection );
             if( pConnection->iError )
@@ -4899,10 +4947,10 @@ static HB_ERRCODE letoDrop( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pItemI
    {
       HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;%s;", LETOCMD_drop, szTFileName, szIFileName, pConnection->szMemoExt );
 
-      if( leto_DataSendRecv( pConnection, szData, ulLen ) )
+      if( leto_SendRecv( pConnection, NULL, szData, ulLen, 0 ) )
       {
          const char * ptr = leto_firstchar( pConnection );
-
+ 
          if( *ptr == 'F' && *( ptr + 2 ) == '1' )
             hb_rddSetNetErr( HB_TRUE );
          if( *ptr == 'T' )
@@ -4935,11 +4983,9 @@ static HB_ERRCODE letoExists( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pIte
    {
       HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;", LETOCMD_exists, szTFileName, szIFileName );
 
-      if( leto_DataSendRecv( pConnection, szData, ulLen ) )
+      if( leto_SendRecv( pConnection, NULL, szData, ulLen, 0 ) )
       {
-         const char * ptr = leto_firstchar( pConnection );
-
-         if( *ptr == 'T' )
+         if( *( leto_firstchar( pConnection ) ) == 'T' )
             return HB_SUCCESS;
       }
    }
@@ -4973,11 +5019,9 @@ static HB_ERRCODE letoRename( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pIte
    {
       HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;%s;", LETOCMD_rename, szTFileName, szIFileName, szFileNameNew );
 
-      if( leto_DataSendRecv( pConnection, szData, ulLen ) )
+      if( leto_SendRecv( pConnection, NULL, szData, ulLen, 0 ) )
       {
-         const char * ptr = leto_firstchar( pConnection );
-
-         if( *ptr == 'T' )
+         if( *( leto_firstchar( pConnection ) ) == 'T' )
             return HB_SUCCESS;
       }
    }
@@ -6322,6 +6366,9 @@ HB_FUNC( LETO_CONNECT_ERR )
          case LETO_ERR_RESTORE:
             szResult = "restoring WA failed";
             break;
+         case 0:
+            szResult = "connection ok";
+            break;
          default:
             szResult = "unknown error";  /* ;-) */
             break;
@@ -6810,6 +6857,7 @@ static HB_ERRCODE leto_PreReopen( AREAP pArea, void * p )
       LETOTABLE * pTable = pLetoArea->pTable;
 
       pTable->llCentiSec = 1;
+      pTable->uiUpdated = LETO_FLAG_UPD_NONE;
    }
    else if( leto_CheckArea( ( LETOAREAP ) pArea ) )
    {
@@ -6924,17 +6972,17 @@ static HB_ERRCODE leto_doReopen( AREAP pArea, void * p )
                   hb_itemRelease( pRelInf->abKey );
                hb_xfree( pRelInf );
             }
+            pArea->lpdbRelations = NULL;
          }
 
          if( ! fFLocked && ulLocksMax )
          {
             pLocksPos = ( HB_ULONG * ) hb_xgrab( sizeof( HB_ULONG ) * ulLocksMax );
             memcpy( pLocksPos, pTable->pLocksPos, sizeof( HB_ULONG ) * ulLocksMax );
-            pTable->ulLocksMax = 0;
          }
 
          strcpy( pConnection->szDriver, pTable->szDriver );
-         errCode = hb_rddOpenTable( szFile, NULL, uiArea, szAlias, pTable->fShared, pTable->fReadonly,
+         errCode = hb_rddOpenTable( szFile, "LETO", uiArea, szAlias, pTable->fShared, pTable->fReadonly,
                                     *szCdp ? szCdp : NULL, 0, NULL, NULL );
 
          if( errCode == HB_SUCCESS )
@@ -6993,24 +7041,34 @@ static HB_ERRCODE leto_doReopen( AREAP pArea, void * p )
                }
             }
 
-            pLetoArea = ( LETOAREAP ) pArea;
-            pTable = pLetoArea->pTable;
-
             errCode = SELF_GOTO( pArea, ulRecNo );
-            if( pTable->ulRecNo != ulRecNo )
-               errCode = HB_FAILURE;
-
             if( errCode == HB_SUCCESS )
             {
                if( fFLocked )
-                  errCode = SELF_RAWLOCK( pArea, FILE_LOCK, ulRecNo );
+               {
+                  DBLOCKINFO dbLockInfo;
+
+                  memset( &dbLockInfo, 0, sizeof( DBLOCKINFO ) );
+                  dbLockInfo.uiMethod = DBLM_FILE;
+                  SELF_LOCK( pArea, &dbLockInfo );
+                  if( ! dbLockInfo.fResult )
+                     errCode = HB_FAILURE;
+               }
                else if( ulLocksMax )
                {
-                  HB_ULONG ul = 0;
+                  HB_ULONG   ul = 0;
+                  DBLOCKINFO dbLockInfo;
 
-                  while( ul < ulLocksMax && errCode == HB_SUCCESS )
+                  while( ul < ulLocksMax )
                   {
-                     errCode = SELF_RAWLOCK( pArea, REC_LOCK, pLocksPos[ ul++ ] );
+                     memset( &dbLockInfo, 0, sizeof( DBLOCKINFO ) );
+                     dbLockInfo.itmRecID = hb_itemPutNL( NULL, pLocksPos[ ul++ ] );
+                     dbLockInfo.uiMethod = DBLM_MULTIPLE;
+                     dbLockInfo.fResult = HB_FALSE;
+                     SELF_LOCK( pArea, &dbLockInfo );
+                     hb_itemRelease( dbLockInfo.itmRecID );
+                     if( ! dbLockInfo.fResult )
+                        errCode = HB_FAILURE;
                   }
                }
             }
@@ -7033,8 +7091,6 @@ static HB_ERRCODE leto_doReopen( AREAP pArea, void * p )
                else
                   hb_itemRelease( pFilterText );
             }
-
-            pTable->llCentiSec = 0;  /* reset the marker */
          }
          else  /* HB_FAILURE to open table */
          {
@@ -7067,46 +7123,47 @@ HB_FUNC( LETO_RECONNECT )
       const char * szUser = ( HB_ISCHAR( 2 ) && hb_parclen( 2 ) ) ? hb_parc( 2 ) : NULL;
       const char * szPass = ( HB_ISCHAR( 3 ) && hb_parclen( 3 ) ) ? hb_parc( 3 ) : NULL;
       int          iTimeOut = hb_parnidef( 4, pConnection->iTimeOut );
-      int          iBufRefreshTime = hb_parnidef( 5, pConnection->iBufRefreshTime );
-      HB_BOOL      fZombieCheck = hb_parldef( 6, HB_TRUE );
-      double       dIdle = HB_ISNUM( 7 ) ? hb_parnd( 7 ) : 0.0;
-      LETOAREAP    pLetoArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-      HB_USHORT    uiActiveWA = pLetoArea ? pLetoArea->area.uiArea : 0;
-      HB_USHORT    uiMemoType = pConnection->uiMemoType;
-      HB_USHORT    uiMemoBlocksize = pConnection->uiMemoBlocksize;
-      HB_USHORT    uiLockSchemeExtend = pConnection->uiLockSchemeExtend;
-      char         szMemoExt[ HB_MAX_FILE_EXT + 1 ];
-      char         szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
+      HB_BOOL      fZombieCheck = hb_parldef( 6, ( pConnection->hSocketErr != HB_NO_SOCKET ) );
 
+      if( hb_parni( 4 ) )
+         pConnection->iTimeOut = hb_parni( 4 ); 
+      if( hb_parni( 5 ) )
+         pConnection->iBufRefreshTime = hb_parni( 5 ); 
       /* given new address as first param */
       if( ! ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && leto_getIpFromPath( hb_parc( 1 ), szAddr, &iPort, NULL ) ) )
          strcpy( szAddr, pConnection->pAddr );
-      /* re-connect to same server may need a second to reset locks */
-      if( ! leto_stricmp( pConnection->pAddr, szAddr ) && ! HB_ISNUM( 7 ) )
-         dIdle = 1;
 
-      strcpy( szDriver, pConnection->szDriver );
-      strcpy( szMemoExt, pConnection->szMemoExt );
-
-      /* prepare a marker for WA used by closing connection */
+      /* prepare a marker for WAs' used by active connection */
       hb_rddIterateWorkAreas( leto_PreReopen, ( void * ) pConnection );
 
-      LetoConnectionClose( pConnection );  /* only socket shutdown, free pConnection resources */
-      if( dIdle > 0 )
-         hb_idleSleep( dIdle );
-      pConnection = LetoConnectionNew( szAddr, iPort, szUser, szPass, iTimeOut, fZombieCheck );
-
-      if( pConnection )
+      if( pConnection->hSocket != HB_NO_SOCKET )  /* active socket */
       {
+         double dIdle = HB_ISNUM( 7 ) ? hb_parnd( 7 ) : 0.0;
+
+         if( ! leto_stricmp( pConnection->pAddr, szAddr ) && ! HB_ISNUM( 7 ) )
+            dIdle = HB_MAX( 1, dIdle );
+         LetoConnectionClose( pConnection );  /* only socket shutdown, free pConnection resources */
+         if( dIdle > 0 )
+            hb_idleSleep( dIdle );
+      }
+      LetoConnectionOpen( pConnection, szAddr, iPort, szUser, szPass, iTimeOut, fZombieCheck );
+
+      if( pConnection->iConnectRes )  /* error, no new connection -- restore free-ed address */
+      {
+         if( ! pConnection->pAddr )
+            pConnection->pAddr = ( char * ) hb_xgrab( strlen( szAddr ) + 1 );
+         else
+            pConnection->pAddr = ( char * ) hb_xrealloc( pConnection->pAddr, strlen( szAddr ) + 1 );
+         strcpy( pConnection->pAddr, szAddr );
+      }
+      else
+      {
+         LETOAREAP  pLetoArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
+         HB_USHORT  uiActiveWA = pLetoArea ? pLetoArea->area.uiArea : 0;
+         char       szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
          HB_ERRCODE errCode;
 
-         pConnection->iBufRefreshTime = iBufRefreshTime;
-         pConnection->uiLockSchemeExtend = uiLockSchemeExtend;
-         pConnection->uiMemoType = uiMemoType;
-         pConnection->uiMemoBlocksize = uiMemoBlocksize;
-
-         strcpy( pConnection->szDriver, szDriver );
-         strcpy( pConnection->szMemoExt, szMemoExt );
+         strcpy( szDriver, pConnection->szDriver );
          pConnection->whoCares = hb_itemArrayNew( 0 );  /* for collecting relations */
          errCode = hb_rddIterateWorkAreas( leto_doReopen, ( void * ) pConnection );
          if( errCode == HB_SUCCESS )

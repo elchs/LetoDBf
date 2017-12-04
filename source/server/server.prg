@@ -123,7 +123,10 @@ REQUEST Array, AClone, ASize, ADel, AIns, AEval, AScan, ASize, ASort
 REQUEST hb_idleSleep, hb_milliSeconds
 
 REQUEST dbGoTop, dbGoBottom, dbSkip, dbGoto, dbSeek, Bof, Eof, dbEval, dbInfo, dbStruct
-REQUEST dbAppend, dbDelete, dbRecall, dbCommit, dbFilter, hb_dbGetFilter, dbSetFilter
+REQUEST dbAppend, dbDelete, dbRecall, dbCommit, dbFilter, dbSetFilter
+#ifndef __HARBOUR30__
+   REQUEST hb_dbGetFilter
+#endif
 REQUEST ordKeyVal, dbOrderInfo, RDDinfo, OrdSetFocus, Alias, Select, dbSelectArea
 
 REQUEST FSEEK, FREAD, FREADSTR, FWRITE, FCLOSE, FERROR, HB_FEOF, HB_FREADLEN  /* !NO! FOPEN, FCREATE  */

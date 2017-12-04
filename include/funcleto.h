@@ -57,8 +57,10 @@
    #include "hbdefs.h"
 #endif
 
-/* !!! wild !!! password for initial decrypt received key from server with first connect */
-#define LETO_PASSWORD "hE8Q,jy5+R#_~?0"
+#if ! defined( LETO_PASSWORD )
+   /* !!! wild !!! password for initial decrypt received key from server with first connect */
+   #define LETO_PASSWORD       "hE8Q,jy5+R#_~?0"
+#endif
 
 /* !!! wild !!! password for server internally to decrypt user/password file */
 #if defined( __MINGW32__ ) || defined( __MINGW64_VERSION_MAJOR )

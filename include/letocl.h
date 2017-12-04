@@ -275,6 +275,7 @@ HB_ERRCODE LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szC
 int LetoGetConnectRes( void );
 int LetoGetCmdItem( char ** pptr, char * szDest );
 const char * LetoFindCmdItem( const char * ptr );
+void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
 LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
 void LetoConnectionClose( LETOCONNECTION * pConnection );
 int LetoCloseAll( LETOCONNECTION * pConnection );

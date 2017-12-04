@@ -2,6 +2,32 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-12-04 18:58 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/funcleto.h
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+  * source/server/server.prg
+    ! dbRlock(): stay at active record when different record to lock
+    ! fix letoClearFilter() for possible missing pTable
+    ! only (try to) set relation at server if both WA are LETO;
+      formerly the server could crash if above was tried with debug mode > 10;
+    * throw RTE for invalid relation at server only if FORCEOPT set, else 
+      silently ignore
+    * secure leto_AddFields() for ! uiFields
+    * make leto_SkipTagInfo() obsolete, open index files as informed by server
+    ! fix for failed table open in a *new* WA:
+      reset active WA at server to be resynced with next request
+    * not throw RTE in case of failed open/ create table cause 'shared' error
+    * split LetoConnectionNew() into part creating a new connection,
+      move other part into new LetoConnectionOpen() to establish a connection
+    * rewrite of LETO_RECONNECT to use the same client connection as before,
+      not to open a new connection and closing the old
+    * do not change current connection with closing it
+    * call leto_DataSendRecv() only in wrapper leto_SendRecv()
+
 2017-07-17 12:47 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/client/letocl.c

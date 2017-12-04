@@ -1815,7 +1815,7 @@ static HB_THREAD_STARTFUNC( thread2 )
 HB_FUNC( LETO_SERVER )
 {
    HB_BOOL          bSocketErr = HB_FALSE;
-   HB_SOCKET        incoming = HB_NO_SOCKET;
+   HB_SOCKET        incoming;
    void *           pSockAddr = NULL;
    char *           szAddr = NULL;
    unsigned int     uiLen = 0;
@@ -2014,6 +2014,7 @@ HB_FUNC( LETO_SERVER )
          hb_xfree( pSockAddr );
          pSockAddr = NULL;
       }
+      incoming = HB_NO_SOCKET;
 
 #if 1 && defined( HB_HAS_POLL )
 
@@ -2088,11 +2089,19 @@ HB_FUNC( LETO_SERVER )
       else if( iChange == 0 )
          continue;
       else
+      {
+         leto_writelog( NULL, 0, "ERROR select() on socket error: %d", iChange );
          break;
+      }
 #endif
 
-      szAddr = hb_socketAddrGetName( pSockAddr, uiLen );
-      bExtraWait = ( ! strncmp( ( const char * ) szAddr, "127.0.0.1", 9 ) );
+      if( pSockAddr )
+      {
+         szAddr = hb_socketAddrGetName( pSockAddr, uiLen );
+         bExtraWait = ( ! strncmp( ( const char * ) szAddr, "127.0.0.1", 9 ) );
+      }
+      else
+         bExtraWait = HB_FALSE;
 
       /* local connection can log-in into even into locked server */
       if( leto_ConnectIsLock() && incoming != HB_NO_SOCKET && ! bExtraWait )
