@@ -1,6 +1,10 @@
 REQUEST LETO
 REQUEST rddinfo
- 
+
+#ifdef __XHARBOUR__
+   #define hb_milliseconds   LETO_MILLISEC
+#endif 
+
 Function Main( cPath )
  LOCAL nRec
  LOCAL nTrans

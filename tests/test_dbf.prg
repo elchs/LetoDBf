@@ -57,8 +57,10 @@ Function Main( cPath )
               NUM   WITH i + 1000,;
               INFO  WITH "This is a record number " + Ltrim( Str( i ) ),;
               DINFO WITH Date() + i - 1,;
-              TINFO WITH IIF( i == 6, HB_STRTOTS( "" ), hb_DToT( DATE() + i, TIME() ) ),;
               MINFO WITH aNames[ i ]
+#ifndef __XHARBOUR__
+      REPLACE TINFO WITH IIF( i == 6, HB_STRTOTS( "" ), hb_DToT( DATE() + i, TIME() ) )
+#endif
    NEXT
    ? LEN( aNames ), "Records has been added"
    INDEX ON NAME TAG NAME
@@ -126,6 +128,7 @@ Function Main( cPath )
    DBSEEK( "Pe", .T. )
    ? "DbSeek( 'Pe',.T. )    ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
 
+#ifndef __XHARBOUR__
    DbSetOrder( 3 )
    DBGOBOTTOM()
    DBSeek( hb_DToT( DATE() + 5 ), .T. )
@@ -134,6 +137,7 @@ Function Main( cPath )
    DBGOBOTTOM()
    DBSeek( hb_DToT( DATE() + 5 ), .F. )
    ? "DbSeek( TS,.F. )      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+#endif
    DbSetOrder( 1 )
 
    DBGOTOP()

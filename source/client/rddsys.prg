@@ -51,7 +51,6 @@ ANNOUNCE RDDLETO
 
 REQUEST LETORDD
 REQUEST LETO_UDF
-REQUEST HB_ZCOMPRESS
 
 #include "hbsocket.ch"
 #include "rddleto.ch"
@@ -63,6 +62,8 @@ PROCEDURE LETO
 
    RETURN
 
+
+#ifndef __XHARBOUR__  /* LETO_NO_MT need prg-flag */
 INIT PROCEDURE LETO_LOOKERROR
 
    IF hb_mtVM()
@@ -70,7 +71,9 @@ INIT PROCEDURE LETO_LOOKERROR
    ENDIF
 
    RETURN
+#endif
 
+#ifndef __XHARBOUR__
 INIT PROCEDURE LETO_CONNECTAUTO
    LOCAL hIni, nConnection, cServer, cService
    LOCAL cUser, cPW, nTimeOut, nBufRefr
@@ -119,7 +122,7 @@ INIT PROCEDURE LETO_CONNECTAUTO
          OutStd( "connecting to LetoDBf " + cServer + " ..." )
          nConnection := Leto_Connect( cServer, cUser, cPW, nTimeOut, nBufRefr )
          IF nConnection < 0
-            OutErr( "LetoDBf connect failed of: " + leto_Connect_Err( .T. ) )
+            OutErr( "LetoDBf connect failed of: " + leto_Connect_Err( .T. ) + HB_EOL() )
             QUIT
          ENDIF
       ENDIF
@@ -217,4 +220,4 @@ STATIC FUNCTION leto_BCRequest( nPort, cService, cBroadcastIP, lOnlyFirstAnswer 
    ENDIF
 
 RETURN aFoundIP
-
+#endif

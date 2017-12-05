@@ -48,7 +48,13 @@
 #include "hbapi.h"
 #include "hbapifs.h"
 #include "hbdefs.h"
-#include "hbthread.h"
+#ifndef __XHARBOUR__
+   #include "hbthread.h"
+#else
+   #ifndef __NO_CPU_LOAD
+      #define __NO_CPU_LOAD  1
+   #endif
+#endif
 #include "hbatomic.h"
 #include "hbsocket.h"
 #include "rddleto.ch"

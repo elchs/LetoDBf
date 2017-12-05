@@ -135,4 +135,14 @@
 #endif
 #define SET( _HB_SETTING, XSET )   LETO_SET( _HB_SETTING, XSET )
 
+
+#ifdef __XHARBOUR__
+   #ifndef DBS_COUNTER
+      #define DBS_COUNTER       102
+   #endif
+   #ifndef DBS_STEP
+      #define DBS_STEP          103
+   #endif
+#endif
+
 #endif /* RDDLETO_CH_ */

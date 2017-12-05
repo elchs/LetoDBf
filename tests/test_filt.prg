@@ -124,7 +124,9 @@ Function Main( cPath )
    ? DbFilter(), "; optimized:", LETO_ISFLTOPTIM()
 
    ?
+#ifndef __XHARBOUR__  /* -> RTE cause of missing filter sync */
    SET( _SET_FORCEOPT, .T. )
+#endif
    SET FILTER TO NUM >= nNumTop .AND. NUM <= nNumBot
    ? "with FORCEOPT = .T."
    ? DbFilter()

@@ -1,10 +1,13 @@
-/* $Id: test_var.prg,v 1.2.2.2 2013/12/23 07:45:30 alkresin Exp $ */
 /*
- * This sample demonstrates how to use set/get variables functions with Leto db server
+ * This sample demonstrates how to use set/get variables functions with LetoDBf server
  */
 REQUEST LETO
 
-#include "rddleto.ch"
+#ifdef __XHARBOUR__
+   #include "hbcompat.ch"
+   #define hb_milliseconds   LETO_MILLISEC
+   #define hb_BLen( cTest )  LEN( cTest )
+#endif
 
 MEMVAR cPub, aPriv
 
@@ -12,7 +15,6 @@ Function Main( cPath )
  LOCAL aArr, cTest, lRes, nRes, i, xPrevious, dTest, cGroup
  PUBLIC cPub := "init"
  PRIVATE aPriv := { "first" }
-
 
    IF Empty( cPath )
       cPath := "//127.0.0.1:2812/"
@@ -119,7 +121,7 @@ Function Main( cPath )
    IF lRes
       aArr = leto_varGet( "main","var_arr" )
       IF VALTYPE( aArr ) == "A" .AND. LEN( aArr ) == 3
-         ?? 'OK', HB_BLEN( hb_Serialize( aArr ) ), "bytes"
+         ?? 'OK', hb_BLen( hb_Serialize( aArr ) ), "bytes"
       ELSE
          ?? 'failure'
       ENDIF
@@ -131,7 +133,7 @@ Function Main( cPath )
    ?  "Adding 'var_date' = " + DToC( dTest ) + " to [main] [Ok] "
    lRes := leto_varSet( "main", "var_date", dTest, LETO_VCREAT + LETO_VOWN )
    IF lRes
-      dTest = leto_varGet( "main","var_date" )
+      dTest = leto_varGet( "main", "var_date" )
       IF VALTYPE( dTest ) == "D"
          ?? 'OK'
          IF dTest == hb_SToD( "19690815" )
@@ -229,6 +231,7 @@ Function Main( cPath )
       ?? IIF( lRes, "Ok", "failure" )
    ENDIF
 
+#ifndef __XHARBOUR__
    ?
    ?
    cTest := "FIELD > cPub .AND. aPriv[ 1 ] == 'first'"
@@ -243,7 +246,7 @@ Function Main( cPath )
    ? cTest
    ? "==> "
    cTest := Leto_VarExprCreate( cTest, @aArr )
-   cGroup := LETO_VPREFIX + hb_NToS( Leto_Connect() )  /* variable group name */ 
+   cGroup := LETO_VPREFIX + hb_NToS( Leto_Connect() )  /* variable group name */
    IF UPPER( cTest ) == UPPER( "FIELD>LETO_VARGET('" + cGroup + "','CPUB').AND.LETO_VARGET('" + cGroup + "','aPriv')[1]=='FIRST'" )
       ?? "ok"
    ELSE
@@ -302,6 +305,7 @@ Function Main( cPath )
    ELSE
       ?? "failed",  Leto_VarGet( cGroup, "cPub" ), Leto_VarGet( cGroup, "aPriv" )
    ENDIF
+#endif
 
    ?
    ShowVars()

@@ -47,9 +47,11 @@
 
 #include "hbdefs.h"
 #include "hbsocket.h"
-#include "hbznet.h"  /* for PHB_ZNETSTREAM pointer */
-#include "hbzlib.ch"
-#include "hbthread.h"
+#ifndef __XHARBOUR__
+   #include "hbznet.h"  /* for PHB_ZNETSTREAM pointer */
+   #include "hbzlib.ch"
+   #include "hbthread.h"
+#endif
 #include "hbapirdd.h"
 
 #define HB_MAX_FILE_EXT    10
@@ -180,7 +182,7 @@ typedef struct _LETOTABLE
    HB_BOOL           fAutoRefresh;      /* if true fetch autorefresh data from server if hotbuffer elapsed */
    LETOTAGINFO *     pTagInfo;
    LETOTAGINFO *     pTagCurrent;       /* current order */
-   unsigned long *   pLocksPos;         /* List of records locked */
+   HB_ULONG *        pLocksPos;         /* List of records locked */
    unsigned long     ulLocksMax;        /* Number of records locked */
    unsigned long     ulLocksAlloc;      /* Number of records locked (allocated) */
    HB_USHORT         uiLockScheme;      /* elch new */
@@ -337,7 +339,7 @@ void leto_BeautifyPath( char * szPath );
 HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, char * szPath );
 void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMax );
 
-const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen, char * ptr );
+const char * leto_DecryptText( LETOCONNECTION * pConnection, unsigned long * pulLen, char * ptr );
 HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead );
 
 const char * LetoMgGetInfo( LETOCONNECTION * pConnection );
@@ -377,8 +379,13 @@ void leto_SetUpdated( LETOTABLE * pTable, HB_USHORT uiUpdated );
 const char * leto_ParseTagInfo( LETOTABLE * pTable, const char * pBuffer );
 void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen, unsigned long * pulLen );
 
-extern HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr );
-extern void Leto_VarExprParse( LETOCONNECTION * pConnection, const char * szSrc, PHB_ITEM pArr, HB_BOOL fOnlySynVar );
-extern HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync );
-extern HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr );
+#ifndef __XHARBOUR__
+   extern HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr );
+   extern HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync );
+   extern HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr );
+#else
+   #define Leto_VarExprSync( connection, arr, resync )  /* do { } while( 0 ) */
+#endif
+
+
 

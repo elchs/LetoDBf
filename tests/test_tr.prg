@@ -1,3 +1,4 @@
+/* do NOT use for xHarbour */
 #include "dbinfo.ch"
 
 #if defined( __PLATFORM__LINUX )

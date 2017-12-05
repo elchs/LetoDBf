@@ -47,6 +47,53 @@
 #include "hbbfish.h"
 #include "hbsocket.h"
 
+#if defined( __XHARBOUR__ )
+   #ifndef HB_LONG_LONG_OFF
+      #define HB_LONG_LONG_OFF  // To-Do verify !
+   #endif
+   #ifndef __HARBOUR30__
+      #define __HARBOUR30__  1
+   #endif
+   #ifndef USE_LZ4
+      #define USE_LZ4        1
+   #endif
+
+   #define HB_IT_TIMESTAMP ( ( HB_TYPE ) 0x00040 )   /* same HB_IT_TIMEFLAG */
+   #define HB_FF_UNICODE   0x0040
+
+   typedef unsigned char HB_BYTE;
+   typedef int HB_BOOL;
+   typedef unsigned short HB_USHORT;
+   typedef ULONG HB_SIZE;
+   typedef signed char HB_SCHAR;
+   #if defined( HB_IS_NUMBER ) && defined ( HB_IS_NUMERIC )
+      #undef HB_IS_NUMERIC
+	  #define HB_IS_NUMERIC( p )  ( ( HB_ITEM_TYPE( p ) & HB_IT_NUMERIC ) != 0 )
+   #endif
+
+   #define hb_itemDeserialize( buffer, size )    hb_itemArrayNew( 0 )
+   #define hb_itemSerialize( item, flag, size )  hb_strdup( "xHb" )
+   #define hb_snprintf                           snprintf
+   #define hb_threadReleaseCPU()
+
+   /* hbznet & used zLib constants */
+   typedef void * PHB_ZNETSTREAM;
+   #define HB_ZLIB_STRATEGY_DEFAULT          0
+   #define HB_ZLIB_COMPRESSION_NONE          0
+   #define HB_ZLIB_COMPRESSION_SPEED         1
+   #define HB_ZLIB_COMPRESSION_SIZE          9
+
+   /* hbthread dummy */
+   #define LETO_NO_MT        1
+   typedef HB_MAXINT         HB_THREAD_NO;
+   typedef int               HB_THREAD_HANDLE;  // HANDLE
+   typedef int               HB_THREAD_ID;  // DWORD
+
+   /* dbinfo.h */
+   #define DBS_COUNTER             102
+   #define DBI_LOCKTEST            146
+#endif
+
 #if defined( USE_LZ4 )
    #include "lz4.h"
 #endif
@@ -114,13 +161,6 @@
 #define LETO_CDX                0
 #define LETO_NTX                1
 
-#if defined( __XHARBOUR__ )
-   typedef unsigned char HB_BYTE;
-   typedef int HB_BOOL;
-   typedef unsigned short HB_USHORT;
-   typedef ULONG HB_SIZE;
-#endif
-
 #if ! ( defined( HB_FT_TIME ) )
 #define HB_FT_TIME         8
 #endif
@@ -158,23 +198,15 @@
    #define DB_DBFLOCK_COMIX     DB_DBFLOCK_CL53
    #define DB_DBFLOCK_HB32      DB_DBFLOCK_CL53EXT
    /* does not know DB_DBFLOCK_CLIPPER2 */
+   #define DB_DBFLOCK_CLIPPER2     6
+   #ifndef DB_DBFLOCK_VFP
+      #define DB_DBFLOCK_VFP       3
+   #endif
+   #ifndef DB_DBFLOCK_HB64
+      #define DB_DBFLOCK_HB64      5
+   #endif
 
    #define PHB_MACRO  HB_MACRO_PTR
-#endif
-
-#if ! defined( HB_ISCHAR )  /* __XHARBOUR__ ?  */
-   #define HB_ISCHAR( n )     ISCHAR( n )
-   #define HB_ISNUM( n )      ISNUM( n )
-   #define HB_ISLOG( n )      ISLOG( n )
-   #define HB_ISDATE( n )     ISDATE( n )
-   #define HB_ISMEMO( n )     ISMEMO( n )
-   #define HB_ISBYREF( n )    ISBYREF( n )
-   #define HB_ISARRAY( n )    ISARRAY( n )
-   #define HB_ISOBJECT( n )   ISOBJECT( n )
-   #define HB_ISBLOCK( n )    ISBLOCK( n )
-   #define HB_ISPOINTER( n )  ISPOINTER( n )
-   #define HB_ISHASH( n )     ISHASH( n )
-   #define HB_ISSYMBOL( n )   ISSYMBOL( n )
 #endif
 
 #if ! defined( HB_ISFIRSTIDCHAR )

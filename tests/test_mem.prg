@@ -5,6 +5,7 @@
 
 #define __MEM_IO__   1
 #define __LZ4__      1
+// #define __AUTOINC__  1
 
 /* activate for transaction test */
 // #define __TRANSACT__ 1
@@ -13,10 +14,14 @@
 #define FIELD_IDS    1
 #define ROUNDS       10000
 
+#ifdef __XHARBOUR__
+   #define hb_milliseconds   LETO_MILLISEC
+   #define hb_BLen( cTest )  LEN( cTest )
+#endif
+
 REQUEST DBORDERINFO, ORDLISTCLEAR, ORDBAGCLEAR, ORDDESTROY
 REQUEST LETO
 REQUEST DBFNTX
-REQUEST hb_UTF8ToStr
 
 #include "dbinfo.ch"
 #include "set.ch"
@@ -34,7 +39,11 @@ Function Main( cPath )
  LOCAL nDeleted
  LOCAL aStruct, aStructAll := {}
  FIELD NAME, NUM, INFO, DINFO, MINFO
+#ifdef __AUTOINC__
+ FIELD INTEGER, AUTOINC
+#endif
 
+   SETMODE( 25, 80 )
    SET DATE FORMAT "dd/mm/yy"
    ALTD()
 
@@ -75,24 +84,26 @@ Function Main( cPath )
 
    IF ! DbExists( cFile1 )
 
-#if 0  // testing auto-incrementing fields, only LetoDBf can do
-      IF dbCreate( cFile1, { { "NAME",    "C", 10, 0 },;
-                             { "NUM",     "N",  4, 0 },;
-                             { "INFO",    "C", 32, 0 },;
-                             { "DINFO",   "D",  8, 0 },;
-                             { "TINFO",   "T", 17, 0 },;
-                             { "MINFO",   "M", 10, 0 },;
-                             { "INTEGER", "I:+", 4, 0 },;
-                             { "AUTOINC", "+",  4, 0 } } )
+#ifdef __AUTOINC__
+      aStruct := { { "NAME",    "C",  10, 0 },;
+                   { "NUM",     "N",   4, 0 },;
+                   { "INFO",    "C",  32, 0 },;
+                   { "DINFO",   "D",   8, 0 },;
+                   { "TINFO",   "@",   8, 0 },;
+                   { "MINFO",   "M",  10, 0 },;
+                   { "INTEGER", "I", 8, 0 },;
+                   { "AUTOINC", "+",   4, 0 },;
+                   { "CURRENCY","Y",   8, 4 } }
 #else
       aStruct := { { "NAME",  "C", 10, 0 },;
                    { "NUM",   "N",  4, 0 },;
                    { "INFO",  "C", 64, 0 },;
                    { "DINFO", "D",  8, 0 },;
-                   { "TINFO", "T", 17, 0 },;
+                   { "TINFO", "T",  4, 0 },;
                    { "MINFO", "M", 10, 0 } }
+#endif
       FOR i := 1 TO FIELD_IDS
-         FOR ii := 1 TO 6
+         FOR ii := 1 TO LEN( aStruct )
             AADD( aStructAll, ACLONE( aStruct[ ii ] ) )
             IF i > 1
                aStructAll[ ( ( i - 1 )  * 6 ) + ii, 1 ] := ALLTRIM( aStruct[ ii, 1 ] ) + hb_ntos( i )
@@ -100,7 +111,6 @@ Function Main( cPath )
          NEXT ii
       NEXT i
       IF dbCreate( cFile1, aStructAll )
-#endif
          ? "File " + cFile1 + hb_rddInfo( RDDI_TABLEEXT ) + " has been created"
       ELSE
          ALERT( "DBF CREATE FAILED" + IIF( NetErr(), ", TABLE IN USE BY OTHER", "" ) )
@@ -119,7 +129,7 @@ Function Main( cPath )
 
    aStru := dbStruct()
    FOR i := 1 TO Len( aStru )
-      ? i, PadR( aStru[ i, 1 ], 10 ), aStru[ i, 2 ], STR( aStru[ i, 3 ], 5, 0 ), aStru[ i, 4 ]
+      ? i, PadR( aStru[ i, 1 ], 10 ), PadR( aStru[ i, 2 ], 7 ), STR( aStru[ i, 3 ], 5, 0 ), aStru[ i, 4 ]
    NEXT
 
 #ifdef __TRANSACT__
@@ -129,11 +139,15 @@ Function Main( cPath )
 #endif
    IF RecCount() == 0
       ? "please wait, appending " + hb_ntos( nRounds * LEN( aNames ) ) + " records ..."
+      RddInfo( RDDI_REFRESHCOUNT, .F. )
       nSec := hb_milliseconds()
 
       IF FLock()
 #ifdef __TRANSACT__
          leto_BeginTransaction()
+#endif
+#ifdef __AUTOINC__
+         DbFieldInfo( DBS_STEP, 7, 10 )
 #endif
          FOR ii := 1 TO nRounds
             FOR i := 1 TO Len( aNames )
@@ -144,6 +158,10 @@ Function Main( cPath )
                           INFO  WITH "This is a record number "+ Ltrim( Str( i ) ),;
                           DINFO WITH Date() + i - 1, ;
                           MINFO WITH "elk test" + STR( i, 10, 0 )
+#ifdef __AUTOINC__
+                  REPLACE INTEGER WITH ( ii * 1000 ) + i,;
+                          CURRENCY WITH 1234
+#endif
                ENDIF
             NEXT i
          NEXT ii
@@ -156,7 +174,9 @@ Function Main( cPath )
 
       ?? STR( ( hb_milliseconds() - nSec ) / 1000, 6, 2 ), "s -- "
       ?? STR( ( Len( aNames ) * nRounds ) / ( ( hb_milliseconds() - nSec ) / 1000 ), 7, 0 ), "/ s"
+#ifdef __TRANSACT__
       DbUnLock()
+#endif
       IF RDDSETDEFAULT() == "LETO"
          ? "file size: ", Leto_FileSize( cFile1 + hb_rddInfo( RDDI_TABLEEXT ) ) / 1024 / 1024, "MB; record length " +;
                           hb_ntos( dbInfo( DBI_GETRECSIZE ) )
@@ -187,6 +207,17 @@ Function Main( cPath )
       ENDIF
       DbSetIndex( cFile2 )
    ENDIF
+
+#ifdef __AUTOINC__
+   DbGoBottom()
+   IF AUTOINC == RECNO() .AND. IIF( VALTYPE( DbFieldInfo( DBS_STEP, 7 ) ) == "N",;
+                                    INTEGER == ( 10 * RECNO() ) - DbFieldInfo( DBS_STEP, 7 ) + 1, .T. )
+      ? "AutoIncrement fine" 
+   ELSE
+      ? "AutoIncrement fail"
+   ENDIF
+   ?? "; next for autoinc: ", DbFieldInfo( DBS_COUNTER, 7 ), "integer; ", DbFieldInfo( DBS_COUNTER, 8 )
+#endif
 
 
 /* --- benchmarks --- */
@@ -260,17 +291,25 @@ Function Main( cPath )
    ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
 
    ? "skipping from top to bottom, delete every 3rd record ..."
+#ifdef __TRANSACT__
+   leto_BeginTransaction()
+#endif
    nSec := hb_milliseconds()
    DbGoTop()
    nDeleted := 0
    DO WHILE ! EOF()
       IF RECNO() % 3 == 0 .AND. RLock()
          DELETE
+#ifndef __TRANSACT__
          DbUnlock()
+#endif
          nDeleted++
       ENDIF
       DbSkip( 1 )
    ENDDO
+#ifdef __TRANSACT__
+   leto_CommitTransaction()
+#endif
    ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
 
    ? "verify deleted record ..."
@@ -291,7 +330,7 @@ Function Main( cPath )
       ? "determine maximum request-rate ... "
       ii := 0
       nSec := hb_milliseconds()
-      DO WHILE ii < 250000
+      DO WHILE ii < 150000
          IF leto_Ping()
             ii++
          ENDIF

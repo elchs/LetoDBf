@@ -46,7 +46,6 @@
 
 #include "hbapi.h"
 #include "hbbfish.h"
-#include "hbstack.h"
 
 #include "funcleto.h"
 
@@ -63,22 +62,52 @@ typedef struct
 } LETO_BLOW2;
 
 
-/* thread local BlowFish data init */
-static void leto_BFInit( void * cargo )
-{
-   LETO_BLOW2 * pTSData = ( LETO_BLOW2 * ) cargo;
+#ifndef LETO_NO_MT
+   #include "hbstack.h"
 
-   pTSData->fInitGlobal = HB_FALSE;
-   pTSData->fInitLocal = HB_FALSE;
-}
+   /* thread local BlowFish data init */
+   static void leto_BFInit( void * cargo )
+   {
+      LETO_BLOW2 * pTSData = ( LETO_BLOW2 * ) cargo;
 
-static HB_TSD_NEW( s_BFData, sizeof( LETO_BLOW2 ), leto_BFInit, NULL );
+      pTSData->fInitGlobal = HB_FALSE;
+      pTSData->fInitLocal = HB_FALSE;
+   }
+
+   static HB_TSD_NEW( s_BFData, sizeof( LETO_BLOW2 ), leto_BFInit, NULL );
+
+#else
+   static LETO_BLOW2 * s_BFData = NULL;
+
+   /* BlowFish data init */
+   static LETO_BLOW2 * leto_BFInit( void )
+   {
+      if( ! s_BFData )
+      {
+         s_BFData = ( LETO_BLOW2 * ) hb_xgrabz( sizeof( LETO_BLOW2 ) );
+         s_BFData->fInitGlobal = HB_FALSE;
+         s_BFData->fInitLocal = HB_FALSE;
+      }
+
+      return s_BFData;
+   }
+
+   void leto_BFExit( void )
+   {
+      if( s_BFData )
+         hb_xfree( s_BFData );
+   }
+#endif
 
 
 /* pSrc and pDest can be the same, but pDest must be long enough for padded bytes ( max + 8 ) */
 void leto_encrypt( const char * pSrc, HB_U32 ulLen, char * pDest, HB_ULONG * pLen, const char * szKey, HB_BOOL fGlobal )
 {
+#ifndef LETO_NO_MT
    LETO_BLOW2 *        s_bf2 = ( LETO_BLOW2 * ) hb_stackGetTSD( &s_BFData );
+#else
+   LETO_BLOW2 *        s_bf2 = leto_BFInit();
+#endif
    const HB_BLOWFISH * s_bf;
 
    if( fGlobal )
@@ -154,7 +183,11 @@ void leto_encrypt( const char * pSrc, HB_U32 ulLen, char * pDest, HB_ULONG * pLe
 /* pszSource and pszData can be the same, but pszData will be 0 terminated => + 1 length */
 void leto_decrypt( const char * pSrc, const HB_SIZE nSize, char * pszData, HB_ULONG * pLen, const char * szKey, HB_BOOL fGlobal )
 {
+#ifndef LETO_NO_MT
    LETO_BLOW2 *        s_bf2 = ( LETO_BLOW2 * ) hb_stackGetTSD( &s_BFData );
+#else
+   LETO_BLOW2 *        s_bf2 = leto_BFInit();
+#endif
    const HB_BLOWFISH * s_bf;
 
    if( fGlobal )
@@ -217,7 +250,11 @@ void leto_decrypt( const char * pSrc, const HB_SIZE nSize, char * pszData, HB_UL
 /* reset local key, for temporary using a different */
 void leto_cryptReset( HB_BOOL fGlobal )
 {
+#ifndef LETO_NO_MT
    LETO_BLOW2 * s_bf2 = ( LETO_BLOW2 * ) hb_stackGetTSD( &s_BFData );
+#else
+   LETO_BLOW2 *        s_bf2 = leto_BFInit();
+#endif
 
    if( fGlobal && s_bf2->fInitGlobal )
    {

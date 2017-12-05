@@ -4,7 +4,7 @@
  */
 REQUEST ORDLISTCLEAR, ORDBAGCLEAR
 REQUEST DBFCDX, DBFNTX
-/* REQUEST LETO  // done by using letodb.hbc */
+REQUEST LETO  // else done by using letodb.hbc */
 
 #include "dbinfo.ch"
 
@@ -17,6 +17,7 @@ Function Main( cPath )
  LOCAL nTimeOut := 6000
  LOCAL nKey
  LOCAL lFresh
+ LOCAL cOrderExt, cMemoExt
  FIELD NAME, NUM, INFO, DINFO, MINFO, FLOAT, LONG, LLONG
 
    SET DATE FORMAT "dd/mm/yy"
@@ -79,7 +80,8 @@ Function Main( cPath )
 
    ? "Lockscheme    :", hb_rddInfo( RDDI_LOCKSCHEME ),;
      IiF( RddSetDefault() == "LETO", Leto_UDF( "DbInfo", DBI_LOCKSCHEME ), DbInfo( DBI_LOCKSCHEME ) )
-   ? "Memo extension:", Padl( hb_rddInfo( RDDI_MEMOEXT ), 10 ), Padl( DbInfo( DBI_MEMOEXT ), 10 )
+   cMemoExt := DbInfo( DBI_MEMOEXT )
+   ? "Memo extension:", Padl( hb_rddInfo( RDDI_MEMOEXT ), 10 ), Padl( cMemoExt, 10 )
    ? "     blocksize:", hb_rddInfo( RDDI_MEMOBLOCKSIZE ),;
      IiF( RddSetDefault() == "LETO", Leto_UDF( "DbInfo", DBI_MEMOBLOCKSIZE ), DbInfo( DBI_MEMOBLOCKSIZE ) )
 
@@ -146,6 +148,7 @@ Function Main( cPath )
    ?? STR( DBORDERINFO( DBOI_ORDERCOUNT ), 2, 0 )
    ?? " orders active "
    ?? Iif( DBORDERINFO( DBOI_ORDERCOUNT ) == IiF( ! lFresh, 4, 3 ), "- Ok","- Failure" )
+   cOrderExt := DbOrderInfo( DBOI_BAGEXT )
    DBSETORDER( 0 )
    ? "table locked", IIF( FLock(), "(Ok)", "Failure" )
 
@@ -301,8 +304,8 @@ Function Main( cPath )
    IF nKey == 13
       hb_dbDrop( "test1.dbf" )
       IF hb_dbexists( "test1.dbf" ) .OR.;
-         hb_dbExists( "test1" + RDDInfo( RDDI_ORDEREXT ) ) .OR.;
-         hb_dbexists( "test1" + RDDInfo( RDDI_MEMOEXT ) )
+         hb_dbExists( "test1" + cOrderExt ) .OR.;
+         hb_dbexists( "test1" + cMemoExt )
          ? "drop dbf: - Failure "
       ELSE
          ? "drop dbf: -  Ok"

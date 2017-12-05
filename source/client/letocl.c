@@ -47,14 +47,16 @@
  *
  */
 
-#define LETO_MT 1   /* outcomment this to disable TLS for LetoDBf client, for non MT */
-
 #if defined( HB_OS_WIN_32 ) || defined( HB_OS_WIN )
    #include <winsock2.h>
    #include <windows.h>
 #endif
 
 #include "rddleto.h"
+
+#ifdef LETO_NO_MT
+   extern void leto_BFExit( void );
+#endif
 
 #if defined( HB_OS_UNIX )
    #if defined( HB_OS_LINUX ) && ! defined( __USE_GNU )
@@ -82,31 +84,32 @@
 
 #define LETO_DEFAULT_TIMEOUT 120000;  /* two minutes */
 
-#ifdef LETO_MT
+#ifndef LETO_NO_MT
    typedef struct
    {
       unsigned int     uiConnCount;   /* count of items in letoConnPool */
       LETOCONNECTION * letoConnPool;  /* array of connections */
       LETOCONNECTION * pCurrentConn;  /* pointer into letoConnPool list */
    } LETOPOOL;
+
+   static PHB_ITEM s_pError = NULL;   /* elch's prepared GLOBAL error object from second thread */
+
+   #if defined( HB_SPINLOCK_INIT ) && ! defined( HB_HELGRIND_FRIENDLY )
+      static HB_SPINLOCK_T s_ErrorMtx = HB_SPINLOCK_INIT;
+      #define HB_GC_LOCKE()    HB_SPINLOCK_ACQUIRE( &s_ErrorMtx )
+      #define HB_GC_UNLOCKE()  HB_SPINLOCK_RELEASE( &s_ErrorMtx )
+   #else
+      static HB_CRITICAL_NEW( s_ErrorMtx );
+      #define HB_GC_LOCKE()    hb_threadEnterCriticalSection( &s_ErrorMtx )
+      #define HB_GC_UNLOCKE()  hb_threadLeaveCriticalSection( &s_ErrorMtx )
+   #endif
 #else
    static HB_USHORT        s_uiConnCount = 0;
    static LETOCONNECTION * s_letoConnPool = NULL;
    static LETOCONNECTION * s_pCurrentConn = NULL;
 #endif
 
-static PHB_ITEM s_pError = NULL;   /* elch's prepared GLOBAL error object from second thread */
 static int      s_iSessions = 0;   /* a counter to control hb_socketInit() */
-
-#if defined( HB_SPINLOCK_INIT ) && ! defined( HB_HELGRIND_FRIENDLY )
-   static HB_SPINLOCK_T s_ErrorMtx = HB_SPINLOCK_INIT;
-   #define HB_GC_LOCKE()    HB_SPINLOCK_ACQUIRE( &s_ErrorMtx )
-   #define HB_GC_UNLOCKE()  HB_SPINLOCK_RELEASE( &s_ErrorMtx )
-#else
-   static HB_CRITICAL_NEW( s_ErrorMtx );
-   #define HB_GC_LOCKE()    hb_threadEnterCriticalSection( &s_ErrorMtx )
-   #define HB_GC_UNLOCKE()  hb_threadLeaveCriticalSection( &s_ErrorMtx )
-#endif
 
 /* for backward compatibility to older Harbour */
 #if defined( __HARBOUR30__ )
@@ -135,7 +138,7 @@ extern HB_SIZE hb_fsPipeWrite( HB_FHANDLE hPipeHandle, const void * buffer, HB_S
 #endif  /* __HARBOUR30__ */
 
 
-#ifdef LETO_MT
+#ifndef LETO_NO_MT
 
 /* functions using Harbour Thread Local Storage technics */
 static void leto_TSDInit( void * cargo )
@@ -216,7 +219,7 @@ HB_USHORT uiGetConnCount( void )
    return s_uiConnCount;
 }
 
-#endif  /* LETO_MT */
+#endif  /* LETO_NO_MT */
 
 
 static char * leto_AddLen( char * pData, HB_ULONG * ulLen, HB_BOOL fBefore )
@@ -336,6 +339,8 @@ void leto_clientlog( const char * sFile, int n, const char * s, ... )
 #endif
 }
 
+#ifndef LETO_NO_MT
+
 static PHB_ITEM leto_cloneError( PHB_ITEM pSourceError )
 {
    PHB_ITEM pDestError = hb_errNew();
@@ -354,7 +359,6 @@ static PHB_ITEM leto_cloneError( PHB_ITEM pSourceError )
 
    return pDestError;
 }
-
 
 /* check for thread global s_pError; clone into local var to keep mutex lock short */
 HB_ERRCODE delayedError( void )
@@ -389,6 +393,12 @@ HB_ERRCODE delayedError( void )
    }
    return errCode;
 }
+
+#else   /* LETO_NO_MT */
+
+#define delayedError()  ( ( HB_ERRCODE ) 0 )
+
+#endif  /* LETO_NO_MT */
 
 void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen, unsigned long * pulLen )
 {
@@ -596,7 +606,7 @@ static HB_SOCKET leto_ipConnect( const char * szHost, int iPort, int iTimeOut, L
 
 HB_EXPORT void LetoInit( void )
 {
-#ifdef LETO_MT
+#ifndef LETO_NO_MT
    LETOPOOL * pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
 
    pLetoPool->uiConnCount = 1;
@@ -611,7 +621,7 @@ HB_EXPORT void LetoInit( void )
 
 /*  hb_stackDestroyTSD(), hb_stackRelease(), hb_threadExit(), hb_xexit() */
 
-#ifdef LETO_MT
+#ifndef LETO_NO_MT
 HB_EXPORT void LetoExit( unsigned int uiFull )
 {
    LETOPOOL * pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
@@ -678,7 +688,10 @@ HB_EXPORT void LetoExit( unsigned int uiFull )
 #endif
 
    if( uiFull )
+   {
       leto_ipCleanup();
+      leto_BFExit();
+   }
 }
 #endif
 
@@ -1306,7 +1319,7 @@ HB_EXPORT HB_ERRCODE LetoSet( LETOCONNECTION * pConnection, int iCommand, const 
    return HB_SUCCESS;
 }
 
-#ifdef LETO_MT
+#ifndef LETO_NO_MT
 LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort )
 {
    LETOPOOL *   pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
@@ -1325,7 +1338,7 @@ LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort )
    return NULL;
 }
 
-#else  /* ! LETO_MT */
+#else  /* LETO_NO_MT */
 
 LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort )
 {
@@ -1523,7 +1536,7 @@ static _HB_INLINE_ void leto_lz4Compress( char * pDst, HB_SIZE * pnDst, const ch
 }
 #endif
 
-const char * leto_DecryptText( LETOCONNECTION * pConnection, HB_ULONG * pulLen, char * ptr )
+const char * leto_DecryptText( LETOCONNECTION * pConnection, unsigned long * pulLen, char * ptr )
 {
    HB_BOOL fCompressed;
 
@@ -2429,6 +2442,8 @@ static char * leto_NetName( void )
    return szRet;
 }
 
+#ifndef LETO_NO_MT
+
 static HB_THREAD_STARTFUNC( leto_elch )
 {
    LETOCONNECTION * pConnection = ( LETOCONNECTION * ) Cargo;
@@ -2662,6 +2677,8 @@ static HB_THREAD_STARTFUNC( leto_elch )
    HB_THREAD_END
 }
 
+#endif  /* LETO_NO_MT */
+
 HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck )
 {
    HB_SOCKET        hSocket;
@@ -2673,7 +2690,7 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
    if( hSocket != HB_NO_SOCKET && ! pConnection->iErrorCode )
    {
       unsigned int uiAddrLen = strlen( szAddr );
-#ifdef LETO_MT
+#ifndef LETO_NO_MT
       LETOPOOL * pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
 
       pLetoPool->pCurrentConn = pConnection;
@@ -2865,7 +2882,7 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
                      /* now the second socket for errors if MT is supported */
                      if( fZombieCheck && hb_vmIsMt() )
                      {
-#ifdef LETO_MT
+#ifndef LETO_NO_MT
                         pConnection->hSocketErr = leto_ipConnect( szAddr, iPort + 1, 2000, NULL );
    #ifdef LETO_CLIENTLOG
                         if( pConnection->hSocketErr == HB_NO_SOCKET )
@@ -2898,16 +2915,18 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
                               leto_clientlog( NULL, 0, "%s", "leto_elch() error after errsock intro send" );
 #endif
                            }
-#if ! defined( HB_OS_WIN )
+#ifndef LETO_NO_MT
+   #if ! defined( HB_OS_WIN )
                            else if( hb_fsPipeCreate( pConnection->hSockPipe ) )
-#else
+   #else
                            else
-#endif
+   #endif
                            {
                               pConnection->hThread = hb_threadCreate( &pConnection->hThreadID, leto_elch, ( void * ) pConnection );
                               if( pConnection->hThread )
                                  hb_threadDetach( pConnection->hThread );
                            }
+#endif
                         }
                         else
                         {
@@ -2939,13 +2958,13 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
 
 HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck )
 {
-#ifdef LETO_MT
+#ifndef LETO_NO_MT
    LETOPOOL *       pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
 #endif
    LETOCONNECTION * pConnection;
    unsigned int     ui, uiLast = 0;
 
-#ifdef LETO_MT
+#ifndef LETO_NO_MT
 
    for( ui = 0; ui < pLetoPool->uiConnCount; ui++ )
    {
@@ -3016,7 +3035,7 @@ HB_EXPORT int LetoCloseAll( LETOCONNECTION * pConnection )
       return 0;
 }
 
-/* called from both version with 'LETO_MT' and without MT */
+/* called from both version with 'LETO_NO_MT' and without MT */
 HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
 {
    if( pConnection->pAddr )
@@ -3881,8 +3900,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
    HB_BOOL          fFound = HB_FALSE;
 
-   if( pTable->pFilterVar )
-      Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
+   Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
 
    /* check hotbuffer also for same ulRecno */
    if( ulRecNo && pTable->ptrBuf && leto_HotBuffer( pTable ) )
@@ -3942,8 +3960,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoBottom( LETOTABLE * pTable )
    char          sData[ 32 ];
    unsigned long ulLen;
 
-   if( pTable->pFilterVar )
-      Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
+   Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
 
    ulLen = eprintf( sData, "%c;%lu;-2;%c;", LETOCMD_goto, pTable->hTable,
                            ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
@@ -3964,8 +3981,7 @@ HB_EXPORT HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable )
    char          sData[ 32 ];
    unsigned long ulLen;
 
-   if( pTable->pFilterVar )
-      Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
+   Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
 
    ulLen = eprintf( sData, "%c;%lu;-1;%c;", LETOCMD_goto, pTable->hTable,
                            ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ) );
@@ -3987,8 +4003,7 @@ HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
    const char *     ptr;
    char             sData[ 42 ];
 
-   if( pTable->pFilterVar )
-      Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
+   Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
 
    if( pTable->ptrBuf && leto_HotBuffer( pTable ) )
    {
@@ -4080,8 +4095,7 @@ HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHO
       char          szData[ LETO_MAX_KEY + LETO_MAX_TAGNAME + 56 ];
       unsigned long ulLen;
 
-      if( pTable->pFilterVar )
-         Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
+      Leto_VarExprSync( pConnection, pTable->pFilterVar, HB_FALSE );
 
       ulLen = eprintf( szData, "%c;%lu;%c;", LETOCMD_seek, pTable->hTable,
                        ( char ) ( ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 )
@@ -4175,7 +4189,7 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
    HB_BOOL       fAppend = ( pTable->uiUpdated & LETO_FLAG_UPD_APPEND );
    HB_USHORT     ui, uiUpd = 0;
    char *        szData, * pData, * ptr;
-   unsigned long ulLen;
+   HB_ULONG      ulLen;
    int           iRet = 0;
 
    if( pTable->fReadonly )
@@ -4861,7 +4875,7 @@ HB_EXPORT char * LetoMgGetTime( LETOCONNECTION * pConnection )
 HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, char cType,
                           const char * pValue, unsigned int uiLength, unsigned int uiFlags, char ** pRetValue )
 {
-   unsigned long ulLen = 24 + strlen( szGroup ) + strlen( szVar ) + ( uiLength ? uiLength : strlen( pValue ) );
+   HB_ULONG      ulLen = 24 + strlen( szGroup ) + strlen( szVar ) + ( uiLength ? uiLength : strlen( pValue ) );
    char *        pData, * ptr;
    char          cFlag1 = ( ' ' | LETO_VCREAT ), cFlag2 = ' ';  /* LETO_VCREAT now default */
    unsigned int  uiRes;
@@ -4904,7 +4918,7 @@ HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, co
 /* new param pulLen receives length of [ possible binary char ] data */
 HB_EXPORT const char * LetoVarGet( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, unsigned long * pulLen )
 {
-   unsigned long ulLen = 24 + strlen( szGroup ) + strlen( szVar );
+   HB_ULONG      ulLen = 24 + strlen( szGroup ) + strlen( szVar );
    char *        pData;
    unsigned int  uiRes;
 

@@ -57,7 +57,9 @@
 #include "hbset.h"
 #include "hbsocket.h"
 #include "hbstack.h"
-#include "hbthread.h"
+#ifndef __XHARBOUR__
+   #include "hbthread.h"
+#endif
 #include "hbatomic.h"
 #include "hbvm.h"
 #include "hbsetup.h"
@@ -87,7 +89,7 @@ typedef struct _LETOTAGEXTRAINFO
    PHB_ITEM   pTopScope;
    PHB_ITEM   pBottomScope;
    HB_USHORT  uiFCount;                /* index fields count */
-   HB_SHORT * puiFields;               /* index fields array */
+   HB_USHORT * puiFields;               /* index fields array */
 
 } LETOTAGEXTRAINFO;
 

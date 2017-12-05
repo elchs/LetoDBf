@@ -6,8 +6,6 @@ REQUEST LETO
 #include "rddleto.ch"
 #include "fileio.ch"
 
-REQUEST hb_vfExists, hb_vfOpen, hb_vfClose
-
 Function Main( cPath )
  LOCAL cBuf, arr, i, lTmp, nTmp, nHandle
  LOCAL nPort := 2812
@@ -89,6 +87,7 @@ Function Main( cPath )
       ?? " fine"
    ENDIF
 
+#ifndef __XHARBOUR__
    ? 'leto_fCopyFromSrv( "test3.txt", "test2.txt" ) - '
    ?? Iif( leto_fCopyFromSrv( "test3.txt", "test2.txt", 1000 ), "Ok", "Failure" )
    ?? Iif( FILE( "test3.txt" ), "!", "@" )
@@ -98,6 +97,7 @@ Function Main( cPath )
    ?? Iif( leto_fCopyToSrv( "test3.txt", "test2.txt", 1000 ), "Ok", "Failure" )
    ?? Iif( leto_filesize( "test2.txt" ) == 123457, "!", "@" )  /* +1 for strg-z */
    FErase( "test3.txt" )
+#endif
 
    ? 'leto_memowrite( "test2.txt", 4095 * "B" ) - '
    ?? Iif( leto_memowrite( "test2.txt", REPLICATE( "B", 4095 ) ), "Ok", "Failure" )
@@ -111,6 +111,7 @@ Function Main( cPath )
       ?? " wrong"
    ENDIF
 
+#ifndef __XHARBOUR__
    ? 'leto_FCreate( "test3.txt" ) - '
    nHandle := leto_FCreate( "test3.txt" )
    ?? Iif( nHandle >= 0, "Ok", "Failure -- no further tests leto_F*() test" )
@@ -156,6 +157,7 @@ Function Main( cPath )
       ? "Press any key to continue..."
       Inkey( 0 )
    ENDIF
+#endif
 
    ? 'leto_DirMake( "TEST" ) - '
    ?? Iif( leto_DirMake( "TEST" ) == 0, "Ok", "Failure" )

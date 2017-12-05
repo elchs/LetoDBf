@@ -1,0 +1,62 @@
+CINI = 
+C_OUTPUTFOLDER = 
+DEFFILE = 
+INCLUDEFOLDERS = include;source\3rd\lz4\lib;
+LAUTORUN = 
+LDEBUG = .F.
+LGUI = .F.
+LIBFOLDERS = 
+LMT = .F.
+LNOAUTOFWH = .F.
+LPRG_CLASSICDEBUG = .F.
+LPRG_DEBUG = .F.
+LUSEDLL = .F.
+MAPFILE = 
+MYC_FLAGS = 
+MYDEFINES = __HARBOUR30__=1 ;USE_PMURHASH=1 ;USE_LZ4=1 
+MYLINK_FLAGS = 
+MYPRG_FLAGS = /l/n
+MYRC_FLAGS = 
+MYSLY_FLAGS = 
+OUTPUTFOLDER = obj
+PRG_OUTPUTFOLDER = 
+RC_OUTPUTFOLDER = 
+RUNARGUMENTS = 
+SLY_OUTPUTFOLDER = 
+STARTIN = 
+TARGETFOLDER = lib
+
+[source\client\rddsys.prg]
+MYC_FLAGS = 
+MYDEFINES = 
+MYPRG_FLAGS = 
+
+[source\client\letomgmn.c]
+MYC_FLAGS = 
+MYDEFINES = 
+
+[source\client\letocl.c]
+MYC_FLAGS = 
+MYDEFINES = 
+
+[source\common\common_c.c]
+MYC_FLAGS = 
+MYDEFINES = 
+
+[source\common\blowfish.c]
+MYC_FLAGS = 
+MYDEFINES = 
+
+[source\client\leto1.c]
+MYC_FLAGS = 
+MYDEFINES = 
+
+[source\common\PMurHash.c]
+MYC_FLAGS = 
+MYDEFINES = 
+
+[source\common\lz4net.c]
+MYC_FLAGS = 
+MYDEFINES = 
+
+[source\3rd\lz4\lib\lz4.obj]

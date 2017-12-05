@@ -47,17 +47,16 @@
 
 #include "rddleto.h"
 
-
-#if defined( __XHARBOUR__ )
-   #define hb_snprintf  snprintf
-#endif
-
 #define LETOVAR_LOG      '1'
 #define LETOVAR_NUM      '2'
 #define LETOVAR_STR      '3'
 #define LETOVAR_ARR      '4'
 #define LETOVAR_DAT      '5'
-#define LETOVAR_TYPES    ( HB_IT_LOGICAL | HB_IT_NUMERIC | HB_IT_STRING | HB_IT_ARRAY | HB_IT_DATE )
+#ifndef __XHARBOUR__
+   #define LETOVAR_TYPES    ( HB_IT_LOGICAL | HB_IT_NUMERIC | HB_IT_STRING | HB_IT_ARRAY | HB_IT_DATE )
+#else
+   #define LETOVAR_TYPES    ( HB_IT_LOGICAL | HB_IT_NUMERIC | HB_IT_STRING | HB_IT_DATE )
+#endif
 
 extern LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
 extern LETOCONNECTION * letoGetCurrConn( void );
@@ -70,34 +69,7 @@ extern void leto_clientlog( const char * sFile, int n, const char * s, ... );
 extern HB_BOOL leto_Ping( LETOCONNECTION * pConnection );
 
 
-#ifdef __XHARBOUR__
-char * hb_itemSerialize( PHB_ITEM pItem, HB_BOOL fNumSize, HB_SIZE * pnSize );
-PHB_ITEM hb_itemDeserialize( const char ** pBufferPtr, HB_SIZE * pnSize );
-
-int hb_stor( int iParam )
-{
-   HB_TRACE( HB_TR_DEBUG, ( "hb_stor(%d)", iParam ) );
-
-   if( iParam == -1 )
-   {
-      hb_ret();
-      return 1;
-   }
-   else if( iParam >= 0 && iParam <= hb_pcount() )
-   {
-      PHB_ITEM pItem = hb_stackItemFromBase( iParam );
-
-      if( HB_IS_BYREF( pItem ) )
-      {
-         hb_itemClear( hb_itemUnRef( pItem ) );
-         return 1;
-      }
-   }
-
-   return 0;
-}
-#endif
-
+#ifndef LETO_NO_MT
 /* for TSD thread local storage last used pItem cache, e.g. for use in filter conditions */
 static void leto_InitVarCache( void * cargo )
 {
@@ -138,6 +110,29 @@ static void leto_ClearVarCache( void )
       *ppItemTSD = NULL;
    }
 }
+
+#else  /* ! LETO_NO_MT */
+
+static PHB_ITEM s_TSDitem = NULL;
+
+static void leto_SetVarCache( PHB_ITEM pVarItem )
+{
+   if( s_TSDitem )
+      hb_itemRelease( s_TSDitem );
+   s_TSDitem = pVarItem;
+}
+
+static void leto_ClearVarCache( void )
+{
+   if( s_TSDitem )
+   {
+      hb_itemRelease( s_TSDitem );
+      s_TSDitem = NULL;
+   }
+}
+
+// ToDO:  static void leto_DeinitVarCache( void * cargo )
+#endif
 
 static LETOCONNECTION * letoParseFile( const char * szSource, char * szFile )
 {
@@ -526,7 +521,7 @@ HB_FUNC( LETO_MEMOREAD )
       {
          const char * ptr;
 
-         if( ( ptr = LetoMemoRead( pConnection, szFile, &ulMemoLen ) ) != NULL && ulMemoLen )
+         if( ( ptr = LetoMemoRead( pConnection, szFile, ( unsigned long * ) &ulMemoLen ) ) != NULL && ulMemoLen )
             hb_retclen( ptr, ulMemoLen );
          else
             hb_retc( "" );
@@ -554,7 +549,7 @@ HB_FUNC( LETO_FILEREAD )  /* ( cFile, 0 [ nStart ], 0 == all [ nLen ], @cBuf ) *
          HB_ULONG ulStart = HB_ISNUM( 2 ) && hb_parnl( 2 ) > 0 ? hb_parnl( 2 ) : 0;
          HB_ULONG ulLen = HB_ISNUM( 3 ) && hb_parnl( 3 ) > 0 ? hb_parnl( 3 ) : 0;
 
-         if( ( ptr = LetoFileRead( pConnection, szFile, ulStart, &ulLen ) ) != NULL )
+         if( ( ptr = LetoFileRead( pConnection, szFile, ulStart, ( unsigned long * ) &ulLen ) ) != NULL )
          {
             hb_storclen( ptr, ulLen, 4 );
             hb_retnl( ulLen );
@@ -762,7 +757,7 @@ HB_FUNC( LETO_DIRECTORY )  /* ( cPathSpec, cAttributes ) */
    LETOCONNECTION * pConnection;
    char             szFile[ HB_PATH_MAX ];
    const char *     ptr;
-   HB_ULONG         ulLen;
+   unsigned long    ulLen;
 
    if( ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
@@ -1361,7 +1356,7 @@ HB_FUNC( LETO_MGID )
    int iRet = -1;
 
    if( pConnection )
-      iRet = Leto_MgID( pConnection, HB_TRUE );
+      iRet = Leto_MgID( pConnection, HB_ISLOG( 1 ) && ! hb_parl( 1 ) ? HB_FALSE : HB_TRUE );
 
    hb_retni( iRet );
 }
@@ -1989,9 +1984,9 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
 
 static PHB_ITEM Leto_VarGet( LETOCONNECTION * pCurrentConn, const char * szGroup, const char * szVar )
 {
-   HB_ULONG     ulLen = 0;
-   const char * pData;
-   PHB_ITEM     pValue = NULL;
+   unsigned long ulLen = 0;
+   const char *  pData;
+   PHB_ITEM      pValue = NULL;
 
    if( ( pData = LetoVarGet( pCurrentConn, szGroup, szVar, &ulLen ) ) != NULL )
    {
@@ -2061,12 +2056,22 @@ HB_FUNC( LETO_VARGET )
       hb_ret();
 }
 
+#ifndef LETO_NO_MT
+
 /* retrieves THREAD LOCAL last leto_Var[Set|Inc|Dec] *value* */
 HB_FUNC( LETO_VARGETCACHED )
 {
    /* hb_itemReturn( leto_GetVarCached() ); */
    hb_itemReturn( *( PHB_ITEM * ) hb_stackGetTSD( &s_TSDitem ) );   /* do not ! release */
 }
+#else
+
+HB_FUNC( LETO_VARGETCACHED )
+{
+   hb_itemReturn( s_TSDitem );   /* do not ! release */
+}
+
+#endif
 
 /*
  * LETO_VARINCR( cGroupName, cVarName[, nFlags ) --> nValue
@@ -2232,6 +2237,7 @@ HB_FUNC( LETO_VARGETLIST )
                      hb_itemPutCL( hb_arrayGetItemPtr( aVar, 2 ), ptr, ulValLength );
                      break;
 
+#ifndef __XHARBOUR__
                   case LETOVAR_ARR:
                      if( lMaxLen == 0 )
                      {
@@ -2246,6 +2252,7 @@ HB_FUNC( LETO_VARGETLIST )
                      else
                         hb_itemPutC( hb_arrayGetItemPtr( aVar, 2 ), "{ ... }" );
                      break;
+#endif
 
                   case LETOVAR_DAT:
                      hb_itemPutDS( hb_arrayGetItemPtr( aVar, 2 ), ptr );
@@ -2441,9 +2448,11 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
       }
       if( hb_arrayLen( pArray ) > 1 )  /* first item = function name/ codeblock */
       {
+#ifndef __XHARBOUR__
          hb_arrayDel( pArray, 1 );
          hb_arraySize( pArray, hb_arrayLen( pArray ) - 1 );
          pParam = hb_itemSerialize( pArray, HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
+#endif
       }
       hb_itemRelease( pArray );
 
@@ -2476,6 +2485,9 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
             hb_retl( ! strncmp( ptr, "+321", 4 ) );
          else if( ptr[ 0 ] == '+' )  /* NEW: pre-leading '+' before valid [ zero ] result */
          {
+#ifdef __XHARBOUR__
+            hb_retl( HB_TRUE );
+#else
             HB_ULONG     ulLen;
             const char * ptrTmp = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer + 1 );
 
@@ -2483,6 +2495,7 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
                hb_itemReturnRelease( hb_itemDeserialize( &ptrTmp, ( HB_SIZE * ) &ulLen ) );
             else
                hb_ret();
+#endif
          }
          else
          {
@@ -2499,7 +2512,11 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
                   pConnection->iError = -1;
             }
 #endif
+#ifdef __XHARBOUR__
+            hb_retl( HB_FALSE );
+#else
             hb_ret();
+#endif
          }
       }
       hb_xfree( szData );
@@ -2523,6 +2540,8 @@ HB_FUNC( LETO_UDF )
    else
       hb_ret();
 }
+
+#ifndef __XHARBOUR__
 
 /* with szDst == NULL test only and break with first valid memvar -- else collect also into optional 3-dim pArr */
 HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr )
@@ -2651,7 +2670,7 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
 }
 
 /* parse into pArr if ! NULL  *_or_*  Leto_VarDel() */
-void Leto_VarExprParse( LETOCONNECTION * pConnection, const char * szSrc, PHB_ITEM pArr, HB_BOOL fOnlySynVar )
+static void Leto_VarExprParse( LETOCONNECTION * pConnection, const char * szSrc, PHB_ITEM pArr, HB_BOOL fOnlySynVar )
 {
    HB_SIZE  nStart = 0, nLen;
    PHB_ITEM pSub;
@@ -3021,4 +3040,6 @@ HB_FUNC( LETO_VAREXPRSYNC )
 
    hb_retl( fSuccess );
 }
+
+#endif  /* ! __XHARBOUR__ */
 
