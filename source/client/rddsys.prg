@@ -55,6 +55,19 @@ REQUEST LETO_UDF
 #include "hbsocket.ch"
 #include "rddleto.ch"
 
+#ifdef __XHARBOUR__
+   #include "hbcompat.ch"
+   #define HB_EOL()               CHR( 13 ) + CHR( 10 )
+   #define hb_BChar( x )          CHR( x )
+   #define hb_BLeft( text, len )  LEFT( text, len )
+
+   PROCEDURE hb_default( xRefPar, xDefault )
+      IF VALTYPE( xRefPar ) != VALTYPE( xDefault )
+	     xRefPar := xDefault
+	  ENDIF
+   RETURN
+#endif
+
 /* place holder to activate init functions here and in leto1.c */
 PROCEDURE LETO
 
@@ -63,10 +76,14 @@ PROCEDURE LETO
    RETURN
 
 
-#ifndef __XHARBOUR__  /* LETO_NO_MT need prg-flag */
-INIT PROCEDURE LETO_LOOKERROR
+#ifndef LETO_NO_THREAD
+INIT PROCEDURE LETO_INITERROR
 
+#ifndef __XHARBOUR__
    IF hb_mtVM()
+#else
+   IF .T.
+#endif
       hb_idleAdd( {|| leto_lookError() } )
    ENDIF
 
@@ -129,6 +146,7 @@ INIT PROCEDURE LETO_CONNECTAUTO
    ENDIF
 
    RETURN
+#endif
 
 FUNCTION Leto_Detect( cService, nNrOfPossible, nPort )
    LOCAL cIP := "", aIP
@@ -146,10 +164,16 @@ FUNCTION Leto_Detect( cService, nNrOfPossible, nPort )
       nIFace := 1
       DO WHILE nIFACE <= LEN( aIFace )
          /* outcomment last two conditions to use also interfaces without MAC address (e.g. loopback ) */
+#ifndef __XHARBOUR__
+          IF ! EMPTY( aIFace[ nIFace, HB_SOCKET_IFINFO_ADDR ] ) .AND.;
+               ! EMPTY( aIFace[ nIFace, HB_SOCKET_IFINFO_NETMASK ] ) .AND.;
+                 ! EMPTY( aIFace[ nIFace, HB_SOCKET_IFINFO_HWADDR ] ) .AND.;
+                   ! aIFace[ nIFace, HB_SOCKET_IFINFO_HWADDR ] == "00:00:00:00:00:00"
+#else  /* misses the MAC address */
          IF ! EMPTY( aIFace[ nIFace, HB_SOCKET_IFINFO_ADDR ] ) .AND.;
               ! EMPTY( aIFace[ nIFace, HB_SOCKET_IFINFO_NETMASK ] ) .AND.;
-                ! EMPTY( aIFace[ nIFace, HB_SOCKET_IFINFO_HWADDR ] ) .AND.;
-                  ! aIFace[ nIFace, HB_SOCKET_IFINFO_HWADDR ] == "00:00:00:00:00:00"
+			    LEFT( aIFace[ nIFace, HB_SOCKET_IFINFO_ADDR ], 5 ) != "127.0"
+#endif
 
            cBroadcastIP := leto_broadcastIP( aIFace[ nIFace, HB_SOCKET_IFINFO_ADDR ],;
                                         aIFace[ nIFace, HB_SOCKET_IFINFO_NETMASK ] )
@@ -205,9 +229,11 @@ STATIC FUNCTION leto_BCRequest( nPort, cService, cBroadcastIP, lOnlyFirstAnswer 
                         EXIT
                      ENDIF
                   ELSE
-                     AADD( aFoundIP, aAddr[ 2 ] )
-                     IF lOnlyFirstAnswer
-                       EXIT
+                     IF VALTYPE( aAddr ) == "A"
+                        AADD( aFoundIP, aAddr[ 2 ] )
+                        IF lOnlyFirstAnswer
+                          EXIT
+                        ENDIF
                      ENDIF
                   ENDIF
                ENDIF
@@ -220,4 +246,4 @@ STATIC FUNCTION leto_BCRequest( nPort, cService, cBroadcastIP, lOnlyFirstAnswer 
    ENDIF
 
 RETURN aFoundIP
-#endif
+

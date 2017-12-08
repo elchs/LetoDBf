@@ -71,7 +71,7 @@ static HB_USHORT s_uiRddCount = 0;
 static HB_USHORT s_uiRddIdLETO = ( HB_USHORT ) -1;
 static RDDFUNCS  s_letoSuper;
 
-#ifndef LETO_NO_MT
+#ifndef LETO_NO_THREAD
    extern HB_ERRCODE delayedError( void );
 #endif
 extern HB_USHORT uiGetConnCount( void );
@@ -116,7 +116,7 @@ static HB_BYTE leto_ItemType( PHB_ITEM pItem )
 
 HB_FUNC( LETO_LOOKERROR )
 {
-#ifndef LETO_NO_MT
+#ifndef LETO_NO_THREAD
    hb_retni( delayedError() );
 #else
    hb_retni( 0 );

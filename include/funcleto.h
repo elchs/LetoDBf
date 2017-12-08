@@ -49,7 +49,7 @@
 
 #if defined( __XHARBOUR__ )
    #ifndef HB_LONG_LONG_OFF
-      #define HB_LONG_LONG_OFF  // To-Do verify !
+      #define HB_LONG_LONG_OFF
    #endif
    #ifndef __HARBOUR30__
       #define __HARBOUR30__  1
@@ -74,24 +74,51 @@
    #define hb_itemDeserialize( buffer, size )    hb_itemArrayNew( 0 )
    #define hb_itemSerialize( item, flag, size )  hb_strdup( "xHb" )
    #define hb_snprintf                           snprintf
-   #define hb_threadReleaseCPU()
 
    /* hbznet & used zLib constants */
-   typedef void * PHB_ZNETSTREAM;
-   #define HB_ZLIB_STRATEGY_DEFAULT          0
-   #define HB_ZLIB_COMPRESSION_NONE          0
-   #define HB_ZLIB_COMPRESSION_SPEED         1
-   #define HB_ZLIB_COMPRESSION_SIZE          9
+   #ifndef HB_ZLIB_STRATEGY_DEFAULT
+      typedef void * PHB_ZNETSTREAM;
+
+      #define HB_ZLIB_STRATEGY_DEFAULT    0
+      #define HB_ZLIB_COMPRESSION_NONE    0
+      #define HB_ZLIB_COMPRESSION_SPEED   1
+      #define HB_ZLIB_COMPRESSION_SIZE    9
+   #endif
 
    /* hbthread dummy */
-   #define LETO_NO_MT        1
-   typedef HB_MAXINT         HB_THREAD_NO;
-   typedef int               HB_THREAD_HANDLE;  // HANDLE
-   typedef int               HB_THREAD_ID;  // DWORD
+   #define hb_threadReleaseCPU()
+   #define LETO_NO_MT                  1
+   #if defined( HB_OS_WIN ) && ! defined( LETO_NO_THREAD ) && ! defined( __XCC__ )
+      #ifndef __MT__  /* set before process.h to enable beginThreadex in header */
+         #define __MT__
+      #endif
+	  #include <windows.h>
+	  #include <process.h>
+      typedef HANDLE   HB_THREAD_HANDLE;
+      typedef unsigned HB_THREAD_ID;
 
-   /* dbinfo.h */
-   #define DBS_COUNTER             102
-   #define DBI_LOCKTEST            146
+      #define HB_THREAD_STARTFUNC( func )  unsigned __stdcall func( void * Cargo )
+      #define HB_THREAD_END                _endthreadex( 0 ); return 0;
+      #define hb_threadDetach( th_h )      CloseHandle( th_h )
+      #define hb_vmIsMt()                  HB_TRUE
+   #else
+      typedef int HB_THREAD_HANDLE;
+      typedef int HB_THREAD_ID;
+
+      #define hb_threadDetach( th_h )
+      #define hb_vmIsMt()                  HB_FALSE
+      #ifndef LETO_NO_THREAD
+         #define LETO_NO_THREAD
+      #endif
+   #endif
+
+   /* missing in dbinfo.h */
+   #ifndef DBS_COUNTER
+      #define DBS_COUNTER   102
+   #endif
+   #ifndef DBI_LOCKTEST
+      #define DBI_LOCKTEST  146
+   #endif
 #endif
 
 #if defined( USE_LZ4 )

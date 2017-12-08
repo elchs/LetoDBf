@@ -32,3 +32,6 @@ MYDEFINES =
 MYPRG_FLAGS = 
 
 [lib\rddleto.lib]
+
+[C:\Program Files\PellesC\Lib\crtmt.lib]
+

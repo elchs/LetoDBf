@@ -84,14 +84,7 @@
 
 #define LETO_DEFAULT_TIMEOUT 120000;  /* two minutes */
 
-#ifndef LETO_NO_MT
-   typedef struct
-   {
-      unsigned int     uiConnCount;   /* count of items in letoConnPool */
-      LETOCONNECTION * letoConnPool;  /* array of connections */
-      LETOCONNECTION * pCurrentConn;  /* pointer into letoConnPool list */
-   } LETOPOOL;
-
+#ifndef LETO_NO_THREAD
    static PHB_ITEM s_pError = NULL;   /* elch's prepared GLOBAL error object from second thread */
 
    #if defined( HB_SPINLOCK_INIT ) && ! defined( HB_HELGRIND_FRIENDLY )
@@ -103,8 +96,18 @@
       #define HB_GC_LOCKE()    hb_threadEnterCriticalSection( &s_ErrorMtx )
       #define HB_GC_UNLOCKE()  hb_threadLeaveCriticalSection( &s_ErrorMtx )
    #endif
+#endif
+
+#ifndef LETO_NO_MT
+   typedef struct
+   {
+      unsigned int     uiConnCount;   /* count of items in letoConnPool */
+      LETOCONNECTION * letoConnPool;  /* array of connections */
+      LETOCONNECTION * pCurrentConn;  /* pointer into letoConnPool list */
+   } LETOPOOL;
+
 #else
-   static HB_USHORT        s_uiConnCount = 0;
+   static unsigned int     s_uiConnCount = 0;
    static LETOCONNECTION * s_letoConnPool = NULL;
    static LETOCONNECTION * s_pCurrentConn = NULL;
 #endif
@@ -133,7 +136,9 @@ HB_EXPORT char * LetoSetModName( char * szModule )
    return ( char * ) s_szModName;
 }
 
-extern HB_SIZE hb_fsPipeWrite( HB_FHANDLE hPipeHandle, const void * buffer, HB_SIZE nSize, HB_MAXINT nTimeOut );
+#ifndef __XHARBOUR__
+   extern HB_SIZE hb_fsPipeWrite( HB_FHANDLE hPipeHandle, const void * buffer, HB_SIZE nSize, HB_MAXINT nTimeOut );
+#endif
 
 #endif  /* __HARBOUR30__ */
 
@@ -339,7 +344,7 @@ void leto_clientlog( const char * sFile, int n, const char * s, ... )
 #endif
 }
 
-#ifndef LETO_NO_MT
+#ifndef LETO_NO_THREAD
 
 static PHB_ITEM leto_cloneError( PHB_ITEM pSourceError )
 {
@@ -363,42 +368,40 @@ static PHB_ITEM leto_cloneError( PHB_ITEM pSourceError )
 /* check for thread global s_pError; clone into local var to keep mutex lock short */
 HB_ERRCODE delayedError( void )
 {
-   HB_ERRCODE errCode = 0;
-   PHB_ITEM   pError = NULL;
-
    if( s_pError )  /* this hurts mutex, but should be ok for this quick pre-test */
    {
+      HB_ERRCODE errCode = 0;
+      PHB_ITEM   pError;
+
       HB_GC_LOCKE();
       pError = leto_cloneError( s_pError );
       hb_errRelease( s_pError );
       s_pError = NULL;
       HB_GC_UNLOCKE();
-   }
 
-   if( pError )
-   {
-      HB_USHORT uiAction = hb_errLaunch( pError );
-
-      if( ! ( uiAction == E_RETRY || uiAction == E_DEFAULT ) )
-         errCode = hb_errGetSubCode( pError );
-      hb_errRelease( pError );
-      if( uiAction == E_BREAK )
+      if( pError )
       {
-         hb_vmRequestQuit();
-         /* ToDo wake up error thread ? */
-      }
+         HB_USHORT uiAction = hb_errLaunch( pError );
+
+         if( ! ( uiAction == E_RETRY || uiAction == E_DEFAULT ) )
+            errCode = hb_errGetSubCode( pError );
+         hb_errRelease( pError );
+         if( uiAction == E_BREAK )
+         {
+            hb_vmRequestQuit();
+            /* ToDo wake up error thread ? */
+         }
 #ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "delayedError( %d )", uiAction );
+         leto_clientlog( NULL, 0, "delayedError( %d )", uiAction );
 #endif
+      }
+      return errCode;
    }
-   return errCode;
+   else
+      return 0;
 }
 
-#else   /* LETO_NO_MT */
-
-#define delayedError()  ( ( HB_ERRCODE ) 0 )
-
-#endif  /* LETO_NO_MT */
+#endif  /* ! LETO_NO_THREAD */
 
 void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen, unsigned long * pulLen )
 {
@@ -1228,10 +1231,15 @@ long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * szData, unsig
       ulLen = strlen( szData );
 
    lRecv = leto_Send( pConnection, szData, ulLen );
+#ifndef LETO_NO_THREAD
    pConnection->iError = delayedError();
    if( pConnection->iError )
       lRecv = 0;
    else if( ! lRecv )
+#else
+   pConnection->iError = 0;
+   if( ! lRecv )
+#endif
    {
 #if ! defined( __HARBOUR30__ )  /* new function since 2015/08/17 */
       hb_socketSetError( LETO_SOCK_GETERROR() );
@@ -1269,11 +1277,16 @@ unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData,
    {
       ulRet = leto_Send( pConnection, szData, ulLen );
 
+#ifndef LETO_NO_THREAD
       /* also check for deleayed error */
       pConnection->iError = delayedError();
       if( pConnection->iError )
          ulRet = 0;
       else if( ! ulRet )
+#else
+      pConnection->iError = 0;
+      if( ! ulRet )
+#endif
       {
          pConnection->fMustResync = HB_FALSE;
          pConnection->iError = 1000;
@@ -1342,7 +1355,7 @@ LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort )
 
 LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort )
 {
-   HB_USHORT i;
+   unsigned int i;
 
    for( i = 0; i < s_uiConnCount; i++ )
    {
@@ -2442,7 +2455,7 @@ static char * leto_NetName( void )
    return szRet;
 }
 
-#ifndef LETO_NO_MT
+#ifndef LETO_NO_THREAD
 
 static HB_THREAD_STARTFUNC( leto_elch )
 {
@@ -2490,6 +2503,7 @@ static HB_THREAD_STARTFUNC( leto_elch )
 
          if( fPipeControl )  /* each action at pipe means to end this thread */
          {
+#ifndef __XHARBOUR__
             if( FD_ISSET( ( int ) hPipe, &readfds ) )
             {
                char c[ 1 ];
@@ -2497,6 +2511,7 @@ static HB_THREAD_STARTFUNC( leto_elch )
                hb_fsPipeRead( hPipe, &c, 1, 0 );
                break;
             }
+#endif
          }
 
          do
@@ -2677,7 +2692,7 @@ static HB_THREAD_STARTFUNC( leto_elch )
    HB_THREAD_END
 }
 
-#endif  /* LETO_NO_MT */
+#endif  /* LETO_NO_THREAD */
 
 HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck )
 {
@@ -2882,7 +2897,7 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
                      /* now the second socket for errors if MT is supported */
                      if( fZombieCheck && hb_vmIsMt() )
                      {
-#ifndef LETO_NO_MT
+#ifndef LETO_NO_THREAD
                         pConnection->hSocketErr = leto_ipConnect( szAddr, iPort + 1, 2000, NULL );
    #ifdef LETO_CLIENTLOG
                         if( pConnection->hSocketErr == HB_NO_SOCKET )
@@ -2915,14 +2930,18 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
                               leto_clientlog( NULL, 0, "%s", "leto_elch() error after errsock intro send" );
 #endif
                            }
-#ifndef LETO_NO_MT
+#ifndef LETO_NO_THREAD
    #if ! defined( HB_OS_WIN )
                            else if( hb_fsPipeCreate( pConnection->hSockPipe ) )
    #else
                            else
    #endif
                            {
+   #ifndef __XHARBOUR__
                               pConnection->hThread = hb_threadCreate( &pConnection->hThreadID, leto_elch, ( void * ) pConnection );
+   #else
+                              pConnection->hThread = ( HANDLE ) _beginthreadex( NULL, 0, &leto_elch, pConnection, 0, &pConnection->hThreadID );
+   #endif
                               if( pConnection->hThread )
                                  hb_threadDetach( pConnection->hThread );
                            }
@@ -3050,12 +3069,14 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
    }
    if( pConnection->hSocketErr != HB_NO_SOCKET )
    {
+#ifndef __XHARBOUR__
       if( pConnection->hSockPipe[ 1 ] != FS_ERROR )  /* wake up leto_elch() */
       {
          const char cToPipe[ 1 ] = { ' ' };
 
          hb_fsPipeWrite( pConnection->hSockPipe[ 1 ], cToPipe, 1, 0 );
       }
+#endif
    }
 
    leto_cryptReset( HB_FALSE );

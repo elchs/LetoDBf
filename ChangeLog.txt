@@ -2,6 +2,26 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-12-08 01:06 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * rddleto.lib.xbp
+    * use source lz4.c instead of .obj in xBuilder definition
+      ; preferred tested C-compiler is PellesC ! ( other was hack for XCC ) 
+  * test_mem.exe.xbp
+    * add PellesC 'crtmt.lib' with _beginthreadex() to link, needed by default
+      ; disable with LETO_NO_THREAD, read below
+
+  * include/funcleto.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+  * source/client/rddsys.prg
+    ! fix self referring duplicate init procedure :-(
+    + introduce compile time define LETO_NO_THREAD for client library:
+      if set, it prevents starting a second thread ( 'delayed error' ),
+      as these parts are then not compiled into.
+      ; aka default is 'on' also ( with a hack ) for non-MT ! xHarbour
+    % spare variables usage in delayedError()
+
 2017-12-05 15:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/funcleto.h
   * include/letocl.h

@@ -3041,5 +3041,16 @@ HB_FUNC( LETO_VAREXPRSYNC )
    hb_retl( fSuccess );
 }
 
+#else
+
+extern char * LetoSetModName( char * szModule );
+
+HB_FUNC( HB_PROGNAME )
+{
+   char * sFileDefault = LetoSetModName( NULL );
+
+   hb_retc_buffer( sFileDefault );
+}
+
 #endif  /* ! __XHARBOUR__ */
 
