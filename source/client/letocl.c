@@ -54,10 +54,6 @@
 
 #include "rddleto.h"
 
-#ifdef LETO_NO_MT
-   extern void leto_BFExit( void );
-#endif
-
 #if defined( HB_OS_UNIX )
    #if defined( HB_OS_LINUX ) && ! defined( __USE_GNU )
       #define __USE_GNU
@@ -79,7 +75,7 @@
 #endif
 
 #if defined ( _MSC_VER )
-  #define _WINSOCKAPI_
+   #define _WINSOCKAPI_
 #endif
 
 #define LETO_DEFAULT_TIMEOUT 120000;  /* two minutes */
@@ -105,8 +101,9 @@
       LETOCONNECTION * letoConnPool;  /* array of connections */
       LETOCONNECTION * pCurrentConn;  /* pointer into letoConnPool list */
    } LETOPOOL;
-
 #else
+   extern void leto_BFExit( void );
+
    static unsigned int     s_uiConnCount = 0;
    static LETOCONNECTION * s_letoConnPool = NULL;
    static LETOCONNECTION * s_pCurrentConn = NULL;
@@ -276,7 +273,7 @@ static char * leto_AddLen( char * pData, HB_ULONG * ulLen, HB_BOOL fBefore )
 void leto_clientlog( const char * sFile, int n, const char * s, ... )
 {
    HB_FHANDLE handle;
-#if defined( __XHARBOUR__ ) || defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
    char * sFileDefault = LetoSetModName( NULL );
 #else
    char * sFileDefault = hb_cmdargProgName();
@@ -645,7 +642,7 @@ HB_EXPORT void LetoExit( unsigned int uiFull )
    }
    pLetoPool->uiConnCount = 0;
 
-#if defined( __XHARBOUR__ ) || defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
    if( s_szModName )
    {
       hb_xfree( s_szModName );
@@ -682,7 +679,7 @@ HB_EXPORT void LetoExit( unsigned int uiFull )
    }
    s_uiConnCount = 0;
 
-#if defined( __XHARBOUR__ ) || defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
    if( s_szModName )
    {
       hb_xfree( s_szModName );
@@ -2457,6 +2454,19 @@ static char * leto_NetName( void )
 
 #ifndef LETO_NO_THREAD
 
+static void LetoCloseSocketErr( LETOCONNECTION * pConnection )
+{
+   HB_GC_LOCKE();
+   if( pConnection && pConnection->hSocketErr != HB_NO_SOCKET )
+   {
+      hb_socketShutdown( pConnection->hSocketErr, HB_SOCKET_SHUT_RDWR  );
+      hb_threadReleaseCPU();
+      hb_socketClose( pConnection->hSocketErr );
+      pConnection->hSocketErr = HB_NO_SOCKET;
+   }
+   HB_GC_UNLOCKE();
+}
+
 static HB_THREAD_STARTFUNC( leto_elch )
 {
    LETOCONNECTION * pConnection = ( LETOCONNECTION * ) Cargo;
@@ -2689,6 +2699,8 @@ static HB_THREAD_STARTFUNC( leto_elch )
    leto_clientlog( NULL, 0, "DEBUG thread leto_elch( %u ) ended", uiConnection );
 #endif
 
+   LetoCloseSocketErr( pConnection );
+
    HB_THREAD_END
 }
 
@@ -2771,7 +2783,7 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
          else
             pConnection->uiMajorVer = pConnection->uiMinorVer = 0;
 
-#if defined( __XHARBOUR__ ) || defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
          szModName = s_szModName;
 #else
          szModName = hb_cmdargProgName();
@@ -2794,7 +2806,7 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
          ptr += eprintf( ptr, "%c;%s;%s;%s;", LETOCMD_intro,
                          LETO_VERSION_STRING, ( ( pName ) ? pName : "" ),
                          ( ( szModName ) ? szModName + iMod : "LetoClient" ) );
-#if ! ( defined( __XHARBOUR__ ) || defined( __HARBOUR30__ ) )
+#if defined( __HARBOUR30__ )
          if( szModName )
             hb_xfree( szModName );
 #endif
@@ -2895,20 +2907,21 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
                      pConnection->fLowerCase = uiLowerCase ? HB_TRUE : HB_FALSE;
 
                      /* now the second socket for errors if MT is supported */
-                     if( fZombieCheck && hb_vmIsMt() )
-                     {
 #ifndef LETO_NO_THREAD
-                        pConnection->hSocketErr = leto_ipConnect( szAddr, iPort + 1, 2000, NULL );
-   #ifdef LETO_CLIENTLOG
-                        if( pConnection->hSocketErr == HB_NO_SOCKET )
-                           leto_clientlog( NULL, 0, "%s", "ERROR: creating second socket failed" );
+   #ifndef __XHARBOUR__
+                     fZombieCheck = ( fZombieCheck && hb_vmIsMt() );
    #endif
 #else
-                        pConnection->hSocketErr = HB_NO_SOCKET;
+                     fZombieCheck = HB_FALSE;
+#endif
+                     if( fZombieCheck )
+                     {
+                        pConnection->hSocketErr = leto_ipConnect( szAddr, iPort + 1, 2000, NULL );
+#ifdef LETO_CLIENTLOG
+                        if( pConnection->hSocketErr == HB_NO_SOCKET )
+                           leto_clientlog( NULL, 0, "%s", "ERROR: creating second socket failed" );
 #endif
                      }
-                     else
-                        pConnection->hSocketErr = HB_NO_SOCKET;
 
                      if( pConnection->hSocketErr != HB_NO_SOCKET )
                      {
@@ -3140,13 +3153,9 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
       pConnection->pBufCrypt = NULL;
    }
 
-   if( pConnection->hSocketErr != HB_NO_SOCKET )
-   {
-      hb_socketShutdown( pConnection->hSocketErr, HB_SOCKET_SHUT_RDWR  );
-      hb_socketClose( pConnection->hSocketErr );
-      pConnection->hSocketErr = HB_NO_SOCKET;
-      hb_threadReleaseCPU();
-   }
+#ifndef LETO_NO_THREAD
+   LetoCloseSocketErr( pConnection );
+#endif
 
    if( pConnection->hSockPipe[ 1 ] != FS_ERROR )  /* wake up leto_elch() */
    {

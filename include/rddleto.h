@@ -67,6 +67,87 @@
    #include "hbzlib.h"
 #endif
 
+#if defined( __XHARBOUR__ )
+   #ifndef HB_LONG_LONG_OFF
+      #define HB_LONG_LONG_OFF
+   #endif
+   #ifndef __HARBOUR30__
+      #define __HARBOUR30__  1
+   #endif
+   #ifndef USE_LZ4
+      #define USE_LZ4        1
+   #endif
+
+   typedef unsigned char HB_BYTE;
+   typedef int HB_BOOL;
+   typedef unsigned short HB_USHORT;
+   typedef ULONG HB_SIZE;
+   typedef signed char HB_SCHAR;
+
+   #define HB_IT_TIMESTAMP  ( ( HB_TYPE ) 0x00040 )   /* same HB_IT_TIMEFLAG */
+   #define HB_FF_UNICODE    0x0040
+   #if defined( HB_IS_NUMBER ) && defined ( HB_IS_NUMERIC )
+      #undef HB_IS_NUMERIC
+	  #define HB_IS_NUMERIC( p )  ( ( HB_ITEM_TYPE( p ) & HB_IT_NUMERIC ) != 0 )
+   #endif
+
+   #define hb_itemDeserialize( buffer, size )    hb_itemArrayNew( 0 )
+   #define hb_itemSerialize( item, flag, size )  hb_strdup( "xHb" )
+   #define hb_snprintf                           snprintf
+
+   /* hbznet & used zLib constants */
+   #ifndef HB_ZLIB_STRATEGY_DEFAULT
+      typedef void * PHB_ZNETSTREAM;
+
+      #define HB_ZLIB_STRATEGY_DEFAULT    0
+      #define HB_ZLIB_COMPRESSION_NONE    0
+      #define HB_ZLIB_COMPRESSION_SPEED   1
+      #define HB_ZLIB_COMPRESSION_SIZE    9
+   #endif
+
+   /* hbthread replace and dummy */
+   #define hb_threadReleaseCPU()
+   #ifndef LETO_NO_MT
+      #define LETO_NO_MT                  1
+   #endif
+   #if defined( HB_OS_WIN ) && ! defined( LETO_NO_THREAD ) && ! defined( __XCC__ )
+      #ifndef __MT__  /* set before process.h to enable beginThreadex in header */
+         #define __MT__
+      #endif
+	  #include <windows.h>
+	  #include <process.h>
+      typedef HANDLE   HB_THREAD_HANDLE;
+      typedef unsigned HB_THREAD_ID;
+
+      #define HB_THREAD_STARTFUNC( func )  unsigned __stdcall func( void * Cargo )
+      #define HB_THREAD_END                _endthreadex( 0 ); return 0;
+      #define hb_threadDetach( th_h )      CloseHandle( th_h )
+   #else
+      typedef int HB_THREAD_HANDLE;
+      typedef int HB_THREAD_ID;
+
+      #ifndef LETO_NO_THREAD
+         #define LETO_NO_THREAD
+      #endif
+   #endif
+
+   /* missing in dbinfo.h */
+   #ifndef DBS_COUNTER
+      #define DBS_COUNTER   102
+   #endif
+   #ifndef DBI_LOCKTEST
+      #define DBI_LOCKTEST  146
+   #endif
+
+   /* CP */
+   #define HB_CDP_PAGE()  hb_cdppage()
+
+#else  /* ! __XHARBOUR__ */
+
+   #define HB_CDP_PAGE()  hb_vmCDP()
+
+#endif
+
 #include "cmdleto.h"
 #include "funcleto.h"
 #include "letocl.h"

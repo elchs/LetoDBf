@@ -2,10 +2,37 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-12-11 17:57 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * rddleto.lib.xbp
+    + add define LETO_NO_MT
+
+  * include/funcleto.h
+  * include/rddleto.h
+  * source/common/blowfish.c
+    * move xHB exceptions into only client side header, clean 'global' header;
+      as consequence LETO_NO_MT must be defined by make tool if wanted
+
+  * source/client/leto1.c
+  * source/client/letocl.c
+    * refine some __XHARBOUR__
+    * close second socket mutex secured, so also the second thread can do to
+      inform main about its end
+    + prg level Leto_IsErrOptim() to query for second socket active
+
+  - tests/rddleto.ini
+  + tests/rddleto.txt
+    * rename to avoid possible double login for tests
+
+  * Readme.txt
+    + new chapter for xHarbour
+    + new automatics: auto-login with an '.ini' file, server detecting with
+      recently integrated 'Uhura' and Leto_Detect()
+    * refinements ...
+
 2017-12-08 01:06 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * rddleto.lib.xbp
     * use source lz4.c instead of .obj in xBuilder definition
-      ; preferred tested C-compiler is PellesC ! ( other was hack for XCC ) 
+      ; preferred tested C-compiler is PellesC ! ( other was hack for XCC )
   * test_mem.exe.xbp
     * add PellesC 'crtmt.lib' with _beginthreadex() to link, needed by default
       ; disable with LETO_NO_THREAD, read below

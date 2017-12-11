@@ -44,93 +44,6 @@
  *
  */
 
-#include "hbbfish.h"
-#include "hbsocket.h"
-
-#if defined( __XHARBOUR__ )
-   #ifndef HB_LONG_LONG_OFF
-      #define HB_LONG_LONG_OFF
-   #endif
-   #ifndef __HARBOUR30__
-      #define __HARBOUR30__  1
-   #endif
-   #ifndef USE_LZ4
-      #define USE_LZ4        1
-   #endif
-
-   #define HB_IT_TIMESTAMP ( ( HB_TYPE ) 0x00040 )   /* same HB_IT_TIMEFLAG */
-   #define HB_FF_UNICODE   0x0040
-
-   typedef unsigned char HB_BYTE;
-   typedef int HB_BOOL;
-   typedef unsigned short HB_USHORT;
-   typedef ULONG HB_SIZE;
-   typedef signed char HB_SCHAR;
-   #if defined( HB_IS_NUMBER ) && defined ( HB_IS_NUMERIC )
-      #undef HB_IS_NUMERIC
-	  #define HB_IS_NUMERIC( p )  ( ( HB_ITEM_TYPE( p ) & HB_IT_NUMERIC ) != 0 )
-   #endif
-
-   #define hb_itemDeserialize( buffer, size )    hb_itemArrayNew( 0 )
-   #define hb_itemSerialize( item, flag, size )  hb_strdup( "xHb" )
-   #define hb_snprintf                           snprintf
-
-   /* hbznet & used zLib constants */
-   #ifndef HB_ZLIB_STRATEGY_DEFAULT
-      typedef void * PHB_ZNETSTREAM;
-
-      #define HB_ZLIB_STRATEGY_DEFAULT    0
-      #define HB_ZLIB_COMPRESSION_NONE    0
-      #define HB_ZLIB_COMPRESSION_SPEED   1
-      #define HB_ZLIB_COMPRESSION_SIZE    9
-   #endif
-
-   /* hbthread dummy */
-   #define hb_threadReleaseCPU()
-   #define LETO_NO_MT                  1
-   #if defined( HB_OS_WIN ) && ! defined( LETO_NO_THREAD ) && ! defined( __XCC__ )
-      #ifndef __MT__  /* set before process.h to enable beginThreadex in header */
-         #define __MT__
-      #endif
-	  #include <windows.h>
-	  #include <process.h>
-      typedef HANDLE   HB_THREAD_HANDLE;
-      typedef unsigned HB_THREAD_ID;
-
-      #define HB_THREAD_STARTFUNC( func )  unsigned __stdcall func( void * Cargo )
-      #define HB_THREAD_END                _endthreadex( 0 ); return 0;
-      #define hb_threadDetach( th_h )      CloseHandle( th_h )
-      #define hb_vmIsMt()                  HB_TRUE
-   #else
-      typedef int HB_THREAD_HANDLE;
-      typedef int HB_THREAD_ID;
-
-      #define hb_threadDetach( th_h )
-      #define hb_vmIsMt()                  HB_FALSE
-      #ifndef LETO_NO_THREAD
-         #define LETO_NO_THREAD
-      #endif
-   #endif
-
-   /* missing in dbinfo.h */
-   #ifndef DBS_COUNTER
-      #define DBS_COUNTER   102
-   #endif
-   #ifndef DBI_LOCKTEST
-      #define DBI_LOCKTEST  146
-   #endif
-#endif
-
-#if defined( USE_LZ4 )
-   #include "lz4.h"
-#endif
-
-#if defined( __XHARBOUR__ )
-   #include "hbverbld.h"
-#elif defined( __HARBOUR__ )
-   #include "hbdefs.h"
-#endif
-
 #if ! defined( LETO_PASSWORD )
    /* !!! wild !!! password for initial decrypt received key from server with first connect */
    #define LETO_PASSWORD       "hE8Q,jy5+R#_~?0"
@@ -189,22 +102,16 @@
 #define LETO_NTX                1
 
 #if ! ( defined( HB_FT_TIME ) )
-#define HB_FT_TIME         8
+   #define HB_FT_TIME         8
 #endif
 #if ! ( defined( HB_FT_TIMESTAMP ) )
-#define HB_FT_TIMESTAMP    9
+   #define HB_FT_TIMESTAMP    9
 #endif
 #if ! ( defined( HB_FT_MODTIME ) )
-#define HB_FT_MODTIME      10
+   #define HB_FT_MODTIME      10
 #endif
 #if ! ( defined( HB_FT_PICTURE ) )
-#define HB_FT_PICTURE      18
-#endif
-
-#if defined( __XHARBOUR__ )
-   #define HB_CDP_PAGE()  hb_cdppage()
-#elif defined( __HARBOUR__ )
-   #define HB_CDP_PAGE()  hb_vmCDP()
+   #define HB_FT_PICTURE      18
 #endif
 
 #if ! defined( HB_PFS )
@@ -279,14 +186,16 @@ extern HB_UINT ultostr( HB_U64 ulValue, char * ptr );
 extern int eprintf( char * d, const char * fmt, ... );
 
 #ifdef USE_LZ4
-struct _HB_LZ4NET;
-typedef struct _HB_LZ4NET * PHB_LZ4NET;
+   #include "lz4.h"
 
-extern HB_BOOL hb_lz4netEncryptTest( const PHB_LZ4NET pStream, const HB_ULONG ulLen );
-extern HB_ULONG hb_lz4netEncrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB_ULONG * pulDataLen, const char * szData );
-extern HB_ULONG hb_lz4netDecrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB_ULONG * pulDataLen, HB_BOOL fCompressed );
-extern PHB_LZ4NET hb_lz4netOpen( int iLevel, int strategy );
-extern void hb_lz4netClose( PHB_LZ4NET pStream );
-extern void hb_lz4netEncryptKey( PHB_LZ4NET pStream, const void * keydata, int keylen );
+   struct _HB_LZ4NET;
+   typedef struct _HB_LZ4NET * PHB_LZ4NET;
+
+   extern HB_BOOL hb_lz4netEncryptTest( const PHB_LZ4NET pStream, const HB_ULONG ulLen );
+   extern HB_ULONG hb_lz4netEncrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB_ULONG * pulDataLen, const char * szData );
+   extern HB_ULONG hb_lz4netDecrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB_ULONG * pulDataLen, HB_BOOL fCompressed );
+   extern PHB_LZ4NET hb_lz4netOpen( int iLevel, int strategy );
+   extern void hb_lz4netClose( PHB_LZ4NET pStream );
+   extern void hb_lz4netEncryptKey( PHB_LZ4NET pStream, const void * keydata, int keylen );
 #endif
 

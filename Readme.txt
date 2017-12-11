@@ -19,6 +19,7 @@ Contents
    2.2 Borland Win32 C compiler
    2.3 MS Visual C compiler
    2.4 Old Harbour 3.0
+   2.5 xHarbour
 3. Running and stopping server
    3.1 the classic way for all OS
    3.2 Run as Windows service
@@ -59,18 +60,23 @@ A. Internals
  <client> and <server>.
  The <server> is an executable running in a network,
  and <client> communicating with the server is your project linked with this library,
- So you get a R-eplaceable D-atabase D-river ("LETO"), selected as default driver if not explicitely
- given in functions like DbUseArea().
- Databases and index orders are then used by the server, the client requests the server about
- records and timed caches them in client RAM for further access.
+ So you get a R-eplaceable D-atabase D-river RDD "LETO", selected after connected as default DB driver,
+ if not explicitely given in functions like DbUseArea(), to use a client local file with e.g, "DBFNTX".
+ Databases and index orders are then used by the server, the client requests the server about records
+ and timed caches them in client RAM for further access.
 
- For a quick early test, Harbour users need to read/ make: 
+ For a quick early test, Harbour users need to read chapters/ and do:
  # 2.1 --> building server executable // client lib:
    hbmk2 letodb[ svc ] // hbmk2 rddletoaddon
- # adapt server data- & log- path in bin/letodb.ini
+ # adapt server dataroot- & log- path in bin/letodb.ini
    3. --> start executable[ or service ]
- # 5.1 --> add Leto_Connect( "//DNSname|IP/" ) in main() before using workareas,
-   build your project: hbmk2 yourapp[.prg|.hbp] letodb.hbc
+   check server up and working with one or more of tests examples
+ # 5.1 --> build your project: hbmk2 yourapp[.prg|.hbp] letodb.hbc
+   provide a copy of "tests/rddleto.txt" renamed as ".ini" along with your executable,
+   adapt therein IP | DNS name of the server
+ # start your app ...
+ # really found a left over BUG ? - try to nail it with a snippet, report !!
+
 
 
       1. Directory structure
@@ -147,13 +153,13 @@ A. Internals
  -- all OS:             hbmk2 letodbaddon.hbp
  Then the server executable goes into the place, where the Harbour executable directory is.
  In Windows the letodb.ini goes also into same place, in Linux it goes into: "/etc",
- where you need root rights to change config options.
+ where you need admin rights to change config options.
  ! Installing LetoDBf needs to outcomment and adjust the <LogPath> in letodb.ini !
  Use e.g. temporary directory of your OS, where normal users have write rights, e.g.: "/tmp".
 
 
       2.2 Borland Win32 C++ compiler
-      2.3 MS Visual C compiler
+      2.3 Old MS Visual C compiler
 
  If the above described way to compile with ".hbp" files does not work ( wrong setup ?, no hbmk2 ),
  for BCC and old older MsVc exists a make_b32.bat and a make_vc.bat. Look into, adapt OS search
@@ -178,8 +184,37 @@ A. Internals
  these as environment variables. So to set Environment variables: __LZ4=yes   and   __PMURHASH=yes
  to get defaults to use LZ4 compression and PMurHash algorithm. This is done in your terminal for
  Windows with: SET ...=...   and in Linux with: export ...=...
- You have to manually '#include rddleto.ch' into your projects, hbmk2 3.0 does that not automatic
- by using letodb.hbc.
+ Hbmk2 3.0 does that not automatic '#include rddleto.ch' into your projects, but can be done by
+ by using harbour switch: "/u+rddleto.ch".
+
+
+      2.5 xHarbour
+
+ SERVER: the server itself must be build with Harbour, cannot be done with xHB.
+ Same applies for utils like console monitor.
+
+ CLIENT: client library (RDD) can be build with xHarbour, use the 'rddleto.lib.xbp' definition for
+ xBuilder. For Windows ( but not for XCC ), it will by default use a second thread ( without HVM ),
+ so the executable must be linked with a library containing '_beginthreadex()'.
+ cFlag define: LETO_NO_THREAD=1 set for xHB will disable this and the need for threading function,
+ [ C-compiler: note that xBuilder doesn't store used C-compiler -- change it on demand.
+   XCC: can't compile 3rd party 'lz4.c', compile it with PellesC >= 4.5 manually,
+   and replace it in list of files for xBuilder with resulting 'lz4.obj':
+   pocc.exe -Fo"obj\lz4.obj" -Ot -I"include" -I"source\3rd\lz4\lib" -I%PATH_XHB%"\include"
+            -I%PATH_POCC%"\Include" -I%PATH_POCC%"\include\Win" "source\3rd\lz4\lib\lz4.c"
+ ]
+
+ DEMO: one single demo 'test_mem.exe.xbp' is designed and tested with PellesC ( POCC ) V8.0 [ >= 6.0 ]
+ For this lib 'crtmt.lib' is in link list, other C-compiler may replace that "crtmt.lib" with one of
+ their distribution -- XCC, and RDD lib with disabled thread have to remove it from list.
+ Same way you can build other examples "test_[func|filt|dbf|dbfe|var|file]"
+
+ YOUR APP:
+ Each '.prg' for a xHB LetoDBf project have to include "rddleto.ch", this is done by xHB switch:
+ "/u+rddleto.ch"
+ One source file of your project, i suggest that with function main(), should:
+ REQUEST LETO
+
 
 
       3. Running and stopping server
@@ -210,6 +245,10 @@ A. Internals
  To automate that, use bash script: 'leto.sh' in "bin" directory, it will start the server
  when it is again possible. It is about the time that must elapse before TCP/IP can release a
  closed connection and reuse its resources. This is known as TIME_WAIT state.
+
+ --> Look into letodbf.log, that server is up -- also further server related error goes here.
+ At same place, in 'letodbf_xx.log' error feedback of a specific connection may appear.
+ Both easily can be viewed with:  8.1.1 All OS console
 
 
       3.2  Run as Windows@ service
@@ -261,22 +300,22 @@ A. Internals
                                     ! You ever connect to first port number !
       DataPath =               -    PATH to a base directory on a server with your databases,
                                     may include also a drive letter for poor Windows systems
-      LogPath =                -    if config option <DEBUG> level is greater zero [ 0 ],     
+      LogPath =                -    if config option <DEBUG> level is greater zero [ 0 ],
                                     PATH to a directory (with write access) for all log files.
                                     File letodbf.log for the main server will contain some info from settings
                                     at server starttime, plus info about new connected and disconneted clients
-      No_Save_WA = 1           -    server mode of internally handling database tables 
+      No_Save_WA = 1           -    server mode of internally handling database tables
                                     1  each dbUseArea() will cause a real file open operation by the OS,
                                        identical to what client requested, so workareas at the server are same as
                                        at client side. [ WA number, alias, filter conditions, relations ]
                                     0  each table is opened only one time, this workarea 'exchanged' in between client
                                        requests. so only one connection will have access to the table at a time.
-                                       No relations active at server, Alias names at server are different from 
+                                       No relations active at server, Alias names at server are different from
                                        the client.
                                     Recommend '1' if you plan to execute functions at server side ( UDF ).
       Share_Tables = 0         -    other software simultanous access tables used by server,
-                                    which changes logical or physical locking -- in dependance:
-                                    # No_Save_WA = 0    
+                                    which changes logical or physical record locking -- in dependance:
+                                    # No_Save_WA = 0
                                     0  server open all tables in exclusive mode, what leads to
                                        performance increase as e.g. record-/ file- locks are not applied by OS.
                                     1  tables are opened in the same mode [shared/exclusive] as client
@@ -284,7 +323,7 @@ A. Internals
                                        other applications [ non LetoDB users ] simultanous on the same DBF tables.
                                     # No_Save_WA = 1
                                     1  physical record-/ file- locks set with the OS are viewable for other
-                                    0  only logical internally locking
+                                    0  only logical internally locking, don't respect other record locks
       Default_Driver = CDX     -    default RDD to open DBF tables in at server, if not given explicitely in
                                     your sourcecode. Possible values: CDX NTX
                                     If the server is linked with rushmore index support, CDX gets BMCDX and
@@ -301,7 +340,8 @@ A. Internals
                                     * This is only needed, if your DBF will be greater in size as 1 GB. *
                                     Then DB_DBFLOCK_HB32 will be used for NTX/CDX;
                                     _or_ if set to 6, DB_DBFLOCK_CLIPPER2 for NTX, HB32 for other
-                                    _or_ if set to 2, DB_DBFLOCK_COMIX for CDX, HB32 for other.
+                                    _or_ if set to 2, DB_DBFLOCK_COMIX for CDX, HB32 for other
+                                    _or_ if set to 5, DB_DBFLOCK_HB64 for all.
       Memo_Type =              -    LEAVE IT EMPTY, to get the default for the choosen option Default_Driver.
                                     Default: FPT for DBFCDX, DBT for DBFNTX, SMT for others.
       Memo_BSize =             -    for !expert! users !, this will change default memo blocksize
@@ -364,7 +404,7 @@ A. Internals
                                     RDDI_DEBUGLEVEL -- see 7.5
                                     ONLY increase value in case of problems, to trace what happened at server,
                                     and the actions from client. Each connection will get an own log file with
-                                    connection-ID as file extension; new created when a connection starts. 
+                                    connection-ID as file extension; new created when a connection starts.
       HardCommit = 0           -    if 0, SET HARDCOMMIT OFF, this is now DEFAULT.
                                     It is recommended for UNSTABLE running server to set it to <1>,
                                     which means that each change at data tables are immedeate written to
@@ -390,6 +430,14 @@ A. Internals
                                     Such connection will be shut down, opened files and locks are reset-ed.
                                     If set to 0 [ default ], these checks are diabled.
 
+     ;BC_Services = letodb;         build-in 'Uhura' BroadCast servive, default <off> as outcommented:
+                                    it activates BC BroadCast response service for list of 'service-names',
+                                    each name to end with an ';' -- a request will get back the server-IP
+     ;BC_Interface = eth2           experimental/ Linux: use only specific interface for response
+     ;BC_Port = 2812                specify different than default port for UDP BC interfaces,
+                                    by default the same port as configured for TCP port
+
+
 
       4.2  Different Server compile setups/ extensions
 
@@ -402,19 +450,15 @@ A. Internals
  Place the resulting <HRB> file in same directory as the server executable.
  After the "reload" command or together with server start you have an entry in letodbf.log if they
  were successful loaded. In case of error you shell also find a short text what have failed.
- See further at Leto_Udf() ... 
+ See further at Leto_Udf() ...
 
- For the execution of single Harbour functions at server side, or when your functions in the HRB file
- need Harbour commands ( like "STR", "DTOC" ), these Harbour functions must during compile process linked
- into the executable.
- There are already very !many! available. If really one is missing, it must be added at top in:
- source/server/server.prg, done like the others there with a: REQUEST <cFunction>
-
- You can enable also the full set of all basic Harbour commands to be available at server runtime.
- Herefore comment out 2 lines in source/server/server.prg.
- Or if you need the full set of the Harbour Cl*pper tools contrib [CT], another two lines must be
- outcommented.
-
+ For the execution of Harbour functions at server side, or when your functions in the HRB file
+ need Harbour commands ( like "STR", "DTOC" ), these Harbour functions must be linked during compile
+ into the server executable.
+ By default most common used are allready available, done by a REQUEST in source/server/server.prg.
+ If you need some special Harbour core function, you can add your own REQUEST in source,
+ or easy enable the full Harbour command set by activating ( remove '#' ) in letodb.hbp.
+ The full set of the Harbour Cl*pper tools contrib [CT] function can be get the same place.
 
  * In server mode No_Save_WA=0: for all tables; and for all HbMemIO tables in any server mode: *
  at server side the ALIAS name for a workarea is *different* to that used in your application.
@@ -508,12 +552,19 @@ A. Internals
 
       5.1 Connecting to the server
 
- Look for example given in tests/basic.prg.
+ NEW, experimental:
+ by providing a "rddleto.ini" ( sample file in "bin" dir ) containing a valid server IP | DNS name,
+ [ Server = plain name or with preleading "//" and optional server port ':' ],
+ --> your application at startup, during the init of "LETO" RDD, tries to connect to the server,
+ and quits! if that failed. This approach needs no software changes.
+ Use 'DETECT' instead server IP | DNS to broadcast for server with a Leto_Detect().
 
- It will basically need 2 lines modification to your existing source, the rest of your
- application will stay as it was without LetoDBf usage.
- Hopefully you did not set the second param of DbUseArea( , cDriver, ... )
- or used the "VIA" option of the "USE command". In that case remove them all.
+ Look for example given in tests/basic.prg:
+ common way is to add a short sequence about "leto_Connect()" to existing source,
+ example place it in function main(). Take a look into 'tests/basic.prg'
+
+ Hopefully you did not set the second param of: DbUseArea( , cDriver, ... )
+ or used the "VIA" option of the "USE command": then remove cDriver for all WA to be used with LetoDBf.
 
  Most easy and highly recommended is to build your app for LetoDBf by using "letodb.hbc" for hbmk2.
  You can include it into your project HBP by adding it in an extra line, or use it at command line:
@@ -521,15 +572,17 @@ A. Internals
       hbmk2 yourapp[.prg|.hbp] letodb.hbc
 
  It automates for you the following steps:
+ .) add LetoDbf library and include paths
  a) request for the LetoDBf RDD driver, else manually must be set outside the main() procedure:
       REQUEST LETO
  b) includes the header file: "rddleto.ch", else it must be done manually in every of your PRG:
       #include "rddleto.ch"
  c) set the switch "-mt" to link your application with LetoDBf client library with multi-thread support.
     Further an internal, additive idletask is activated, if your application is build with '-mt'.
+ d) links the "rddleto" client lib
 
  Then there are two ways to open a DBF table at the server,
- THE **very recommended** because portable way is using leto_Connect().
+ THE **very recommended** because portable way is using a initially leto_Connect().
 
       IF leto_Connect( "//192.168.5.22:2812/" ) < 0
          Alert( "Can't connect to server ..." )
@@ -727,12 +780,14 @@ A. Internals
  In these functions <cAddress> means the IP-address in format: "//IP:port/".
  The ":port" part got now optional, if not given it will use ":2812" as default.
 
-      LETO_CONNECT( cAddress, [ cUserName ], [ cPassword ],
+      LETO_CONNECT( [ cAddress ], [ cUserName ], [ cPassword ],
                     [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck ] )
                                                                ==> nConnection, -1 if failed
+ Without any given param the <nConnection> ID at server of the active connection is returned,
+ else the connection ID at client where '0' == first connection of an application thread.
  <cAddress> can be given as raw IP-address "127.0.0.1" or "//127.0.0.1/".
  If the port is omitted ( aka: "//127.0.0.1:2812/" ), the default port number: 2812 is choosen.
- Alternatively DNS names can be used instead of an IP number.
+ Alternatively DNS names can be used instead of an IP number, example: 'localhost'.
  <nTimeOut> defines, how log for an answer from server application will wait, in 0.001 seconds.
  This timeout value is valid for each request to the server, not only for the initial connect.
  Default is 120000 aka 2 minutes. '-1' means infinite wait. After that timespan, application will
@@ -756,6 +811,14 @@ A. Internals
  Dis-connnect current connection, returns boolean if a connection is disconnected.
  With optional param <cAddress> that connection is tried to disconnect.
 
+      LETO_DETECT( [ cService ], [ nNrOfPossible ], [ nPort ] )
+ This functions sends a broadcast to a specific network given by avail interfaces,
+ loopback (lo) and other interfaces without MAC address are excluded from that.
+ Default <cService> is "letodb", and this is correlating to the server side:
+ see in example letodb.ini for config option: BC_Services = letodb;
+ Such LetoDBf server then will respond to this query with its IP address.
+ Alternative to new build-in at server was before a standalone exe: 8.2. 'Uhura'
+
       LETO_SETCURRENTCONNECTION( cAddress )                    ==> cAddress
  Returns the <cAddress> of the active connection after a try to change the active one.
  It is an empty string "" if IP was wrong/ not given.
@@ -775,7 +838,7 @@ A. Internals
  With optional <lLocal> == FALSE ( .F. ) returns IP address of server.
 
       LETO_ADDCDPTRANSLATE( cClientCdp, cServerCdp )           ==> nil
- For ugly ;-) xHarbour hackers with different CP names, no comment.
+ For xHarbour user with different CP names, no comment.
 
       LETO_SET( nOption [, xNewSet ] )                         ==> xActiveSetting
  Recommended is to use the commands: SET xxx [ TO ] or the SET() function instead, to keep your
@@ -1285,7 +1348,7 @@ A. Internals
  It is only allowed to assign a new value of same type to an existing variable.
  Group- and Var- names are NOT trimmed of white spaces, but char: ';' is an invalid char.
  IF <@xRetValue> is given by reference ( @ ), it will hold up the old value before the new
- one was set. This will only be done for boolean and numeric types, not for string etc. 
+ one was set. This will only be done for boolean and numeric types, not for string etc.
 
  Optional parameter <nFlags> defines the variable create mode/ limitations.
  These flags can be combined by aggregating ( + ) the constants:
@@ -1534,7 +1597,11 @@ A. Internals
       8.2 Uhura
 
  This is for automatic detection of the server, very helpful in networks with dynamical assigned
- IP addresses. Build the executable in utils/uhura/uhura.prg with a: hbmk2 uhura
+ IP addresses.
+ New: available as 'build-in' option in LetoDBf server itself --> see Leto_Detect(),
+ following is description of standalone version.
+
+ Build the executable in utils/uhura/uhura.prg with a: hbmk2 uhura
  The executable will be found afterwards in the "bin" directory.
  Start it at the same machine, where the LetoDBf server is running.
  Linux! user can give with first param an interface name like "eth1" at which uhura will listen.

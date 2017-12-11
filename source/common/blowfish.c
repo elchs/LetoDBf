@@ -270,7 +270,7 @@ void leto_cryptReset( HB_BOOL fGlobal )
 
 void leto_random_block( char * sBuf, HB_USHORT uLen, HB_I32 llSeed )
 {
-#if defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ ) || defined( __XHARBOUR__ )
    HB_SYMBOL_UNUSED( llSeed );
 
    while( uLen-- )

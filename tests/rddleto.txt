@@ -1,4 +1,4 @@
-; LetoDBf application config file
+; LetoDBf application config with file extension: .ini 
 
 ;Server = [//]DETECT[:service]|DNSname|IP[:port][/]
 Server = localhost

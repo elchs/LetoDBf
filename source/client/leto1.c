@@ -48,14 +48,13 @@
 #include "rddleto.h"
 #include <ctype.h>
 
-
 #if defined( HB_OS_UNIX )
    #include <netinet/in.h>
    #include <arpa/inet.h>
 #endif
 
 #if defined ( _MSC_VER )
-  #define _WINSOCKAPI_
+   #define _WINSOCKAPI_
 #endif
 
 #define SUPERTABLE   ( &s_letoSuper )
@@ -82,7 +81,7 @@ extern void leto_clientlog( const char * sFile, int n, const char * s, ... );
 
 extern void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray );
 
-#if defined( __XHARBOUR__ ) || defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
    extern char * LetoSetModName( char * szModule );
 #endif
 
@@ -5070,7 +5069,7 @@ static HB_ERRCODE letoInit( LPRDDNODE pRDD )
 
    LetoInit();
 
-#if defined( __XHARBOUR__ ) || defined( __HARBOUR30__ )
+#if defined( __HARBOUR30__ )
    {
       char szFile[ HB_PATH_MAX ];
       char ** pArgv = hb_cmdargARGV();
@@ -6414,6 +6413,16 @@ HB_FUNC( LETO_ISFLTOPTIM )
 
    if( pArea && leto_CheckArea( pArea ) )
       hb_retl( pArea->area.dbfi.fOptimized );
+   else
+      hb_retl( HB_FALSE );
+}
+
+HB_FUNC( LETO_ISERROPTIM )
+{
+   LETOCONNECTION * pConnection = letoGetCurrConn();
+
+   if( pConnection )  /* query not mutex secured */
+      hb_retl( pConnection->hSocketErr != HB_NO_SOCKET );
    else
       hb_retl( HB_FALSE );
 }
