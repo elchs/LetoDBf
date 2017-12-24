@@ -2,6 +2,29 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-12-24 14:24 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/rddleto.h
+  * source/client/leto1.c
+  * source/client/letomgmn.c
+  * source/client/rddsys.prg
+    * more refine __XHARBOUR__, related to TIMESTAMPs (date + time incl. ms)
+      add defines for:
+      hb_itemGetTD() [ return a hb_timeStampPackDT() ]
+      hb_itemGetTS() to return a new hb_timeStampStrRawPut()
+    * for xHB also use hb_itemPutTDT() instead hb_itemPutDTL()
+
+  * source/server/leto_2.c
+    ! too high values for microseconds (usec): max 1 million - 1
+    ; Thanks! goes to Mario Lobo for pointing out,
+      and on the way confirming that an unexpected branch is used:
+      for Unix alike BSD would expect it using poll(), not select();
+      [ include/srvleto.h:88 and source/client/letocl.c:63 --> HB_HAS_POLL ]
+
+  * tests/test_dbf.prg
+    * adapt TIMESTAMP test for xHB; note the quite different xHB API
+
+  * Readme.txt
+
 2017-12-11 17:57 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * rddleto.lib.xbp
     + add define LETO_NO_MT

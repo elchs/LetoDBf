@@ -499,6 +499,28 @@ static HB_ERRCODE letoGoTop( LETOAREAP pArea )
    return HB_SUCCESS;
 }
 
+#ifdef __XHARBOUR__
+
+static char * hb_timeStampStrRawPut( char * szDateTime, long lJulian, long lMilliSec )
+{
+   int    iYear, iMonth, iDay, iHour, iMinutes;
+   double dSeconds;
+
+   hb_dateDecode( lJulian, &iYear, &iMonth, &iDay );
+   hb_dateStrPut( szDateTime, iYear, iMonth, iDay );
+   hb_timeDecode( lMilliSec, &iHour, &iMinutes, &dSeconds );
+   /* hb_dateStrPut rely on 8 + 1 bytes long, now adding 9 + \0 --> len 18 */
+   sprintf( szDateTime + 8, "%02d%02d%02d%03d", iHour, iMinutes, ( int ) dSeconds,
+            ( int ) ( ( dSeconds - ( int ) dSeconds ) * 1000 ) );
+
+   return szDateTime;
+}
+
+#define hb_itemGetTS( pKey, szKey )   hb_timeStampStrRawPut( szKey, hb_itemGetDL( pKey ), hb_itemGetT( pKey ) )
+#define hb_itemGetTD( pItem )         ( ( double ) hb_itemGetDL( pItem ) + ( ( double ) hb_itemGetT( pItem ) / 86400000 ) )
+
+#endif
+
 static HB_USHORT leto_KeyToStr( LETOAREAP pArea, char * szKey, char cType, PHB_ITEM pKey, HB_USHORT uiMaxLen )
 {
    HB_USHORT uiKeyLen;
@@ -545,12 +567,10 @@ static HB_USHORT leto_KeyToStr( LETOAREAP pArea, char * szKey, char cType, PHB_I
          uiKeyLen = 1;
          break;
 
-#ifndef __XHARBOUR__
       case 'T':
          hb_itemGetTS( pKey, szKey );
          uiKeyLen = ( HB_USHORT ) strlen( szKey );  /* 23 + '\0' */
          break;
-#endif
 
       default:  /* means error in type */
          uiKeyLen = 0;
@@ -568,18 +588,9 @@ static int leto_ItmCompare( PHB_ITEM pValue, PHB_ITEM pItem, HB_BOOL fExact )
       iRet = hb_itemStrCmp( pValue, pItem, fExact );
    else if( HB_IS_DATE( pValue ) && HB_IS_DATE( pItem ) )
    {
-#ifdef __XHARBOUR__
-      if( pItem->item.asDate.value == pValue->item.asDate.value &&
-          pItem->item.asDate.time == pValue->item.asDate.time )
-#else
       if( hb_itemGetTD( pItem ) == hb_itemGetTD( pValue ) )
-#endif
          iRet = 0;
-#ifdef __XHARBOUR__
-      else if( pValue->item.asDate.value < pItem->item.asDate.value )
-#else
       else if( hb_itemGetTD( pValue ) < hb_itemGetTD( pItem ) )
-#endif
          iRet = -1;
    }
    else if( HB_IS_NUMINT( pValue ) && HB_IS_NUMINT( pItem ) )
@@ -1194,25 +1205,15 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
       case HB_FT_TIME:
          if( pField->uiLen == 4 )
          {
-#ifdef __XHARBOUR__
-            hb_itemPutDTL( pItem, 0, HB_GET_LE_UINT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] ) );
-#else
             hb_itemPutTDT( pItem, 0, HB_GET_LE_INT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] ) );
-#endif
             break;
          }
          /* no break */
       case HB_FT_MODTIME:
       case HB_FT_TIMESTAMP:
-#ifdef __XHARBOUR__
-         hb_itemPutDTL( pItem,
-                        HB_GET_LE_UINT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] ),
-                        HB_GET_LE_UINT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] + 4 ) );
-#else
          hb_itemPutTDT( pItem,
                         HB_GET_LE_UINT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] ),
                         HB_GET_LE_UINT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] + 4 ) );
-#endif
          break;
 
       case HB_FT_ANY:
@@ -1346,10 +1347,6 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
    char        szBuf[ 256 ];
    HB_BOOL     fTypeError = HB_FALSE;
 
-#if ! defined ( __XHARBOUR__ )
-   char * pBuff;
-#endif
-
    HB_TRACE( HB_TR_DEBUG, ( "letoPutValue(%p, %hu, %p)", pArea, uiIndex, pItem ) );
 
    if( ! uiIndex || uiIndex > pArea->area.uiFieldCount )
@@ -1388,7 +1385,8 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
 
             if( ! pField->uiFlags && pArea->area.cdPage != HB_CDP_PAGE() )
             {
-               pBuff = hb_cdpnDup( hb_itemGetCPtr( pItem ), &ulLen1, HB_CDP_PAGE(), pArea->area.cdPage );
+               char * pBuff = hb_cdpnDup( hb_itemGetCPtr( pItem ), &ulLen1, HB_CDP_PAGE(), pArea->area.cdPage );
+
                if( ulLen1 > ( HB_SIZE ) pField->uiLen )
                   ulLen1 = pField->uiLen;
                memcpy( pTable->pRecord + pTable->pFieldOffset[ uiIndex ], pBuff, ulLen1 );
@@ -1613,7 +1611,7 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
          if( pField->uiLen == 4 )
          {
 #ifdef __XHARBOUR__
-            if( HB_IS_DATE( pItem ) )
+            if( HB_IS_DATE( pItem ) || HB_IS_DATETIME( pItem ) )
                HB_PUT_LE_UINT32( ptr, hb_itemGetT( pItem ) );
 #else
             if( HB_IS_DATETIME( pItem ) )
@@ -1628,6 +1626,7 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
                HB_LONG lJulian, lMillisec;
 
                hb_timeStampStrGetDT( hb_itemGetCPtr( pItem ), &lJulian, &lMillisec );
+               hb_timeStampStrGetDT( hb_itemGetCPtr( pItem ), &lJulian, &lMillisec );
                HB_PUT_LE_UINT32( ptr, lMillisec );
             }
 #endif
@@ -1637,10 +1636,13 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
          else
          {
 #ifdef __XHARBOUR__
-            if( HB_IS_DATE( pItem ) )
+            if( HB_IS_DATE( pItem ) || HB_IS_DATETIME( pItem ) )
             {
                HB_PUT_LE_UINT32( ptr, hb_itemGetDL( pItem ) );
-               HB_PUT_LE_UINT32( ptr + 4, hb_itemGetT( pItem ) );
+               if( HB_IS_DATETIME( pItem ) )
+                  HB_PUT_LE_UINT32( ptr + 4, hb_itemGetT( pItem ) );
+               else
+                  HB_PUT_LE_UINT32( ptr + 4, 0 );
             }
 #else
             if( HB_IS_DATETIME( pItem ) )
@@ -1672,10 +1674,13 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
          HB_BYTE * ptr = pTable->pRecord + pTable->pFieldOffset[ uiIndex ];
 
 #ifdef __XHARBOUR__
-         if( HB_IS_DATE( pItem ) )
+         if( HB_IS_DATE( pItem ) || HB_IS_DATETIME( pItem ) )
          {
             HB_PUT_LE_UINT32( ptr, hb_itemGetDL( pItem ) );
-            HB_PUT_LE_UINT32( ptr + 4, hb_itemGetT( pItem ) );
+            if( HB_IS_DATETIME( pItem ) )
+               HB_PUT_LE_UINT32( ptr + 4, hb_itemGetT( pItem ) );
+            else
+               HB_PUT_LE_UINT32( ptr + 4, 0 );
          }
 #else
          if( HB_IS_DATETIME( pItem ) )
@@ -1749,7 +1754,8 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
                   hb_cdpnTranslate( pData, HB_CDP_PAGE(), pArea->area.cdPage, ulLen );
 #else
                   HB_SIZE ulLen1 = ulLen;
-                  pBuff = hb_cdpnDup( hb_itemGetCPtr( pItem ), &ulLen1, HB_CDP_PAGE(), pArea->area.cdPage );
+                  char *  pBuff = hb_cdpnDup( hb_itemGetCPtr( pItem ), &ulLen1, HB_CDP_PAGE(), pArea->area.cdPage );
+
                   memcpy( pData, pBuff, ulLen1 );
                   hb_xfree( pBuff );
 #endif

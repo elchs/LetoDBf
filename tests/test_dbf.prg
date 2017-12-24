@@ -60,6 +60,9 @@ Function Main( cPath )
               MINFO WITH aNames[ i ]
 #ifndef __XHARBOUR__
       REPLACE TINFO WITH IIF( i == 6, HB_STRTOTS( "" ), hb_DToT( DATE() + i, TIME() ) )
+#else
+      REPLACE TINFO WITH IIF( i == 6, STOT( "00000000000000.000" ),;
+                                      STOT( DTOS( DATE() + i ) + LEFT( TIME(), 2 ) + SUBSTR( TIME(),4,2) + RIGHT(TIME(),2) + ".321" ) )
 #endif
    NEXT
    ? LEN( aNames ), "Records has been added"
@@ -90,7 +93,7 @@ Function Main( cPath )
 
    DbGoTo( 5 )
    REPLACE INFO WITH ""
-   
+
    GO BOTTOM
    ? "go bottom", NUM, NAME, DINFO, Iif( NUM == 1012, "- Ok","- Failure" )
    REPLACE INFO WITH "Last", MINFO WITH "Last"
@@ -128,16 +131,22 @@ Function Main( cPath )
    DBSEEK( "Pe", .T. )
    ? "DbSeek( 'Pe',.T. )    ", NUM, NAME, DINFO, Iif( NUM == 1001, "- Ok","- Failure" )
 
-#ifndef __XHARBOUR__
    DbSetOrder( 3 )
    DBGOBOTTOM()
+#ifndef __XHARBOUR__
    DBSeek( hb_DToT( DATE() + 5 ), .T. )
+#else
+   DBSeek( STOT( DTOS( DATE() + 5 ) + "000000.000" ), .T. )
+#endif
    ? "DbSeek( TS,.T. )      ", NUM, NAME, DINFO, Iif( NUM == 1005, "- Ok","- Failure" )
 
    DBGOBOTTOM()
+#ifndef __XHARBOUR__
    DBSeek( hb_DToT( DATE() + 5 ), .F. )
-   ? "DbSeek( TS,.F. )      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+#else
+   DBSeek( STOT( DTOS( DATE() + 5 ) + "000000.000" ), .F. )
 #endif
+   ? "DbSeek( TS,.F. )      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
    DbSetOrder( 1 )
 
    DBGOTOP()

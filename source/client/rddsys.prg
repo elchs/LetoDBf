@@ -57,7 +57,6 @@ REQUEST LETO_UDF
 
 #ifdef __XHARBOUR__
    #include "hbcompat.ch"
-   #define HB_EOL()               CHR( 13 ) + CHR( 10 )
    #define hb_BChar( x )          CHR( x )
    #define hb_BLeft( text, len )  LEFT( text, len )
 

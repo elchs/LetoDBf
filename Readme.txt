@@ -58,7 +58,7 @@ A. Internals
 
  In following chapters with many words is described the extended use of the pair:
  <client> and <server>.
- The <server> is an executable running in a network,
+ The <server> is an executable build with Harbour running in a network,
  and <client> communicating with the server is your project linked with this library,
  So you get a R-eplaceable D-atabase D-river RDD "LETO", selected after connected as default DB driver,
  if not explicitely given in functions like DbUseArea(), to use a client local file with e.g, "DBFNTX".
@@ -72,9 +72,10 @@ A. Internals
    3. --> start executable[ or service ]
    check server up and working with one or more of tests examples
  # 5.1 --> build your project: hbmk2 yourapp[.prg|.hbp] letodb.hbc
-   provide a copy of "tests/rddleto.txt" renamed as ".ini" along with your executable,
-   adapt therein IP | DNS name of the server
+   [ not xHarbour ] provide a copy of "tests/rddleto.txt" renamed as ".ini" along with
+   your executable -- adapt therein IP | DNS name of the server, or use "DETECT"
  # start your app ...
+
  # really found a left over BUG ? - try to nail it with a snippet, report !!
 
 
@@ -107,6 +108,7 @@ A. Internals
     For this you need your C-Compiler used for Harbour in your OS search path.
     Or to use latest binary package:
        https://sourceforge.net/projects/harbour-project/files/
+    Afterall the path to the 'hbmk2' executable is also added to OS search path list.
     Follow the instructions found with Harbour.
 
  Get latest source of LetoDBf
@@ -199,21 +201,24 @@ A. Internals
  cFlag define: LETO_NO_THREAD=1 set for xHB will disable this and the need for threading function,
  [ C-compiler: note that xBuilder doesn't store used C-compiler -- change it on demand.
    XCC: can't compile 3rd party 'lz4.c', compile it with PellesC >= 4.5 manually,
-   and replace it in list of files for xBuilder with resulting 'lz4.obj':
-   pocc.exe -Fo"obj\lz4.obj" -Ot -I"include" -I"source\3rd\lz4\lib" -I%PATH_XHB%"\include"
-            -I%PATH_POCC%"\Include" -I%PATH_POCC%"\include\Win" "source\3rd\lz4\lib\lz4.c"
+        and replace it in list of files for xBuilder with resulting 'lz4.obj':
+        pocc.exe -Fo"obj\lz4.obj" -Ot -I"include" -I"source\3rd\lz4\lib" -I%PATH_XHB%"\include"
+                 -I%PATH_POCC%"\Include" -I%PATH_POCC%"\include\Win" "source\3rd\lz4\lib\lz4.c"
  ]
 
  DEMO: one single demo 'test_mem.exe.xbp' is designed and tested with PellesC ( POCC ) V8.0 [ >= 6.0 ]
  For this lib 'crtmt.lib' is in link list, other C-compiler may replace that "crtmt.lib" with one of
- their distribution -- XCC, and RDD lib with disabled thread have to remove it from list.
+ their distribution ( cw32mt.lib, libcmt.lib .. )
+ XCC, and RDD lib with disabled thread have to remove library from list.
  Same way you can build other examples "test_[func|filt|dbf|dbfe|var|file]"
 
  YOUR APP:
- Each '.prg' for a xHB LetoDBf project have to include "rddleto.ch", this is done by xHB switch:
- "/u+rddleto.ch"
- One source file of your project, i suggest that with function main(), should:
- REQUEST LETO
+ like above demo: link a MultiThread C runtime lib,
+ #include "rddleto.ch" for each '.prg' of a xHB LetoDBf project by xHB switch: "/u+rddleto.ch".
+ One source file of your project, i suggest that with function main() and Leto_Connect(),
+ should: REQUEST LETO
+ (*) Codepage-names of xHB and server build with Harbour may be different, that needs to
+ set up a 'name translation table' -- see LETO_ADDCDPTRANSLATE()
 
 
 
@@ -837,8 +842,10 @@ A. Internals
  if you have multiple ( pgysical or logical like bridges ) NICs for that subnet.
  With optional <lLocal> == FALSE ( .F. ) returns IP address of server.
 
-      LETO_ADDCDPTRANSLATE( cClientCdp, cServerCdp )           ==> nil
- For xHarbour user with different CP names, no comment.
+      LETO_ADDCDPTRANSLATE( cClientCdp, cServerCdp )           ==> lAdded
+ For xHarbour user with different CP names as Harbour ones at server.
+ Once set, it can't be removed until client application end.
+ None verification done if CP is available at client, nor the one at server.
 
       LETO_SET( nOption [, xNewSet ] )                         ==> xActiveSetting
  Recommended is to use the commands: SET xxx [ TO ] or the SET() function instead, to keep your

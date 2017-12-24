@@ -1201,8 +1201,8 @@ static HB_THREAD_STARTFUNC( thread3 )
          iChange = select( nfds + 1, &readfds, NULL, NULL, NULL );
       else
       {
-         MicroWait.tv_sec = 0;
-         MicroWait.tv_usec = 2000000;
+         MicroWait.tv_sec = 2;
+         MicroWait.tv_usec = 0;
          iChange = select( nfds + 1, &readfds, NULL, NULL, &MicroWait );
       }
    #endif
@@ -2056,8 +2056,8 @@ HB_FUNC( LETO_SERVER )
          }
       }
 #else
-      MicroWait.tv_sec = 0;
-      MicroWait.tv_usec = 1500000;
+      MicroWait.tv_sec = 1;
+      MicroWait.tv_usec = 500000;
       FD_ZERO( &readfds );
       FD_SET( hSocketMain, &readfds );
       if( hSocketErr != HB_NO_SOCKET )

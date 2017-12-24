@@ -2237,10 +2237,10 @@ HB_FUNC( LETO_VARGETLIST )
                      hb_itemPutCL( hb_arrayGetItemPtr( aVar, 2 ), ptr, ulValLength );
                      break;
 
-#ifndef __XHARBOUR__
                   case LETOVAR_ARR:
                      if( lMaxLen == 0 )
                      {
+#ifndef __XHARBOUR__
                         const char * ptrTmp = ptr;
                         HB_SIZE      nSize = ( HB_SIZE ) ulValLength;
                         PHB_ITEM     pArr = hb_itemDeserialize( &ptrTmp, &nSize );
@@ -2248,11 +2248,13 @@ HB_FUNC( LETO_VARGETLIST )
                         hb_itemMove( hb_arrayGetItemPtr( aVar, 2 ), pArr );
                         if( pArr )
                            hb_itemRelease( pArr );
+#else
+                        hb_arrayNew( hb_arrayGetItemPtr( aVar, 2 ), 0 );
+#endif
                      }
                      else
                         hb_itemPutC( hb_arrayGetItemPtr( aVar, 2 ), "{ ... }" );
                      break;
-#endif
 
                   case LETOVAR_DAT:
                      hb_itemPutDS( hb_arrayGetItemPtr( aVar, 2 ), ptr );
@@ -2328,7 +2330,7 @@ HB_FUNC( LETO_ADDCDPTRANSLATE )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
 
-   if( pCurrentConn && HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) )
+   if( pCurrentConn && hb_parclen( 1 ) && hb_parclen( 2 ) )
    {
       PCDPSTRU pCdps;
       if( pCurrentConn->pCdpTable )
@@ -2345,9 +2347,12 @@ HB_FUNC( LETO_ADDCDPTRANSLATE )
       pCdps->szServerCdp = ( char * ) hb_xgrab( hb_parclen( 2 ) + 1 );
       strcpy( pCdps->szServerCdp, hb_parc( 2 ) );
       pCdps->pNext = NULL;
-   }
-}
 
+      hb_retl( HB_TRUE );
+   }
+   else
+      hb_retl( HB_FALSE );
+}
 
 HB_FUNC( LETO_UDFEXIST )
 {
