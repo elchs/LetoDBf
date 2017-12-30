@@ -85,7 +85,7 @@
    #endif
    #include <unistd.h>
    #include <sys/socket.h>   /* only with above __USE_GNU: MSG_MORE flag */
-   #if defined( _POSIX_C_SOURCE ) && _POSIX_C_SOURCE >= 200112L
+   #if defined( HB_OS_BSD ) || ( defined( _POSIX_C_SOURCE ) && _POSIX_C_SOURCE >= 200112L )
       #define HB_HAS_POLL
       #include <poll.h>
       #ifndef POLLRDNORM

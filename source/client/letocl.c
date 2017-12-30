@@ -4,7 +4,7 @@
  * Copyright 2013 Alexander S. Kresin <alex / at / kresin.ru>
  * www - http://www.kresin.ru
  *
- *           2015-16 Rolf 'elch' Beckmann
+ *           2015-17 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -60,7 +60,7 @@
    #endif
    #include <unistd.h>
    #include <sys/socket.h>   /* only with above __USE_GNU: MSG_MORE flag */
-   #if defined( _POSIX_C_SOURCE ) && _POSIX_C_SOURCE >= 200112L
+   #if defined( HB_OS_BSD ) || ( defined( _POSIX_C_SOURCE ) && _POSIX_C_SOURCE >= 200112L )
       #define HB_HAS_POLL
       #include <poll.h>
       #ifndef POLLRDNORM
@@ -307,12 +307,8 @@ void leto_clientlog( const char * sFile, int n, const char * s, ... )
       strcpy( sFileDef, "client.log" );
    }
 
-   if( hb_fsFile( ( sFile ) ? sFile : ( const char * ) sFileDef ) )
-      handle = hb_fsOpen( ( sFile ) ? sFile : ( const char * ) sFileDef, FO_WRITE );
-   else
-      handle = hb_fsCreate( ( sFile ) ? sFile : ( const char * ) sFileDef, 0 );
-
-   if( handle >= 0 )
+   handle = hb_fsOpen( ( sFile ) ? sFile : ( const char * ) sFileDef, FO_WRITE | FO_CREAT );
+   if( handle != FS_ERROR )
    {
       hb_fsSeek( handle, 0, SEEK_END );
       if( n > 0 )
@@ -2454,19 +2450,6 @@ static char * leto_NetName( void )
 
 #ifndef LETO_NO_THREAD
 
-static void LetoCloseSocketErr( LETOCONNECTION * pConnection )
-{
-   HB_GC_LOCKE();
-   if( pConnection && pConnection->hSocketErr != HB_NO_SOCKET )
-   {
-      hb_socketShutdown( pConnection->hSocketErr, HB_SOCKET_SHUT_RDWR  );
-      hb_threadReleaseCPU();
-      hb_socketClose( pConnection->hSocketErr );
-      pConnection->hSocketErr = HB_NO_SOCKET;
-   }
-   HB_GC_UNLOCKE();
-}
-
 static HB_THREAD_STARTFUNC( leto_elch )
 {
    LETOCONNECTION * pConnection = ( LETOCONNECTION * ) Cargo;
@@ -2699,8 +2682,6 @@ static HB_THREAD_STARTFUNC( leto_elch )
    leto_clientlog( NULL, 0, "DEBUG thread leto_elch( %u ) ended", uiConnection );
 #endif
 
-   LetoCloseSocketErr( pConnection );
-
    HB_THREAD_END
 }
 
@@ -2806,7 +2787,7 @@ HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * sz
          ptr += eprintf( ptr, "%c;%s;%s;%s;", LETOCMD_intro,
                          LETO_VERSION_STRING, ( ( pName ) ? pName : "" ),
                          ( ( szModName ) ? szModName + iMod : "LetoClient" ) );
-#if defined( __HARBOUR30__ )
+#if ! defined( __HARBOUR30__ )
          if( szModName )
             hb_xfree( szModName );
 #endif
@@ -3154,10 +3135,14 @@ HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection )
    }
 
 #ifndef LETO_NO_THREAD
-   LetoCloseSocketErr( pConnection );
+   if( pConnection->hSocketErr )
+   {
+      hb_socketShutdown( pConnection->hSocketErr, HB_SOCKET_SHUT_RDWR  );
+      hb_socketClose( pConnection->hSocketErr );
+   }
 #endif
 
-   if( pConnection->hSockPipe[ 1 ] != FS_ERROR )  /* wake up leto_elch() */
+   if( pConnection->hSockPipe[ 1 ] != FS_ERROR )
    {
       hb_fsClose( pConnection->hSockPipe[ 1 ] );
       pConnection->hSockPipe[ 1 ] = FS_ERROR;

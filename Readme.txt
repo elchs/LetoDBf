@@ -286,11 +286,14 @@ A. Internals
  This file is only read once with starting LetoDBf, after changes therein you have to restart the server
  to let it get active.
 
- Really important options commonly only are: DataPath, LogPath, Share_Tables, No_Save_WA,
- LetoDBf newbies then continue reading with section: 5. How to work with the LetoDBf server,
- and come some days later experienced back to look in 4.x sections what else all is possible.
+ Really important options commonly only are: DataPath, LogPath, Share_Tables, No_Save_WA.
+ If the server should use an existing DBF fileset, adapt 'Default_Driver' if DBFNTX was used.
 
- Currently following parameters exists ( default values are designated ).
+ Other default values in the distributed config file are choosen to satisfy most common first needs,
+ can be hardend and optimzed on occasion.
+ LetoDBf newbies then like to continue reading with section: 5. How to work with the LetoDBf server.
+
+      Currently following parameters exists ( default values are designated ).
 
       [MAIN]
       IP =                     -    ! Leave it empty for Windows. !
@@ -329,12 +332,14 @@ A. Internals
                                     # No_Save_WA = 1
                                     1  physical record-/ file- locks set with the OS are viewable for other
                                     0  only logical internally locking, don't respect other record locks
-      Default_Driver = CDX     -    default RDD to open DBF tables in at server, if not given explicitely in
-                                    your sourcecode. Possible values: CDX NTX
-                                    If the server is linked with rushmore index support, CDX gets BMCDX and
-                                    NTX will became BMNTX
+                                    [ note: Samba server do not set/respect EXCLUSIVE of file opened at Unix server,
+                                      so it can only safe cooperate with Record|File locks used in SHARED mode ]
+      Default_Driver = CDX     -    default RDD to open DBF tables at server, if not set explicitely in your
+                                    sourcecode with leto_DbDriver().
+                                    Possible values for config: CDX NTX
+                                    If the server is linked with rushmore index support,
+                                    CDX gets BMCDX and NTX will became BMNTX
                                     If not set, the server by default uses CDX [ BMCDX ]
-                                    Can on demand changed by client with function: leto_DbDriver().
       Cache_Records            -    The default number of records to be read into the client read cache,
                                     used for skipping etc without new requesting the server.
                                     Records are valid at client as long as the hotbuffer timeout.
@@ -393,6 +398,8 @@ A. Internals
                                     Example for No_Save_WA == 0: 2 * physical existing DBF
                                     Example for No_Save_WA == 1: Users_Max * physical existing DBF
                                     ( Maximum limit per one single user connection is about ~ 60000. )
+                                    ** OS may limit the open files per 'user', this case server itself **
+                                    [ /etc/security/limits.conf; ...\CurrentControlSet\services\Tcpip\Parameters ]
       Users_Max = 99           -    Number of *MAXIMUM* designated users. do not set too low.
                                     This number can *not* be increased during runtime of server.
                                     Theoretically maximum value: 65534.
@@ -557,16 +564,31 @@ A. Internals
 
       5.1 Connecting to the server
 
- NEW, experimental:
- by providing a "rddleto.ini" ( sample file in "bin" dir ) containing a valid server IP | DNS name,
- [ Server = plain name or with preleading "//" and optional server port ':' ],
- --> your application at startup, during the init of "LETO" RDD, tries to connect to the server,
- and quits! if that failed. This approach needs no software changes.
- Use 'DETECT' instead server IP | DNS to broadcast for server with a Leto_Detect().
+      # .. without source change -- NEW [ not xHarbour ]
 
- Look for example given in tests/basic.prg:
- common way is to add a short sequence about "leto_Connect()" to existing source,
+ By providing a "rddleto.ini" ( sample file "rddleto.txt" in "tests" dir ) with server IP|DNS name,
+ [ Server = ...  plain name or with preleading "//" and optional server port ':' ],
+ --> your application at startup, during the init of "LETO" RDD, tries to connect to the server,
+ and !quits! if that failed.
+ Use 'DETECT' instead server IP|DNS to broadcast for server with a Leto_Detect() at app start,
+ which have set in letodb.ini [ BC_Service ] to answer such requests.
+ That means no config work to be done, the server must be up and clients should then find it.
+
+      # .. with adding a few lines source
+
+ The 'traditional' common way is to add a short sequence about "leto_Connect()" to existing source,
  example place it in function main(). Take a look into 'tests/basic.prg'
+
+      IF leto_Connect( "//192.168.7.42:2812/" ) < 0
+         QUIT
+      ENDIF
+
+ This opens possibilities like multiple connect requests, detailed feedback about failed,
+ or if you application need to connect to multiple ! LetoDBf server, check detailed params of
+ leto_Connect() in: 7.1
+
+
+      5.1.2 building your application
 
  Hopefully you did not set the second param of: DbUseArea( , cDriver, ... )
  or used the "VIA" option of the "USE command": then remove cDriver for all WA to be used with LetoDBf.
@@ -582,6 +604,8 @@ A. Internals
       REQUEST LETO
  b) includes the header file: "rddleto.ch", else it must be done manually in every of your PRG:
       #include "rddleto.ch"
+    or by using the <-u+> option for Harbour:
+      -u+rddleto.ch
  c) set the switch "-mt" to link your application with LetoDBf client library with multi-thread support.
     Further an internal, additive idletask is activated, if your application is build with '-mt'.
  d) links the "rddleto" client lib
@@ -595,6 +619,9 @@ A. Internals
       ENDIF
 
  For detailed parameters info of leto_Connect() see: 7.1
+
+
+       5.1.3 successful connected to server
 
  This will set the default RDD driver to "LETO" after connecting similar done with: RddSetDefault( "LETO" ).
  Also the server is informed about four SET settings: DELETED/ SOFTSEEK/ AUTOPEN/ AUTORDER.
@@ -822,6 +849,7 @@ A. Internals
  Default <cService> is "letodb", and this is correlating to the server side:
  see in example letodb.ini for config option: BC_Services = letodb;
  Such LetoDBf server then will respond to this query with its IP address.
+ With <nNrOfPossible> can be selected between server, if more than one server is active.
  Alternative to new build-in at server was before a standalone exe: 8.2. 'Uhura'
 
       LETO_SETCURRENTCONNECTION( cAddress )                    ==> cAddress

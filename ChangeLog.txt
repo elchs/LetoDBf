@@ -2,6 +2,57 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2017-12-30 12:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; important fixes -- plus news for wanted MileStone: <no changes needed>
+    Since a while the Leto_Connect() can be automized by providing an '.ini'
+    file along your executable [ Readme: 5.1 ] to avoid source code changes.
+    Successfull tested for HB-ready patched source (v5.3) of Cl*pper DBU util,
+    here including using the new 'letofile.ch', to get a DBU work at server!
+    LetoDBf programs without! need for 'letofile.ch' will work:
+    with '.ini' as LETO RDD at server, without '.ini' as HB RDD at client.
+
+  + include/letofile.ch
+    ; origin initiated by Mauricio Ventura Faria, a well suggest:
+      a header to include for translate <file> functions to work at server;
+      full set can be reduced by outcomment to only wanted function groups.
+      Optional ! to use, Harbour switch: "-u+letofile.ch" do the trick,
+
+  * include/srvleto.ch
+  * source/client/letocl.c
+    * forcible use poll() for all BSDs' even if _POSIX_C_SOURCE not defined
+      ; Thanks! to Mario Lobo for FreeBSD test
+
+  * include/rddleto.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    ! full revert recent change to allow leto_elch() to close its socket;
+      could lead to ugly race condition, where whole struct pLetoPool is
+      already freed by a fast master thread.
+    ! %! if old style '//server:port/file' *without* an initial Leto_Connect()
+      was used, then NO 'delayed error' optimization was used;
+      New #define LETO_USE_THREAD in rddleto.h:152 to configure new default:
+      HB_TRUE -- can be set to HB_FALSE to deactivate as before
+    ! HB compatible: no RTE for empty index filename in letoOrderListAdd()
+    ! return for IndexExt() [ DBOI_BAGEXT ] default ext if no table opened
+    ! free szModName in LetoConnectionOpen() for _!_ HB 3.0;
+      this fix relates esp. to xHarbour.
+
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+    ! one socket was left unclosed per client logout [ ugly 'typo' ];
+      such will be closed by OS and time, but it affects max open files in OS
+      where socket is also 'file'; found/ verified with log-in/-out stresstest
+    ! move access to s_uiUsersFree in leto_InitUS() inside the mutex
+    ! variable scope of buffer in leto_Intro();
+      this seem to fail at least for some C-compiler --> connect failure.
+    * use leto_MaxUsers() as more dynamic size need for allocs
+    * slight rework of log functions about open/create logfile
+    ; ToDo: in a situation where max open files are reached,
+      logging leto_writelog() will fail to write a error message about
+
+  * Readme.txt
+
 2017-12-24 14:24 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/rddleto.h
   * source/client/leto1.c

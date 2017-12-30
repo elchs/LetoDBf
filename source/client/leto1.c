@@ -77,8 +77,6 @@ extern HB_USHORT uiGetConnCount( void );
 extern LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
 extern LETOCONNECTION * letoGetCurrConn( void );
 
-extern void leto_clientlog( const char * sFile, int n, const char * s, ... );
-
 extern void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray );
 
 #if defined( __HARBOUR30__ )
@@ -2126,7 +2124,7 @@ static LETOCONNECTION * leto_OpenConn( LETOCONNECTION * pConnection, const char 
          {
             pConnection = leto_ConnectionFind( szAddr, iPort );
             if( ! pConnection )
-               pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE );
+               pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, LETO_USE_THREAD );
          }
          else
             pConnection = letoGetCurrConn();
@@ -2177,7 +2175,7 @@ static LETOCONNECTION * leto_OpenConnection( LETOAREAP pArea, LPDBOPENINFO pOpen
       {
          pConnection = leto_ConnectionFind( szAddr, iPort );
          if( ! pConnection )
-            pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE );
+            pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, LETO_USE_THREAD );
       }
    }
 
@@ -3569,6 +3567,8 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
       leto_PutRec( pArea );
 
    leto_OpenConn( pConnection, leto_RemoveIpFromPath( hb_itemGetCPtr( pOrderInfo->atomBagName ) ), szIFileName );
+   if( ! *szIFileName )
+      return HB_SUCCESS;
    szBagName = szIFileName;
 
    hb_strncpy( szData, szBagName, HB_PATH_MAX - 1 );
@@ -3665,10 +3665,6 @@ static HB_ERRCODE letoOrderListClear( LETOAREAP pArea )  /* OrdListClear() */
       {
          if( ! pTagInfo->fProduction || ! LetoProdSupport() || ! hb_setGetAutOpen() )
          {
-#ifdef LETO_CLIENTLOG
-            leto_clientlog( NULL, 0, "letoOrderListClear( driver %d prod %d %s (%s) )", pTable->uiDriver,
-                            pTagInfo->fProduction, pTagInfo->BagName, pArea->szDataFileName );
-#endif
             pTag1 = pTagInfo;
             if( pTagInfo == pTable->pTagInfo )
                pTagInfo = pTable->pTagInfo = pTagInfo->pNext;
@@ -4084,6 +4080,24 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
       pTagInfo = pTable->pTagCurrent;
       if( pTagInfo )
          uiTag = pTagInfo->uiTag;
+   }
+   else if( uiIndex == DBOI_BAGEXT )
+   {
+      pConnection = letoGetCurrConn();
+      if( pConnection && *( pConnection->szDriver ) )
+      {
+         if( strstr( pConnection->szDriver, "NTX" ) != NULL )
+            hb_itemPutC( pOrderInfo->itmResult, ".ntx" );
+         else if( strstr( pConnection->szDriver, "NSX" ) != NULL )
+            hb_itemPutC( pOrderInfo->itmResult, ".nsx" );
+         else if( strstr( pConnection->szDriver, "FPT" ) == NULL )
+            hb_itemPutC( pOrderInfo->itmResult, ".cdx" );
+         else
+            hb_itemPutC( pOrderInfo->itmResult, "" );
+      }
+      else
+         hb_itemPutC( pOrderInfo->itmResult, "" );
+      return HB_SUCCESS;
    }
    else
      return HB_FAILURE;

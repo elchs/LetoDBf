@@ -148,6 +148,10 @@
 
 #endif
 
+#if ! defined( LETO_USE_THREAD )
+   #define LETO_USE_THREAD    HB_TRUE
+#endif
+
 #include "cmdleto.h"
 #include "funcleto.h"
 #include "letocl.h"

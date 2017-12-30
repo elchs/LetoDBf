@@ -2,7 +2,7 @@
  * Leto db server core function, Harbour mt model
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
- *           2014-16 Rolf 'elch' Beckmann
+ *           2014-17 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1104,10 +1104,10 @@ static HB_THREAD_STARTFUNC( thread3 )
    HB_USHORT       ui, uiCount, uiChanged, uiReadSocks;
    int             iChange;
    HB_BOOL         fEndOfGame = HB_FALSE;
-   const HB_USHORT uiMax = 1001;  // leto_MaxUsers();
+   const HB_USHORT uiMax = leto_MaxUsers();
    HB_SOCKET *     pReadSocks = ( HB_SOCKET * ) hb_xgrabz( sizeof( HB_SOCKET ) * uiMax );
 #if 1 && defined(  HB_HAS_POLL )
-   struct pollfd   pPoll[ 1001 ];
+   struct pollfd   pPoll[ uiMax ];
 #else
    fd_set          readfds;
    struct timeval  MicroWait;
@@ -1933,7 +1933,7 @@ HB_FUNC( LETO_SERVER )
    if( hb_fsPipeCreate( hThreadPipe ) )
    {
       /* ugly: thread3() must hb_xfree this, but here grabbed to ensure it's ready */
-      s_paSocks = ( unsigned int * ) hb_xgrabz( sizeof( unsigned int ) * 1001 );  // leto_MaxUsers();
+      s_paSocks = ( unsigned int * ) hb_xgrabz( sizeof( unsigned int ) * leto_MaxUsers() );
       th_h = hb_threadCreate( &th_id, thread3, ( void * ) &hThreadPipe );
       if( th_h )
          hb_threadDetach( th_h );
@@ -2101,7 +2101,11 @@ HB_FUNC( LETO_SERVER )
          bExtraWait = ( ! strncmp( ( const char * ) szAddr, "127.0.0.1", 9 ) );
       }
       else
+      {
+         /* poss. case of too much open files ( include Linux sockets ) */ 
          bExtraWait = HB_FALSE;
+         continue;
+      }
 
       /* local connection can log-in into even into locked server */
       if( leto_ConnectIsLock() && incoming != HB_NO_SOCKET && ! bExtraWait )
@@ -2134,7 +2138,7 @@ HB_FUNC( LETO_SERVER )
          /* pass the second socket to thread3() to let handle him the init sequence with client */
          if( bSocketErr )
          {
-            HB_USHORT  uiMax = 1001;  // leto_MaxUsers();
+            HB_USHORT  uiMax = leto_MaxUsers();
             const char cToPipe[ 1 ] = { '!' };
             HB_USHORT  ui;
 

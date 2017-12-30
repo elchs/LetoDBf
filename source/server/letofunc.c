@@ -293,7 +293,7 @@ HB_USHORT leto_ActiveUser( void )
 
 HB_USHORT leto_MaxUsers( void )
 {
-   return s_uiUsersAlloc;
+   return s_uiUsersAlloc;  /* changes only at startup */
 }
 
 HB_BOOL leto_CheckPass( int iType )
@@ -317,8 +317,6 @@ void leto_writelog( const char * sFile, int n, const char * s, ... )
    else
       iMsgLen = ( unsigned int ) strlen( s );
 
-   HB_GC_LOCKF();
-
    if( ! sFile )
    {
       strcpy( sFileDef, s_szDirBase );
@@ -333,12 +331,10 @@ void leto_writelog( const char * sFile, int n, const char * s, ... )
          iMsgLen -= 1;
    }
 
-   if( hb_fsFile( ( sFile ) ? sFile : sFileDef ) )
-      handle = hb_fsOpen( ( sFile ) ? sFile : sFileDef, FO_WRITE | FO_EXCLUSIVE );
-   else
-      handle = hb_fsCreate( ( sFile ) ? sFile : sFileDef, 0 );
+   HB_GC_LOCKF();
 
-   if( handle != FS_ERROR )
+   handle = hb_fsOpen( ( sFile ) ? sFile : sFileDef, FO_WRITE | FO_EXCLUSIVE | FO_CREAT );
+   if( handle != FS_ERROR )  /* ToDo: how else to inform, quit */
    {
       int  iYear, iMonth, iDay;
       char szDateTime[ 21 ];
@@ -348,7 +344,7 @@ void leto_writelog( const char * sFile, int n, const char * s, ... )
       hb_dateTimeStr( szTime );
       sprintf( szDateTime, "%02d.%02d.%04d %s ", iMonth, iDay, iYear, szTime );
 
-      hb_fsSeek( handle, 0, SEEK_END );
+      hb_fsSeekLarge( handle, 0, SEEK_END );
       hb_fsWrite( handle, szDateTime, 20 );
       if( iMsgLen >= 0 )
          hb_fsWrite( handle, s, ( HB_USHORT ) iMsgLen );
@@ -383,7 +379,7 @@ static HB_UINT leto_log10Len( HB_U64 ulValue )
    return( ultostr( ulValue, buf ) );
 }
 
-char * leto_readServerLog( int iUser, unsigned int nRows, HB_SIZE * nLen )
+static char * leto_readServerLog( int iUser, unsigned int nRows, HB_SIZE * nLen )
 {
    HB_FHANDLE handle;
    char       sFileDef[ HB_PATH_MAX ];
@@ -524,8 +520,6 @@ void leto_wUsLog( PUSERSTRU pUStru, int iMsgLen, const char * s, ... )
 
    if( pUStru )
    {
-      HB_GC_LOCKF();
-
       strcpy( szName, s_szDirBase );
       hb_snprintf( szName + strlen( s_szDirBase ), HB_PATH_MAX - 1 - strlen( s_szDirBase ),
                    "letodbf_%0*d.log", leto_log10Len( s_uiUsersAlloc ), pUStru->iUserStru - 1 );
@@ -533,20 +527,16 @@ void leto_wUsLog( PUSERSTRU pUStru, int iMsgLen, const char * s, ... )
       if( iMsgLen == 0 )
          iMsgLen = strlen( s );
 
-      if( hb_fsFile( szName ) )
-      {
-         handle = hb_fsOpen( szName, FO_WRITE );
-         if( handle != FS_ERROR )
-            hb_fsSeek( handle, 0, SEEK_END );
-      }
-      else
-         handle = hb_fsCreate( szName, 0 );
+      HB_GC_LOCKF();
 
-      if( handle >= 0 )
+      handle = hb_fsOpen( szName, FO_WRITE | FO_CREAT );
+      if( handle != FS_ERROR )
       {
          int  iYear, iMonth, iDay;
          char szDateTime[ 30 ];
          char szTime[ 9 ];
+
+         hb_fsSeekLarge( handle, 0, SEEK_END );
 
          hb_dateToday( &iYear, &iMonth, &iDay );
          hb_dateTimeStr( szTime );
@@ -3458,13 +3448,13 @@ void leto_CloseUS( PUSERSTRU pUStru )
    {
       hb_socketShutdown( pUStru->hSocketErr, HB_SOCKET_SHUT_RDWR );
       hb_socketClose( pUStru->hSocketErr );
-      pUStru->hSocket = HB_NO_SOCKET;
+      pUStru->hSocketErr = HB_NO_SOCKET;
    }
 
    /* now main socket */
    if( pUStru->hSocket != HB_NO_SOCKET )
    {
-      hb_socketShutdown( pUStru->hSocketErr, HB_SOCKET_SHUT_RDWR );
+      hb_socketShutdown( pUStru->hSocket, HB_SOCKET_SHUT_RDWR );
       hb_socketClose( pUStru->hSocket );
       pUStru->hSocket = HB_NO_SOCKET;
    }
@@ -3550,7 +3540,7 @@ void leto_CloseUS( PUSERSTRU pUStru )
 }
 
 /* seek the right pUStru for given iServerPort -- used and HB_GC_LOCKU() from thread3 */
-HB_BOOL leto_SeekUS( int iServerPort, HB_SOCKET hSocket )
+HB_BOOL leto_SeekUS( int iServerPort, HB_SOCKET hSocketErr )
 {
    PUSERSTRU pUStru;
    int       iUserStru = 0, iUserCurr = 0;
@@ -3565,7 +3555,7 @@ HB_BOOL leto_SeekUS( int iServerPort, HB_SOCKET hSocket )
       {
          if( pUStru->iPort == iServerPort )
          {
-            pUStru->hSocketErr = hSocket;
+            pUStru->hSocketErr = hSocketErr;
             fRet = HB_TRUE;
             break;
          }
@@ -3607,12 +3597,14 @@ void leto_ReallocUSbuff( PUSERSTRU pUStru, HB_ULONG ulRecvLen )
 
 PUSERSTRU leto_InitUS( HB_SOCKET hSocket )
 {
-   PUSERSTRU pUStru = s_users + s_uiUsersFree;
-   int       iUserStru = s_uiUsersFree;
-
+   PUSERSTRU pUStru;
+   int       iUserStru;
    HB_CRITICAL_NEW( pMutex );
 
    HB_GC_LOCKU();
+
+   pUStru = s_users + s_uiUsersFree;
+   iUserStru = s_uiUsersFree;
 
    while( iUserStru < s_uiUsersAlloc && pUStru->iUserStru )
    {
@@ -3753,7 +3745,7 @@ void leto_CloseAllSocket()
             const char cToPipe[ 1 ] = { ' ' };
 
             if( pUStru->hSockPipe[ 1 ] != FS_ERROR )  /* wake up select() */
-               hb_fsPipeWrite( pUStru->hSockPipe[ 1 ], &cToPipe, 1, 0 );
+               hb_fsPipeWrite( pUStru->hSockPipe[ 1 ], cToPipe, 1, 0 );
             else if( hb_socketShutdown( pUStru->hSocket, HB_SOCKET_SHUT_RDWR ) != 0 )  /* wake up poll() */
                leto_writelog( NULL, 0, "DEBUG cannot send shutdown ..." );
          }
@@ -9067,7 +9059,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                               {
                                  const char cToPipe[ 1 ] = { ' ' };
 
-                                 hb_fsPipeWrite( pUStru1->hSockPipe[ 1 ], &cToPipe, 1, 0 );
+                                 hb_fsPipeWrite( pUStru1->hSockPipe[ 1 ], cToPipe, 1, 0 );
                               }
                               iKilled = pUStru1->iUserStru;
                            }
@@ -9135,7 +9127,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                            {
                               const char cToPipe[ 1 ] = { ' ' };
 
-                              hb_fsPipeWrite( pUStru1->hSockPipe[ 1 ], &cToPipe, 1, 0 );
+                              hb_fsPipeWrite( pUStru1->hSockPipe[ 1 ], cToPipe, 1, 0 );
                            }
                            iKilled = pUStru1->iUserStru;
                         }
@@ -9265,6 +9257,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
    const char * pp1 = NULL, * pp2 = NULL, * pp3 = NULL, * pp4 = NULL;
    HB_BOOL      bSuccess = HB_FALSE;
    int          nParam = leto_GetParam( szData, &pp1, &pp2, &pp3, &pp4 );
+   char         pBuf[ 256 ];
 
    if( nParam < 3 )
       pData = szErr2;
@@ -9526,10 +9519,9 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
       if( ! pData )  /* not empty in case of wrong Pass */
       {
          char * szVersion = hb_verHarbour();
-         char   pBuf[ 255 ];
 
          bSuccess = HB_TRUE;
-         hb_snprintf( pBuf, 254, "+%c%c%c;%s;%s;%d;%d;%d;%d;%d;%c;%c;",
+         hb_snprintf( pBuf, 255, "+%c%c%c;%s;%s;%d;%d;%d;%d;%d;%c;%c;",
                       ( pUStru->szAccess[ 0 ] & 0x1 ) ? 'Y' : 'N',
                       ( pUStru->szAccess[ 0 ] & 0x2 ) ? 'Y' : 'N',
                       ( pUStru->szAccess[ 0 ] & 0x4 ) ? 'Y' : 'N',
@@ -14453,7 +14445,7 @@ void leto_CommandSetInit()
 /* the beloved heart: central command dispatcher */
 HB_BOOL leto_ParseCommand( PUSERSTRU pUStru )
 {
-   const int iCmd = *pUStru->pBuffer - LETOCMD_OFFSET;
+   const unsigned int iCmd = *pUStru->pBuffer - LETOCMD_OFFSET;
 
    if( iCmd < LETOCMD_SETLEN && s_cmdSet[ iCmd ] )
    {

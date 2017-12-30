@@ -145,7 +145,7 @@ static LETOCONNECTION * letoParseFile( const char * szSource, char * szFile )
    if( leto_getIpFromPath( szSource, szAddr, &iPort, szFile ) )
    {
        if( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) == NULL )
-          pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, HB_FALSE );
+          pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, LETO_USE_THREAD );
    }
    else
       hb_strncpy( szFile, leto_RemoveIpFromPath( szSource ), HB_PATH_MAX - 1 );
@@ -858,7 +858,7 @@ HB_FUNC( LETO_CONNECT )
    const char * szUser = ( HB_ISCHAR( 2 ) && hb_parclen( 2 ) ) ? hb_parc( 2 ) : NULL;
    const char * szPass = ( HB_ISCHAR( 3 ) && hb_parclen( 3 ) ) ? hb_parc( 3 ) : NULL;
    int          iTimeOut = ( HB_ISNUM( 4 ) ) ? hb_parni( 4 ) : -1;
-   HB_BOOL      fZombieCheck = ( HB_ISLOG( 6 ) ) ? hb_parl( 6 ) : HB_TRUE;
+   HB_BOOL      fZombieCheck = ( HB_ISLOG( 6 ) ) ? hb_parl( 6 ) : LETO_USE_THREAD;
    int          iRet = -1;
 
    HB_TRACE( HB_TR_DEBUG, ( "LETO_CONNECT(%s)", hb_parc( 1 ) ) );
