@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-05 13:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/rddsys.prg
+    ! !!! fix for BCC, which uses zLib compression by default,
+      and all other Win C-compiler which changed their LZ4 default.
+      Without requesting HB_ZCOMPRESS, zLib is not linked to the app,
+      resulting in a broken compression for leto_[De]cryptText().
+      This lead to not working Leto_File*() functions,
+      and will scramble memofields into garbage, if they are transmitted
+      packed because of size.
+
+  * source/server/leto_2.c
+    * useless assigned variable; BCC warning
+
 2017-12-30 12:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; important fixes -- plus news for wanted MileStone: <no changes needed>
     Since a while the Leto_Connect() can be automized by providing an '.ini'

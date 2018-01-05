@@ -51,6 +51,9 @@ ANNOUNCE RDDLETO
 
 REQUEST LETORDD
 REQUEST LETO_UDF
+#ifndef USE_LZ4
+   REQUEST HB_ZCOMPRESS
+#endif
 
 #include "hbsocket.ch"
 #include "rddleto.ch"

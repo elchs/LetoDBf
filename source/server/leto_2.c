@@ -2102,8 +2102,7 @@ HB_FUNC( LETO_SERVER )
       }
       else
       {
-         /* poss. case of too much open files ( include Linux sockets ) */ 
-         bExtraWait = HB_FALSE;
+         /* poss. case of too much open files ( include Linux sockets ) */
          continue;
       }
 
