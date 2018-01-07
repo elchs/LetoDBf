@@ -64,6 +64,7 @@ extern LETOCONNECTION * leto_getConnection( int iParam );
 extern HB_USHORT uiGetConnCount( void );
 
 extern void leto_ConnectionClose( LETOCONNECTION * pConnection );
+extern void letoClearCurrConn( void );
 
 extern void leto_clientlog( const char * sFile, int n, const char * s, ... );
 extern HB_BOOL leto_Ping( LETOCONNECTION * pConnection );
@@ -903,7 +904,10 @@ HB_FUNC( LETO_DISCONNECT )
    if( pConnection )
    {
       if( ! HB_ISLOG( 2 ) || ! hb_parl( 2 ) )
+      {
          leto_ConnectionClose( pConnection );
+         letoClearCurrConn();
+      }
       else
          LetoConnectionClose( pConnection );  /* only socket shutdown */
       hb_retl( HB_TRUE );

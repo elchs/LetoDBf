@@ -201,6 +201,13 @@ unsigned int uiGetConnCount( void )
    return pLetoPool->uiConnCount;
 }
 
+void letoClearCurrConn( void )
+{
+   LETOPOOL * pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
+
+   pLetoPool->pCurrentConn = NULL;
+}
+
 #else  /* helper funtions without Harbour TSD technic - for non MT usage */
 
 LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection )
@@ -214,6 +221,11 @@ LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection )
 LETOCONNECTION * letoGetCurrConn( void )
 {
    return s_pCurrentConn;
+}
+
+void letoClearCurrConn( void )
+{
+   s_pCurrentConn = NULL;
 }
 
 HB_USHORT uiGetConnCount( void )

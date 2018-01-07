@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-07 19:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    + new function letoClearCurrConn() to 'clear' current connection pointer
+    ! call above in LETO_DISCONNECT() for a common 'full' logout
+      ; behavior changed 2017-12-04, as pre-work for re-connecting;
+      Thanks! Sergy for report: (Windows) GPF in LETO_CONNECT() without param
+      after disconnected ( Leto_MgID() fail cause of no socket )
+
 2018-01-05 13:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/rddsys.prg
     ! !!! fix for BCC, which uses zLib compression by default,
