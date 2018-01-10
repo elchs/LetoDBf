@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-10 19:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+  * rddletoa.hbc
+  * rddletoaddon.hbc
+    + add hack to burn into the client lib address/ port of LetoDBf server
+      to use for exclusive file create/ open
+      ; if cflags LETO_SMBSERVER and LETO_SMBPORT are set in .hbp for
+        client lib ( rddleto, rddletoaddon ),
+        values 'IP/DNS-name' and 'Port' are burned fixed into the library.
+        NOTE: this connection must be ready up!, but not the active default;
+        so connect to exclusive server before your common connection,
+        or use: Leto_Connect( "your_default" ) to set the active afterwards.
+
 2018-01-10 12:59 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
   * tests/test_file.prg

@@ -27,6 +27,10 @@
 
 #-cflag=-D__HARBOUR30__=1
 
+#outcomment both! to burn LetoDBf address for exclusive usage
+#-cflag="-DLETO_SMBSERVER=192.168.2.231"
+#-cflag="-DLETO_SMBPORT=2812"
+
 -cflag={allmsvc}-D_CRT_SECURE_NO_DEPRECATE
 -cflag={clang}-W
 -cflag={clang}-Wall

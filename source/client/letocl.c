@@ -1080,7 +1080,7 @@ static long leto_Send( LETOCONNECTION * pConnection, const char * szData, unsign
 #ifndef USE_LZ4
    ulSent = LETO_MSGSIZE_LEN + ulLen + 9;
 #else
-   ulSent = LZ4_COMPRESSBOUND( ulLen ) + 24;
+   ulSent = LZ4_COMPRESSBOUND( ulLen ) + 32;
 #endif
    if( ulSent > pConnection->ulBufferLen )
    {
@@ -3339,6 +3339,11 @@ static const char * leto_AddFields( LETOTABLE * pTable, HB_USHORT uiFields, cons
    return ptr;
 }
 
+#ifdef LETO_SMBSERVER
+   #define xstr( s ) str( s )
+   #define str( s )  #s
+#endif
+
 HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, const char * szFields, unsigned int uiArea, const char * szCdpage )
 {
    LETOTABLE *   pTable;
@@ -3347,6 +3352,23 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    char *        ptrTmp;
    HB_USHORT     uiFields = 0;
    unsigned long ulLen;
+
+#ifdef LETO_SMBSERVER
+   const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
+   const char * szAddr = xstr ( LETO_SMBSERVER );
+   int          iOldPort = pConnection? pConnection->iPort : 0;
+   int          iPort = LETO_SMBPORT;
+
+   #ifdef LETO_CLIENTLOG
+      leto_clientlog( NULL, 0, "LetoDbCreateTable() redirect to server %s:%d", szAddr, iPort );
+   #endif
+
+   pConnection = leto_ConnectionFind( szAddr, iPort );
+   if( ! pConnection )
+      return NULL;
+   else if( szOldAddr )
+      leto_ConnectionFind( szOldAddr, iOldPort );  /* reset current connection */
+#endif
 
    hb_rddSetNetErr( HB_FALSE );
    /* count and low verify field definitions */
@@ -3452,6 +3474,27 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    char *       ptrTmp;
    LETOTABLE *  pTable;
    HB_ULONG     ulLen;
+
+#ifdef LETO_SMBSERVER
+   const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
+   int          iOldPort = pConnection ? pConnection->iPort : 0;
+
+   if( ! fShared )
+   {
+      const char * szAddr = xstr ( LETO_SMBSERVER );
+      int          iPort = LETO_SMBPORT;
+
+   #ifdef LETO_CLIENTLOG
+      leto_clientlog( NULL, 0, "LetoDbOpenTable() redirect to server %s:%d", szAddr, iPort );
+   #endif
+
+      pConnection = leto_ConnectionFind( szAddr, iPort );
+      if( ! pConnection )
+         return NULL;
+      else if( szOldAddr )
+         leto_ConnectionFind( szOldAddr, iOldPort );  /* reset current connection */
+   }
+#endif
 
    hb_rddSetNetErr( HB_FALSE );
    ulLen = eprintf( szData, "%c;%s;%s;%c%c;%s;%s;%d;%s;", LETOCMD_open, szFile, szAlias,
