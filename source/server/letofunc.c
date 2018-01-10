@@ -5138,16 +5138,18 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
 
             case '7':  /* FileCopy */
             {
-               HB_BOOL fResult;
-
                if( nParam < 3 || ! pp2 )
                   strcpy( szData1, "+F;1;" );
                else
                {
+                  HB_BOOL fResult;
+                  char    szDest[ HB_PATH_MAX ];
+
+                  leto_DataPath( pp2, szDest );
 #if defined( __HARBOUR30__ )
-                  fResult = hb_fsCopy( szFile, pp2 );
+                  fResult = hb_fsCopy( szFile, szDest );
 #else
-                  fResult = hb_fileCopy( szFile, pp2 );
+                  fResult = hb_fileCopy( szFile, szDest );
 #endif
                   if( fResult )
                      strcpy( szData1, "+T;0;" );

@@ -49,18 +49,14 @@ Function Main( cPath )
    ? 'leto_memoread( "test1.txt" ) - '
    ?? leto_memoread( "test1.txt" )
 
-   ? 'leto_frename( "test1.txt","test2.txt" ) - '
+   ? 'leto_frename( "test1.txt", "test2.txt" ) - '
    ?? Iif( leto_frename( "test1.txt","test2.txt" ) == 0, "Ok", "Failure" )
+   ?? Iif( ! leto_file( "test1.txt" ), "!", " fail" )
+   ?? Iif( leto_file( "test2.txt" ), "!", " fail" )
 
-   ? 'leto_file( "test1.txt" ) - '
-   lTmp := leto_file( "test1.txt" )
-   ?? Iif( lTmp, "Ok", "No" )
-   ?? Iif( ! lTmp, "!", " Failure" )
-
-   ? 'leto_file( "test2.txt" ) - '
-   lTmp := leto_file( "test2.txt" )
-   ?? Iif( leto_file( "test2.txt" ), "Ok", "No" )
-   ?? Iif( lTmp, "!", " Failure" )
+   ? 'leto_fcopy( "test2.txt", "test1.txt" ) - '
+   ?? Iif( leto_fcopy( "test2.txt", "test1.txt" ) == 0, "Ok", "Failure" )
+   ?? Iif( leto_file( "test1.txt" ), "!", " fail" )
 
    ? 'leto_fileread( "test2.txt", 7, 2 ) - '
    ?? Iif( leto_fileread( "test2.txt", 7, 2, @cBuf ) > 0, "'" + cBuf + "'", "Failure" )
@@ -156,6 +152,7 @@ Function Main( cPath )
       ENDIF
       ? "Press any key to continue..."
       Inkey( 0 )
+      leto_FErase( "test3.txt" )
    ENDIF
 #endif
 
@@ -180,9 +177,11 @@ Function Main( cPath )
 
    ? 'leto_ferase( "test2.txt" ) - '
    ?? Iif( leto_fErase( "test2.txt" ) == 0, "Ok", "Failure" )
+   leto_fErase( "test1.txt" )
    ?
 
    ? "Press any key to finish..."
    Inkey( 0 )
 
 Return Nil
+

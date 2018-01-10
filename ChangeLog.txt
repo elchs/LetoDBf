@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-10 12:59 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+  * tests/test_file.prg
+    ! missed to add server DataPath for target filename for LETO_FCOPY()
+      ; Thanks! Leon Ravel for test/ report
+    * adding the missing LETO_FCOPY() test
+
+  * source/client/letomgmn.c
+    * wait 0.005 s in Leto_DisConnect() for the second thread ( for Windows )
+
 2018-01-07 19:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
   * source/client/letomgmn.c

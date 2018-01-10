@@ -907,6 +907,7 @@ HB_FUNC( LETO_DISCONNECT )
       {
          leto_ConnectionClose( pConnection );
          letoClearCurrConn();
+         hb_idleSleep( 0.005 );
       }
       else
          LetoConnectionClose( pConnection );  /* only socket shutdown */
