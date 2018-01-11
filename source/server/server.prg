@@ -167,6 +167,7 @@ REQUEST LBM_DbSetFilterArrayDel, LBM_DbSetFilter
 
 STATIC s_cDirBase
 STATIC s_pHrb
+STATIC s_cIniName := "letodb.ini"
 
 THREAD STATIC lOldDeleted
 THREAD STATIC cOldFilter
@@ -224,6 +225,12 @@ PROCEDURE Main( cCommand, cData )
 
 #ifdef __WIN_DAEMON__
 
+      IF Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
+         s_cIniName := LOWER( cData )
+         IF .NOT. ".ini" $ cData
+            cData += ".ini"
+         ENDIF
+      ENDIF
       StartServer()
 
 #endif
@@ -253,7 +260,7 @@ PROCEDURE Main( cCommand, cData )
             StartServer()
             RETURN
          ELSE
-            ? "LetoDB_mt { install | uninstall }"
+            ? "LetoDB { install | uninstall }"
             RETURN
          ENDIF
       ENDIF
@@ -267,6 +274,12 @@ PROCEDURE Main( cCommand, cData )
 
 #ifdef __LINUX_DAEMON__
 
+      IF Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
+         s_cIniName := LOWER( cData )
+         IF .NOT. ".ini" $ cData
+            cData += ".ini"
+         ENDIF
+      ENDIF
       oApp := HApp():New()
       IF ! leto_Daemon( oApp:nSUserID, oApp:nSGroupID, oApp:cSUser )
          WrLog( "Can't become a daemon" )
@@ -310,7 +323,7 @@ PROCEDURE StartServer()
       ErrorLevel( 1 )
    ENDIF
 
-   WrLog( "Server has been closed." )
+   WrLog( "Server at port " + ALLTRIM( STR( oApp:nPort ) ) + " have shutdown." )
 
    RETURN
 
@@ -427,7 +440,7 @@ ENDCLASS
 
 METHOD New() CLASS HApp
 
-   LOCAL cIniName := "letodb.ini"
+   LOCAL cIniName := s_cIniName
    LOCAL aIni, i, j, cTemp, cPath, nDriver
    LOCAL nPort
    LOCAL nMaxVars, nMaxVarSize

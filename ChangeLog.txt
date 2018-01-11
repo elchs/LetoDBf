@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-11 11:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/server.prg
+    + add option to set filename for the initial config; execute:
+      [./]letodb[.exe] config letodbf
+      to set the name to "letodbf.ini" for the ..OS.._DAEMON__ mode
+
 2018-01-10 19:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
   * rddletoa.hbc
