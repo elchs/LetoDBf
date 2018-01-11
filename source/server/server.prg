@@ -184,6 +184,13 @@ PROCEDURE Main( cCommand, cData )
 
    IF cCommand != NIL .AND. Lower( cCommand ) == "stop"
 
+      IF ! EMPTY( cData )
+         IF .NOT. ".ini" $ cData
+            cData += ".ini"
+         ENDIF
+         s_cIniName := LOWER( cData )
+      ENDIF
+
       /* connect and send QUIT */
       oApp := HApp():New()
 
@@ -225,11 +232,11 @@ PROCEDURE Main( cCommand, cData )
 
 #ifdef __WIN_DAEMON__
 
-      IF Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
-         s_cIniName := LOWER( cData )
+      IF cCommand != NIL .AND. Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
          IF .NOT. ".ini" $ cData
             cData += ".ini"
          ENDIF
+         s_cIniName := LOWER( cData )
       ENDIF
       StartServer()
 
@@ -274,11 +281,11 @@ PROCEDURE Main( cCommand, cData )
 
 #ifdef __LINUX_DAEMON__
 
-      IF Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
-         s_cIniName := LOWER( cData )
+      IF cCommand != NIL .AND. Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
          IF .NOT. ".ini" $ cData
             cData += ".ini"
          ENDIF
+         s_cIniName := LOWER( cData )
       ENDIF
       oApp := HApp():New()
       IF ! leto_Daemon( oApp:nSUserID, oApp:nSGroupID, oApp:cSUser )

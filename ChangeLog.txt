@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-11 16:46 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/server.prg
+    * option to set filename for the initial config needed for shutdown,
+      aka: letodb[.exe] stop letodbf
+    ! adding of '.ini' done too late
+
 2018-01-11 11:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/server.prg
     + add option to set filename for the initial config; execute:
