@@ -2,6 +2,25 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-12 17:07 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; rebuild of console monitor needed -- if tool is used
+  ; if using network encyption: update server and client
+
+  * utils/manager/console.prg
+    ! logic to call server with different port was broken
+    * by default use *not* encrypted network traffic, else outcomment
+      #define SECURED
+
+  * source/common/lz4net.c
+  * source/client/letomgmn.c
+  * source/server/letoacc.c
+    * changed to use LE_UINT32 instead BE_UINT32 for LZ4 encrypt
+      -> native OPs in LittleEndian ( most PC ) machines
+    + implement CBC mode ( with IV ) for Blowfish encryption with LZ4,
+      now used by default as LZ4_BF_CBC is #define-d.
+      This looks more serious against previous used ECB mode, which will
+      be further used for zLib compression ( as HB internal )
+
 2018-01-11 16:46 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/server.prg
     * option to set filename for the initial config needed for shutdown,

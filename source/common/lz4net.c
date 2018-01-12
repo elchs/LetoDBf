@@ -73,6 +73,11 @@
 
 #define LZ4_COMPRESS_MINLENGTH  384    /* 5 is logical minimum: min. +1 LZ4 overhead, +4 for uncomp. length */
 #define LZ4_BUFFER_DEFSIZE      65536  /* min default buffer size, alloc + 1 */
+#define LZ4_BF_CBC                     /* activate CBC mode for Blowfish */
+
+#ifndef HB_BF_CIPHERBLOCK
+   #define HB_BF_CIPHERBLOCK    8
+#endif
 
 typedef struct _HB_LZ4NET
 {
@@ -82,6 +87,7 @@ typedef struct _HB_LZ4NET
    char *        pBuffer;    /* internal tmp buffer */
    HB_BLOWFISH * pBfKey;     /* blowfish en-/de-encrypt key */
    void *        LZ4state;   /* internal used by LZ4 */
+   char        * IV;         /* initialization vektor for CBC mode*/
 }
 HB_LZ4NET, * PHB_LZ4NET;
 
@@ -97,6 +103,11 @@ void hb_lz4netClose( PHB_LZ4NET pStream )
          hb_xfree( pStream->pBfKey );
       if( pStream->LZ4state )
          hb_xfree( pStream->LZ4state );
+      if( pStream->IV )
+      {
+         memset( pStream->IV, 0, HB_BF_CIPHERBLOCK );
+         hb_xfree( pStream->IV );
+      }
       hb_xfree( pStream );
    }
 }
@@ -104,7 +115,7 @@ void hb_lz4netClose( PHB_LZ4NET pStream )
 /* create new stream structure, caller have to take care about compression level */
 PHB_LZ4NET hb_lz4netOpen( int iLevel, int iStrategy )
 {
-   PHB_LZ4NET pStream = ( PHB_LZ4NET ) hb_xgrab( sizeof( HB_LZ4NET ) );
+   PHB_LZ4NET pStream = ( PHB_LZ4NET ) hb_xgrabz( sizeof( HB_LZ4NET ) );
 
    HB_SYMBOL_UNUSED( iStrategy );
 
@@ -130,8 +141,28 @@ void hb_lz4netEncryptKey( PHB_LZ4NET pStream, const unsigned char * pPassword, i
 {
    if( ! pStream->pBfKey && pPassword && iPasslen )
    {
+#ifdef LZ4_BF_CBC
+      HB_U32 xl, xr;
+      int    i = 0;
+#endif
       pStream->pBfKey = ( HB_BLOWFISH * ) hb_xgrab( sizeof( HB_BLOWFISH ) );
       hb_blowfishInit( pStream->pBfKey, pPassword, iPasslen );
+#ifdef LZ4_BF_CBC
+      /* fill IV (repeated) password, ECB-encrypt with itself */
+      pStream->IV = ( char * ) hb_xgrab( HB_BF_CIPHERBLOCK );
+      while( i < HB_BF_CIPHERBLOCK - 1 )
+      {
+         memcpy( pStream->IV + i, pPassword, HB_MIN( iPasslen, HB_BF_CIPHERBLOCK - i ) );
+         i += HB_MIN( iPasslen, HB_BF_CIPHERBLOCK - i );
+      }
+
+      /* use LE instead HB_GET_BE_UINT32 */ 
+      xl = HB_GET_LE_UINT32( &pStream->IV[ 0 ] );
+      xr = HB_GET_LE_UINT32( &pStream->IV[ 4 ] );
+      hb_blowfishEncrypt( pStream->pBfKey, &xl, &xr );
+      HB_PUT_LE_UINT32( &pStream->IV[ 0 ], xl );
+      HB_PUT_LE_UINT32( &pStream->IV[ 4 ], xr );
+#endif
    }
 }
 
@@ -159,17 +190,19 @@ static void lz4_destSizer( char ** pData, HB_ULONG ulLen )
 
 /* capable of encrypting 'in place' without extra buffer
  * caller must ensure possible +8 bytes ready allocated */
-static void lz4_bfEncrypt( const HB_BLOWFISH * pBfKey, const char * pSrc, HB_SIZE nLen, char * pDest, HB_ULONG * pulLen )
+static void lz4_bfEncrypt( const HB_BLOWFISH * pBfKey, const char * pSrc, register HB_SIZE nLen, char * pDest, HB_ULONG * pulLen, char ** cIV )
 {
    if( pSrc && pDest )
    {
       if( nLen )
       {  /* possible binary data with possible 0 need ANSI X.923 padding */
          const HB_SIZE nSize = ( ( nLen >> 3 ) + 1 ) << 3;
-         HB_U32  xl, xr;
+         HB_U32 xl, xr;
+#ifndef LZ4_BF_CBC
+         HB_SYMBOL_UNUSED( cIV );
+#endif
 
          *pulLen = ( HB_ULONG ) nSize;
-
          /* copy and padding of 8bytes last block, last byte = padded bytes */
          xr = nSize - nLen;  /* padded bytes */
          if( pSrc != pDest && xr < 8 )  /* source and target NOT the same */
@@ -178,22 +211,44 @@ static void lz4_bfEncrypt( const HB_BLOWFISH * pBfKey, const char * pSrc, HB_SIZ
             memset( pDest + nLen, '\0', xr - 1 );
          pDest[ nSize - 1 ] = ( char ) xr;
 
-         nLen = nSize - 8;
-         xl = HB_GET_BE_UINT32( &pDest[ nLen ] );
-         xr = HB_GET_BE_UINT32( &pDest[ nLen + 4 ] );
-         hb_blowfishEncrypt( pBfKey, &xl, &xr );
-         HB_PUT_BE_UINT32( &pDest[ nLen ], xl );
-         HB_PUT_BE_UINT32( &pDest[ nLen + 4 ], xr );
+#ifdef LZ4_BF_CBC
+         /* move in the IV */
+         xl = HB_GET_LE_UINT32( *cIV );
+         xr = HB_GET_LE_UINT32( *cIV + 4 );
+#endif
 
-         /* except the last block */
+         /* except the last block -- changed from HB_GET_BE_UINT32 */
          for( nLen = 0; nLen < nSize - 8; nLen += 8 )
          {
-            xl = HB_GET_BE_UINT32( &pSrc[ nLen ] );
-            xr = HB_GET_BE_UINT32( &pSrc[ nLen + 4 ] );
+#ifdef LZ4_BF_CBC
+            xl = HB_GET_LE_UINT32( &pSrc[ nLen ] ) ^ xl;
+            xr = HB_GET_LE_UINT32( &pSrc[ nLen + 4 ] ) ^ xr;
+#else
+            xl = HB_GET_LE_UINT32( &pSrc[ nLen ] );
+            xr = HB_GET_LE_UINT32( &pSrc[ nLen + 4 ] );
+#endif
             hb_blowfishEncrypt( pBfKey, &xl, &xr );
-            HB_PUT_BE_UINT32( &pDest[ nLen ], xl );
-            HB_PUT_BE_UINT32( &pDest[ nLen + 4 ], xr );
+            HB_PUT_LE_UINT32( &pDest[ nLen ], xl );
+            HB_PUT_LE_UINT32( &pDest[ nLen + 4 ], xr );
          }
+
+         nLen = nSize - 8;
+#ifdef LZ4_BF_CBC
+         xl = HB_GET_LE_UINT32( &pDest[ nLen ] )  ^ xl;
+         xr = HB_GET_LE_UINT32( &pDest[ nLen + 4 ] )  ^ xr;
+#else
+         xl = HB_GET_LE_UINT32( &pDest[ nLen ] );
+         xr = HB_GET_LE_UINT32( &pDest[ nLen + 4 ] );
+#endif
+         hb_blowfishEncrypt( pBfKey, &xl, &xr );
+         HB_PUT_LE_UINT32( &pDest[ nLen ], xl );
+         HB_PUT_LE_UINT32( &pDest[ nLen + 4 ], xr );
+
+#ifdef LZ4_BF_CBC
+         /* move out the IV */
+         HB_PUT_LE_UINT32( *cIV, xl );
+         HB_PUT_LE_UINT32( *cIV + 4, xr );
+#endif
       }
       else
       {
@@ -206,24 +261,47 @@ static void lz4_bfEncrypt( const HB_BLOWFISH * pBfKey, const char * pSrc, HB_SIZ
 }
 
 /* can decrypt in place without extra buffer */
-static void lz4_bfDecrypt( const HB_BLOWFISH * pBfKey, const char * pSrc, const HB_SIZE nSize, char * pszData, HB_ULONG * pulLen )
+static void lz4_bfDecrypt( const HB_BLOWFISH * pBfKey, const char * pSrc, const HB_SIZE nSize, char * pszData, HB_ULONG * pulLen, char ** cIV )
 {
    if( pSrc && pszData )
    {
       if( nSize >= 8 && ( nSize & 0x07 ) == 0 )
       {
-         HB_SIZE nLen;
-         HB_U32  xl, xr;
+         register HB_SIZE nLen;
+         HB_U32 xl, xr;
+#ifdef LZ4_BF_CBC
+         HB_U32 xor0 = HB_GET_LE_UINT32( *cIV );
+         HB_U32 xor1 = HB_GET_LE_UINT32( *cIV + 4 );
+         HB_U32 tin0, tin1;
+#else
+         HB_SYMBOL_UNUSED( cIV );
+#endif
 
+         /* changed from HB_GET_BE_UINT32 */
          for( nLen = 0; nLen < nSize; nLen += 8 )
          {
-            xl = HB_GET_BE_UINT32( &pSrc[ nLen ] );
-            xr = HB_GET_BE_UINT32( &pSrc[ nLen + 4 ] );
+#ifdef LZ4_BF_CBC
+            tin0 = xl = HB_GET_LE_UINT32( &pSrc[ nLen ] );
+            tin1 = xr = HB_GET_LE_UINT32( &pSrc[ nLen + 4 ] );
+#else
+            xl = HB_GET_LE_UINT32( &pSrc[ nLen ] );
+            xr = HB_GET_LE_UINT32( &pSrc[ nLen + 4 ] );
+#endif
             hb_blowfishDecrypt( pBfKey, &xl, &xr );
-            HB_PUT_BE_UINT32( &pszData[ nLen ], xl );
-            HB_PUT_BE_UINT32( &pszData[ nLen + 4 ], xr );
+#ifdef LZ4_BF_CBC
+            HB_PUT_LE_UINT32( &pszData[ nLen ], xl ^ xor0 );
+            xor0 = tin0;
+            HB_PUT_LE_UINT32( &pszData[ nLen + 4 ], xr ^ xor1 );
+            xor1 = tin1;
+#else
+            HB_PUT_LE_UINT32( &pszData[ nLen ], xl );
+            HB_PUT_LE_UINT32( &pszData[ nLen + 4 ], xr );
+#endif
          }
-
+#ifdef LZ4_BF_CBC
+         HB_PUT_LE_UINT32( *cIV, xor0 );
+         HB_PUT_LE_UINT32( *cIV + 4, xor1 );
+#endif
          /* validate result with number of padded bytes */
          xr = ( unsigned char ) pszData[ nSize - 1 ];
          nLen -= ( ( xr - 1 ) & ~0x07 ) == 0 ? xr : nLen;
@@ -307,13 +385,13 @@ HB_ULONG hb_lz4netEncrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB
       HB_PUT_LE_UINT32( *pData + 4 + nDest, ulLen );  /* trailing expanded data size */
       ulLen = nDest + 4;
       if( pStream->pBfKey )
-         lz4_bfEncrypt( pStream->pBfKey, *pData + 4, ulLen, *pData + 4, &ulLen );
+         lz4_bfEncrypt( pStream->pBfKey, *pData + 4, ulLen, *pData + 4, &ulLen, &pStream->IV );
       HB_PUT_LE_UINT32( *pData, ulLen | 0x80000000 );  /* highest BIT: flag for compressed content */
       ulLen += 4;
    }
    else if( pStream->pBfKey )
    {
-      lz4_bfEncrypt( pStream->pBfKey, szData, ulLen, *pData + 4, &ulLen );
+      lz4_bfEncrypt( pStream->pBfKey, szData, ulLen, *pData + 4, &ulLen, &pStream->IV );
       HB_PUT_LE_UINT32( *pData, ulLen );
       ulLen += 4;
    }
@@ -333,10 +411,10 @@ HB_ULONG hb_lz4netDecrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB
       {
          if( ulLen > pStream->ulBufLen )
             lz4_bufSizer( pStream, ulLen );
-         lz4_bfDecrypt( pStream->pBfKey, *pData, ulLen, pStream->pBuffer, &ulLen );
+         lz4_bfDecrypt( pStream->pBfKey, *pData, ulLen, pStream->pBuffer, &ulLen, &pStream->IV );
       }
       else  /* decrypt in place */
-         lz4_bfDecrypt( pStream->pBfKey, *pData, ulLen, *pData, &ulLen );
+         lz4_bfDecrypt( pStream->pBfKey, *pData, ulLen, *pData, &ulLen, &pStream->IV );
    }
    else if( fCompressed )  /* need tmp buffer */
    {

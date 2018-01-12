@@ -916,19 +916,29 @@ void leto_ToggleZip( PUSERSTRU pUStru, const char * szData )
       if( pUStru->zstream && ulLen )
       {
          char * szKey = leto_localKey( pUStru->cDopcode, LETO_DOPCODE_LEN );
-         char * szPass = ( char * ) hb_xgrab( ( ulLen / 2 ) + 1 );
+         char * szPass = ( char * ) hb_xgrabz( ( ulLen / 2 ) + 1 );
+         int    i;
 
          leto_hexchar2byte( pp1, ( int ) ulLen, szPass );
          leto_decrypt( szPass, ulLen / 2, szPass, &ulLen, szKey, HB_FALSE );
-         if( szKey )
-            hb_xfree( szKey );
+         for( i = 0; i < HB_MIN( LETO_DOPCODE_LEN, ( int ) ulLen ); i++ )
+         {
+            szPass[ i ] ^= pUStru->cDopcode[ i ];
+         }
 
 #ifdef USE_LZ4
          hb_lz4netEncryptKey( pUStru->zstream, szPass, ulLen );
 #else
          hb_znetEncryptKey( pUStru->zstream, szPass, ulLen );
 #endif
+         memset( szPass, 0, ulLen );
+         if( szKey )
+         {
+            memset( szKey, 0, LETO_DOPCODE_LEN );
+            hb_xfree( szKey );
+         }
          hb_xfree( szPass );
+
          pUStru->bZipCrypt = HB_TRUE;
       }
 

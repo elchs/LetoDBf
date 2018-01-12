@@ -66,6 +66,8 @@
 REQUEST LETO
 REQUEST RDDInfo
 
+//#define SECURED    1    /* activate for netork traffic encryption */
+
 
 STATIC s_nLastKeyType
 STATIC s_nRefresh := 1000  /* 1 seconds default */
@@ -115,7 +117,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
       ENDIF
    ENDIF
 
-   if ! Empty(aIni)
+   if EMPTY( cAddress ) .AND. ! Empty(aIni)
       for each ai in aIni[1, 2]
          if ai[1] == "SERVER"
             cAddress := ai[2]
@@ -130,8 +132,14 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    endif
 
    IF LEFT( cAddress,2 ) != "//"
-      cAddress := "//" + cAddress + IIF( ! EMPTY(cPort) , ":" + cPort, "") + "/"
-   endif
+      cAddress := "//" + cAddress
+   ENDIF
+   IF ! ":" $ cAddress .AND. ! EMPTY( cPort )
+      cAddress +=  ":" + cPort
+   ENDIF
+   IF RIGHT( cAddress,1 ) != "/"
+      cAddress += "/"
+   ENDIF
 
    RddSetDefault( "LETO" )
    SET SCOREBOARD OFF
@@ -160,7 +168,11 @@ FUNCTION Main( cAddress, cUser, cPasswd )
       RETURN Nil
    ELSE
       /* activate compression with encryption */
+#ifdef SECURED
       leto_togglezip( 1, "encrypted" )
+#else
+      leto_togglezip( 1 )
+#endif
    ENDIF
    cVersion := leto_GetServerVersion()
    cMode := Leto_MgSysInfo()[ 5 ]

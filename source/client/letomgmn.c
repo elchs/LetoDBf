@@ -1807,12 +1807,22 @@ HB_FUNC( LETO_TOGGLEZIP )
 #endif
                if( pConnection->zstream && iKeyLen > 0 )
                {
+                  int    i;
+                  char * szPass = ( char * ) hb_xgrabz( iKeyLen + 1 );
+
+                  memcpy( szPass, hb_parc( 2 ), iKeyLen );
+                  for( i = 0; i < HB_MIN( LETO_DOPCODE_LEN, iKeyLen ); i++ )
+                  {
+                     szPass[ i ] ^= pConnection->cDopcode[ i ];
+                  }
 #ifdef USE_LZ4
-                  hb_lz4netEncryptKey( pConnection->zstream, hb_parc( 2 ), iKeyLen );
+                  hb_lz4netEncryptKey( pConnection->zstream, szPass, iKeyLen );
 #else
-                  hb_znetEncryptKey( pConnection->zstream, hb_parc( 2 ), iKeyLen );
+                  hb_znetEncryptKey( pConnection->zstream, szPass, iKeyLen );
 #endif
                   pConnection->fZipCrypt = HB_TRUE;
+                  memset( szPass, 0, iKeyLen );
+                  hb_xfree( szPass );
                }
 
                if( pConnection->iZipRecord > 0 && ! pConnection->zstream )
