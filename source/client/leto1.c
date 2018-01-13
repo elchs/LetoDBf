@@ -1202,11 +1202,13 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
 
       case HB_FT_TIME:
          if( pField->uiLen == 4 )
-         {
             hb_itemPutTDT( pItem, 0, HB_GET_LE_INT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] ) );
-            break;
-         }
-         /* no break */
+         else
+            hb_itemPutTDT( pItem,
+                           HB_GET_LE_UINT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] ),
+                           HB_GET_LE_UINT32( pTable->pRecord + pTable->pFieldOffset[ uiIndex ] + 4 ) );
+         break;
+
       case HB_FT_MODTIME:
       case HB_FT_TIMESTAMP:
          hb_itemPutTDT( pItem,

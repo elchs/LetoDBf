@@ -1105,9 +1105,10 @@ static HB_THREAD_STARTFUNC( thread3 )
    int             iChange;
    HB_BOOL         fEndOfGame = HB_FALSE;
    const HB_USHORT uiMax = leto_MaxUsers();
+   const HB_USHORT uiMaxMax = 100;
    HB_SOCKET *     pReadSocks = ( HB_SOCKET * ) hb_xgrabz( sizeof( HB_SOCKET ) * uiMax );
 #if 1 && defined(  HB_HAS_POLL )
-   struct pollfd   pPoll[ uiMax ];
+   struct pollfd   pPoll[ uiMaxMax ];
 #else
    fd_set          readfds;
    struct timeval  MicroWait;
@@ -1158,7 +1159,7 @@ static HB_THREAD_STARTFUNC( thread3 )
             if( s_paSocks[ ui ] > nfds )
                nfds = s_paSocks[ ui ];
 #endif
-            if( ++uiCount >= s_iSocksMax )
+            if( ++uiCount >= s_iSocksMax || uiCount >= uiMaxMax - 1 )
                break;
          }
       }

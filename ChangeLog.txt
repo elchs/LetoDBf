@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-13 07:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    * pacify compiler warning about a 'fall-through' [ missing break; ],
+      often a cause for unwanted behaviour, this case by intention;
+      Thanks! Itamar for note
+
+  * source/server/leto_2.c
+    * even uiMax is a const, its dynamic; not well suited for stack allocs
+
 2018-01-12 17:07 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; rebuild of console monitor needed -- if tool is used
   ; if using network encyption: update server and client
