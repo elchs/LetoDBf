@@ -2,10 +2,32 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-14 23:32 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/server.prg
+    + REQUEST OS and [HB_]VERSION needed for bug_info
+
+  + include/leto_rev.ch
+  + tests/bug_info.prg
+  * tests/buildall.bat
+  * tests/buildall.sh
+  * tests/hbmk.hbm
+  + tests/plug_rev.hb
+    ; bug_info executable must be rebuild after source updates before use
+      for correct revision dates determined only during build
+    * to support your bug report, call:
+      bug_info[.exe] [ IP|name ] [ logfile ]
+      to retrieve OS and C-compiler info from LetoDBf server <IP|name>
+      and write (add) it into <logfile>.  Without given <logfile>, info
+      is only displayed, without <IP|name> only client info is collected.
+      Example: got a 'hb_out.log' --> bug_info[.exe] your_server hb_out.log
+
+  * ChangeLog.txt
+    * correct two typo's
+
 2018-01-13 07:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     * pacify compiler warning about a 'fall-through' [ missing break; ],
-      often a cause for unwanted behaviour, this case by intention;
+      often a cause for unwanted behavior, this case by intention;
       Thanks! Itamar for note
 
   * source/server/leto_2.c
@@ -13,7 +35,7 @@
 
 2018-01-12 17:07 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; rebuild of console monitor needed -- if tool is used
-  ; if using network encyption: update server and client
+  ; if using network encryption: update server and client for hardened one
 
   * utils/manager/console.prg
     ! logic to call server with different port was broken

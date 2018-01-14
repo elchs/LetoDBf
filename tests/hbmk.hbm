@@ -6,3 +6,6 @@
 -gtxwc{unix}
 -gtwvt{win}
 #-strip
+
+-plugin=plug_ver.hb
+
