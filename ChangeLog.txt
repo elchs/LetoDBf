@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-15 17:05 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letomgmn.c
+    * whitening HB PRG-level var with PW
+    * shorten logs one char
+    ! fixing a very theoretically possible endless loop
+
+  * tests/bug_info.prg
+    * add third param for log-file of connection to fetch from server,
+      -1 == server log. Problematic as herefor new established connection
+      may have overwritten the wanted log (this case non is retrieved)
+    * zip results if report-file extension is ".gz"
+
 2018-01-14 23:32 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/server.prg
     + REQUEST OS and [HB_]VERSION needed for bug_info

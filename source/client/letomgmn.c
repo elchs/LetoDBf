@@ -685,7 +685,8 @@ HB_FUNC( LETO_FCOPYFROMSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
             HB_SIZE      nWrite = 0;
             const char * ptr;
 
-            while( 1 )
+            fSuccess = HB_TRUE;
+            while( fSuccess )
             {
                fSuccess = HB_FALSE;
                ulLen = nStepSize;
@@ -696,6 +697,8 @@ HB_FUNC( LETO_FCOPYFROMSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
                      break;
                   fSuccess = HB_TRUE;
                }
+               else
+                  hb_fsSetFError( 14 );
                if( nWrite < nStepSize )
                   break;
                uStep++;
@@ -1346,7 +1349,7 @@ HB_FUNC( LETO_MGLOG )
 
          if( *ptr == '+' )
          {
-            hb_retclen( ++ptr, ulLen );
+            hb_retclen( ++ptr, ulLen - 1 );
             return;
          }
       }
@@ -1809,6 +1812,10 @@ HB_FUNC( LETO_TOGGLEZIP )
                {
                   int    i;
                   char * szPass = ( char * ) hb_xgrabz( iKeyLen + 1 );
+#ifndef __XHARBOUR__
+                  char *   pDst;
+                  HB_SIZE nDstLen;
+#endif
 
                   memcpy( szPass, hb_parc( 2 ), iKeyLen );
                   for( i = 0; i < HB_MIN( LETO_DOPCODE_LEN, iKeyLen ); i++ )
@@ -1819,6 +1826,10 @@ HB_FUNC( LETO_TOGGLEZIP )
                   hb_lz4netEncryptKey( pConnection->zstream, szPass, iKeyLen );
 #else
                   hb_znetEncryptKey( pConnection->zstream, szPass, iKeyLen );
+#endif
+#ifndef __XHARBOUR__
+                  hb_itemGetWriteCL( hb_param( 2, HB_IT_STRING ), &pDst, &nDstLen );
+                  memset(pDst, 0, nDstLen );
 #endif
                   pConnection->fZipCrypt = HB_TRUE;
                   memset( szPass, 0, iKeyLen );
