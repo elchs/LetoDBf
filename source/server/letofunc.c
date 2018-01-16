@@ -1632,7 +1632,7 @@ HB_FUNC( LETO_SELECT )  /* set ! WA by number or ALIAS */
 
    if( HB_ISNUM( 1 ) && hb_parni( 1 ) > 0 )
       ulAreaID = ( HB_ULONG ) hb_parni( 1 );
-   else if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   else if( hb_parclen( 1 ) )
       szAlias = hb_parc( 1 );
 
    pAStru = leto_Select( pUStru, ulAreaID, szAlias, HB_TRUE );
@@ -1647,7 +1647,7 @@ HB_FUNC( LETO_ALIAS )
 {
    char * szAlias = NULL;
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   if( hb_parclen( 1 ) )
    {
       PUSERSTRU pUStru = letoGetUStru();
       PAREASTRU pAStru = leto_FindAlias( pUStru, hb_parc( 1 ) );
@@ -3859,7 +3859,7 @@ HB_FUNC( LETO_GETDRIVER )
 {
    HB_USHORT uiDriver;
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 )  )
+   if( hb_parclen( 1 )  )
       uiDriver = leto_getDriver( hb_parc( 1 ) );
    else
       uiDriver = s_uiDriverDef;
@@ -3873,7 +3873,7 @@ HB_FUNC( LETO_GETDRIVER )
 /* init function -- only one thread running that time, willful no MT */
 HB_FUNC( LETO_CREATEDATA )  /* during server startup */
 {
-   const char * szAddr = HB_ISCHAR( 1 ) && hb_parclen( 1 ) ? hb_parc( 1 ) : "";
+   const char * szAddr = hb_parclen( 1 ) ? hb_parc( 1 ) : "";
    const int    iPort = HB_ISNUM( 2 ) ? hb_parni( 2 ) : LETO_DEFAULT_PORT;
 
    if( ! s_users )
@@ -4650,7 +4650,7 @@ HB_FUNC( LETO_FOPEN )
 {
    PUSERSTRU pUStru = letoGetUStru();
 
-   if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+   if( s_bFileFunc && hb_parclen( 1 ) > 0 )
    {
       char      szPath[ HB_PATH_MAX ];
       HB_MAXINT nHandle;
@@ -4673,7 +4673,7 @@ HB_FUNC( LETO_FCREATE )
 {
    PUSERSTRU pUStru = letoGetUStru();
 
-   if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+   if( s_bFileFunc && hb_parclen( 1 ) > 0 )
    {
       char      szPath[ HB_PATH_MAX ];
       HB_MAXINT nHandle;
@@ -4721,7 +4721,7 @@ HB_FUNC( LETO_FCLOSE )
 /* leto_udf() */
 HB_FUNC( LETO_FERASE )
 {
-   if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+   if( s_bFileFunc && hb_parclen( 1 ) > 0 )
    {
       char szSrc[ HB_PATH_MAX ];
 
@@ -4739,7 +4739,7 @@ HB_FUNC( LETO_FERASE )
 /* leto_udf() */
 HB_FUNC( LETO_FRENAME )
 {
-   if( s_bFileFunc && HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+   if( s_bFileFunc && hb_parclen( 1 ) > 0 )
    {
       char szSrc[ HB_PATH_MAX ];
       char szDst[ HB_PATH_MAX ];
@@ -9613,7 +9613,7 @@ HB_FUNC( LETO_DBCLOSEAREA )
    }
    if( HB_ISNUM( 1 ) && hb_parni( 1 ) > 0 )
       ulAreaID = ( HB_ULONG ) hb_parni( 1 );
-   else if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   else if( hb_parclen( 1 ) )
       szAlias = hb_parc( 1 );
 
    pAStru = leto_Select( pUStru, ulAreaID, szAlias, HB_TRUE );
@@ -12632,14 +12632,14 @@ HB_FUNC( LETO_DBUSEAREA )  /* 'wrong' number for not fresh opened */
    else
       uiArea = leto_FindFreeArea( pUStru );
 
-   if( ( pUStru->bRpcMode || s_bNoSaveWA ) && uiArea && HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+   if( ( pUStru->bRpcMode || s_bNoSaveWA ) && uiArea && hb_parclen( 2 ) )
    {
       char         szFile[ HB_PATH_MAX ];
       const char * szDriver = HB_ISCHAR( 1 ) ? hb_parc( 1 ) : pUStru->szDriver;
       const char * szAlias = HB_ISCHAR( 3 ) ? hb_parc( 3 ) : "";
       HB_BOOL      fShared = HB_ISLOG( 4 ) ? hb_parl( 4 ) : ! pUStru->bSetExclusive;
       HB_BOOL      fReadOnly = HB_ISLOG( 5 ) ? hb_parl( 5 ) : HB_FALSE;
-      const char * szCdpage = HB_ISCHAR( 6 ) && hb_parclen( 6 ) ? hb_parc( 6 ) : NULL;
+      const char * szCdpage = hb_parclen( 6 ) ? hb_parc( 6 ) : NULL;
       char         szData[ HB_PATH_MAX + HB_RDD_MAX_ALIAS_LEN + HB_RDD_MAX_DRIVERNAME_LEN + 23 ];
       HB_BOOL      bRet;
       char *       ptrdouble;
@@ -13160,14 +13160,14 @@ HB_FUNC( LETO_DBCREATE )
    else
       uiArea = leto_FindFreeArea( pUStru );
 
-   if( ( pUStru->bRpcMode || s_bNoSaveWA ) && uiArea && HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISARRAY( 2 )  )
+   if( ( pUStru->bRpcMode || s_bNoSaveWA ) && uiArea && hb_parclen( 1 ) && HB_ISARRAY( 2 )  )
    {
       char         szFile[ HB_PATH_MAX ];
       PHB_ITEM     pStruct = hb_param( 2, HB_IT_ARRAY );
       const char * szDriver = HB_ISCHAR( 3 ) ? hb_parc( 3 ) : pUStru->szDriver;
       HB_BOOL      bKeepOpen = HB_ISLOG( 4 ) ? hb_parl( 4 ) : HB_FALSE;
       const char * szAlias = HB_ISCHAR( 5 ) ? hb_parc( 5 ) : "";
-      const char * szCdpage = HB_ISCHAR( 6 ) && hb_parclen( 6 ) ? hb_parc( 6 ) : NULL;
+      const char * szCdpage = hb_parclen( 6 ) ? hb_parc( 6 ) : NULL;
       char *       szData, * szFields;
       HB_SIZE      nFields = hb_arrayLen( pStruct );
       HB_USHORT    uiFields;
@@ -13565,7 +13565,7 @@ HB_FUNC( LETO_ORDLISTADD )
 {
    PUSERSTRU    pUStru = letoGetUStru();
    PAREASTRU    pAStru = NULL;
-   const char * szBagName = HB_ISCHAR( 1 ) && hb_parclen( 1 ) ? hb_parc( 1 ) : "";
+   const char * szBagName = hb_parclen( 1 ) ? hb_parc( 1 ) : "";
    HB_ULONG     ulAreaID = 0;
    const char * szAlias = NULL;
    char         szData[ 32 ];
@@ -13573,7 +13573,7 @@ HB_FUNC( LETO_ORDLISTADD )
 
    if( HB_ISNUM( 2 ) && hb_parni( 2 ) > 0 )
       ulAreaID = ( HB_ULONG ) hb_parni( 2 );
-   else if( HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+   else if( hb_parclen( 2 ) )
       szAlias = hb_parc( 2 );
 
    if( *szBagName )
@@ -14270,7 +14270,7 @@ HB_FUNC( LETO_ORDCREATE )
       return;
    }
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   if( hb_parclen( 1 ) )
    {
       PAREASTRU pAStru = leto_Select( pUStru, 0, hb_parc( 1 ), HB_TRUE );
 
@@ -14309,10 +14309,9 @@ HB_FUNC( LETO_ORDCREATE )
          ulAreaID = 0;
    }
 
-   if( ( HB_ISCHAR( 2 ) && hb_parclen( 2 ) ) ||
-       ( HB_ISCHAR( 4 ) && hb_parclen( 4 ) ) )  /* else BAGname or TAGname */
+   if( hb_parclen( 2 ) || hb_parclen( 4 ) )  /* else BAGname or TAGname */
       bRet = HB_TRUE;
-   if( ! ( HB_ISCHAR( 3 ) || ! hb_parclen( 3 ) ) )  /* key forgotten ;-) */
+   if( ! hb_parclen( 3 ) )  /* key forgotten ;-) */
       bRet = HB_FALSE;
 
    if( ulAreaID && bRet )

@@ -6041,7 +6041,7 @@ HB_FUNC( LETO_DBEVAL )
 
    hb_arraySetC( pParams, 1, "LETO_DBEVAL" );
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+   if( hb_parclen( 1 ) > 0 )
    {
       char * szBlock = hb_strdup( hb_parc( 1 ) );
 
@@ -6050,7 +6050,7 @@ HB_FUNC( LETO_DBEVAL )
       hb_xfree( szBlock );
    }
 
-   if( HB_ISCHAR( 2 ) && hb_parclen( 2 ) > 0 )
+   if( hb_parclen( 2 ) > 0 )
    {
       char * szBlock = hb_strdup( hb_parc( 2 ) );
 
@@ -6058,7 +6058,7 @@ HB_FUNC( LETO_DBEVAL )
          hb_arraySetC( pParams, 3, szBlock );  /* FOR */
       hb_xfree( szBlock );
    }
-   if( HB_ISCHAR( 3 ) && hb_parclen( 3 ) > 0 )
+   if( hb_parclen( 3 ) > 0 )
    {
       char * szBlock = hb_strdup( hb_parc( 3 ) );
 
@@ -6737,7 +6737,7 @@ HB_FUNC( LETO_SETBM )
 
 HB_FUNC( LETO_HASH )
 {
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   if( hb_parclen( 1 ) )
    {
       const char * szKey = hb_parc( 1 );
       HB_U32 uRet = leto_hash( szKey, hb_parclen( 1 ) );
@@ -6795,7 +6795,7 @@ HB_FUNC( LETO_SET )
          fNewSet = hb_parl( 2 );
          fSet = HB_TRUE;
       }
-      else if( HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+      else if( hb_parclen( 2 ) )
       {
          if( ! leto_stricmp( hb_parc( 2 ), "ON" ) )
          {
@@ -7182,8 +7182,8 @@ HB_FUNC( LETO_RECONNECT )
    {
       char         szAddr[ 96 ];
       int          iPort = pConnection->iPort;
-      const char * szUser = ( HB_ISCHAR( 2 ) && hb_parclen( 2 ) ) ? hb_parc( 2 ) : NULL;
-      const char * szPass = ( HB_ISCHAR( 3 ) && hb_parclen( 3 ) ) ? hb_parc( 3 ) : NULL;
+      const char * szUser = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
+      const char * szPass = hb_parclen( 3 ) ? hb_parc( 3 ) : NULL;
       int          iTimeOut = hb_parnidef( 4, pConnection->iTimeOut );
       HB_BOOL      fZombieCheck = hb_parldef( 6, ( pConnection->hSocketErr != HB_NO_SOCKET ) );
 
@@ -7192,7 +7192,7 @@ HB_FUNC( LETO_RECONNECT )
       if( hb_parni( 5 ) )
          pConnection->iBufRefreshTime = hb_parni( 5 );
       /* given new address as first param */
-      if( ! ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && leto_getIpFromPath( hb_parc( 1 ), szAddr, &iPort, NULL ) ) )
+      if( ! ( hb_parclen( 1 ) && leto_getIpFromPath( hb_parc( 1 ), szAddr, &iPort, NULL ) ) )
          strcpy( szAddr, pConnection->pAddr );
 
       /* prepare a marker for WAs' used by active connection */

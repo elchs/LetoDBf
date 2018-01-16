@@ -207,7 +207,7 @@ HB_FUNC( LETO_FILE )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
       hb_retl( LetoFileExist( pConnection, szFile ) );
    else
       hb_retl( HB_FALSE );
@@ -218,7 +218,7 @@ HB_FUNC( LETO_FERASE )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       if( LetoFileErase( pConnection, szFile ) )
          hb_retni( 0 );
@@ -234,7 +234,7 @@ HB_FUNC( LETO_FRENAME )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) &&
+   if( hb_parclen( 1 ) && hb_parclen( 2 ) &&
        ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       if( LetoFileRename( pConnection, szFile, leto_RemoveIpFromPath( hb_parc( 2 ) ) ) )
@@ -251,7 +251,7 @@ HB_FUNC( LETO_FCOPY )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) &&
+   if( hb_parclen( 1 ) && hb_parclen( 2 ) &&
        ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       if( LetoFileCopy( pConnection, szFile, leto_RemoveIpFromPath( hb_parc( 2 ) ) ) )
@@ -265,7 +265,7 @@ HB_FUNC( LETO_FCOPY )
 
 HB_FUNC( LETO_FOPEN )
 {
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   if( hb_parclen( 1 ) )
    {
       PHB_DYNS pDo = hb_dynsymFind( "LETO_UDF" );
 
@@ -291,7 +291,7 @@ HB_FUNC( LETO_FOPEN )
 
 HB_FUNC( LETO_FCREATE )
 {
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   if( hb_parclen( 1 ) )
    {
       PHB_DYNS pDo = hb_dynsymFind( "LETO_UDF" );
 
@@ -465,7 +465,7 @@ HB_FUNC( LETO_FREADLEN )
 
 HB_FUNC( LETO_FWRITE )
 {
-   if( HB_ISNUM( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+   if( HB_ISNUM( 1 ) && hb_parclen( 2 ) )
    {
       PHB_DYNS  pDo = hb_dynsymFind( "LETO_UDF" );
       HB_MAXINT nHandle = hb_parnint( 1 );
@@ -513,7 +513,7 @@ HB_FUNC( LETO_MEMOREAD )
    char     szFile[ HB_PATH_MAX ];
    HB_ULONG ulMemoLen = 0;
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+   if( hb_parclen( 1 ) )
    {
       pConnection = letoParseParam( hb_parc( 1 ), szFile );
       if( ! pConnection )
@@ -536,7 +536,7 @@ HB_FUNC( LETO_MEMOREAD )
 
 HB_FUNC( LETO_FILEREAD )  /* ( cFile, 0 [ nStart ], 0 == all [ nLen ], @cBuf ) */
 {
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISBYREF( 4 ) )
+   if( hb_parclen( 1 ) && HB_ISBYREF( 4 ) )
    {
       LETOCONNECTION * pConnection;
       char szFile[ HB_PATH_MAX ];
@@ -574,7 +574,7 @@ HB_FUNC( LETO_MEMOWRITE )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) &&
+   if( hb_parclen( 1 ) && HB_ISCHAR( 2 ) &&
        ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       hb_retl( LetoMemoWrite( pConnection, szFile, hb_parc( 2 ), hb_parclen( 2 ) ) );
@@ -590,7 +590,7 @@ HB_FUNC( LETO_FILEWRITE )  /* ( cFile, 0 [ nStart ], cBuf ) */
    char     szFile[ HB_PATH_MAX ];
    HB_ULONG ulBufLen = hb_parclen( 3 );
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 3 ) && ulBufLen &&
+   if( hb_parclen( 1 ) && HB_ISCHAR( 3 ) && ulBufLen &&
        ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       HB_ULONG ulStart = HB_ISNUM( 2 ) && hb_parnl( 2 ) > 0 ? hb_parnl( 2 ) : 0;
@@ -608,7 +608,7 @@ HB_FUNC( LETO_FCOPYTOSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
 {
    HB_BOOL fSuccess = HB_FALSE;
 
-   if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 1 ) && hb_parclen( 2 ) )
+   if( hb_parclen( 1 ) && hb_parclen( 2 ) )
    {
       char szFile[ HB_PATH_MAX ];
       LETOCONNECTION * pConnection = letoParseParam( hb_parc( 2 ), szFile );
@@ -659,7 +659,7 @@ HB_FUNC( LETO_FCOPYFROMSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
 {
    HB_BOOL fSuccess = HB_FALSE;
 
-   if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 1 ) && hb_parclen( 2 ) )
+   if( hb_parclen( 1 ) && hb_parclen( 2 ) )
    {
       char szFile[ HB_PATH_MAX ];
       LETOCONNECTION * pConnection = letoParseParam( hb_parc( 2 ), szFile );
@@ -732,7 +732,7 @@ HB_FUNC( LETO_FILESIZE )  /* ( cFile ) */
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       hb_retnl( LetoFileSize( pConnection, szFile ) );
       return;
@@ -747,7 +747,7 @@ HB_FUNC( LETO_FILEATTR )  /* ( cFile [, cNewAttr ] ) */
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       hb_retc( LetoFileAttr( pConnection, szFile, HB_ISCHAR( 2 ) ? hb_parc( 2 ) : NULL ) );
       return;
@@ -787,7 +787,7 @@ HB_FUNC( LETO_DIRMAKE )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       if( LetoDirMake( pConnection, szFile ) )
          hb_retni( 0 );
@@ -806,7 +806,7 @@ HB_FUNC( LETO_DIREXIST )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
       hb_retl( LetoDirExist( pConnection, szFile ) );
    else
       hb_retl( HB_FALSE );
@@ -817,7 +817,7 @@ HB_FUNC( LETO_DIRREMOVE )
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
-   if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       if( LetoDirRemove( pConnection, szFile ) )
          hb_retni( 0 );
@@ -859,15 +859,15 @@ HB_FUNC( LETO_CONNECT )
    char szAddr[ 96 ];
    char szPath[ 96 ];
    int  iPort = 0;
-   const char * szUser = ( HB_ISCHAR( 2 ) && hb_parclen( 2 ) ) ? hb_parc( 2 ) : NULL;
-   const char * szPass = ( HB_ISCHAR( 3 ) && hb_parclen( 3 ) ) ? hb_parc( 3 ) : NULL;
+   const char * szUser = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
+   const char * szPass = hb_parclen( 3 ) ? hb_parc( 3 ) : NULL;
    int          iTimeOut = ( HB_ISNUM( 4 ) ) ? hb_parni( 4 ) : -1;
    HB_BOOL      fZombieCheck = ( HB_ISLOG( 6 ) ) ? hb_parl( 6 ) : LETO_USE_THREAD;
    int          iRet = -1;
 
    HB_TRACE( HB_TR_DEBUG, ( "LETO_CONNECT(%s)", hb_parc( 1 ) ) );
 
-   if( ! HB_ISCHAR( 1 ) || ! hb_parclen( 1 ) )
+   if( ! hb_parclen( 1 ) )
    {
       pConnection = letoGetCurrConn();
       if( pConnection )
@@ -1096,7 +1096,7 @@ HB_FUNC( LETO_MGGETUSERS )
       const char * pcptr;
       const char * szList;
 
-      if( HB_ISCHAR( 1 ) )
+      if( hb_parclen( 1 ) )
          szTable = hb_parc( 1 );
       else if( HB_ISNUM( 1 ) )
       {
@@ -1105,7 +1105,7 @@ HB_FUNC( LETO_MGGETUSERS )
       }
       else
          szTable = NULL;
-      if( HB_ISCHAR( 2 ) )
+      if( hb_parclen( 2 ) )
          szList = hb_parc( 2 );
       else
          szList = NULL;
@@ -1154,7 +1154,7 @@ HB_FUNC( LETO_MGGETTABLES )
       char         sBuffer[ HB_PATH_MAX ];
       const char * pcptr;
 
-      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+      if( hb_parclen( 1 ) )
          szUser = hb_parc( 1 );
       else if( HB_ISNUM( 1 ) )
       {
@@ -1163,7 +1163,7 @@ HB_FUNC( LETO_MGGETTABLES )
       }
       else
          szUser = NULL;
-      if( HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+      if( hb_parclen( 2 ) )
          szList = hb_parc( 2 );
       else
          szList = NULL;
@@ -1216,7 +1216,7 @@ HB_FUNC( LETO_MGGETINDEX )
       char         sBuffer[ HB_PATH_MAX ];
       const char * pcptr;
 
-      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+      if( hb_parclen( 1 ) )
          szUser = hb_parc( 1 );
       else if( HB_ISNUM( 1 ) )
       {
@@ -1226,12 +1226,12 @@ HB_FUNC( LETO_MGGETINDEX )
       else
          szUser = NULL;
 
-      if( HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+      if( hb_parclen( 2 ) )
          szTable = hb_parc( 2 );
       else
          szTable = NULL;
 
-      if( HB_ISCHAR( 3 ) && hb_parclen( 3 ) )
+      if( hb_parclen( 3 ) )
          szList = hb_parc( 3 );
       else
          szList = NULL;
@@ -1281,7 +1281,7 @@ HB_FUNC( LETO_MGGETLOCKS )
       char         sBuffer[ HB_PATH_MAX ];
       const char * pcptr;
 
-      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+      if( hb_parclen( 1 ) )
          szUser = hb_parc( 1 );
       else if( HB_ISNUM( 1 ) )
       {
@@ -1290,11 +1290,11 @@ HB_FUNC( LETO_MGGETLOCKS )
       }
       else
          szUser = NULL;
-      if( HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+      if( hb_parclen( 2 ) )
          szTable = hb_parc( 2 );
       else
          szTable = NULL;
-      if( HB_ISCHAR( 3 ) && hb_parclen( 3 ) )
+      if( hb_parclen( 3 ) )
          szList = hb_parc( 3 );
       else
          szList = NULL;
@@ -1379,7 +1379,7 @@ HB_FUNC( LETO_MGKILL )
       const char * szUserId = NULL;
       char         sBuffer[ 21 ];
 
-      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) > 0 )
+      if( hb_parclen( 1 ) > 0 )
          szUserId = hb_parc( 1 );
       else if( HB_ISNUM( 1 ) )
       {
@@ -1459,7 +1459,7 @@ HB_FUNC( LETO_USERADD )
 
    if( pConnection )
    {
-      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) )
+      if( hb_parclen( 1 ) && HB_ISCHAR( 2 ) )
       {
          if( ( ulLen = hb_parclen( 2 ) ) > 0 )
          {
@@ -1498,7 +1498,7 @@ HB_FUNC( LETO_USERDELETE )
 
    if( pConnection )
    {
-      if( HB_ISCHAR( 1 ) )
+      if( hb_parclen( 1 ) )
       {
          hb_snprintf( szData, 96, "%c;udel;%s;", LETOCMD_admin, hb_parc( 1 ) );
          if( leto_DataSendRecv( pConnection, szData, 0 ) )
@@ -1521,7 +1521,7 @@ HB_FUNC( LETO_USERPASSWD )
 
    if( pConnection )
    {
-      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) )
+      if( hb_parclen( 1 ) && HB_ISCHAR( 2 ) )
       {
          if( ( ulLen = hb_parclen( 2 ) ) > 0 )
          {
@@ -1557,7 +1557,7 @@ HB_FUNC( LETO_USERRIGHTS )
 
    if( pConnection )
    {
-      if( HB_ISCHAR( 1 ) && HB_ISCHAR( 2 ) )
+      if( hb_parclen( 1 ) && HB_ISCHAR( 2 ) )
       {
          hb_snprintf( szData, 96, "%c;uacc;%s;%s;", LETOCMD_admin, hb_parc( 1 ), hb_parc( 2 ) );
          if( leto_DataSendRecv( pConnection, szData, 0 ) )
@@ -1679,7 +1679,7 @@ HB_FUNC( LETO_ENCRYPT )
    HB_ULONG     ulLen = hb_parclen( 1 );
    char *       psRet = ( char * ) hb_xgrabz( ulLen + 9 );
    char *       szKey = NULL;
-   HB_BOOL      fGlobal = ( HB_ISCHAR( 2 ) && hb_parclen( 2 ) ) ? HB_TRUE : HB_FALSE;
+   HB_BOOL      fGlobal = hb_parclen( 2 ) ? HB_TRUE : HB_FALSE;
 
    if( ! fGlobal )
    {
@@ -1713,7 +1713,7 @@ HB_FUNC( LETO_DECRYPT )
    HB_ULONG     ulLen = hb_parclen( 1 );
    char *       psRet = ( char * ) hb_xgrabz( ulLen + 1 );
    char *       szKey = NULL;
-   HB_BOOL      fGlobal = ( HB_ISCHAR( 2 ) && hb_parclen( 2 ) ) ? HB_TRUE : HB_FALSE;
+   HB_BOOL      fGlobal = hb_parclen( 2 ) ? HB_TRUE : HB_FALSE;
 
    if( ! fGlobal )
    {
@@ -1751,7 +1751,7 @@ HB_FUNC( LETO_TOGGLEZIP )
    LETOCONNECTION * pConnection = letoGetCurrConn();
    char szData[ 96 ];
    int  iZipRecord;
-   int  iKeyLen = HB_ISCHAR( 2 ) ? ( int ) hb_parclen( 2 ) : 0;
+   int  iKeyLen = ( int ) hb_parclen( 2 );
 
    if( pConnection && HB_ISNUM( 1 ) )
    {
@@ -1811,29 +1811,29 @@ HB_FUNC( LETO_TOGGLEZIP )
                if( pConnection->zstream && iKeyLen > 0 )
                {
                   int    i;
-                  char * szPass = ( char * ) hb_xgrabz( iKeyLen + 1 );
+                  char * szPW = ( char * ) hb_xgrabz( iKeyLen + 1 );
 #ifndef __XHARBOUR__
                   char *   pDst;
                   HB_SIZE nDstLen;
 #endif
 
-                  memcpy( szPass, hb_parc( 2 ), iKeyLen );
+                  memcpy( szPW, hb_parc( 2 ), iKeyLen );
                   for( i = 0; i < HB_MIN( LETO_DOPCODE_LEN, iKeyLen ); i++ )
                   {
-                     szPass[ i ] ^= pConnection->cDopcode[ i ];
+                     szPW[ i ] ^= pConnection->cDopcode[ i ];
                   }
 #ifdef USE_LZ4
-                  hb_lz4netEncryptKey( pConnection->zstream, szPass, iKeyLen );
+                  hb_lz4netEncryptKey( pConnection->zstream, szPW, iKeyLen );
 #else
-                  hb_znetEncryptKey( pConnection->zstream, szPass, iKeyLen );
+                  hb_znetEncryptKey( pConnection->zstream, szPW, iKeyLen );
 #endif
 #ifndef __XHARBOUR__
                   hb_itemGetWriteCL( hb_param( 2, HB_IT_STRING ), &pDst, &nDstLen );
                   memset(pDst, 0, nDstLen );
 #endif
                   pConnection->fZipCrypt = HB_TRUE;
-                  memset( szPass, 0, iKeyLen );
-                  hb_xfree( szPass );
+                  memset( szPW, 0, iKeyLen );
+                  hb_xfree( szPW );
                }
 
                if( pConnection->iZipRecord > 0 && ! pConnection->zstream )
@@ -1970,7 +1970,7 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) && hb_param( 3, LETOVAR_TYPES ) )
+      if( hb_parclen( 1 ) && hb_parclen( 2 ) && hb_param( 3, LETOVAR_TYPES ) )
       {
          HB_USHORT uiFlags = ( ! HB_ISNUM( 4 ) ) ? 0 : ( HB_USHORT ) hb_parni( 4 );
          HB_BOOL   fPrev = HB_ISBYREF( 5 );
@@ -2069,7 +2069,7 @@ HB_FUNC( LETO_VARGET )
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 )  )
+      if( hb_parclen( 1 ) && hb_parclen( 2 )  )
       {
          if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
             pValue = Leto_VarGet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ) );
@@ -2109,7 +2109,7 @@ HB_FUNC( LETO_VARINCR )
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+      if( hb_parclen( 1 ) && hb_parclen( 2 ) )
       {
          if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
          {
@@ -2140,7 +2140,7 @@ HB_FUNC( LETO_VARDECR )
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) && HB_ISCHAR( 2 ) && hb_parclen( 2 ) )
+      if( hb_parclen( 1 ) && hb_parclen( 2 ) )
       {
          if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
          {
@@ -2167,7 +2167,7 @@ HB_FUNC( LETO_VARDEL )
 
    if( pCurrentConn )
    {
-      if( HB_ISCHAR( 1 ) && hb_parclen( 1 ) )
+      if( hb_parclen( 1 ) )
       {
          const char * szVar = HB_ISCHAR( 2 ) ? hb_parc( 2 ) : "";
 
@@ -2994,7 +2994,7 @@ HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr )
 
 HB_FUNC( LETO_VAREXPRTEST )
 {
-   const char * szSrc = ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) ) ? hb_parc( 1 ) : NULL;
+   const char * szSrc = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
 
    if( szSrc )
       hb_retl( Leto_VarExprCreate( NULL, szSrc, hb_parclen( 1 ), NULL, NULL ) );
@@ -3007,7 +3007,7 @@ HB_FUNC( LETO_VAREXPRTEST )
 HB_FUNC( LETO_VAREXPRCREATE )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
-   const char *     szSrc = ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) ) ? hb_parc( 1 ) : NULL;
+   const char *     szSrc = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
    char *           szDst = NULL;
    PHB_ITEM         pArr = NULL;
 
@@ -3028,7 +3028,7 @@ HB_FUNC( LETO_VAREXPRCREATE )
 HB_FUNC( LETO_VAREXPRVARS )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
-   const char *     szSrc = ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) ) ? hb_parc( 1 ) : NULL;
+   const char *     szSrc = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
    HB_BOOL          fOnlySynVar = hb_parldef( 2, 0 );
    PHB_ITEM         pArr = hb_itemArrayNew( 0 );
 
@@ -3042,7 +3042,7 @@ HB_FUNC( LETO_VAREXPRVARS )
 HB_FUNC( LETO_VAREXPRCLEAR )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
-   const char *     szSrc = ( HB_ISCHAR( 1 ) && hb_parclen( 1 ) ) ? hb_parc( 1 ) : NULL;
+   const char *     szSrc = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
    PHB_ITEM         pArr = hb_param( 1, HB_IT_ARRAY );
    HB_BOOL          fOnlySynVar = hb_parldef( 2, 0 );
 

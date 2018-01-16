@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-16 12:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/client/letomgmn.c
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+    * formatting: hb_parclen() includes check for string; remove HB_ISCHAR()
+    * pacify 2 Clang warnings ( var hiding; not const )
+
 2018-01-15 17:05 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     * whitening HB PRG-level var with PW

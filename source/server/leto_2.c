@@ -76,6 +76,7 @@
 
 #define LETO_CPU_STATISTIC
 #define LETO_UDP_TIMEOUT    60000
+#define USMAX_AT_ONCE        100
 
 static const char * szOk = "++++";
 static const char * szErr1 = "-001";
@@ -811,10 +812,10 @@ HB_FUNC( LETO_SENDMESSAGE )
 
    int iPort = hb_parni( 1 );
    const char * szMessage = hb_parc( 2 );
-   const char * szData = HB_ISCHAR( 4 ) && hb_parclen( 4 ) ? hb_parc( 4 ) : NULL;
+   const char * szData = hb_parclen( 4 ) ? hb_parc( 4 ) : NULL;
    char *       szAddr;
 
-   if( HB_ISCHAR( 3 ) && hb_parclen( 3 ) > 6 )
+   if( hb_parclen( 3 ) > 6 )
       szAddr = hb_strdup( hb_parc( 3 ) );
    else
       szAddr = hb_strdup( "127.0.0.1" );
@@ -1105,10 +1106,9 @@ static HB_THREAD_STARTFUNC( thread3 )
    int             iChange;
    HB_BOOL         fEndOfGame = HB_FALSE;
    const HB_USHORT uiMax = leto_MaxUsers();
-   const HB_USHORT uiMaxMax = 100;
    HB_SOCKET *     pReadSocks = ( HB_SOCKET * ) hb_xgrabz( sizeof( HB_SOCKET ) * uiMax );
 #if 1 && defined(  HB_HAS_POLL )
-   struct pollfd   pPoll[ uiMaxMax ];
+   struct pollfd   pPoll[ USMAX_AT_ONCE ];
 #else
    fd_set          readfds;
    struct timeval  MicroWait;
@@ -1159,7 +1159,7 @@ static HB_THREAD_STARTFUNC( thread3 )
             if( s_paSocks[ ui ] > nfds )
                nfds = s_paSocks[ ui ];
 #endif
-            if( ++uiCount >= s_iSocksMax || uiCount >= uiMaxMax - 1 )
+            if( ++uiCount >= s_iSocksMax || uiCount >= USMAX_AT_ONCE - 1 )
                break;
          }
       }
@@ -1825,7 +1825,7 @@ HB_FUNC( LETO_SERVER )
    HB_BOOL          bExtraWait;
    int              iChange;
    int              iServerPort = hb_parni( 1 );
-   const char *     szServerAddr = ( HB_ISCHAR( 2 ) && hb_parclen( 2 ) > 6 ) ? hb_parc( 2 ) : NULL;
+   const char *     szServerAddr = ( hb_parclen( 2 ) > 6 ) ? hb_parc( 2 ) : NULL;
    HB_SOCKET        hSocketMain;               /* main server socket */
    HB_SOCKET        hSocketErr = HB_NO_SOCKET; /* server second socket */
    HB_FHANDLE       hThreadPipe[ 2 ] = { FS_ERROR, FS_ERROR };
