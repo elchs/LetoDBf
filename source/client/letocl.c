@@ -3376,10 +3376,9 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
             hb_strncpy( s_szAddr, szIP, 95 );
             hb_xfree( szIP );
          }
-         else
-            hb_strncpy( s_szAddr, szAddr, 95 );
       }
-      else
+
+      if( ! *s_szAddr )
          hb_strncpy( s_szAddr, szAddr, 95 );
    }
    szAddr = s_szAddr;
@@ -3502,11 +3501,12 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    HB_ULONG     ulLen;
 
 #ifdef LETO_SMBSERVER
-   const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
-   const int    iOldPort = pConnection ? pConnection->iPort : 0;
+   LETOCONNECTION * pCallerConn = pConnection;
 
    if( ! fShared )
    {
+      const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
+      const int    iOldPort = pConnection ? pConnection->iPort : 0;
       const char * szAddr;
       const int    iPort = LETO_SMBPORT;
 
@@ -3526,10 +3526,9 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
                hb_strncpy( s_szAddr, szIP, 95 );
                hb_xfree( szIP );
             }
-            else
-               hb_strncpy( s_szAddr, szAddr, 95 );
          }
-         else
+
+         if( ! *s_szAddr )
             hb_strncpy( s_szAddr, szAddr, 95 );
       }
       szAddr = s_szAddr;
@@ -3567,6 +3566,12 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
       }
       else
          pConnection->iError = 1021;
+
+#ifdef LETO_SMBSERVER
+      if( pCallerConn && pCallerConn != pConnection )
+         pCallerConn->iError = pConnection->iError;
+#endif
+
       return NULL;
    }
    ptr++;  /* ptr = leto_firstchar(); */

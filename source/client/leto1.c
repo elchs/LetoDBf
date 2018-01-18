@@ -2221,7 +2221,6 @@ static void letoCreateAliasWA( char * szAlias )
 static void letoCreateAlias( const char * szFile, char * szAlias )
 {
    const char * ptrBeg, * ptrEnd, *ptrWin;
-   HB_USHORT    uLen;
 
    ptrEnd = strrchr( szFile, '.' );
    if( ! ptrEnd || ( ptrEnd > szFile && *( ptrEnd - 1 ) == '.' ) )  /* .. */
@@ -2260,12 +2259,8 @@ static void letoCreateAlias( const char * szFile, char * szAlias )
       else
          ptrBeg++;
    }
-   uLen = ( HB_USHORT ) ( ptrEnd - ptrBeg );
-   if( uLen > HB_RDD_MAX_ALIAS_LEN )
-      uLen = HB_RDD_MAX_ALIAS_LEN;
-   hb_strncpy( szAlias, ptrBeg, uLen );
-   szAlias[ uLen ] = '\0';
-   hb_strUpper( szAlias, uLen );
+
+   hb_strncpyUpper( szAlias, ptrBeg, HB_MIN( ptrEnd - ptrBeg, HB_RDD_MAX_ALIAS_LEN ) );
 }
 
 static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )

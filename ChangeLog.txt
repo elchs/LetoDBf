@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-18 15:38 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/client/letocl.c
+    ! 'shared' error set for switched connection in LetoDbOpenTable(),
+      caller letoOpen() doesn't know about
+    * formatting
+
 2018-01-18 04:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/client/letocl.c
