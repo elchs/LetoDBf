@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-18 04:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/client/letocl.c
+    ! !fix the fix :-(
+      GPF if DNS name could not be resolved; missing string termination
+      missed possible ".." in filename for ALIAS
+
 2018-01-18 01:18 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     ! fix for using a DNS name for LETO_SMBSERVER in hbp

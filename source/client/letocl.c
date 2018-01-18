@@ -3371,12 +3371,16 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
          HB_GC_UNLOCKE();
          szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
          HB_GC_LOCKE();
-         memcpy( s_szAddr, szIP, HB_MIN( strlen( szIP ), 96 ) );
          if( szIP )
+         {
+            hb_strncpy( s_szAddr, szIP, 95 );
             hb_xfree( szIP );
+         }
+         else
+            hb_strncpy( s_szAddr, szAddr, 95 );
       }
       else
-         memcpy( s_szAddr, szAddr, HB_MIN( strlen( szAddr ), 96 ) );
+         hb_strncpy( s_szAddr, szAddr, 95 );
    }
    szAddr = s_szAddr;
    HB_GC_UNLOCKE();
@@ -3517,12 +3521,16 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
             HB_GC_UNLOCKE();
             szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
             HB_GC_LOCKE();
-            memcpy( s_szAddr, szIP, HB_MIN( strlen( szIP ), 96 ) );
             if( szIP )
+            {
+               hb_strncpy( s_szAddr, szIP, 95 );
                hb_xfree( szIP );
+            }
+            else
+               hb_strncpy( s_szAddr, szAddr, 95 );
          }
          else
-            memcpy( s_szAddr, szAddr, HB_MIN( strlen( szAddr ), 96 ) );
+            hb_strncpy( s_szAddr, szAddr, 95 );
       }
       szAddr = s_szAddr;
       HB_GC_UNLOCKE();

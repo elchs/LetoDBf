@@ -2224,11 +2224,11 @@ static void letoCreateAlias( const char * szFile, char * szAlias )
    HB_USHORT    uLen;
 
    ptrEnd = strrchr( szFile, '.' );
-   if( ptrEnd == NULL )
+   if( ! ptrEnd || ( ptrEnd > szFile && *( ptrEnd - 1 ) == '.' ) )  /* .. */
        ptrEnd = szFile + strlen( szFile );
 
    ptrBeg = strchr( szFile, ':' );
-   if( ptrBeg )  /* mem:... or Z:\... */
+   if( ptrBeg )  /* mem:... */
    {
       const char * ptrTmp;
 
@@ -2237,7 +2237,7 @@ static void letoCreateAlias( const char * szFile, char * szAlias )
       ptrWin = strrchr( szFile, '\\' );
       if( ptrWin )
       {
-         if( ( ! ptrBeg || ptrWin > ptrBeg ) )
+         if( ( ! ptrTmp || ptrWin > ptrTmp ) )
             ptrTmp = ptrWin;
       }
       if( ptrTmp )
