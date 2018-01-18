@@ -3340,8 +3340,9 @@ static const char * leto_AddFields( LETOTABLE * pTable, HB_USHORT uiFields, cons
 }
 
 #ifdef LETO_SMBSERVER
-   #define xstr( s ) str( s )
-   #define str( s )  #s
+   #define XSTR( s ) YSTR( s )
+   #define YSTR( s ) #s
+   static char s_szAddr[ 96 ] = { 0 };
 #endif
 
 HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, const char * szFields, unsigned int uiArea, const char * szCdpage )
@@ -3355,19 +3356,40 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
 
 #ifdef LETO_SMBSERVER
    const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
-   const char * szAddr = xstr ( LETO_SMBSERVER );
-   int          iOldPort = pConnection? pConnection->iPort : 0;
-   int          iPort = LETO_SMBPORT;
+   const char * szAddr;
+   const int    iOldPort = pConnection? pConnection->iPort : 0;
+   const int    iPort = LETO_SMBPORT;
 
-   #ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "LetoDbCreateTable() redirect to server %s:%d", szAddr, iPort );
-   #endif
+   HB_GC_LOCKE();
+   if( ! *s_szAddr )
+   {
+      szAddr = XSTR( LETO_SMBSERVER );
+      if( atoi( szAddr ) == 0 )  /* DNS name */
+      {
+         char * szIP;
+
+         HB_GC_UNLOCKE();
+         szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
+         HB_GC_LOCKE();
+         memcpy( s_szAddr, szIP, HB_MIN( strlen( szIP ), 96 ) );
+         if( szIP )
+            hb_xfree( szIP );
+      }
+      else
+         memcpy( s_szAddr, szAddr, HB_MIN( strlen( szAddr ), 96 ) );
+   }
+   szAddr = s_szAddr;
+   HB_GC_UNLOCKE();
 
    pConnection = leto_ConnectionFind( szAddr, iPort );
    if( ! pConnection )
       return NULL;
    else if( szOldAddr )
       leto_ConnectionFind( szOldAddr, iOldPort );  /* reset current connection */
+
+   #ifdef LETO_CLIENTLOG
+      leto_clientlog( NULL, 0, "LetoDbCreateTable() redirect to server %s:%d", szAddr, iPort );
+   #endif
 #endif
 
    hb_rddSetNetErr( HB_FALSE );
@@ -3477,22 +3499,43 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
 
 #ifdef LETO_SMBSERVER
    const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
-   int          iOldPort = pConnection ? pConnection->iPort : 0;
+   const int    iOldPort = pConnection ? pConnection->iPort : 0;
 
    if( ! fShared )
    {
-      const char * szAddr = xstr ( LETO_SMBSERVER );
-      int          iPort = LETO_SMBPORT;
+      const char * szAddr;
+      const int    iPort = LETO_SMBPORT;
 
-   #ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "LetoDbOpenTable() redirect to server %s:%d", szAddr, iPort );
-   #endif
+      HB_GC_LOCKE();
+      if( ! *s_szAddr )
+      {
+         szAddr = XSTR( LETO_SMBSERVER );
+         if( atoi( szAddr ) == 0 )  /* DNS name */
+         {
+            char * szIP;
+
+            HB_GC_UNLOCKE();
+            szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
+            HB_GC_LOCKE();
+            memcpy( s_szAddr, szIP, HB_MIN( strlen( szIP ), 96 ) );
+            if( szIP )
+               hb_xfree( szIP );
+         }
+         else
+            memcpy( s_szAddr, szAddr, HB_MIN( strlen( szAddr ), 96 ) );
+      }
+      szAddr = s_szAddr;
+      HB_GC_UNLOCKE();
 
       pConnection = leto_ConnectionFind( szAddr, iPort );
       if( ! pConnection )
          return NULL;
       else if( szOldAddr )
          leto_ConnectionFind( szOldAddr, iOldPort );  /* reset current connection */
+
+   #ifdef LETO_CLIENTLOG
+      leto_clientlog( NULL, 0, "LetoDbOpenTable() redirect to server %s:%d", szAddr, iPort );
+   #endif
    }
 #endif
 
