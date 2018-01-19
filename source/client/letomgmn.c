@@ -673,11 +673,7 @@ HB_FUNC( LETO_FCOPYFROMSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
          if( ! LetoFileExist( pConnection, szFile ) )
             hb_fsSetFError( 2 );
          else
-         {
             hb_fsSetFError( 0 );
-            if( hb_fileExists( hb_parc( 1 ), NULL ) )
-               hb_fileDelete( hb_parc( 1 ) );
-         }
          if( ! hb_fsError() && ( pFile = hb_fileExtOpen( hb_parc( 1 ), NULL, nMode, NULL, NULL ) ) != NULL )
          {
             HB_USHORT    uStep = 0;

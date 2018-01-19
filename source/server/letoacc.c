@@ -89,7 +89,7 @@ char * leto_memoread( const char * szFilename, HB_ULONG * pulLen )
    HB_FHANDLE fhnd;
    char *     pBuffer = NULL;
 
-   fhnd = hb_fsOpen( szFilename, FO_READ | FO_SHARED | FO_PRIVATE );
+   fhnd = hb_fsOpen( szFilename, FO_READ | FO_SHARED );
    if( fhnd != FS_ERROR )
    {
       *pulLen = hb_fsSeek( fhnd, 0, FS_END );
@@ -154,7 +154,7 @@ HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG u
       return HB_TRUE;
 
 #if defined( __HARBOUR30__ )
-   fhnd = hb_fsOpen( szFilename, FO_READ | FO_SHARED | FO_PRIVATE );
+   fhnd = hb_fsOpen( szFilename, FO_READ | FO_SHARED );
    if( fhnd != FS_ERROR )
    {
       if( ( HB_ULONG ) hb_fsSeekLarge( fhnd, ulStart, FS_SET ) == ulStart )
@@ -166,7 +166,7 @@ HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG u
       hb_fsClose( fhnd );
    }
 #else
-   if( ( pFile = hb_fileExtOpen( szFilename, NULL, FO_READ | FO_SHARED | FO_PRIVATE, NULL, NULL ) ) != NULL )
+   if( ( pFile = hb_fileExtOpen( szFilename, NULL, FO_READ | FO_SHARED, NULL, NULL ) ) != NULL )
    {
       if( ( HB_ULONG ) hb_fileSeek( pFile, ulStart, FS_SET ) == ulStart )
       {
@@ -200,7 +200,7 @@ HB_BOOL leto_filewrite( const char * szFilename, const char * pBuffer, const HB_
    }
 #else
    PHB_FILE pFile;
-   HB_FATTR nMode = FO_READWRITE | FO_DENYNONE | FO_PRIVATE | FXO_SHARELOCK;
+   HB_FATTR nMode = FO_READWRITE | FO_DENYNONE | FXO_SHARELOCK;
 
    if( bTrunc )
       nMode |= FXO_TRUNCATE;

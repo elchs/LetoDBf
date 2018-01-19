@@ -1391,7 +1391,7 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
       s_bPass4M = hb_parl( 6 );
    if( HB_ISLOG( 7 ) )
       s_bPass4D = hb_parl( 7 );
-   if( HB_ISCHAR( 8 ) && hb_parclen( 8 ) > 0 )
+   if( hb_parclen( 8 ) )
       leto_acc_setPath( hb_parc( 8 ) );
 
    if( HB_ISLOG( 10 ) )
@@ -4944,7 +4944,10 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                         if( ulLen == 4 && ulLenOrg )
                         {
                            pBuffer = NULL;
-                           strcpy( szData1, "+F;1;" );
+                           if( hb_fsError() )
+                              sprintf( szData1, "+F;%d;", hb_fsError() );
+                           else
+                              strcpy( szData1, "+F;1;" );
                         }
                         else
                         {
@@ -4957,10 +4960,10 @@ static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
                      {
                         hb_xfree( pBuffer );
                         pBuffer = NULL;
-                        if( hb_fsError() )
+                        if( hb_fsError() != 2 )
                            sprintf( szData1, "+F;%d;", hb_fsError() );
                         else
-                           strcpy( szData1, "+F;2;" );
+                           strcpy( szData1, "+F;6;" );
                      }
                   }
                   else

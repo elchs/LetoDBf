@@ -3355,6 +3355,7 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    unsigned long ulLen;
 
 #ifdef LETO_SMBSERVER
+   LETOCONNECTION * pCallerConn = pConnection;
    const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
    const char * szAddr;
    const int    iOldPort = pConnection? pConnection->iPort : 0;
@@ -3384,6 +3385,7 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    szAddr = s_szAddr;
    HB_GC_UNLOCKE();
 
+   /* connection must be ready up, not the default at this point */
    pConnection = leto_ConnectionFind( szAddr, iPort );
    if( ! pConnection )
       return NULL;
@@ -3437,6 +3439,12 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
       }
       else
          pConnection->iError = 1021;
+
+#ifdef LETO_SMBSERVER
+      if( pCallerConn && pCallerConn != pConnection )
+         pCallerConn->iError = pConnection->iError;
+#endif
+
       return NULL;
    }
 
