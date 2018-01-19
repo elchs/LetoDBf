@@ -85,13 +85,21 @@ Function Main( cPath )
 
 #ifndef __XHARBOUR__
    ? 'leto_fCopyFromSrv( "test3.txt", "test2.txt" ) - '
-   ?? Iif( leto_fCopyFromSrv( "test3.txt", "test2.txt", 1000 ), "Ok", "Failure" )
+   lTmp := leto_fCopyFromSrv( "test3.txt", "test2.txt", 1000 )
+   ?? Iif( lTmp, "Ok", "Failure" )
    ?? Iif( FILE( "test3.txt" ), "!", "@" )
+   IF ! lTmp
+      ?? FError(), Leto_FError( .F. ), Leto_Ferror( .T. )
+   ENDIF
 
    MemoWrit( "test3.txt", Replicate( "z", 123456 ) )
    ? 'leto_fCopyToSrv( "test3.txt", "test2.txt" ) - '
-   ?? Iif( leto_fCopyToSrv( "test3.txt", "test2.txt", 1000 ), "Ok", "Failure" )
+   lTmp := leto_fCopyToSrv( "test3.txt", "test2.txt", 1000 )
+   ?? Iif( lTmp, "Ok", "Failure" )
    ?? Iif( leto_filesize( "test2.txt" ) == 123457, "!", "@" )  /* +1 for strg-z */
+   IF ! lTmp
+      ?? FError(), Leto_FError( .F. ), Leto_Ferror( .T. )
+   ENDIF
    FErase( "test3.txt" )
 #endif
 

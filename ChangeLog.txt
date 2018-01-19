@@ -2,6 +2,10 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-19 16:37 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * tests/test_file.prg
+    * add local and remote error-codes in case of leto_fCopy[To|From]Srv()
+
 2018-01-19 09:19 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     ! a missing 'dot'
