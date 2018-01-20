@@ -288,6 +288,7 @@ static HB_BOOL leto_CheckError( LETOAREAP pArea, LETOCONNECTION * pConnection )
 
 static _HB_INLINE_ void leto_PutRec( LETOAREAP pArea )
 {
+   hb_rddSetNetErr( HB_FALSE );
    if( LetoDbPutRecord( pArea->pTable ) != 0 )
    {
       LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
@@ -2446,6 +2447,7 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
 
       do
       {
+         hb_rddSetNetErr( HB_FALSE );
          pTable = LetoDbCreateTable( pConnection, szFile, pCreateInfo->atomAlias, szData,
                                      pCreateInfo->uiArea, pCreateInfo->cdpId );
          if( pTable )
@@ -2899,6 +2901,7 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
 
    do
    {
+      hb_rddSetNetErr( HB_FALSE );
       /* sets pTable->pTagCurrent */
       pTable = LetoDbOpenTable( pConnection, szFile, pOpenInfo->atomAlias,
                                 pOpenInfo->fShared, pOpenInfo->fReadonly,
@@ -4997,7 +5000,6 @@ static HB_ERRCODE letoDrop( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pItemI
    LETOCONNECTION * pConnection;
    char szTFileName[ HB_PATH_MAX ];
    char szIFileName[ HB_PATH_MAX ];
-   char szData[ ( 2 * HB_PATH_MAX ) + 16 ];
    const char * szTableFile, * szIndexFile;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoDrop(%p, %p, %lu)", pRDD, pItemTable, ulConnect ) );
@@ -5014,17 +5016,11 @@ static HB_ERRCODE letoDrop( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pItemI
    hb_rddSetNetErr( HB_FALSE );
    if( pConnection != NULL )
    {
-      HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;%s;", LETOCMD_drop, szTFileName, szIFileName, pConnection->szMemoExt );
+      HB_ERRCODE errCode = LetoDbDrop( pConnection, szTFileName, szIFileName );
 
-      if( leto_SendRecv( pConnection, NULL, szData, ulLen, 0 ) )
-      {
-         const char * ptr = leto_firstchar( pConnection );
-
-         if( *ptr == 'F' && *( ptr + 2 ) == '1' )
-            hb_rddSetNetErr( HB_TRUE );
-         if( *ptr == 'T' )
-            return HB_SUCCESS;
-      }
+      if( pConnection->iError == EDBF_SHARED )
+         hb_rddSetNetErr( HB_TRUE );
+      return errCode;
    }
 
    return HB_FAILURE;
@@ -5035,7 +5031,6 @@ static HB_ERRCODE letoExists( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pIte
    LETOCONNECTION * pConnection;
    char szTFileName[ HB_PATH_MAX ];
    char szIFileName[ HB_PATH_MAX ];
-   char szData[ ( 2 * HB_PATH_MAX ) + 16 ];
    const char * szTableFile, * szIndexFile;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoExists(%p, %p, %p, %lu)", pRDD, pItemTable, pItemIndex, ulConnect ) );
@@ -5049,15 +5044,7 @@ static HB_ERRCODE letoExists( LPRDDNODE pRDD, PHB_ITEM pItemTable, PHB_ITEM pIte
    pConnection = leto_OpenConn( NULL, szTableFile, szTFileName );
    pConnection = leto_OpenConn( pConnection, szIndexFile, szIFileName );
    if( pConnection != NULL )
-   {
-      HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;", LETOCMD_exists, szTFileName, szIFileName );
-
-      if( leto_SendRecv( pConnection, NULL, szData, ulLen, 0 ) )
-      {
-         if( *( leto_firstchar( pConnection ) ) == 'T' )
-            return HB_SUCCESS;
-      }
-   }
+      return LetoDbExists( pConnection, szTFileName, szIFileName );
 
    return HB_FAILURE;
 }

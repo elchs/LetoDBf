@@ -2,6 +2,22 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-20 18:25 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+    * changed logics for LETOSMBSERVER ( use of two LetoDBf server ):
+      # <HbMemIO tables> are only opened at server for exclusive action
+      # <exclusive> table are redirected to server for exclusive action
+      # <shared table> will be opened at both server;
+      at exclusive server only the table, no index is opened, as no further
+      action will happen with this; its just to notify exclusive server about
+    * new LetoDbExists() called from RDD letoExists() to possible redirect to
+      exclusive server for HbMemIO tables;
+      new LetoDbDrop() called from RDD letoDrop() as dito
+    * move all hb_rddSetNetErr() into leto1.c
+    * new fMemIO in connection struct to identify HbMemIO tables
+
 2018-01-19 16:37 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * tests/test_file.prg
     * add local and remote error-codes in case of leto_fCopy[To|From]Srv()

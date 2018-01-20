@@ -111,6 +111,13 @@
 
 static int      s_iSessions = 0;   /* a counter to control hb_socketInit() */
 
+#ifdef LETO_SMBSERVER
+   #define XSTR( s ) YSTR( s )
+   #define YSTR( s ) #s
+
+   static LETOCONNECTION * s_pExclusiveConn = NULL;
+#endif
+
 /* for backward compatibility to older Harbour */
 #if defined( __HARBOUR30__ )
 
@@ -3340,13 +3347,65 @@ static const char * leto_AddFields( LETOTABLE * pTable, HB_USHORT uiFields, cons
 }
 
 #ifdef LETO_SMBSERVER
-   #define XSTR( s ) YSTR( s )
-   #define YSTR( s ) #s
-   static char s_szAddr[ 96 ] = { 0 };
+static HB_BOOL LetoSetExclConn( LETOCONNECTION * pConnection )
+{
+   HB_BOOL bValid = HB_FALSE;
+
+   HB_GC_LOCKE();
+
+   if( ! s_pExclusiveConn )
+   {
+      LETOCONNECTION * pFoundConn;
+      const char * szAddr = XSTR( LETO_SMBSERVER );
+      const int    iPort = LETO_SMBPORT;
+      const char * szSrv = NULL;
+      char *       szIP = NULL;
+      const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
+      const int    iOldPort = pConnection? pConnection->iPort : 0;
+
+      HB_GC_UNLOCKE();
+
+      if( atoi( szAddr ) == 0 )  /* DNS name */
+      {
+         szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
+         if( szIP )
+            szSrv = szIP;
+      }
+
+      if( ! szSrv )
+         szSrv = szAddr;
+      pFoundConn = leto_ConnectionFind( szSrv, iPort );
+
+      HB_GC_LOCKE();
+
+      if( pFoundConn )
+      {
+         bValid = HB_TRUE;
+         s_pExclusiveConn = pFoundConn;
+         if( szOldAddr )
+            leto_ConnectionFind( szOldAddr, iOldPort );  /* reset current connection */
+      }
+
+      #ifdef LETO_CLIENTLOG
+         if( ! s_pExclusiveConn )
+            leto_clientlog( NULL, 0, "LetoSetExclConn() failed to find connection! " );
+      #endif
+
+      if( szIP )
+         hb_xfree( szIP );
+   }
+   else
+      bValid = HB_TRUE;
+
+   HB_GC_UNLOCKE();
+
+   return bValid;
+}
 #endif
 
 HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, const char * szFields, unsigned int uiArea, const char * szCdpage )
 {
+   LETOCONNECTION * pCallerConn = pConnection;
    LETOTABLE *   pTable;
    char *        szData;
    const char *  ptr = szFields;
@@ -3355,49 +3414,19 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    unsigned long ulLen;
 
 #ifdef LETO_SMBSERVER
-   LETOCONNECTION * pCallerConn = pConnection;
-   const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
-   const char * szAddr;
-   const int    iOldPort = pConnection? pConnection->iPort : 0;
-   const int    iPort = LETO_SMBPORT;
 
-   HB_GC_LOCKE();
-   if( ! *s_szAddr )
-   {
-      szAddr = XSTR( LETO_SMBSERVER );
-      if( atoi( szAddr ) == 0 )  /* DNS name */
-      {
-         char * szIP;
-
-         HB_GC_UNLOCKE();
-         szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
-         HB_GC_LOCKE();
-         if( szIP )
-         {
-            hb_strncpy( s_szAddr, szIP, 95 );
-            hb_xfree( szIP );
-         }
-      }
-
-      if( ! *s_szAddr )
-         hb_strncpy( s_szAddr, szAddr, 95 );
-   }
-   szAddr = s_szAddr;
-   HB_GC_UNLOCKE();
-
-   /* connection must be ready up, not the default at this point */
-   pConnection = leto_ConnectionFind( szAddr, iPort );
+   if( LetoSetExclConn( pConnection ) )
+      pConnection = s_pExclusiveConn;
+   else
+      return NULL;
    if( ! pConnection )
       return NULL;
-   else if( szOldAddr )
-      leto_ConnectionFind( szOldAddr, iOldPort );  /* reset current connection */
 
    #ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "LetoDbCreateTable() redirect to server %s:%d", szAddr, iPort );
+      leto_clientlog( NULL, 0, "LetoDbCreateTable() redirect to server %s:%d", pConnection->pAddr, pConnection->iPort );
    #endif
 #endif
 
-   hb_rddSetNetErr( HB_FALSE );
    /* count and low verify field definitions */
    while( *ptr )
    {
@@ -3416,8 +3445,8 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
                                  HB_PATH_MAX + HB_RDD_MAX_ALIAS_LEN + HB_RDD_MAX_DRIVERNAME_LEN );
 
    ulLen = eprintf( szData, "%c;%s;%s;%s;%d;%s;%d;%d;%s;%d;%s;%s;", LETOCMD_creat, szFile,
-                    szAlias ? szAlias : "", pConnection->szDriver,
-                    pConnection->uiMemoType,  pConnection->szMemoExt, pConnection->uiMemoBlocksize,
+                    szAlias ? szAlias : "", pCallerConn->szDriver,
+                    pCallerConn->uiMemoType,  pCallerConn->szMemoExt, pCallerConn->uiMemoBlocksize,
                     uiFields, szFields, uiArea, szCdpage ? szCdpage : "", hb_setGetDateFormat() );
    if( ! leto_DataSendRecv( pConnection, szData, ulLen ) )
    {
@@ -3432,11 +3461,7 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
       unsigned int  ui;
 
       if( ptr[ 4 ] == ':' )
-      {
          sscanf( ptr + 5, "%u-%u-", &ui, &pConnection->iError );
-         if( pConnection->iError == 1023 )
-            hb_rddSetNetErr( HB_TRUE );
-      }
       else
          pConnection->iError = 1021;
 
@@ -3452,6 +3477,7 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    pTable->uiConnection = pConnection->iConnection;
    pTable->iBufRefreshTime = pConnection->iBufRefreshTime;
    pTable->fShared = pTable->fReadonly = pTable->fEncrypted = HB_FALSE;
+   pTable->fMemIO = strstr( szFile, "mem:" ) != NULL;
 
    pTable->pLocksPos = NULL;
    pTable->ulLocksMax = pTable->ulLocksAlloc = 0;
@@ -3499,9 +3525,70 @@ HB_EXPORT HB_BOOL LetoProdSupport( void )
    return fSupportStruct;
 }
 
+HB_EXPORT HB_ERRCODE LetoDbDrop( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName )
+{
+   LETOCONNECTION * pCallerConn = pConnection;
+   char     szData[ ( 2 * HB_PATH_MAX ) + 16 ];
+   HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;%s;", LETOCMD_drop, szTFileName, szIFileName, pConnection->szMemoExt );
+
+#ifdef LETO_SMBSERVER
+   if( LetoSetExclConn( pConnection ) )
+   {
+      if( szTFileName && strstr( szTFileName, "mem:" ) != NULL )
+         pConnection = s_pExclusiveConn;
+   #ifdef LETO_CLIENTLOG
+         leto_clientlog( NULL, 0, "LetoDbExists() redirect to server %s:%d", pConnection->pAddr, pConnection->iPort );
+   #endif
+   }
+   else
+      return HB_FAILURE;
+#endif
+
+   if( leto_DataSendRecv( pConnection, szData, ulLen ) )
+   {
+      const char * ptr = leto_firstchar( pConnection );
+
+      if( *ptr == 'F' && *( ptr + 2 ) == '1' )
+         pCallerConn->iError = EDBF_SHARED;
+      else if( *ptr == 'T' )
+         return HB_SUCCESS;
+   }
+
+   return HB_FAILURE;
+}
+
+HB_EXPORT HB_ERRCODE LetoDbExists( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName )
+{
+   char     szData[ ( 2 * HB_PATH_MAX ) + 16 ];
+   HB_ULONG ulLen = eprintf( szData, "%c;%s;%s;", LETOCMD_exists, szTFileName, szIFileName );
+
+#ifdef LETO_SMBSERVER
+   if( LetoSetExclConn( pConnection ) )
+   {
+      if( szTFileName && strstr( szTFileName, "mem:" ) != NULL )
+         pConnection = s_pExclusiveConn;
+   #ifdef LETO_CLIENTLOG
+         leto_clientlog( NULL, 0, "LetoDbExists() redirect to server %s:%d", pConnection->pAddr, pConnection->iPort );
+   #endif
+   }
+   else
+      return HB_FAILURE;
+#endif
+
+   if( leto_DataSendRecv( pConnection, szData, ulLen ) )
+   {
+      if( *( leto_firstchar( pConnection ) ) == 'T' )
+         return HB_SUCCESS;
+   }
+
+   return HB_FAILURE;
+}
+
 HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias,
                                        HB_BOOL fShared, HB_BOOL fReadOnly, const char * szCdp, unsigned int uiArea )
 {
+   LETOCONNECTION * pCallerConn = pConnection;
+   HB_BOOL      fMemIO = strstr( szFile, "mem:" ) != NULL;
    char         szData[ HB_PATH_MAX + HB_RDD_MAX_ALIAS_LEN + HB_RDD_MAX_DRIVERNAME_LEN + 25 ];
    const char * ptr;
    char *       ptrTmp;
@@ -3509,55 +3596,47 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    HB_ULONG     ulLen;
 
 #ifdef LETO_SMBSERVER
-   LETOCONNECTION * pCallerConn = pConnection;
-
-   if( ! fShared )
+   if( LetoSetExclConn( pConnection ) )
    {
-      const char * szOldAddr = pConnection ? pConnection->pAddr : NULL;
-      const int    iOldPort = pConnection ? pConnection->iPort : 0;
-      const char * szAddr;
-      const int    iPort = LETO_SMBPORT;
-
-      HB_GC_LOCKE();
-      if( ! *s_szAddr )
+      if( ! fShared || fMemIO )
       {
-         szAddr = XSTR( LETO_SMBSERVER );
-         if( atoi( szAddr ) == 0 )  /* DNS name */
-         {
-            char * szIP;
-
-            HB_GC_UNLOCKE();
-            szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
-            HB_GC_LOCKE();
-            if( szIP )
-            {
-               hb_strncpy( s_szAddr, szIP, 95 );
-               hb_xfree( szIP );
-            }
-         }
-
-         if( ! *s_szAddr )
-            hb_strncpy( s_szAddr, szAddr, 95 );
-      }
-      szAddr = s_szAddr;
-      HB_GC_UNLOCKE();
-
-      pConnection = leto_ConnectionFind( szAddr, iPort );
-      if( ! pConnection )
-         return NULL;
-      else if( szOldAddr )
-         leto_ConnectionFind( szOldAddr, iOldPort );  /* reset current connection */
+         pConnection = s_pExclusiveConn;
 
    #ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "LetoDbOpenTable() redirect to server %s:%d", szAddr, iPort );
+         leto_clientlog( NULL, 0, "LetoDbOpenTable() redirect to server %s:%d", pConnection->pAddr, pConnection->iPort );
    #endif
+      }
+   }
+   else
+      return NULL;
+
+   if( fShared && ! fMemIO )
+   {
+   #ifdef LETO_CLIENTLOG
+      leto_clientlog( NULL, 0, "LetoDbOpenTable() duplicate to server %s:%d", s_pExclusiveConn->pAddr, s_pExclusiveConn->iPort );
+   #endif
+
+      ulLen = eprintf( szData, "%c;%s;%s;%c%c;%s;%s;%d;%s;", LETOCMD_open, szFile, szAlias,
+                       ( fShared ) ? 'T' : 'F', ( fReadOnly ) ? 'T' : 'F',
+                       szCdp, pCallerConn->szDriver, uiArea, hb_setGetDateFormat() );
+      if( ! leto_DataSendRecv( s_pExclusiveConn, szData, ulLen ) )
+         return NULL;
+      ptr = s_pExclusiveConn->szBuffer;
+      if( *ptr == '-' )
+      {
+         if( *( ptr + 3 ) == '4' )
+            pCallerConn->iError = EDBF_SHARED;
+         else
+            pCallerConn->iError = 1021;
+
+         return NULL;
+      }
    }
 #endif
 
-   hb_rddSetNetErr( HB_FALSE );
    ulLen = eprintf( szData, "%c;%s;%s;%c%c;%s;%s;%d;%s;", LETOCMD_open, szFile, szAlias,
                     ( fShared ) ? 'T' : 'F', ( fReadOnly ) ? 'T' : 'F',
-                    szCdp, pConnection->szDriver, uiArea, hb_setGetDateFormat() );
+                    szCdp, pCallerConn->szDriver, uiArea, hb_setGetDateFormat() );
    if( ! leto_DataSendRecv( pConnection, szData, ulLen ) )
       return NULL;
 
@@ -3568,9 +3647,13 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
          pConnection->iError = EDBF_SHARED;
       else if( ptr[ 4 ] == ':' )
       {
-         unsigned int uErr;
+         unsigned int uErr, uOsErr;
 
-         sscanf( ptr + 5, "%u-%u-", &uErr, &pConnection->iError );
+         sscanf( ptr + 5, "%u-%u-%u-", &uErr, &pConnection->iError, &uOsErr );
+#ifdef LETO_SMBSERVER
+         if( uOsErr == 5 && ! fShared )
+            pConnection->iError = EDBF_SHARED;
+#endif
       }
       else
          pConnection->iError = 1021;
@@ -3587,6 +3670,7 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    pTable = ( LETOTABLE * ) hb_xgrabz( sizeof( LETOTABLE ) );
    pTable->uiConnection = pConnection->iConnection;
 
+   pTable->fMemIO = fMemIO;
    pTable->fShared = fShared;
    pTable->fReadonly = fReadOnly;
    pTable->fEncrypted = HB_FALSE;
@@ -3635,6 +3719,13 @@ HB_EXPORT HB_ERRCODE LetoDbCloseTable( LETOTABLE * pTable )
       {
          HB_ULONG ulLen = eprintf( szData, "%c;%lu;", LETOCMD_close, pTable->hTable );
 
+#ifdef LETO_SMBSERVER
+         if( pTable->fShared && ! pTable->fMemIO )
+         {
+            if( LetoSetExclConn( pConnection ) )
+               leto_SendRecv2( s_pExclusiveConn, szData, ulLen, 1021 );
+         }
+#endif
          if( ! leto_SendRecv2( pConnection, szData, ulLen, 1021 ) )
             return HB_FAILURE;
       }
@@ -4328,7 +4419,6 @@ HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
 
    if( pTable->fReadonly )
       return HB_FAILURE;
-   hb_rddSetNetErr( HB_FALSE );
 
    for( ui = 0; ui < pTable->uiFieldExtent; ui++ )
    {

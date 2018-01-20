@@ -179,6 +179,7 @@ typedef struct _LETOTABLE
    signed char       BufDirection;
    unsigned long     lLastUpdate;       /* from dbf header: last update */
    int               iBufRefreshTime;   /* cache refresh time in 1/100 sec */
+   HB_BOOL           fMemIO;            /* 'mem:' in filename */
    HB_BOOL           fAutoRefresh;      /* if true fetch autorefresh data from server if hotbuffer elapsed */
    LETOTAGINFO *     pTagInfo;
    LETOTAGINFO *     pTagCurrent;       /* current order */
@@ -290,6 +291,8 @@ void LetoDbFreeTag( LETOTAGINFO * pTagInfo );
 HB_ERRCODE LetoRddInfo( LETOCONNECTION * pConnection, HB_USHORT uiIndex, const char * szNewSet );
 HB_BOOL LetoProdSupport( void );
 HB_ERRCODE LetoDbCloseTable( LETOTABLE * pTable );
+HB_ERRCODE LetoDbDrop( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
+HB_ERRCODE LetoDbExists( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
 LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, const char * szFields, unsigned int uiArea, const char * szCdpage );
 LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, int iShared, int iReadOnly, const char * szCdp, unsigned int uiArea );
 const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, unsigned long * ulLen );
