@@ -668,13 +668,11 @@ HB_FUNC( LETO_FCOPYFROMSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
       {
          PHB_FILE pFile;
          HB_SIZE  nStepSize = HB_ISNUM( 3 ) && hb_parni( 3 ) > 0 ? hb_parni( 3 ) : 0x100000;
-         HB_FATTR nMode = FO_READWRITE | FO_DENYNONE | FO_PRIVATE | FXO_TRUNCATE | FXO_SHARELOCK;
+         HB_FATTR nMode = FO_READWRITE | FO_DENYNONE | FXO_TRUNCATE | FXO_SHARELOCK;
 
          if( ! LetoFileExist( pConnection, szFile ) )
             hb_fsSetFError( 2 );
-         else
-            hb_fsSetFError( 0 );
-         if( ! hb_fsError() && ( pFile = hb_fileExtOpen( hb_parc( 1 ), NULL, nMode, NULL, NULL ) ) != NULL )
+         else if( ( pFile = hb_fileExtOpen( hb_parc( 1 ), NULL, nMode, NULL, NULL ) ) != NULL )
          {
             HB_USHORT    uStep = 0;
             HB_ULONG     ulLen;
