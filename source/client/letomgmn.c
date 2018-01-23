@@ -47,11 +47,6 @@
 
 #include "rddleto.h"
 
-#define LETOVAR_LOG      '1'
-#define LETOVAR_NUM      '2'
-#define LETOVAR_STR      '3'
-#define LETOVAR_ARR      '4'
-#define LETOVAR_DAT      '5'
 #ifndef __XHARBOUR__
    #define LETOVAR_TYPES    ( HB_IT_LOGICAL | HB_IT_NUMERIC | HB_IT_STRING | HB_IT_ARRAY | HB_IT_DATE )
 #else
@@ -170,7 +165,7 @@ static LETOCONNECTION * letoParseParam( const char * szParam, char * szFile )
       pConnection = letoGetCurrConn();
       hb_strncpy( szFile, szParam, HB_PATH_MAX - 1 );
    }
-   leto_BeautifyPath( szFile );
+   leto_BeautifyPath( szFile, 0 );
 
    return pConnection;
 }
@@ -1393,7 +1388,7 @@ HB_FUNC( LETO_MGGETTIME )
 
    if( pCurrentConn )
    {
-      char * ptr = LetoMgGetTime( pCurrentConn );
+      const char * ptr = LetoMgGetTime( pCurrentConn );
 
       if( ptr && *( ptr - 1 ) == '+' )
       {
@@ -1405,7 +1400,7 @@ HB_FUNC( LETO_MGGETTIME )
          aInfo = hb_itemArrayNew( 3 );
          for( i = 1; i <= 3; i++ )
          {
-            if( ! LetoGetCmdItem( &ptr, szData ) )
+            if( ( ptr = LetoGetCmdItem( ptr, szData ) ) != NULL )
             {
                hb_itemReturnRelease( aInfo );
                return;

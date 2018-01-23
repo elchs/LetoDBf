@@ -2147,11 +2147,11 @@ static LETOCONNECTION * leto_OpenConn( LETOCONNECTION * pConnection, const char 
 
    uiPathLen = ( HB_USHORT ) strlen( szFile );
    if( uiPathLen )
-      leto_BeautifyPath( szFile );  /* possible double action */
+      leto_BeautifyPath( szFile, 0 );  /* possible double action */
    else
    {
       strcpy( szFile, leto_RemoveIpFromPath( szParam ) );
-      leto_BeautifyPath( szFile );
+      leto_BeautifyPath( szFile, 0 );
    }
 
    return pConnection;
@@ -2185,7 +2185,7 @@ static LETOCONNECTION * leto_OpenConnection( LETOAREAP pArea, LPDBOPENINFO pOpen
    if( pOpenInfo->abName )
    {
       strcpy( szFile, leto_RemoveIpFromPath( pOpenInfo->abName ) );
-      leto_BeautifyPath( szFile );
+      leto_BeautifyPath( szFile, 0 );
    }
 
    if( ! pConnection )
@@ -3660,6 +3660,26 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
    return HB_SUCCESS;
 }
 
+static HB_BOOL LetoProdSupport( void )
+{
+   LPRDDNODE pRDDNode;
+   HB_USHORT uiRddID;
+   HB_BOOL   fSupportStruct = HB_FALSE;
+
+   pRDDNode = hb_rddFindNode( "LETO", &uiRddID );
+   if( pRDDNode )
+   {
+      PHB_ITEM pItem = NULL;
+
+      pItem = hb_itemPutC( pItem, NULL );
+      if( SELF_RDDINFO( pRDDNode, RDDI_STRUCTORD, 0, pItem ) == HB_SUCCESS )
+         fSupportStruct = hb_itemGetL( pItem );
+      hb_itemRelease( pItem );
+   }
+
+   return fSupportStruct;
+}
+
 static HB_ERRCODE letoOrderListClear( LETOAREAP pArea )  /* OrdListClear() */
 {
    LETOTABLE *   pTable = pArea->pTable;
@@ -4658,7 +4678,6 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
 
             uiKeyLen = leto_KeyToStr( pArea, szKey, cType, pItem, pTagInfo->uiKeySize );
             leto_AddKeyToBuf( pData, szKey, uiKeyLen, ( unsigned long * ) &ulLen );
-            hb_xfree( szKey );
          }
          else
             *( pData + ulLen ) = '\0';

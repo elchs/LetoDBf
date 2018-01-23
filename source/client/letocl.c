@@ -484,9 +484,9 @@ HB_EXPORT const char * LetoGetServerVer( LETOCONNECTION * pConnection )
    return pConnection->szVersion;
 }
 
-HB_EXPORT int LetoGetCmdItem( char ** pptr, char * szDest )
+HB_EXPORT const char * LetoGetCmdItem( const char * ptr, char * szDest )
 {
-   char * ptr = *pptr;
+   const char * ptr1 = ptr;
 
    if( ptr )
    {
@@ -494,15 +494,15 @@ HB_EXPORT int LetoGetCmdItem( char ** pptr, char * szDest )
          ptr++;
       if( *ptr )
       {
-         if( ptr > *pptr )
-            memcpy( szDest, *pptr, ptr - *pptr );
-         szDest[ ptr - *pptr ] = '\0';
-         *pptr = ptr;
-         return 1;
+         if( ptr > ptr1 )
+            memcpy( szDest, ptr1, ptr - ptr1 );
+         szDest[ ptr - ptr1 ] = '\0';
+
+         return ptr;
       }
    }
 
-   return 0;
+   return NULL;
 }
 
 HB_EXPORT const char * LetoFindCmdItem( const char * ptr )
@@ -604,13 +604,15 @@ static HB_SOCKET leto_ipConnect( const char * szHost, int iPort, int iTimeOut, L
          hb_socketClose( sd );
          sd = HB_NO_SOCKET;
       }
-      hb_xfree( pSockAddr );
+
+      if( pSockAddr )
+         hb_xfree( pSockAddr );
    }
    else
       iErrorCode = hb_socketGetError();
 
-   hb_xfree( pszIpAddres );
-
+   if( pszIpAddres )
+      hb_xfree( pszIpAddres );
    if( pConnection )
       pConnection->iErrorCode = iErrorCode;
 
@@ -621,6 +623,10 @@ static HB_SOCKET leto_ipConnect( const char * szHost, int iPort, int iTimeOut, L
 
 HB_EXPORT void LetoInit( void )
 {
+#ifdef __LETO_C_API__
+   hb_vmInit( HB_FALSE );
+#endif
+
 #ifndef LETO_NO_MT
    LETOPOOL * pLetoPool = ( LETOPOOL * ) hb_stackGetTSD( &s_TSData );
 
@@ -674,7 +680,7 @@ HB_EXPORT void LetoExit( unsigned int uiFull )
    }
 }
 
-#else
+#else  /* LETO_NO_MT */
 
 HB_EXPORT void LetoExit( unsigned int uiFull )
 {
@@ -706,6 +712,9 @@ HB_EXPORT void LetoExit( unsigned int uiFull )
    {
       leto_ipCleanup();
       leto_BFExit();
+#ifdef __LETO_C_API__
+      hb_vmQuit();
+#endif
    }
 }
 #endif
@@ -744,7 +753,6 @@ static long leto_RecvFirst( LETOCONNECTION * pConnection )
    do
    {
       lRet = hb_socketRecv( hSocket, ptr, ulMsgLen, 0, pConnection->iTimeOut );
-
       if( lRet <= 0 )
          break;
       else
@@ -1419,19 +1427,36 @@ const char * leto_RemoveIpFromPath( const char * szPath )
 }
 
 /* remove drive letter and duplicated path separator at beginning */
-void leto_BeautifyPath( char * szPath )
+void leto_BeautifyPath( char * szPath, const char cReplace )
 {
-   char * ptr = szPath;
+   char *  ptr = szPath;
+   int     iLen = strlen( ptr );
 
    if( *ptr && ptr[ 1 ] == ':' )  /* C:... */
-      memmove( szPath, ptr + 2, strlen( ptr + 2 ) + 1 );  /* including '\0' */
+   {
+      memmove( szPath, ptr + 2, iLen - 1 );  /* including '\0' */
+      iLen -= 2;
+   }
 
    if( *ptr == '/' || *ptr == '\\' )
    {
-      ptr++;
+      if( cReplace )
+         *ptr = cReplace;
+      iLen = strlen( ptr++ );
+
       while( *ptr == '/' || *ptr == '\\' )
       {
-         memmove( ptr, ptr + 1, strlen( ptr + 1 ) + 1 );  /* including '\0' */
+         memmove( ptr, ptr + 1, iLen-- );  /* including '\0' */
+      }
+   }
+
+   if( cReplace )
+   {
+      while( iLen-- )
+      {
+         if( *ptr == '/' || *ptr == '\\' )
+            *ptr = cReplace;
+         ptr++;
       }
    }
 }
@@ -3047,7 +3072,7 @@ HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, co
    if( pConnection->iConnectRes )
    {
 #ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "LETODB CONNECT ERROR %d %d", pConnection->iConnectRes, ui );
+      leto_clientlog( NULL, 0, "ERROR LetoConnectionNew(%d)", pConnection->iConnectRes );
 #endif
       LetoConnectionClose( pConnection );
       return NULL;
@@ -3505,26 +3530,6 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    return pTable;
 }
 
-HB_EXPORT HB_BOOL LetoProdSupport( void )
-{
-   LPRDDNODE pRDDNode;
-   HB_USHORT uiRddID;
-   HB_BOOL   fSupportStruct = HB_FALSE;
-
-   pRDDNode = hb_rddFindNode( "LETO", &uiRddID );
-   if( pRDDNode )
-   {
-      PHB_ITEM pItem = NULL;
-
-      pItem = hb_itemPutC( pItem, NULL );
-      if( SELF_RDDINFO( pRDDNode, RDDI_STRUCTORD, 0, pItem ) == HB_SUCCESS )
-         fSupportStruct = hb_itemGetL( pItem );
-      hb_itemRelease( pItem );
-   }
-
-   return fSupportStruct;
-}
-
 HB_EXPORT HB_ERRCODE LetoDbDrop( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName )
 {
    LETOCONNECTION * pCallerConn = pConnection;
@@ -3584,6 +3589,88 @@ HB_EXPORT HB_ERRCODE LetoDbExists( LETOCONNECTION * pConnection, const char * sz
    return HB_FAILURE;
 }
 
+#ifdef LETO_SMBSERVER
+/* mode 0 = a single, 1 = double found, 2 = DENY_ALL */
+static HB_BOOL LetoCaramba( const char * szFilename, int iMode )
+{
+   HB_SIZE      nStdOut = 0, nStdErr = 0;
+   char *       pStdOutBuf = NULL;
+   char *       pStdErrBuf = NULL;
+   int          iResult;
+
+   iResult = hb_fsProcessRun( "smbstatus -L", NULL, 0, &pStdOutBuf, &nStdOut, &pStdErrBuf, &nStdErr, HB_FALSE );
+   if( pStdErrBuf )
+      hb_xfree( pStdErrBuf );  /* just suppressed error messages */
+   hb_fsSetFError( hb_fsError() );
+   if( iResult || hb_fsGetFError() )
+   {
+      if( pStdOutBuf )
+         hb_xfree( pStdOutBuf );
+      return HB_FALSE;
+   }
+   else
+   {
+      if( ! pStdOutBuf )
+         return HB_FALSE;
+      else
+      {
+         char         szFile[ HB_PATH_MAX ];
+         int          iLen;
+         int          iStart;
+         const char * ptr, * ptr1, *ptr2;
+         HB_BOOL      fResult = HB_FALSE;
+
+         if( ( ptr = strrchr( szFilename, '.' ) ) != NULL )
+         {
+            /* cut away dot in first pos or ".." elks */
+            if( ptr >= szFilename && ( ptr == szFilename || *( ptr - 1 ) == '.' ) )
+            {
+               szFilename = ptr + 1;
+               while( *szFilename == '/' || *szFilename == '\\' )
+                  szFilename++;
+            }
+         }
+         iLen = strlen( szFilename );
+         hb_strncpy( szFile, szFilename, HB_MIN( HB_PATH_MAX - 1, iLen ) );
+         leto_BeautifyPath( szFile, '/' );
+
+         if( iLen )
+         {
+            pStdOutBuf[ nStdOut ] = '\0';
+            ptr1 = pStdOutBuf;
+            ptr = leto_stristr( ptr1, szFile );
+            if( ptr && iMode < 2 )
+            {
+               if( iMode == 1 )
+                  ptr = leto_stristr( ptr, szFile );
+               if( ptr )
+               {
+                  fResult = HB_TRUE;
+                  ptr = NULL;
+               }
+            }
+
+            while( ptr )
+            {
+               iStart = HB_MIN( 99, ptr - ptr1 - iLen );
+               fResult = ( ( ptr2 = strstr( ptr - iStart, "DENY_ALL" ) ) != NULL ) && ptr2 < ptr - iLen;
+               if( fResult )
+                  break;
+               else
+               {
+                  ptr1 = ptr;
+                  ptr = leto_stristr( ptr1, szFile );
+               }
+            }
+         }
+
+         hb_xfree( pStdOutBuf );
+         return fResult;
+      }
+   }
+}
+#endif
+
 HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias,
                                        HB_BOOL fShared, HB_BOOL fReadOnly, const char * szCdp, unsigned int uiArea )
 {
@@ -3616,6 +3703,14 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
       leto_clientlog( NULL, 0, "LetoDbOpenTable() duplicate to server %s:%d", s_pExclusiveConn->pAddr, s_pExclusiveConn->iPort );
    #endif
 
+#if 0
+      if( LetoCaramba( szFile, 2 ) )
+      {
+         pCallerConn->iError = EDBF_SHARED;
+         return NULL;
+      }
+#endif
+
       ulLen = eprintf( szData, "%c;%s;%s;%c%c;%s;%s;%d;%s;", LETOCMD_open, szFile, szAlias,
                        ( fShared ) ? 'T' : 'F', ( fReadOnly ) ? 'T' : 'F',
                        szCdp, pCallerConn->szDriver, uiArea, hb_setGetDateFormat() );
@@ -3626,6 +3721,14 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
       {
          if( *( ptr + 3 ) == '4' )
             pCallerConn->iError = EDBF_SHARED;
+         else if( ptr[ 4 ] == ':' )
+         {
+            unsigned int uErr, uOsErr;
+
+            sscanf( ptr + 5, "%u-%u-%u-", &uErr, &pConnection->iError, &uOsErr );
+            if( uOsErr == 5 || uOsErr == 16 )
+               pCallerConn->iError = EDBF_SHARED;
+         }
          else
             pCallerConn->iError = 1021;
 
@@ -3651,17 +3754,15 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
 
          sscanf( ptr + 5, "%u-%u-%u-", &uErr, &pConnection->iError, &uOsErr );
 #ifdef LETO_SMBSERVER
-         if( uOsErr == 5 && ! fShared )
+         if( ( uOsErr == 5 || uOsErr == 16 ) && ! fShared )
             pConnection->iError = EDBF_SHARED;
 #endif
       }
       else
          pConnection->iError = 1021;
 
-#ifdef LETO_SMBSERVER
       if( pCallerConn && pCallerConn != pConnection )
          pCallerConn->iError = pConnection->iError;
-#endif
 
       return NULL;
    }
@@ -3684,6 +3785,16 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    ptr = ++ptrTmp;
    pTable->uiDriver = *ptr - '0';  /* LETO_CDX = '0', LETO_NTX = '1' */
    ptr += 2;
+
+#ifdef LETO_SMBSERVER
+   if( ! fShared && ! fMemIO && LetoCaramba( szFile, 1 ) )
+   {
+      pCallerConn->iError = EDBF_SHARED;
+      LetoDbCloseTable( pTable );
+
+      return NULL;
+   }
+#endif
 
    /* update MemoType, MemoFileExt, MemoVersion, LockScheme .. */
    ptr = leto_ReadMemoInfo( pTable, ptr );
@@ -4326,7 +4437,7 @@ HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHO
                        ( char ) ( ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 )
                                   | ( fSoftSeek ? 0x10 : 0 )
                                   | ( fFindLast ? 0x20 : 0 ) ) );
-      leto_AddKeyToBuf( szData, szKey, uiKeyLen, &ulLen );  /* trailing */
+      leto_AddKeyToBuf( szData, szKey,  uiKeyLen ? uiKeyLen : strlen( szKey ), &ulLen );  /* trailing */
       if( ! leto_SendRecv( pConnection, szData, ulLen, 1021 ) )
          return 1;
 
@@ -5084,7 +5195,7 @@ HB_EXPORT int LetoMgKillUser( LETOCONNECTION * pConnection, const char * szUserI
    return iRet;
 }
 
-HB_EXPORT char * LetoMgGetTime( LETOCONNECTION * pConnection )
+HB_EXPORT const char * LetoMgGetTime( LETOCONNECTION * pConnection )
 {
    char szData[ 6 ];
 
@@ -5110,6 +5221,8 @@ HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, co
    if( pRetValue )
       cFlag2 |= LETO_VPREVIOUS;
 
+   if( ! uiLength )
+      uiLength = strlen( pValue );
    pData = ( char * ) hb_xgrab( ulLen );
    ulLen = eprintf( pData, "%c;%c;%s;%s;%c%c%c;", LETOCMD_var, LETOSUB_set, szGroup, szVar, cType, cFlag1, cFlag2 );
    ptr = pData + ulLen;
@@ -5714,4 +5827,31 @@ HB_EXPORT HB_BOOL leto_Ping( LETOCONNECTION * pConnection )
 HB_EXPORT void LetoFreeStr( char * szStr )
 {
    hb_xfree( szStr );
+}
+
+HB_EXPORT void LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort )
+{
+   *iPort = 2812;
+   if( argc < 2 )
+      strcpy( szAddr, "127.0.0.1" );
+   else
+   {
+      char * ptr = argv[ 1 ], * ptrPort;
+      unsigned int uiLen;
+
+      if( ! strncmp( ptr, "//", 2 ) )
+         ptr += 2;
+      if( ( ptrPort = strchr( ptr, ':' ) ) != NULL )
+      {
+         uiLen = ptrPort - ptr;
+         *iPort = atol( ptrPort + 1 );
+      }
+      else
+         uiLen = strlen( ptr );
+      memcpy( szAddr, ptr, uiLen );
+      ptr = szAddr + uiLen;
+      if( *( ptr - 1 ) == '/' || *( ptr -1 ) == '\\' )
+        ptr--;
+      *ptr = '\0';
+   }
 }

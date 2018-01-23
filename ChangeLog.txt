@@ -2,6 +2,25 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-23 12:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * include/rddleto.ch
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+  * source/common/common_c.c
+    ! by chance found wrong hb_xfree() in letoOrderInfo() for sincerly extreme
+      rarely used DBOI_KEYADD
+    ! add query for smbstatus, add errno 16 as silent NetErr() for exclusive,
+      plus more refinements for LETOSMBSERVER hack
+    * rework of leto_BeautifyPath()
+    ; changes below relate to a different topic, work in progress
+    * move LetoProdSupport() as static into leto1.c to clean out RDD methods
+    * move LETOVAR_* defines into rddleto.ch
+    * calculate length if not given in LetoDbDrop()/ LetoVarSet()
+    * new define __LETO_C_API__
+    * add exported function LetoSetAddrress() for C-API
+
 2018-01-21 13:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     * remove one file attribute and query for hb_fsError() before proceeding

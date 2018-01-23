@@ -276,7 +276,7 @@ void LetoExit( unsigned int uiFull );
 void LetoSetCdp( const char * szCdp );
 HB_ERRCODE LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szCommand );
 int LetoGetConnectRes( void );
-int LetoGetCmdItem( char ** pptr, char * szDest );
+const char * LetoGetCmdItem( const char * ptr, char * szDest );
 const char * LetoFindCmdItem( const char * ptr );
 void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
 LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
@@ -289,7 +289,6 @@ HB_BOOL LetoSetFastAppend( int uiFApp );
 void leto_clientlog( const char * sFile, int n, const char * s, ... );
 void LetoDbFreeTag( LETOTAGINFO * pTagInfo );
 HB_ERRCODE LetoRddInfo( LETOCONNECTION * pConnection, HB_USHORT uiIndex, const char * szNewSet );
-HB_BOOL LetoProdSupport( void );
 HB_ERRCODE LetoDbCloseTable( LETOTABLE * pTable );
 HB_ERRCODE LetoDbDrop( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
 HB_ERRCODE LetoDbExists( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
@@ -331,6 +330,7 @@ unsigned int LetoDbFieldType( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned in
 unsigned int LetoDbFieldLen( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiLen );
 unsigned int LetoDbFieldDec( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiDec );
 void LetoFreeStr( char * szStr );
+void LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort );
 
 long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * sData, unsigned long ulLen );
 unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr );
@@ -338,9 +338,10 @@ LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
 LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort );
 /* int LetoCheckServerVer( LETOCONNECTION * pConnection, HB_USHORT uiVer ); */
 const char * leto_RemoveIpFromPath( const char * szPath );
-void leto_BeautifyPath( char * szPath );
+void leto_BeautifyPath( char * szPath, const char cReplace );
 HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, char * szPath );
 void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMax );
+const char * leto_stristr( const char * s1, const char * s2 );
 
 const char * leto_DecryptText( LETOCONNECTION * pConnection, unsigned long * pulLen, char * ptr );
 HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead );
@@ -352,7 +353,7 @@ const char * LetoMgGetTables( LETOCONNECTION * pConnection, const char * szUser,
 const char * LetoMgGetIndex( LETOCONNECTION * pConnection, const char * szUser, const char * szTable, const char * szList );
 const char * LetoMgGetLocks( LETOCONNECTION * pConnection, const char * szUser, const char * szTable, const char * szList );
 int LetoMgKillUser( LETOCONNECTION * pConnection, const char * szUserId );
-char * LetoMgGetTime( LETOCONNECTION * pConnection );
+const char * LetoMgGetTime( LETOCONNECTION * pConnection );
 
 int LetoGetError( void );
 int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, char cType, const char * szValue, unsigned int uilLength, unsigned int uiFlags, char ** pRetValue );
@@ -390,5 +391,8 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
    #define Leto_VarExprSync( connection, arr, resync )  /* do { } while( 0 ) */
 #endif
 
-
+#ifdef __LETO_C_API__
+   #define LETO_NO_MT      1
+   #define LETO_NO_THREAD  1
+#endif
 

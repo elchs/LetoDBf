@@ -78,6 +78,13 @@
 #define LETO_VPREVIOUS       16
 #define LETO_VNOCREAT        64
 
+/* C-level var types */
+#define LETOVAR_LOG          '1'
+#define LETOVAR_NUM          '2'
+#define LETOVAR_STR          '3'
+#define LETOVAR_ARR          '4'
+#define LETOVAR_DAT          '5'
+
 #define LETO_VPREFIX          "S_"
 
 /* LetoDBf specific rddinfo() */

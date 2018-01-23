@@ -186,7 +186,6 @@ int leto_CPUCores( void )
    return iCores;
 }
 
-
 #if defined( HB_OS_LINUX ) && ! defined( __NO_CPU_LOAD )
 HB_UINT leto_CPULoad( void )
 {
@@ -479,6 +478,25 @@ int leto_stricmp( const char * s1, const char * s2 )
    while( *s1++ );
 
    return 0;
+}
+
+const char * leto_stristr( const char * s1, const char * s2 )
+{
+   const char * s0 = s2;
+
+   do
+   {
+      if( s_Upper[ ( const unsigned char ) *s1++ ] == s_Upper[ ( const unsigned char ) *s0 ] )
+         s0++;
+      else
+         s0 = s2;
+   }
+   while( *s1 && *s0 );
+
+   if( ! *s0 )
+      return s1;
+   else
+      return NULL;
 }
 
 void leto_byte2hexchar( const char * ptri, int iLen, char * ptro )
@@ -776,7 +794,7 @@ HB_FUNC( LETO_BROADCASTIP )
             if( ptr )
                cNetm += ( ptr - cNetm ) + 1;
          }
-      
+
          nPosBC += sprintf( szBroadcast + nPosBC, "%d", ( HB_UCHAR ) ( nPosIP | ( ~ nPosNM ) ) );
          if( nTuple++ < 4 )
             szBroadcast[ nPosBC++ ] = '.';
