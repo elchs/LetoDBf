@@ -1400,7 +1400,7 @@ HB_FUNC( LETO_MGGETTIME )
          aInfo = hb_itemArrayNew( 3 );
          for( i = 1; i <= 3; i++ )
          {
-            if( ( ptr = LetoGetCmdItem( ptr, szData ) ) != NULL )
+            if( ( ptr = LetoGetCmdItem( ptr, szData ) ) == NULL )
             {
                hb_itemReturnRelease( aInfo );
                return;
