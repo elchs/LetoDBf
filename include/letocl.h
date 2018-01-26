@@ -341,7 +341,6 @@ const char * leto_RemoveIpFromPath( const char * szPath );
 void leto_BeautifyPath( char * szPath, const char cReplace );
 HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, char * szPath );
 void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMax );
-const char * leto_stristr( const char * s1, const char * s2 );
 
 const char * leto_DecryptText( LETOCONNECTION * pConnection, unsigned long * pulLen, char * ptr );
 HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead );
@@ -383,16 +382,11 @@ void leto_SetUpdated( LETOTABLE * pTable, HB_USHORT uiUpdated );
 const char * leto_ParseTagInfo( LETOTABLE * pTable, const char * pBuffer );
 void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen, unsigned long * pulLen );
 
-#ifndef __XHARBOUR__
-   extern HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr );
-   extern HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync );
-   extern HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr );
+#if ! defined( __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
+   HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr );
+   HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync );
+   HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr );
 #else
    #define Leto_VarExprSync( connection, arr, resync )  /* do { } while( 0 ) */
-#endif
-
-#ifdef __LETO_C_API__
-   #define LETO_NO_MT      1
-   #define LETO_NO_THREAD  1
 #endif
 

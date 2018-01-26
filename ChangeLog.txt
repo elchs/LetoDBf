@@ -2,6 +2,20 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-26 17:29 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * letodb.hbp
+  * letodbsvc.hbp
+    * add cflag to activate smbstatus check
+
+  * include/letocl.h
+  * include/funcleto.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+  * source/server/letofunc.c
+    ! move smbstatus check from client side to server !
+    * remove remaining senseless 'extern' attribute, all is 'here'
+
 2018-01-23 19:44 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     ! '==' not '!='; a type with change of LetoGetCmdItem()

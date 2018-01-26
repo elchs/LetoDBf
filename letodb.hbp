@@ -17,6 +17,7 @@
 #-plugin=plugrand.hb
 
 #-cflag=-D__HARBOUR30__=1
+#-prgflag=-D__HARBOUR30__=1
 
 
 # --- down here you should not modify without deeper knowledge about why ---
@@ -43,6 +44,9 @@
 {bcc&__BM}-lrddbm
 {!bcc&__BM}rddbm.hbc
 
+# outcomment to activate smbstatus check for exclusive tables
+#-cflag=-DLETO_SMBSERVER=1
+
 -prgflag={unix}-D__LINUX_DAEMON__
 #-prgflag={unix}-D__CONSOLE__
 -prgflag={win}-D__WIN_DAEMON__
@@ -55,6 +59,7 @@
 #-cflag={win}-DHB_HELGRIND_FRIENDLY=1
 {__BM}-prgflag=-D__BM
 {__BM}-cflag=-D__BM=1
+{__LZ4}-prgflag=-DUSE_LZ4=1
 {__LZ4}-cflag=-DUSE_LZ4=1
 {__PMURHASH}-cflag=-DUSE_PMURHASH=1
 

@@ -171,6 +171,7 @@ extern int leto_CPULoad( void );
 extern HB_UCHAR leto_n2b( char * s, HB_U32 n );
 extern HB_ULONG leto_b2n( const char * s, HB_UCHAR iLenLen );
 extern int leto_stricmp( const char * s1, const char * s2 );
+extern const char * leto_stristr( const char * s1, const char * s2 );
 extern HB_BOOL leto_CbTrim( char * szCodeblock );
 extern HB_U32 leto_hash( const char * str, int iLen );
 

@@ -53,16 +53,16 @@
    #define LETOVAR_TYPES    ( HB_IT_LOGICAL | HB_IT_NUMERIC | HB_IT_STRING | HB_IT_DATE )
 #endif
 
-extern LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
-extern LETOCONNECTION * letoGetCurrConn( void );
-extern LETOCONNECTION * leto_getConnection( int iParam );
-extern HB_USHORT uiGetConnCount( void );
+LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
+LETOCONNECTION * letoGetCurrConn( void );
+LETOCONNECTION * leto_getConnection( int iParam );
+HB_USHORT uiGetConnCount( void );
 
-extern void leto_ConnectionClose( LETOCONNECTION * pConnection );
-extern void letoClearCurrConn( void );
+void leto_ConnectionClose( LETOCONNECTION * pConnection );
+void letoClearCurrConn( void );
 
-extern void leto_clientlog( const char * sFile, int n, const char * s, ... );
-extern HB_BOOL leto_Ping( LETOCONNECTION * pConnection );
+void leto_clientlog( const char * sFile, int n, const char * s, ... );
+HB_BOOL leto_Ping( LETOCONNECTION * pConnection );
 
 
 #ifndef LETO_NO_MT
@@ -2561,7 +2561,7 @@ HB_FUNC( LETO_UDF )
       hb_ret();
 }
 
-#ifndef __XHARBOUR__
+#if ! defined( __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
 
 /* with szDst == NULL test only and break with first valid memvar -- else collect also into optional 3-dim pArr */
 HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr )
@@ -3063,7 +3063,7 @@ HB_FUNC( LETO_VAREXPRSYNC )
 
 #else
 
-extern char * LetoSetModName( char * szModule );
+char * LetoSetModName( char * szModule );
 
 HB_FUNC( HB_PROGNAME )
 {

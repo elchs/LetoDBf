@@ -12102,6 +12102,91 @@ static HB_USHORT leto_FindFreeArea( PUSERSTRU pUStru )
    return ( HB_USHORT ) ulArea;
 }
 
+#ifdef LETO_SMBSERVER
+/* mode 0 = a single, 1 = double found, 2 = DENY_ALL */
+static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
+{
+   HB_SIZE      nStdOut = 0, nStdErr = 0;
+   char *       pStdOutBuf = NULL;
+   char *       pStdErrBuf = NULL;
+   int          iResult;
+
+   iResult = hb_fsProcessRun( "smbstatus -L", NULL, 0, &pStdOutBuf, &nStdOut, &pStdErrBuf, &nStdErr, HB_FALSE );
+   if( pStdErrBuf )
+      hb_xfree( pStdErrBuf );  /* just suppressed error messages */
+   hb_fsSetFError( hb_fsError() );
+   if( iResult || hb_fsGetFError() )
+   {
+      if( pStdOutBuf )
+         hb_xfree( pStdOutBuf );
+      return HB_FALSE;
+   }
+   else
+   {
+      if( ! pStdOutBuf )
+         return HB_FALSE;
+      else
+      {
+         char         szFile[ HB_PATH_MAX ];
+         int          iLen;
+         int          iStart;
+         const char * ptr, * ptr1, *ptr2;
+         HB_BOOL      fResult = HB_FALSE;
+
+         if( ( ptr = strchr( szFilename, '.' ) ) != NULL )
+         {
+            /* cut away dot in first pos or ".." elks */
+            if( ptr >= szFilename && ( ptr == szFilename || *( ptr + 1 ) == '.' ) )
+            {
+               if( *( ptr + 1 ) == '.' )
+                  szFilename = ptr + 2;
+               else
+                  szFilename = ptr + 1;
+               while( *szFilename == '/' || *szFilename == '\\' )
+                  szFilename++;
+            }
+         }
+         iLen = strlen( szFilename );
+         hb_strncpy( szFile, szFilename, HB_MIN( HB_PATH_MAX - 1, iLen ) );
+         leto_BeautifyPath( szFile );
+
+         if( iLen )
+         {
+            pStdOutBuf[ nStdOut ] = '\0';
+            ptr1 = pStdOutBuf;
+            ptr = leto_stristr( ptr1, szFile );
+            if( ptr && iMode < 2 )
+            {
+               if( iMode == 1 )
+                  ptr = leto_stristr( ptr, szFile );
+               if( ptr )
+               {
+                  fResult = HB_TRUE;
+                  ptr = NULL;
+               }
+            }
+
+            while( ptr )
+            {
+               iStart = HB_MIN( 99, ptr - ptr1 - iLen );
+               fResult = ( ( ptr2 = strstr( ptr - iStart, "DENY_ALL" ) ) != NULL ) && ptr2 < ptr - iLen;
+               if( fResult )
+                  break;
+               else
+               {
+                  ptr1 = ptr;
+                  ptr = leto_stristr( ptr1, szFile );
+               }
+            }
+         }
+
+         hb_xfree( pStdOutBuf );
+         return fResult;
+      }
+   }
+}
+#endif
+
 static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
 {
    char *       szFileRaw = ( char * ) hb_xgrab( HB_PATH_MAX );
@@ -12366,6 +12451,23 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
             if( ! pArea )
                errcode = HB_FAILURE;
+
+#ifdef LETO_SMBSERVER
+            if( errcode == HB_SUCCESS )
+            {
+               if( ! bMemIO && ! ( ( s_bShareTables || s_bNoSaveWA ) && bShared && ! bMemIO ) )   /* exclusive */
+               {
+                  if( leto_SMBTest( szFile, 1 ) )
+                  {
+                     hb_rddReleaseCurrentArea();
+                     hb_rddSetNetErr( HB_TRUE );
+                     errcode = HB_FAILURE;
+                  }
+                  if( s_iDebugMode > 1 && hb_rddGetNetErr() )
+                     leto_wUsLog( pUStru, -1, "DEBUG leto_OpenTable(%s) collision with Samba", szFile );
+               }
+            }
+#endif
 
             if( errcode != HB_SUCCESS )
             {

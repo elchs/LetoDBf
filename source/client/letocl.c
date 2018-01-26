@@ -102,7 +102,7 @@
       LETOCONNECTION * pCurrentConn;  /* pointer into letoConnPool list */
    } LETOPOOL;
 #else
-   extern void leto_BFExit( void );
+   void leto_BFExit( void );
 
    static unsigned int     s_uiConnCount = 0;
    static LETOCONNECTION * s_letoConnPool = NULL;
@@ -141,7 +141,7 @@ HB_EXPORT char * LetoSetModName( char * szModule )
 }
 
 #ifndef __XHARBOUR__
-   extern HB_SIZE hb_fsPipeWrite( HB_FHANDLE hPipeHandle, const void * buffer, HB_SIZE nSize, HB_MAXINT nTimeOut );
+   HB_SIZE hb_fsPipeWrite( HB_FHANDLE hPipeHandle, const void * buffer, HB_SIZE nSize, HB_MAXINT nTimeOut );
 #endif
 
 #endif  /* __HARBOUR30__ */
@@ -3589,88 +3589,6 @@ HB_EXPORT HB_ERRCODE LetoDbExists( LETOCONNECTION * pConnection, const char * sz
    return HB_FAILURE;
 }
 
-#ifdef LETO_SMBSERVER
-/* mode 0 = a single, 1 = double found, 2 = DENY_ALL */
-static HB_BOOL LetoCaramba( const char * szFilename, int iMode )
-{
-   HB_SIZE      nStdOut = 0, nStdErr = 0;
-   char *       pStdOutBuf = NULL;
-   char *       pStdErrBuf = NULL;
-   int          iResult;
-
-   iResult = hb_fsProcessRun( "smbstatus -L", NULL, 0, &pStdOutBuf, &nStdOut, &pStdErrBuf, &nStdErr, HB_FALSE );
-   if( pStdErrBuf )
-      hb_xfree( pStdErrBuf );  /* just suppressed error messages */
-   hb_fsSetFError( hb_fsError() );
-   if( iResult || hb_fsGetFError() )
-   {
-      if( pStdOutBuf )
-         hb_xfree( pStdOutBuf );
-      return HB_FALSE;
-   }
-   else
-   {
-      if( ! pStdOutBuf )
-         return HB_FALSE;
-      else
-      {
-         char         szFile[ HB_PATH_MAX ];
-         int          iLen;
-         int          iStart;
-         const char * ptr, * ptr1, *ptr2;
-         HB_BOOL      fResult = HB_FALSE;
-
-         if( ( ptr = strrchr( szFilename, '.' ) ) != NULL )
-         {
-            /* cut away dot in first pos or ".." elks */
-            if( ptr >= szFilename && ( ptr == szFilename || *( ptr - 1 ) == '.' ) )
-            {
-               szFilename = ptr + 1;
-               while( *szFilename == '/' || *szFilename == '\\' )
-                  szFilename++;
-            }
-         }
-         iLen = strlen( szFilename );
-         hb_strncpy( szFile, szFilename, HB_MIN( HB_PATH_MAX - 1, iLen ) );
-         leto_BeautifyPath( szFile, '/' );
-
-         if( iLen )
-         {
-            pStdOutBuf[ nStdOut ] = '\0';
-            ptr1 = pStdOutBuf;
-            ptr = leto_stristr( ptr1, szFile );
-            if( ptr && iMode < 2 )
-            {
-               if( iMode == 1 )
-                  ptr = leto_stristr( ptr, szFile );
-               if( ptr )
-               {
-                  fResult = HB_TRUE;
-                  ptr = NULL;
-               }
-            }
-
-            while( ptr )
-            {
-               iStart = HB_MIN( 99, ptr - ptr1 - iLen );
-               fResult = ( ( ptr2 = strstr( ptr - iStart, "DENY_ALL" ) ) != NULL ) && ptr2 < ptr - iLen;
-               if( fResult )
-                  break;
-               else
-               {
-                  ptr1 = ptr;
-                  ptr = leto_stristr( ptr1, szFile );
-               }
-            }
-         }
-
-         hb_xfree( pStdOutBuf );
-         return fResult;
-      }
-   }
-}
-#endif
-
 HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias,
                                        HB_BOOL fShared, HB_BOOL fReadOnly, const char * szCdp, unsigned int uiArea )
 {
@@ -3702,14 +3620,6 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    #ifdef LETO_CLIENTLOG
       leto_clientlog( NULL, 0, "LetoDbOpenTable() duplicate to server %s:%d", s_pExclusiveConn->pAddr, s_pExclusiveConn->iPort );
    #endif
-
-#if 0
-      if( LetoCaramba( szFile, 2 ) )
-      {
-         pCallerConn->iError = EDBF_SHARED;
-         return NULL;
-      }
-#endif
 
       ulLen = eprintf( szData, "%c;%s;%s;%c%c;%s;%s;%d;%s;", LETOCMD_open, szFile, szAlias,
                        ( fShared ) ? 'T' : 'F', ( fReadOnly ) ? 'T' : 'F',
@@ -3785,16 +3695,6 @@ HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char 
    ptr = ++ptrTmp;
    pTable->uiDriver = *ptr - '0';  /* LETO_CDX = '0', LETO_NTX = '1' */
    ptr += 2;
-
-#ifdef LETO_SMBSERVER
-   if( ! fShared && ! fMemIO && LetoCaramba( szFile, 1 ) )
-   {
-      pCallerConn->iError = EDBF_SHARED;
-      LetoDbCloseTable( pTable );
-
-      return NULL;
-   }
-#endif
 
    /* update MemoType, MemoFileExt, MemoVersion, LockScheme .. */
    ptr = leto_ReadMemoInfo( pTable, ptr );

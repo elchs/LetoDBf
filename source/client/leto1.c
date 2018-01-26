@@ -71,16 +71,16 @@ static HB_USHORT s_uiRddIdLETO = ( HB_USHORT ) -1;
 static RDDFUNCS  s_letoSuper;
 
 #ifndef LETO_NO_THREAD
-   extern HB_ERRCODE delayedError( void );
+   HB_ERRCODE delayedError( void );
 #endif
-extern HB_USHORT uiGetConnCount( void );
-extern LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
-extern LETOCONNECTION * letoGetCurrConn( void );
+HB_USHORT uiGetConnCount( void );
+LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
+LETOCONNECTION * letoGetCurrConn( void );
 
-extern void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray );
+void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray );
 
 #if defined( __HARBOUR30__ )
-   extern char * LetoSetModName( char * szModule );
+   char * LetoSetModName( char * szModule );
 #endif
 
 
@@ -4745,7 +4745,7 @@ static HB_ERRCODE letoClearFilter( LETOAREAP pArea )
       {
          if( LetoDbClearFilter( pTable ) )
             return HB_FAILURE;
-#ifndef __XHARBOUR__
+#if ! defined(  __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
          if( pTable->pFilterVar )
          {
             LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
@@ -4787,7 +4787,7 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
       {
          PHB_ITEM pFilter = NULL;
 
-#ifndef __XHARBOUR__
+#if ! defined( __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
          if( hb_setGetForceOpt() )
          {
             LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
