@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-29 16:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * ClientLog.txt
+    * missing to note two source files
+
+  * source/server/server.prg
+    * adding HB_WildMatch[i]() as REQUESTs
+
+  * include/letocl.h
+  * source/client/leto1.c
+    * name space: LetoProdSupport() -> letoProdSupport()
+    * formatting
+
 2018-01-29 12:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; fix the C-API [ LetoDBf access from "C" level without HB RDD methods ]
     ; is manually 'by foot' at client side, but you get Harbour RDD server
@@ -67,6 +79,8 @@
   * letodb.hbp
   * letodbsvc.hbp
   * bin/letodb.ini
+  * source/server/letofunc.c
+  * source/server/server.prg
     - remove cflag LETO_SMBSERVER --> letodb.ini entry: 'SMB_SERVER = 1'
 
   * rddleto.hbp

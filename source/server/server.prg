@@ -126,7 +126,7 @@ REQUEST hb_idleSleep, hb_milliSeconds
 REQUEST dbGoTop, dbGoBottom, dbSkip, dbGoto, dbSeek, Bof, Eof, dbEval, dbInfo, dbStruct
 REQUEST dbAppend, dbDelete, dbRecall, dbCommit, dbFilter, dbSetFilter
 #ifndef __HARBOUR30__
-   REQUEST hb_dbGetFilter
+   REQUEST hb_dbGetFilter, HB_WILDMATCH, HB_WILDMATCHI
 #endif
 REQUEST ordKeyVal, dbOrderInfo, RDDinfo, OrdSetFocus, Alias, Select, dbSelectArea
 

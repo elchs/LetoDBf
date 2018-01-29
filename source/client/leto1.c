@@ -3660,7 +3660,7 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
    return HB_SUCCESS;
 }
 
-static HB_BOOL LetoProdSupport( void )
+static HB_BOOL letoProdSupport( void )
 {
    LPRDDNODE pRDDNode;
    HB_USHORT uiRddID;
@@ -3703,7 +3703,7 @@ static HB_ERRCODE letoOrderListClear( LETOAREAP pArea )  /* OrdListClear() */
       pTable->uiOrders = 0;
       do
       {
-         if( ! pTagInfo->fProduction || ! LetoProdSupport() || ! hb_setGetAutOpen() )
+         if( ! pTagInfo->fProduction || ! letoProdSupport() || ! hb_setGetAutOpen() )
          {
             pTag1 = pTagInfo;
             if( pTagInfo == pTable->pTagInfo )
@@ -3779,7 +3779,7 @@ static HB_ERRCODE letoOrderListDelete( LETOAREAP pArea, LPDBORDERINFO pOrderInfo
       if( uiLen < 2 || ! pTagInfo )
          return HB_FAILURE;
 
-      if( ! pTagInfo->fProduction || ! LetoProdSupport() || ! hb_setGetAutOpen() )
+      if( ! pTagInfo->fProduction || ! letoProdSupport() || ! hb_setGetAutOpen() )
       {
          /* note: pOrderInfo->atomBagName is TAGname */
          eprintf( szData, "%c;%lu;10;%s;", LETOCMD_ord, pTable->hTable, szBagName );

@@ -332,9 +332,6 @@ unsigned int LetoDbFieldLen( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int
 unsigned int LetoDbFieldDec( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiDec );
 void LetoFreeStr( char * szStr );
 void LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort );
-#if defined( __LETO_C_API__ )
-   char * LetoSetModName( char * szModule );
-#endif
 
 long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * sData, unsigned long ulLen );
 unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr );
@@ -395,6 +392,8 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
 #endif
 
 #if defined( __LETO_C_API__ )
+   char * LetoSetModName( char * szModule );
+
    void LetoSetSetSoftseek( HB_BOOL fSet );
    void LetoSetSetDeleted( HB_BOOL fSet );
    void LetoSetSetAutOpen( HB_BOOL fSet );
