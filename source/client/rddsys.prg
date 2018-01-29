@@ -97,6 +97,7 @@ INIT PROCEDURE LETO_CONNECTAUTO
    LOCAL hIni, nConnection, cServer, cService
    LOCAL cUser, cPW, nTimeOut, nBufRefr
    LOCAL cAppIni
+   LOCAL nPort
 
    hb_FNameSplit( hb_ProgName(), /* @cPath */, @cAppIni, /* cExt */ )
    cAppIni := hb_FNameMerge( /* cPath */, cAppIni, ".ini" )
@@ -144,6 +145,14 @@ INIT PROCEDURE LETO_CONNECTAUTO
             OutErr( "LetoDBf connect failed of: " + leto_Connect_Err( .T. ) + HB_EOL() )
             QUIT
          ENDIF
+      ELSE
+         nConnection := -1
+      ENDIF
+
+      cServer := hb_HGetDef( hIni, "SMB_SERVER", "" )
+      IF ! EMPTY( cServer )
+         nPort := VAL( hb_HGetDef( hIni, "SMB_PORT", "2814" ) )
+         Leto_SMBServer( cServer, nPort, nConnection )
       ENDIF
    ENDIF
 

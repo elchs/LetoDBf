@@ -78,8 +78,10 @@ HARBOURFLAGS = $(HARBOURFLAGS) -D__BM
 !endif
 
 CLIBFLAGS = $(CLIBFLAGS) -DUSE_PMURHASH=1
+CAPIFLAGS = $(CLIBFLAGS) -D__LETO_C_API__=1 -DLETO_NO_MT=1 -DLETO_NO_THREAD=1
 
 CC_CMD = $(CC) $(CLIBFLAGS) -o$@ $**
+CC_API = $(CC) $(CAPIFLAGS) -o$@ $**
 HB_CMD = $(HARBOUR_EXE) $(HARBOURFLAGS) $** -o$@
 
 #
@@ -107,10 +109,6 @@ CLIENT_RDD_LIB_OBJS = \
    $(OBJ_DIR)\PMurHash.obj \
    $(OBJ_DIR)\rddsys.obj
 
-!if $d(XHARBOUR)
-CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
-   $(OBJ_DIR)\itemseri.obj
-!endif
 
 !if $d(__BM)
 CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
@@ -123,15 +121,11 @@ CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
 #
 
 CLIENT_LIB_OBJS = \
-   $(OBJ_DIR)\letocl.obj \
-   $(OBJ_DIR)\common_c.obj \
-   $(OBJ_DIR)\blowfish.obj \
-   $(OBJ_DIR)\PMurHash.obj
+   $(API_DIR)\letocl.obj \
+   $(API_DIR)\common_c.obj \
+   $(API_DIR)\blowfish.obj \
+   $(API_DIR)\PMurHash.obj
 
-!if $d(XHARBOUR)
-CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
-   $(OBJ_DIR)\itemseri.obj
-!endif
 
 #
 # LETO.EXE rules
@@ -167,7 +161,8 @@ PROJECT = \
    $(SERVER_EXE)
 !endif
 
-ALL: $(PROJECT)
+all: $(CLIENT_LIB)
+full: $(PROJECT)
 
 #
 # Library dependencies and build rules
@@ -200,10 +195,9 @@ $(HARBOUR_LIBS)
 $(WINDOWS_LIBS)
 !
 
-# ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
-# ³ CLIENT_RDD.LIB Dependencies³Û
-# ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙÛ
-#  ßßßßßßßßßßßßßßßßßßßßßßßßßß
+# ---------------------------
+# CLIENT_RDD.LIB Dependencies
+# ---------------------------
 
 {$(CLIENT_DIR)}.prg{$(OBJ_DIR)}.c:
     $(HB_CMD)
@@ -218,19 +212,20 @@ $(WINDOWS_LIBS)
     $(CC_CMD)
 
 
-# ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
-# ³ CLIENT.LIB Dependencies³Û
-# ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙÛ
-#  ßßßßßßßßßßßßßßßßßßßßßßßßßß
+# ---------------------------
+# CLIENT.LIB Dependencies
+# ---------------------------
 
 .c.obj:
     $(CC_CMD)
 
-{$(CLIENT_DIR)}.c{$(OBJ_DIR)}.obj:
-    $(CC_CMD)
+{$(CLIENT_DIR)}.c{$(API_DIR)}.obj:
+    IF EXIST "$@" $(DEL) $@
+    $(CC_API)
 
-{$(COMMON_DIR)}.c{$(OBJ_DIR)}.obj:
-    $(CC_CMD)
+{$(COMMON_DIR)}.c{$(API_DIR)}.obj:
+    IF EXIST "$@" $(DEL) $@
+    $(CC_API)
 
 #
 # SERVER.EXE dependencies
@@ -247,4 +242,5 @@ $(WINDOWS_LIBS)
 
 {$(COMMON_DIR)}.c{$(OBJ_DIR)}.obj:
     $(CC_CMD)
+
 

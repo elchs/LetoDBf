@@ -115,6 +115,7 @@ static HB_BOOL   s_bHardCommit = HB_FALSE;
 static HB_BOOL   s_bPass4L = HB_FALSE;        //  Pass needs: Login,Manage,Datamodify
 static HB_BOOL   s_bPass4M = HB_FALSE;
 static HB_BOOL   s_bPass4D = HB_FALSE;
+static HB_BOOL   s_bSMBServer = HB_FALSE;
 
 
 /* LOG files quick mutex -- also used by s_pDB */
@@ -1479,6 +1480,8 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
    }
    if( HB_ISLOG( 27 ) )
       s_bHardCommit = hb_parl( 27 );
+   if( HB_ISLOG( 28 ) )
+      s_bSMBServer = hb_parl( 28 );
 }
 
 /* leto_udf() */
@@ -12102,7 +12105,6 @@ static HB_USHORT leto_FindFreeArea( PUSERSTRU pUStru )
    return ( HB_USHORT ) ulArea;
 }
 
-#ifdef LETO_SMBSERVER
 /* mode 0 = a single, 1 = double found, 2 = DENY_ALL */
 static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
 {
@@ -12136,7 +12138,7 @@ static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
          if( ( ptr = strchr( szFilename, '.' ) ) != NULL )
          {
             /* cut away dot in first pos or ".." elks */
-            if( ptr >= szFilename && ( ptr == szFilename || *( ptr + 1 ) == '.' ) )
+            if( ptr == szFilename || *( ptr + 1 ) == '.' )
             {
                if( *( ptr + 1 ) == '.' )
                   szFilename = ptr + 2;
@@ -12185,7 +12187,6 @@ static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
       }
    }
 }
-#endif
 
 static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
 {
@@ -12452,10 +12453,10 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             if( ! pArea )
                errcode = HB_FAILURE;
 
-#ifdef LETO_SMBSERVER
-            if( errcode == HB_SUCCESS )
+            /* very special query to ensure concurrency <exclusive> with CIFS using apps */
+            if( s_bSMBServer && errcode == HB_SUCCESS )
             {
-               if( ! bMemIO && ! ( ( s_bShareTables || s_bNoSaveWA ) && bShared && ! bMemIO ) )   /* exclusive */
+               if( ! bMemIO && ! ( ( s_bShareTables || s_bNoSaveWA ) && bShared && ! bMemIO ) )
                {
                   if( leto_SMBTest( szFile, 1 ) )
                   {
@@ -12467,7 +12468,6 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                      leto_wUsLog( pUStru, -1, "DEBUG leto_OpenTable(%s) collision with Samba", szFile );
                }
             }
-#endif
 
             if( errcode != HB_SUCCESS )
             {

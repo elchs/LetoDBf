@@ -61,9 +61,6 @@ HB_USHORT uiGetConnCount( void );
 void leto_ConnectionClose( LETOCONNECTION * pConnection );
 void letoClearCurrConn( void );
 
-void leto_clientlog( const char * sFile, int n, const char * s, ... );
-HB_BOOL leto_Ping( LETOCONNECTION * pConnection );
-
 
 #ifndef LETO_NO_MT
 /* for TSD thread local storage last used pItem cache, e.g. for use in filter conditions */
@@ -1433,7 +1430,7 @@ HB_FUNC( LETO_PING )
    if( ! pConnection )
       pConnection = letoGetCurrConn();
    if( pConnection )
-      hb_retl( leto_Ping( pConnection ) );
+      hb_retl( LetoPing( pConnection ) );
    else
       hb_retl( HB_FALSE );
 }
@@ -1738,119 +1735,22 @@ HB_FUNC( LETO_CRYPTRESET )
 HB_FUNC( LETO_TOGGLEZIP )
 {
    LETOCONNECTION * pConnection = letoGetCurrConn();
-   char szData[ 96 ];
-   int  iZipRecord;
-   int  iKeyLen = ( int ) hb_parclen( 2 );
 
    if( pConnection && HB_ISNUM( 1 ) )
    {
-      iZipRecord = hb_parni( 1 );
-#ifdef USE_LZ4
-      if( iZipRecord >= -1 && iZipRecord <= 15 )
-#else
-      if( iZipRecord >= -1 && iZipRecord <= 9 )
-#endif
-      {
-         char * szPass = ( char * ) hb_xgrab( ( iKeyLen + 9 ) * 2 );
+      hb_retni( LetoToggleZip( pConnection, hb_parni( 1 ), hb_parc( 2 ) ) );
 
-         if( iKeyLen > 0 && iZipRecord >= 0 )
-         {
-            char *    szKey = leto_localKey( pConnection->cDopcode, LETO_DOPCODE_LEN );
-            HB_ULONG  ulLen;
-
-            if( iKeyLen > LETO_MAX_KEYLENGTH )  /* 96 == max pass 37 */
-               iKeyLen = LETO_MAX_KEYLENGTH;
-
-            leto_encrypt( hb_parc( 2 ), ( HB_ULONG ) iKeyLen, szData, &ulLen, szKey, HB_FALSE );
-            leto_byte2hexchar( szData, ( int ) ulLen, szPass );
-            szPass[ ulLen * 2 ] = '\0';
-            if( szKey )
-               hb_xfree( szKey );
-         }
-         else
-            szPass[ 0 ] = '\0';
-
-         hb_snprintf( szData, 96, "%c;%d;%s;", LETOCMD_zip, iZipRecord, szPass );
-         hb_xfree( szPass );
-         if( leto_DataSendRecv( pConnection, szData, 0 ) )
-         {
-            const char * ptr = leto_firstchar( pConnection );
-
-            if( *ptr == '+' )
-            {
-               if( pConnection->zstream )
-               {
-#ifdef USE_LZ4
-                  hb_lz4netClose( pConnection->zstream );
-#else
-                  hb_znetClose( pConnection->zstream );
-#endif
-                  pConnection->zstream = NULL;
-                  pConnection->fZipCrypt = HB_FALSE;
-               }
-
-               pConnection->iZipRecord = iZipRecord;
-#ifdef USE_LZ4
-               if( pConnection->iZipRecord >= 0 && ! pConnection->zstream )
-                  pConnection->zstream = hb_lz4netOpen( pConnection->iZipRecord, HB_ZLIB_STRATEGY_DEFAULT );
-#else
-               if( pConnection->iZipRecord > 0 && ! pConnection->zstream )
-                  pConnection->zstream = hb_znetOpen( pConnection->iZipRecord, HB_ZLIB_STRATEGY_DEFAULT );
-#endif
-               if( pConnection->zstream && iKeyLen > 0 )
-               {
-                  int    i;
-                  char * szPW = ( char * ) hb_xgrabz( iKeyLen + 1 );
 #ifndef __XHARBOUR__
-                  char *   pDst;
-                  HB_SIZE nDstLen;
-#endif
-
-                  memcpy( szPW, hb_parc( 2 ), iKeyLen );
-                  for( i = 0; i < HB_MIN( LETO_DOPCODE_LEN, iKeyLen ); i++ )
-                  {
-                     szPW[ i ] ^= pConnection->cDopcode[ i ];
-                  }
-#ifdef USE_LZ4
-                  hb_lz4netEncryptKey( pConnection->zstream, szPW, iKeyLen );
-#else
-                  hb_znetEncryptKey( pConnection->zstream, szPW, iKeyLen );
-#endif
-#ifndef __XHARBOUR__
-                  hb_itemGetWriteCL( hb_param( 2, HB_IT_STRING ), &pDst, &nDstLen );
-                  memset(pDst, 0, nDstLen );
-#endif
-                  pConnection->fZipCrypt = HB_TRUE;
-                  memset( szPW, 0, iKeyLen );
-                  hb_xfree( szPW );
-               }
-
-               if( pConnection->iZipRecord > 0 && ! pConnection->zstream )
-                  hb_retni( -5 );
-               else
-                  hb_retni( pConnection->iZipRecord );
-            }
-            else
-               hb_retni( -4 );
-
-            return;
-         }
-         hb_retni( -3 );
-      }
-
-#if 0  /* test purpose only */
-      else if( iZipRecord == 42 )
+      if( hb_parclen( 2 ) )
       {
-         char  szPass[ 5 ];
+         char *   pDst;
+         HB_SIZE nDstLen;
 
-         strcpy( szPass, "elch" );
-         hb_snprintf( szData, 24, "%c;%d;%s;", LETOCMD_stop, iZipRecord, szPass );
-         leto_DataSendRecv( pConnection, szData, 0 );
+         hb_itemGetWriteCL( hb_param( 2, HB_IT_STRING ), &pDst, &nDstLen );
+         memset( pDst, 0, nDstLen );
       }
 #endif
 
-      else
-         hb_retni( -2 );
    }
    else if( pConnection )
       hb_retni( pConnection->iZipRecord );
@@ -2561,7 +2461,7 @@ HB_FUNC( LETO_UDF )
       hb_ret();
 }
 
-#if ! defined( __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
+#if ! defined( __XHARBOUR__ )
 
 /* with szDst == NULL test only and break with first valid memvar -- else collect also into optional 3-dim pArr */
 HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr )
@@ -3059,6 +2959,37 @@ HB_FUNC( LETO_VAREXPRSYNC )
       fSuccess = Leto_VarExprSync( pCurrentConn, pArr, fReSync ) == HB_SUCCESS;
 
    hb_retl( fSuccess );
+}
+
+#ifdef LETO_SMBSERVER
+   HB_BOOL LetoSetExclAddr( const char * szServer, int iPort, LETOCONNECTION * pConnection );
+#endif
+
+HB_FUNC( LETO_SMBSERVER )
+{
+#ifdef LETO_SMBSERVER
+   static char s_szSMBServer[ 64 ] = { 0 };
+
+   if( hb_parclen( 1 ) && HB_ISNUM( 2 ) )
+   {
+      LETOCONNECTION * pCurrentConn;
+      HB_BOOL          fSet;
+
+      memset( s_szSMBServer, 0, 64 );
+      sprintf( s_szSMBServer, "//%s:%d/", hb_parc( 1 ), hb_parni( 2 ) );
+
+      if( HB_ISNUM( 3 ) && hb_parni( 3 ) >= 0 )
+         pCurrentConn = letoGetCurrConn();
+      else
+         pCurrentConn = NULL;
+      fSet = LetoSetExclAddr( hb_parc( 1 ), hb_parni( 2 ), pCurrentConn );
+      hb_retl( fSet );
+   }
+   else
+      hb_retc( s_szSMBServer );
+#else
+   hb_retc_null();
+#endif
 }
 
 #else

@@ -1,55 +1,48 @@
-
 #include <stdio.h>
 #ifdef __BORLANDC__
    #include <conio.h>
 #endif
+/* set it before ! */
+#define __LETO_C_API__
 #include "letocl.h"
 
-static void setAddress( int argc, char *argv[], char * szAddr, int * iPort )
-{
-   *iPort = 2812;
-   if( argc < 2 )
-      strcpy( szAddr, "127.0.0.1" );
-   else
-   {
-      char * ptr = argv[1], * ptrPort;
-      unsigned int uiLen;
-
-      if( !strncmp( ptr, "//", 2 ) )
-         ptr += 2;
-      if( ( ptrPort = strchr( ptr, ':' ) ) != NULL )
-      {
-         uiLen = ptrPort - ptr;
-         *iPort = atol( ptrPort+1 );
-      }
-      else
-         uiLen = strlen( ptr );
-      memcpy( szAddr, ptr, uiLen );
-      ptr = szAddr + uiLen;
-      if( *(ptr-1) == '/' || *(ptr-1) == '\\' )
-        ptr --;
-      *ptr = '\0';
-   }
-}
+#if defined( HB_OS_WIN )
+   #define _EOL_  "\r\n"
+#else
+   #define _EOL_  "\n"
+#endif
 
 static void printRec( LETOTABLE * pTable )
 {
-   char szRet[48];
-   unsigned long ulRecNo;
+   unsigned long ulRecNo, ulLen = 64;
+   char *        szRet = hb_xgrab( ulLen );
+   const char *  pText;
 
    LetoDbRecNo( pTable, &ulRecNo );
-   LetoDbGetField( pTable, 1, szRet, NULL );
-   printf( "N: %lu, %s /", ulRecNo, szRet );
+   LetoDbGetField( pTable, 1, &szRet, &ulLen );
+   printf( "N: %lu, %s", ulRecNo, szRet );
+   ulLen = 64;
 
-   LetoDbGetField( pTable, 2, szRet, NULL );
-   printf( " %s /", szRet );
+   LetoDbGetField( pTable, 2, &szRet, &ulLen );
+   printf( " %s", szRet );
 
-   LetoDbGetField( pTable, 3, szRet, NULL );
-   printf( " %s /", szRet );
+   LetoDbGetField( pTable, 3, &szRet, NULL );
+   printf( " %s", szRet );
 
-   LetoDbGetField( pTable, 4, szRet, NULL );
-   printf( " %s\r\n", szRet );
+   ulLen = 64;
+   LetoDbGetField( pTable, 4, &szRet, &ulLen );
+   printf( " %s", szRet );
 
+   ulLen = 64;
+   LetoDbGetField( pTable, 5, &szRet, &ulLen );
+   printf( " %s", szRet );
+
+   /* alternative */
+   /* printf( " %s /", LetoDbGetMemo( pTable, 5, &ulLen ) ); */
+
+   printf( "%s", _EOL_ );
+
+   hb_xfree( szRet );
 }
 
 void main( int argc, char *argv[] )
@@ -58,111 +51,138 @@ void main( int argc, char *argv[] )
    int iPort;
    char szAddr[128];
 
-   setAddress( argc, argv, szAddr, &iPort );
-
    LetoInit();
+   LetoSetAddress( argc, argv, szAddr, &iPort );
 
-   printf( "Connect to %s port %d\r\n", szAddr, iPort );
+   printf( "Connecting to %s:%d ..." _EOL_, szAddr, iPort );
    if( ( pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, 0 ) ) != NULL )
    {
-      char * ptr, szData[64];
+      char * ptr, szData[ 64 ];
       LETOTABLE * pTable;
 
-      printf( "Connected!\r\n" );
-      printf( "%s\r\n", LetoGetServerVer( pConnection ) );
+      printf( "Connected!" _EOL_ );
+      printf( "%s" _EOL_, LetoGetServerVer( pConnection ) );
+      printf( "Compression level: %d" _EOL_, LetoToggleZip( pConnection, 1, NULL ) );
 
-      pTable = LetoDbCreateTable( pConnection, "/test1", "test1", 
-         "NAME;C;10;0;NUM;N;4;0;INFO;C;32;0;DINFO;D;8;0;", 0, NULL );
+      pTable = LetoDbCreateTable( pConnection, "test1", "TEST1",
+                                  "NAME;C;10;0;NUM;N;4;0;INFO;C;32;0;DINFO;D;8;0;MINFO;M;10;0;",
+                                  1, NULL );
       if( pTable )
       {
          unsigned int ui, uiFields, uiRet;
          unsigned long ulRecCount, ulRecNo;
-         char szRet[48];
+         char szRet[ 64 ];
          char * pNames[] = { "Petr", "Ivan", "Alexander", "Pavel", "Alexey", "Fedor",
-            "Konstantin", "Vladimir", "Nikolay", "Andrey", "Dmitry", "Sergey" };
+                             "Rolf", "Vladimir", "Nikolay", "Andrey", "Dmitry", "Sergey" };
 
-         printf( "test1.dbf has been created.\r\n" );
+         printf( "test1.dbf has been created." _EOL_ );
 
          if( !LetoDbRecCount( pTable, &ulRecCount ) )
-            printf( "Records: %d\r\n", ulRecCount );
+            printf( "Records: %d" _EOL_, ulRecCount );
          else
-            printf( "LetoDbRecCount error\r\n" );
+            printf( "LetoDbRecCount error" _EOL_ );
 
          LetoDbFieldCount( pTable, &uiFields );
-         printf( "Fields number: %d\r\n", uiFields );
-         for( ui=1; ui <= uiFields; ui++ )
+         printf( "Fields number: %d" _EOL_, uiFields );
+         for( ui = 1; ui <= uiFields; ui++ )
          {
-            if( !LetoDbFieldName( pTable, ui, szRet ) )
+            if( ! LetoDbFieldName( pTable, ui, szRet ) )
                printf( "   %-12s", szRet );
-            if( !LetoDbFieldType( pTable, ui, &uiRet ) )
-               printf( "%d", uiRet );
-            if( !LetoDbFieldLen( pTable, ui, &uiRet ) )
+            if( ! LetoDbFieldType( pTable, ui, &uiRet ) )
+            {
+               switch( uiRet )
+               {
+                  case HB_FT_NONE:
+                     printf( "ERR" );
+                     break;
+                  case HB_FT_STRING:
+                     printf( "C" );
+                     break;
+                  case HB_FT_LOGICAL:
+                     printf( "L" );
+                     break;
+                  case HB_FT_DATE:
+                     printf( "D" );
+                     break;
+                  case HB_FT_LONG:
+                     printf( "N" );
+                     break;
+                  case HB_FT_MEMO:
+                     printf( "M" );
+                     break;
+               }
+            }
+            if( ! LetoDbFieldLen( pTable, ui, &uiRet ) )
                printf( "\t%d", uiRet );
-            if( !LetoDbFieldDec( pTable, ui, &uiRet ) )
-               printf( "\t%d\r\n", uiRet );
+            if( ! LetoDbFieldDec( pTable, ui, &uiRet ) )
+               printf( "\t%d" _EOL_, uiRet );
          }
 
-         printf( "\r\n" );
-         for( ui=1; ui <= 12; ui++ )
+         printf( _EOL_ "Append record - " );
+
+         for( ui = 1; ui <= 12; ui++ )
          {
-            printf( "Append record - " );
             LetoDbAppend( pTable, 0 );
 
-            LetoDbPutField( pTable, 1, pNames[ui-1], strlen(pNames[ui-1]) );
+            LetoDbPutField( pTable, 1, pNames[ ui - 1 ], strlen( pNames[ ui - 1 ] ) );
 
-            sprintf( szRet, "%d", ui+2000 );
-            LetoDbPutField( pTable, 2, szRet, strlen(szRet) );
+            sprintf( szRet, "%d", ui + 2000 );
+            LetoDbPutField( pTable, 2, szRet, strlen( szRet ) );
 
             sprintf( szRet, "A record number %d", ui );
-            LetoDbPutField( pTable, 3, szRet, strlen(szRet) );
+            LetoDbPutField( pTable, 3, szRet, strlen( szRet ) );
 
-            sprintf( szRet, "201312%d", ui+10 );
+            sprintf( szRet, "201801%d", ui + 10 );
             LetoDbPutField( pTable, 4, szRet, 8 );
 
-            if( !LetoDbPutRecord( pTable, 0 ) )
-               printf( "%d\r\n", ui );
+            sprintf( szRet, "MEMO:<%s>", pNames[ ui - 1 ] );
+            LetoDbPutField( pTable, 5, szRet, strlen( szRet ) );
+
+            if( ! LetoDbPutRecord( pTable ) )
+               printf( "%d ", ui );
             else
-               printf( "error\r\n" );
+               printf( "%d error " );
          }
 
-         printf( "\r\nIndex creating (NAME) - " );
+         printf( _EOL_ "Index creating (NAME) - " );
          if( ! LetoDbOrderCreate( pTable, NULL, "NAME", "NAME", 0, NULL, NULL, 0 ) )
-            printf( "Ok\r\n" );
+            printf( "Ok" _EOL_ );
          else
-            printf( "error\r\n" );
+            printf( "error" _EOL_ );
          printf( "Index creating (NUM) - " );
-         if( !LetoDbOrderCreate( pTable, NULL, "NUM", "Str(NUM,4)", 0, NULL, NULL, 0 ) )
-            printf( "Ok\r\n" );
+         if( ! LetoDbOrderCreate( pTable, NULL, "NUM", "Str(NUM,4)", 0, NULL, NULL, 0 ) )
+            printf( "Ok" _EOL_ );
          else
-            printf( "error\r\n" );
+            printf( "error" _EOL_ );
 
-         printf( "Go Top - " );
-         LetoDbGoTop( pTable, "NAME" );
+         LetoDbOrderFocus( pTable, "NAME", 0 );
+         printf( "Go Top - " _EOL_ );
+         LetoDbGoTop( pTable );
          printRec( pTable );
 
-         printf( "Skip 1 record - " );
-         LetoDbSkip( pTable, 1, "NAME" );
+         printf( "Skip 1 record - " _EOL_ );
+         LetoDbSkip( pTable, 1 );
          printRec( pTable );
 
-         printf( "Seek \'Niko\'- " );
-         LetoDbSeek( pTable, "Niko", 0, 0, 0 );
+         printf( "Seek \'Niko\'- " _EOL_ );
+         LetoDbSeek( pTable, "Niko", 0, 1, 0 );
          printRec( pTable );
 
-         printf( "\r\nClose table - " );
-         if( !LetoDbCloseTable( pTable ) )
-            printf( "Ok\r\n" );
+         printf( _EOL_ "Close table - " _EOL_ );
+         if( ! LetoDbCloseTable( pTable ) )
+            printf( "Ok" _EOL_ );
          else
-            printf( "error\r\n" );
-
-         getch();
+            printf( "error" _EOL_ );
       }
       else
-         printf( "Can not create the test1.dbf\r\n" );
+         printf( "Can not create the test1.dbf" _EOL_ );
+
+      getch();
 
       LetoConnectionClose( pConnection );
    }
    else
-      printf( "Connection failure\r\n" );
+      printf( "Connection failure" _EOL_ );
 
    LetoExit( 1 );
 }

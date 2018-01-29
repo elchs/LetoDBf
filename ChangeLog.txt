@@ -2,6 +2,85 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-29 12:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; fix the C-API [ LetoDBf access from "C" level without HB RDD methods ]
+    ; is manually 'by foot' at client side, but you get Harbour RDD server
+      for other ( are there ? ) programming languages ...
+
+    Changes versus origin LetoDB:
+    # LetoDbGetField( ,, &buffer, &ulLen ) can now retrieve memo-fields;
+      buffer param will be reallocated on purpose, ulLen == allocated len
+    # the whole client lib now use Harbour memory system, aka:
+      hb_xgrab[z]()/ hb_xfree()/ hb_xrealloc()
+    # new set of functions to change SET's ( as no HVM is active ):
+      LetoSetSetSoftseek( HB_BOOL fSet )
+      LetoSetSetDeleted( HB_BOOL fSet )
+      LetoSetSetAutOpen( HB_BOOL fSet )
+      LetoSetSetAutOrder( HB_UCHAR uSet )
+      LetoSetSetDateFormat( const char * pSet )
+      LetoSetSetEpoch( HB_SIZE nSet )
+      LetoSetSetDefault( const char * pSet )
+      LetoSetSetPath( const char * pSet )
+      LetoSetSetCodepage( const char * pSet )
+    # LetoDb[Get|Put]Memo(): field index now 1-based as other functions
+    # LetoDbGo[Top|Bottom]()/ LetoDbSkip(): without second param for index,
+      now seperately determined by LetoDbOrderFocus()
+    # LetoGetCmdItem()/ LetoMgGetTime(): return and use !const! char *
+    # LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort )
+      will not only return IP|DNS-name/ port from command line params,
+      but also brand the executable name ( for log-file, ID at server )
+    # LetoSetModName( argv[ 0 ] ) alternative for LetoSetAddress();
+      urgent recommended to use one of both
+
+  * tests/c_lang/bldc.bat
+  * tests/c_lang/test1.c
+  * tests/c_lang/test_dbf.c
+  * tests/c_lang/test_var.c
+    * fix one less param (index) for LetoDbGo[Top|Bottom]()/ LetoDbSkip()
+    * const! char * used/ returned for LetoGetCmdItem()/ LetoMgGetTime()
+    * use exported LetoSetAddress() instead of local: static setAddress()
+    ; For other C-compiler as BCC, a 'bldc.sh' is still missing,
+      ! help appreciated !
+
+  * make_bc32.bat
+  + make_gcc.sh
+  * make_vc.bat
+  * makefile.bc
+  + makefile.gcc
+  * makefile.vc
+    * adapt creation of LetoDBf C-API lib: no MT, no delayed error
+      ; delayed error would need to use a HB RTE/ HVM
+    * target 'all' in makefiles builds only the C-API leto.[lib|a]
+      formerly target 'all' renamed to 'full' ( test purpose only )
+
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    - remove for C-api lib not needed hb_vmInit()/ hb_vmQuit()
+    - remove __LETO_C_API__ at all places except in letocl.h,
+      to wipe out Leto_VarExprSync() in letocl.c
+    * harmonize uiIndex field number for LetoDb[Get|Put]Memo(): 1-based
+    * name space: leto_Ping() -> LetoPing()
+    * new LetoToggleZip()
+
+  * letodb.hbp
+  * letodbsvc.hbp
+  * bin/letodb.ini
+    - remove cflag LETO_SMBSERVER --> letodb.ini entry: 'SMB_SERVER = 1'
+
+  * rddleto.hbp
+  * rddletoaddon.hbp
+  * source/client/letomgmn.c
+  * source/client/rddsys.prg
+  + tests/excltest.prg
+  * tests/rddleto.txt
+    * correct remarks to 'remove' ! the '#' of the out-commented line
+    * ease the setting of LETO_SMBSERVER] and make it dynamic:
+      # readable out of rddleto.ini ( SMB_SERVER / SMB_PORT )
+      # by function call: Leto_SMBServer( cServer, iPort, nConnection );
+        <nConnection> >= 0 --> immediate connection search ( --> lFound )
+
 2018-01-26 17:29 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * letodb.hbp
   * letodbsvc.hbp

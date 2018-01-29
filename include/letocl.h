@@ -284,7 +284,8 @@ void LetoConnectionClose( LETOCONNECTION * pConnection );
 int LetoCloseAll( LETOCONNECTION * pConnection );
 const char * LetoGetServerVer( LETOCONNECTION * pConnection );
 void LetoSetPath( LETOCONNECTION * pConnection, const char * szPath );
-HB_BOOL LetoSetFastAppend( int uiFApp );
+HB_BOOL LetoPing( LETOCONNECTION * pConnection );
+int LetoToggleZip( LETOCONNECTION * pConnection, int iZipRecord, const char * szPassword );
 
 void leto_clientlog( const char * sFile, int n, const char * s, ... );
 void LetoDbFreeTag( LETOTAGINFO * pTagInfo );
@@ -321,8 +322,8 @@ HB_ERRCODE LetoDbReindex( LETOTABLE * pTable );
 /* additional pure C access API */
 unsigned int LetoDbBof( LETOTABLE * pTable );
 unsigned int LetoDbEof( LETOTABLE * pTable );
-unsigned int LetoDbGetField( LETOTABLE * pTable, HB_USHORT uiIndex, char * szRet, HB_USHORT * uiLen );
-unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, char * szValue, HB_USHORT uiLen );
+unsigned int LetoDbGetField( LETOTABLE * pTable, HB_USHORT uiIndex, char ** szRet, unsigned long * ulLen );
+unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, const char * szValue, unsigned long ulLen );
 unsigned int LetoDbRecNo( LETOTABLE * pTable, unsigned long * ulRecNo );
 unsigned int LetoDbFieldCount( LETOTABLE * pTable, unsigned int * uiCount );
 unsigned int LetoDbFieldName( LETOTABLE * pTable, HB_USHORT uiIndex, char * szName );
@@ -331,6 +332,9 @@ unsigned int LetoDbFieldLen( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int
 unsigned int LetoDbFieldDec( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiDec );
 void LetoFreeStr( char * szStr );
 void LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort );
+#if defined( __LETO_C_API__ )
+   char * LetoSetModName( char * szModule );
+#endif
 
 long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * sData, unsigned long ulLen );
 unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr );
@@ -388,5 +392,16 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
    HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr );
 #else
    #define Leto_VarExprSync( connection, arr, resync )  /* do { } while( 0 ) */
+#endif
+
+#if defined( __LETO_C_API__ )
+   void LetoSetSetSoftseek( HB_BOOL fSet );
+   void LetoSetSetDeleted( HB_BOOL fSet );
+   void LetoSetSetAutOpen( HB_BOOL fSet );
+   void LetoSetSetAutOrder( HB_UCHAR uSet );
+   void LetoSetSetDateFormat( const char * pSet );
+   void LetoSetSetEpoch( HB_SIZE nSet );
+   void LetoSetSetDefault( const char * pSet );
+   void LetoSetSetPath( const char * pSet );
 #endif
 

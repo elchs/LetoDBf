@@ -26,9 +26,8 @@
 
 #-cflag=-D__HARBOUR30__=1
 
-#outcomment both! to burn LetoDBf address for exclusive usage
-#-cflag="-DLETO_SMBSERVER=192.168.2.231"
-#-cflag="-DLETO_SMBPORT=2812"
+# remove '#' for special actions to fix concurrency with a Samba server
+#-cflag=-DLETO_SMBSERVER=1
 
 -cflag={allmsvc}-D_CRT_SECURE_NO_DEPRECATE
 -cflag={clang}-W

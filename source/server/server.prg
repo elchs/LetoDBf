@@ -463,6 +463,7 @@ METHOD New() CLASS HApp
    LOCAL lOptimize := .T.
    LOCAL lForceOpt := .F.
    LOCAL lUDFEnabled := .F.
+   LOCAL lSMBServer := .F.
 
 #if ! defined( __PLATFORM__WINDOWS )
 
@@ -601,6 +602,8 @@ METHOD New() CLASS HApp
                   ENDIF
                ELSEIF aIni[ i, 2, j, 1 ] == "BC_PORT"
                   ::nBCPort := VAL( aIni[ i, 2, j, 2 ] )
+               ELSEIF aIni[ i, 2, j, 1 ] == "SMB_SERVER"
+                  lSMBServer := ( aIni[ i, 2, j, 2 ] == '1' )
                ENDIF
             NEXT
          ELSEIF aIni[ i, 1 ] == "DATABASE"
@@ -644,7 +647,7 @@ METHOD New() CLASS HApp
          ::lAnyExt, ::lPass4L, ::lPass4M, ::lPass4D, ::cPassName, ::lCryptTraffic, ;
          ::lShare, ::lNoSaveWA, nMaxVars, nMaxVarSize, nCacheRecords, nTables_max, nUsers_max, ;
          nDebugMode, lOptimize, nAutOrder, nMemoType, lForceOpt, ::nBigLock, lUDFEnabled, nMemoBlocksize,;
-         ::lLower, ::cTrigger, lHardCommit )
+         ::lLower, ::cTrigger, lHardCommit, lSMBServer )
 
       RETURN Self
 

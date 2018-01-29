@@ -959,7 +959,7 @@ static HB_ERRCODE leto_GetMemoValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITE
 {
    LETOTABLE *  pTable = pArea->pTable;
    HB_ULONG     ulLen;
-   const char * ptr = LetoDbGetMemo( pTable, uiIndex, ( unsigned long * ) &ulLen );
+   const char * ptr = LetoDbGetMemo( pTable, uiIndex + 1, ( unsigned long * ) &ulLen );
 
    if( ! ptr )
       return HB_FAILURE;
@@ -1335,7 +1335,7 @@ static HB_ERRCODE leto_PutMemoValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITE
 #endif
       ptr = pBuff;
    }
-   errCode = LetoDbPutMemo( pArea->pTable, uiIndex, ptr, ulLenMemo );
+   errCode = LetoDbPutMemo( pArea->pTable, uiIndex + 1, ptr, ulLenMemo );
    if( pBuff )
       hb_xfree( pBuff );
    return errCode;
@@ -4745,7 +4745,7 @@ static HB_ERRCODE letoClearFilter( LETOAREAP pArea )
       {
          if( LetoDbClearFilter( pTable ) )
             return HB_FAILURE;
-#if ! defined(  __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
+#if ! defined(  __XHARBOUR__ )
          if( pTable->pFilterVar )
          {
             LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
@@ -4787,7 +4787,7 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
       {
          PHB_ITEM pFilter = NULL;
 
-#if ! defined( __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
+#if ! defined( __XHARBOUR__ )
          if( hb_setGetForceOpt() )
          {
             LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );

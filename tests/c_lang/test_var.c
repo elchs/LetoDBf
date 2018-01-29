@@ -1,126 +1,141 @@
-
 #include <stdio.h>
+/* set it before ! */
+#define __LETO_C_API__
 #include "letocl.h"
 #include "rddleto.ch"
 
-#define  LETO_VAR_LOG   '1'
-#define  LETO_VAR_NUM   '2'
-#define  LETO_VAR_CHAR  '3'
-
-static void setAddress( int argc, char *argv[], char * szAddr, int * iPort )
-{
-   *iPort = 2812;
-   if( argc < 2 )
-      strcpy( szAddr, "127.0.0.1" );
-   else
-   {
-      char * ptr = argv[1], * ptrPort;
-      unsigned int uiLen;
-
-      if( !strncmp( ptr, "//", 2 ) )
-         ptr += 2;
-      if( ( ptrPort = strchr( ptr, ':' ) ) != NULL )
-      {
-         uiLen = ptrPort - ptr;
-         *iPort = atol( ptrPort+1 );
-      }
-      else
-         uiLen = strlen( ptr );
-      memcpy( szAddr, ptr, uiLen );
-      ptr = szAddr + uiLen;
-      if( *(ptr-1) == '/' || *(ptr-1) == '\\' )
-        ptr --;
-      *ptr = '\0';
-   }
-}
+#if defined( HB_OS_WIN )
+   #define _EOL_  "\r\n"
+#else
+   #define _EOL_  "\n"
+#endif
 
 void main( int argc, char *argv[] )
 {
    LETOCONNECTION * pConnection;
    int iPort;
-   char szAddr[128];
-
-   setAddress( argc, argv, szAddr, &iPort );
+   char szAddr[ 128 ];
 
    LetoInit();
+   LetoSetAddress( argc, argv, szAddr, &iPort );
 
-   printf( "Connect to %s port %d\r\n", szAddr, iPort );
+   printf( "Connecting to %s:%d ..." _EOL_, szAddr, iPort );
    if( ( pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, 0 ) ) != NULL )
    {
-      char * ptr, szData[ 64 ];
-      int iRes;
+      const char * ptr;
+      char         szData[ 64 ];
+      int          iRes;
 
-      printf( "Connected!\r\n" );
+      printf( "Connected!" _EOL_ );
       printf( "%s\r\n", LetoGetServerVer( pConnection ) );
 
-      printf( "Adding 'var_int' = 100 to [main] (Err (3)) " );
-      iRes = LetoVarSet( pConnection, "main", "var_int", LETO_VAR_NUM, "100", 0, 0, NULL );
-      if( iRes )
-         printf( "Ok\r\n" );
-      else
-         printf( "Err( %d )\r\n", LetoGetError() );
 
-      printf( "Adding 'var_int' = 100 to [main] (Ok) " );
-      iRes = LetoVarSet( pConnection, "main", "var_int", LETO_VAR_NUM, "100", 0, LETO_VCREAT, NULL );
+      /* adding vars */
+      printf( "Adding 'var_int' = 100 to [main] [Err ( 0 )] " );
+      iRes = LetoVarSet( pConnection, "main", "var_int", LETOVAR_NUM, "100", 0, LETO_VNOCREAT, NULL );
       if( iRes )
-         printf( "Ok\r\n" );
+         printf( "Ok" _EOL_ );
       else
-         printf( "Err( %d )\r\n", LetoGetError() );
+         printf( "Err( %d )" _EOL_, LetoGetError() );
 
-      printf( "Adding 'var_log' = 1 to [main] (Ok) " );
-      iRes = LetoVarSet( pConnection, "main", "var_log", LETO_VAR_LOG, "1", 0, LETO_VCREAT, NULL );
+      printf( "Adding 'var_int' = 100 to [main] [Ok] " );
+      iRes = LetoVarSet( pConnection, "main", "var_int", LETOVAR_NUM, "100", 3, LETO_VCREAT, NULL );
       if( iRes )
-         printf( "Ok\r\n" );
+         printf( "Ok" _EOL_ );
       else
-         printf( "Err( %d )\r\n", LetoGetError() );
+         printf( "Err( %d )" _EOL_, LetoGetError() );
 
-      printf( "Adding 'var_char' = 'Just a test;' to [main] (Ok) " );
-      iRes = LetoVarSet( pConnection, "main", "var_char", LETO_VAR_CHAR, "Just a test;", 0, LETO_VCREAT, NULL );
+      printf( "Adding 'var_dec' = 123.456 to [main] [Ok] " );
+      iRes = LetoVarSet( pConnection, "main", "var_dec", LETOVAR_NUM, "123.456", 0, LETO_VCREAT, NULL );
       if( iRes )
-         printf( "Ok\r\n" );
+         printf( "Ok" _EOL_ );
       else
-         printf( "Err( %d )\r\n", LetoGetError() );
+         printf( "Err( %d )" _EOL_, LetoGetError() );
 
+      printf( "Adding 'var_log' = 1 to [main] [Ok] " );
+      iRes = LetoVarSet( pConnection, "main", "var_log", LETOVAR_LOG, "1", 0, LETO_VCREAT, NULL );
+      if( iRes )
+         printf( "Ok" _EOL_ );
+      else
+         printf( "Err( %d )" _EOL_, LetoGetError() );
+
+      printf( "Adding 'var_char' = 'Just a test;' to [main] [Ok] " );
+      iRes = LetoVarSet( pConnection, "main", "var_char", LETOVAR_STR, "Just a test;", 0, LETO_VCREAT, NULL );
+      if( iRes )
+         printf( "Ok" _EOL_ );
+      else
+         printf( "Err( %d )" _EOL_, LetoGetError() );
+
+      printf( "Adding 'var_binary' containing: 'CHR(0);CHR(1);CHR(0)' to [main] [Ok] " );
+      iRes = LetoVarSet( pConnection, "main", "var_binary",  LETOVAR_STR, "\0;\1;\0", 5, LETO_VCREAT + LETO_VOWN, NULL );
+      if( iRes )
+         printf( "Ok" _EOL_ );
+      else
+         printf( "Err( %d )" _EOL_, LetoGetError() );
+
+
+      /* retrieve vars */
       ptr = LetoVarGet( pConnection, "main", "var_int", NULL );
-      printf( "\r\nvar_int = (100) %s\r\n", ( ptr )? ptr+2 : "Err" );
-      if( ptr )
-         free( ptr );
+      printf( "\r\nvar_int = [100] %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
+
+      ptr = LetoVarGet( pConnection, "main", "var_dec", NULL );
+      printf( "\r\nvar_dev = [123.345] %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
 
       ptr = LetoVarGet( pConnection, "main", "var_char", NULL );
-      printf( "var_char = (Just a test;) %s\r\n", ( ptr )? ptr+2 : "Err" );
-      if( ptr )
-         free( ptr );
+      printf( "var_char = (Just a test;) %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
+
+      ptr = LetoVarGet( pConnection, "main", "var_binary", NULL );
+      if( ptr && *( ptr + 2 ) == '\0' && *( ptr + 3 ) == ';' &&
+                 *( ptr + 4 ) == '\1' && *( ptr + 5 ) == ';' &&
+                 *( ptr + 6 ) == '\0' )
+         printf( "var_binary = CHR(0);CHR(1);CHR(0) %s" _EOL_, "Ok" );
+      else
+         printf( "var_binary != CHR(0);CHR(1);CHR(0) %s" _EOL_, "Err" );
 
       ptr = LetoVarGet( pConnection, "main", "var_log", NULL );
-      printf( "var_log = (1) %s\r\n", ( ptr )? ptr+2 : "Err" );
-      if( ptr )
-         free( ptr );
+      printf( "var_log = [1] %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
 
-      printf( "\r\nDelete var_char (Ok) " );
+
+      /* delete vars */
+      printf( "\r\nDelete var_char [Ok] " );
       iRes = LetoVarDel( pConnection, "main", "var_char" );
       if( iRes )
-         printf( "Ok\r\n" );
+         printf( "Ok" _EOL_ );
       else
-         printf( "Err( %d )\r\n", LetoGetError() );
+         printf( "Err( %d )" _EOL_, LetoGetError() );
 
-      printf( "Delete var_log (Ok) " );
+      printf( "\r\nDelete var_binary [Ok] " );
+      iRes = LetoVarDel( pConnection, "main", "var_binary" );
+      if( iRes )
+         printf( "Ok" _EOL_ );
+      else
+         printf( "Err( %d )" _EOL_, LetoGetError() );
+
+      printf( "Delete var_log [Ok] " );
       iRes = LetoVarDel( pConnection, "main", "var_log" );
       if( iRes )
-         printf( "Ok\r\n" );
+         printf( "Ok" _EOL_ );
       else
-         printf( "Err( %d )\r\n", LetoGetError() );
+         printf( "Err( %d )" _EOL_, LetoGetError() );
 
-      printf( "Delete var_int (Ok) " );
+      printf( "Delete var_int [Ok] " );
       iRes = LetoVarDel( pConnection, "main", "var_int" );
       if( iRes )
-         printf( "Ok\r\n" );
+         printf( "Ok" _EOL_ );
       else
-         printf( "Err( %d )\r\n", LetoGetError() );
+         printf( "Err( %d )" _EOL_, LetoGetError() );
+
+      printf( "Delete var_dec [Ok] " );
+      iRes = LetoVarDel( pConnection, "main", "var_dec" );
+      if( iRes )
+         printf( "Ok" _EOL_ );
+      else
+         printf( "Err( %d )" _EOL_, LetoGetError() );
 
       LetoConnectionClose( pConnection );
    }
    else
-      printf( "Connection failure\r\n" );
+      printf( "Connection failure" _EOL_ );
 
    LetoExit( 1 );
 }

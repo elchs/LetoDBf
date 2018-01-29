@@ -1,6 +1,6 @@
 ; LetoDBf application config with file extension: .ini 
 
-;Server = [//]DETECT[:service]|DNSname|IP[:port][/]
+;Server = DETECT[:service] | [//]DNSname|IP[:port][/]
 Server = localhost
 ;User = UnPaid
 ;TimeOut = -1
@@ -8,4 +8,5 @@ Server = localhost
 ;Date_Format = yyyymmdd
 ;Path_Default = 
 ;Path_Search =
-
+;SMB_Server = DNSname|IP
+;SMB_Port = 2814
