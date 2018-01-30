@@ -152,19 +152,22 @@ static int      s_iSessions = 0;   /* a counter to control hb_socketInit() */
    {
       HB_BOOL  SoftSeek;                /* HB_FALSE */
       HB_BOOL  Deleted;                 /* HB_FALSE */
+      HB_BOOL  Exclusive;               /* HB_TRUE */
       HB_BOOL  AutOpen;                 /* HB_TRUE */
       HB_UCHAR AutOrder;                /* 0 */
-      char     DateFormat[ 12 ];        /* "mm/dd/yy" */
+      char     DateFormat[ 16 ];        /* "mm/dd/yy" */
       HB_SIZE  Epoch;                   /* 1900 */
       char     Default[ HB_PATH_MAX ];
       char     Path[ HB_PATH_MAX ];
       char     id[ 8 ];                 /* "EN" */
+
    } LETOSETGET, * PLETOSETGET;
 
    static PLETOSETGET s_pLetoSetGet = NULL;
 
    #define hb_setGetSoftSeek()     ( s_pLetoSetGet->SoftSeek )
    #define hb_setGetDeleted()      ( s_pLetoSetGet->Deleted )
+   #define hb_setGetExclusive()    ( s_pLetoSetGet->Exclusive )
    #define hb_setGetAutOpen()      ( s_pLetoSetGet->AutOpen )
    #define hb_setGetAutOrder()     ( s_pLetoSetGet->AutOrder )
    #define hb_setGetDateFormat()   ( s_pLetoSetGet->DateFormat )
@@ -175,9 +178,10 @@ static int      s_iSessions = 0;   /* a counter to control hb_socketInit() */
 
    HB_EXPORT void LetoSetSetSoftseek( HB_BOOL fSet )        { s_pLetoSetGet->SoftSeek = fSet; }
    HB_EXPORT void LetoSetSetDeleted( HB_BOOL fSet )         { s_pLetoSetGet->Deleted = fSet; }
+   HB_EXPORT void LetoSetSetExclusive( HB_BOOL fSet )       { s_pLetoSetGet->Exclusive = fSet; }
    HB_EXPORT void LetoSetSetAutOpen( HB_BOOL fSet )         { s_pLetoSetGet->AutOpen = fSet; }
    HB_EXPORT void LetoSetSetAutOrder( HB_UCHAR uSet )       { s_pLetoSetGet->AutOrder = uSet; }
-   HB_EXPORT void LetoSetSetDateFormat( const char * pSet ) { hb_strncpy( s_pLetoSetGet->DateFormat, pSet, 12 - 1 ); }
+   HB_EXPORT void LetoSetSetDateFormat( const char * pSet ) { hb_strncpy( s_pLetoSetGet->DateFormat, pSet, 16 - 1 ); }
    HB_EXPORT void LetoSetSetEpoch( HB_SIZE nSet )           { s_pLetoSetGet->Epoch = nSet; }
    HB_EXPORT void LetoSetSetDefault( const char * pSet )    { hb_strncpy( s_pLetoSetGet->Default, pSet, HB_PATH_MAX - 1 ); }
    HB_EXPORT void LetoSetSetPath( const char * pSet )       { hb_strncpy( s_pLetoSetGet->Path, pSet, HB_PATH_MAX - 1 ); }
@@ -667,6 +671,7 @@ HB_EXPORT void LetoInit( void )
    leto_ipInit();
 #if defined( __LETO_C_API__ )
    s_pLetoSetGet = hb_xgrabz( sizeof( LETOSETGET ) );
+   s_pLetoSetGet->Exclusive = HB_TRUE;
    s_pLetoSetGet->AutOpen = HB_TRUE;
    s_pLetoSetGet->Epoch = 1900;
    memcpy( s_pLetoSetGet->DateFormat, "mm/dd/yy", 8 );
@@ -3461,7 +3466,7 @@ static HB_BOOL LetoSetExclConn( LETOCONNECTION * pConnection )
       if( szIP )
          hb_xfree( szIP );
    }
-   else
+   else if( s_pExclusiveConn )
       fValid = HB_TRUE;
 
    HB_GC_UNLOCKE();
@@ -3493,8 +3498,6 @@ HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const cha
    if( LetoSetExclConn( pConnection ) )
       pConnection = s_pExclusiveConn;
    else
-      return NULL;
-   if( ! pConnection )
       return NULL;
 
    #ifdef LETO_CLIENTLOG
@@ -5901,6 +5904,96 @@ HB_EXPORT int LetoToggleZip( LETOCONNECTION * pConnection, int iZipRecord, const
       return pConnection->iZipRecord;
    else
       return -2;
+}
+
+HB_BOOL LetoUdf( LETOCONNECTION * pConnection, LETOTABLE * pTable, HB_BOOL fInThread, const char * szFuncName, PHB_ITEM * pItem )
+{
+   HB_ULONG ulMemSize = szFuncName ? strlen( szFuncName ) : 0;
+   HB_BOOL  fLetoArea = pTable ? HB_TRUE : HB_FALSE;
+   HB_BOOL  fSuccess = HB_FALSE;
+
+   if( ! szFuncName || strchr( szFuncName, ';' ) != NULL || ulMemSize > HB_PATH_MAX )  /* pDynSym is max 63 */
+      return HB_FALSE;
+
+   if( pConnection )
+   {
+      char *  szData;
+      char *  pParam = NULL, * ptr;
+      HB_SIZE nSize = 0;
+      HB_BOOL fExclusive = hb_setGetExclusive();
+
+      if( pItem && hb_arrayLen( *pItem ) )
+      {
+#ifndef __XHARBOUR__
+         pParam = hb_itemSerialize( *pItem, HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
+#endif
+      }
+
+      ulMemSize += nSize + 42;
+      szData = hb_xgrab( ulMemSize );
+
+      if( fLetoArea )  /* valid LETOAREA pArea */
+         hb_snprintf( szData, ulMemSize, "%c;%lu;%c;%c;%lu;%s;%c;%" HB_PFS "u;", LETOCMD_udf_dbf, pTable->hTable,
+                      fInThread ? '9' : '1', ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ),
+                      pTable->ulRecNo, szFuncName, fExclusive ? 'T' : 'F', nSize );
+      else
+         hb_snprintf( szData, ulMemSize, "%c;%c;%c;%lu;%s;%c;%" HB_PFS "u;", LETOCMD_udf_fun,
+                      fInThread ? '9' : '2', ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ),
+                      0L, szFuncName, fExclusive ? 'T' : 'F', nSize );
+      ptr = szData + strlen( szData );
+      if( pParam )
+      {
+         memcpy( ptr, pParam, nSize );
+         hb_xfree( pParam );
+      }
+
+      pConnection->iError = 0;
+      if( leto_DataSendRecv( pConnection, szData, ( ptr - szData ) + nSize ) )
+      {
+         ptr = pConnection->szBuffer;
+         if( fInThread )
+            fSuccess = ( ! strncmp( ptr, "+321", 4 ) );
+         else if( ptr[ 0 ] == '+' )  /* NEW: pre-leading '+' before valid [ zero ] result */
+         {
+            HB_ULONG     ulLen;
+            const char * ptrTmp = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer + 1 );
+
+            fSuccess = HB_TRUE;
+#ifndef __XHARBOUR__
+            if( pItem )
+            {
+               if( ulLen )
+               {
+                  hb_itemRelease( *pItem );
+                  *pItem = hb_itemDeserialize( &ptrTmp, ( HB_SIZE * ) &ulLen );
+               }
+               else
+                  hb_itemSetNil( *pItem );
+            }
+#endif
+         }
+         else
+         {
+#if 0   /* throw RTE ? */
+            if( ptr[ 0 ] == '-' )
+            {
+               if( ! strncmp( ptr + 1, "ACC", 3 ) )       /* no data access rights */
+                  pConnection->iError = -11;
+               else if( ! strncmp( ptr + 1, "002", 3 ) )  /* unknown command */
+                  pConnection->iError = -2;
+               else if( ! strncmp( ptr + 1, "004", 3 ) )  /* error during exec on server */
+                  pConnection->iError = -4;
+               else
+                  pConnection->iError = -1;
+            }
+#endif
+         }
+      }
+
+      hb_xfree( szData );
+   }
+
+   return fSuccess;
 }
 
 /* unused */

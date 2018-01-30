@@ -2314,17 +2314,21 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
    LETOCONNECTION * pConnection;
    LETOAREAP        pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
    char             szFuncName[ HB_PATH_MAX ];
-   HB_ULONG         ulMemSize;
    HB_USHORT        uLen;
    HB_BOOL          fLetoArea = leto_IsLetoArea( pArea );
 
    if( ! pArray )
       pConnection = letoParseParam( hb_parc( 1 ), szFuncName );
-   else
+   else if( hb_arrayLen( pArray ) )
    {
       hb_strncpy( szFuncName, hb_arrayGetCPtr( pArray, 1 ), HB_SYMBOL_NAME_LEN + 1 );
       szFuncName[ hb_arrayGetCLen( pArray, 1 ) ] = '\0';
       pConnection = letoGetCurrConn();
+   }
+   else
+   {
+      hb_ret();
+      return;
    }
 
    uLen = ( HB_USHORT ) strlen( szFuncName );
@@ -2349,97 +2353,36 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
 
    if( pConnection )
    {
-      char *  szData;
-      char *  pParam = NULL, * ptr;
-      HB_SIZE nSize = 0;
-      HB_BOOL fExclusive = hb_setGetExclusive();
-#ifdef __XHARBOUR__
-      PHB_ITEM * pBase;
-#endif
+      const char * ptr;
+      HB_BOOL      fSuccess;
 
       if( ! pArray )
       {
 #ifdef __XHARBOUR__
-         pBase = hb_stackGetBase( 0 );
+         PHB_ITEM * pBase = hb_stackGetBase( 0 );
+
          pArray = hb_arrayFromParams( pBase );
 #else
          pArray = hb_arrayFromParams( 0 );
 #endif
       }
-      if( hb_arrayLen( pArray ) > 1 )  /* first item = function name/ codeblock */
+
+      if( hb_arrayLen( pArray ) )  /* first item = function name/ codeblock */
       {
-#ifndef __XHARBOUR__
          hb_arrayDel( pArray, 1 );
          hb_arraySize( pArray, hb_arrayLen( pArray ) - 1 );
-         pParam = hb_itemSerialize( pArray, HB_SERIALIZE_NUMSIZE, &nSize );  //  | HB_SERIALIZE_COMPRESS
-#endif
       }
-      hb_itemRelease( pArray );
-
-      ulMemSize = hb_parclen( 1 ) + nSize + 42;
-      szData = hb_xgrab( ulMemSize );
 
       ptr = ( szFuncName[ 0 ] == '/' ) ? szFuncName + 1 : szFuncName;
-      if( fLetoArea )  /* valid LETOAREA pArea */
-         hb_snprintf( szData, ulMemSize, "%c;%lu;%c;%c;%lu;%s;%c;%" HB_PFS "u;", LETOCMD_udf_dbf, pArea->pTable->hTable,
-                      fInThread ? '9' : '1', ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ),
-                      pArea->pTable->ulRecNo, ptr, fExclusive ? 'T' : 'F', nSize );
-      else
-         hb_snprintf( szData, ulMemSize, "%c;%c;%c;%lu;%s;%c;%" HB_PFS "u;", LETOCMD_udf_fun,
-                      fInThread ? '9' : '2', ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ),
-                      0L, ptr, fExclusive ? 'T' : 'F', nSize );
-      ptr = szData + strlen( szData );
-      if( pParam )
-      {
-         memcpy( ptr, pParam, nSize );
-         hb_xfree( pParam );
-      }
+      fSuccess = LetoUdf( pConnection, fLetoArea ? pArea->pTable : NULL, fInThread, ptr, &pArray );
 
-      pConnection->iError = 0;
-      if( ! leto_DataSendRecv( pConnection, szData, ( ptr - szData ) + nSize ) )
-         hb_ret();
-      else
+      if( fSuccess && pArray )
+         hb_itemReturnRelease( pArray );
+      else if( pArray )
       {
-         ptr = pConnection->szBuffer;
-         if( fInThread )
-            hb_retl( ! strncmp( ptr, "+321", 4 ) );
-         else if( ptr[ 0 ] == '+' )  /* NEW: pre-leading '+' before valid [ zero ] result */
-         {
-#ifdef __XHARBOUR__
-            hb_retl( HB_TRUE );
-#else
-            HB_ULONG     ulLen;
-            const char * ptrTmp = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer + 1 );
-
-            if( ulLen )
-               hb_itemReturnRelease( hb_itemDeserialize( &ptrTmp, ( HB_SIZE * ) &ulLen ) );
-            else
-               hb_ret();
-#endif
-         }
-         else
-         {
-#if 0   /* throw RTE ? */
-            if( ptr[ 0 ] == '-' )
-            {
-               if( ! strncmp( ptr + 1, "ACC", 3 ) )       /* no data access rights */
-                  pConnection->iError = -11;
-               else if( ! strncmp( ptr + 1, "002", 3 ) )  /* unknown command */
-                  pConnection->iError = -2;
-               else if( ! strncmp( ptr + 1, "004", 3 ) )  /* error during exec on server */
-                  pConnection->iError = -4;
-               else
-                  pConnection->iError = -1;
-            }
-#endif
-#ifdef __XHARBOUR__
-            hb_retl( HB_FALSE );
-#else
-            hb_ret();
-#endif
-         }
+         hb_itemRelease( pArray );
+         hb_retl( fSuccess );
       }
-      hb_xfree( szData );
    }
    else
       hb_ret();
@@ -2976,7 +2919,7 @@ HB_FUNC( LETO_SMBSERVER )
       HB_BOOL          fSet;
 
       memset( s_szSMBServer, 0, 64 );
-      sprintf( s_szSMBServer, "//%s:%d/", hb_parc( 1 ), hb_parni( 2 ) );
+      sprintf( s_szSMBServer, "//%.40s:%d/", hb_parc( 1 ), hb_parni( 2 ) );
 
       if( HB_ISNUM( 3 ) && hb_parni( 3 ) >= 0 )
          pCurrentConn = letoGetCurrConn();

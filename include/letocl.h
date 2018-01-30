@@ -286,6 +286,7 @@ const char * LetoGetServerVer( LETOCONNECTION * pConnection );
 void LetoSetPath( LETOCONNECTION * pConnection, const char * szPath );
 HB_BOOL LetoPing( LETOCONNECTION * pConnection );
 int LetoToggleZip( LETOCONNECTION * pConnection, int iZipRecord, const char * szPassword );
+HB_BOOL LetoUdf( LETOCONNECTION * pConnection, LETOTABLE * pTable, HB_BOOL fInThread, const char * szFuncName, PHB_ITEM * pItem );
 
 void leto_clientlog( const char * sFile, int n, const char * s, ... );
 void LetoDbFreeTag( LETOTAGINFO * pTagInfo );
@@ -396,6 +397,7 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
 
    void LetoSetSetSoftseek( HB_BOOL fSet );
    void LetoSetSetDeleted( HB_BOOL fSet );
+   void LetoSetSetExclusive( HB_BOOL fSet );
    void LetoSetSetAutOpen( HB_BOOL fSet );
    void LetoSetSetAutOrder( HB_UCHAR uSet );
    void LetoSetSetDateFormat( const char * pSet );

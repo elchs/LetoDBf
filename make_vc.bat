@@ -30,7 +30,11 @@ REM SET LIBPATH=F:\MsVc9\VC\lib;F:\MsVc9\SDK\v3.5\lib
 :BUILD
 nmake /I /Fmakefile.vc %1 %2 %3 > make_vc.log
 if errorlevel 1 goto BUILD_ERR
-rem copy lib\rddleto.lib %HB_PATH%\lib\rddleto.lib
+if "%1" == "full" (
+   copy lib\rddleto.lib %HB_PATH%\lib\rddleto.lib
+) ELSE (
+   copy lib\leto.lib %HB_PATH%\lib\leto.lib
+)
 goto BUILD_OK
 
 :BUILD_OK

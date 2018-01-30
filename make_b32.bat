@@ -13,7 +13,11 @@ if not exist obj\api md obj\api
 :BUILD
 make -l EXE_OBJ_DIR=obj\b32\bin OBJ_DIR=obj\b32 API_DIR=obj\api -fmakefile.bc %1 %2 %3 > make_b32.log
 if errorlevel 1 goto BUILD_ERR
-copy lib\rddleto.lib %HB_PATH%\lib\rddleto.lib
+if "%1" == "full" (
+   copy lib\rddleto.lib %HB_PATH%\lib\rddleto.lib
+) ELSE (
+   copy lib\leto.lib %HB_PATH%\lib\leto.lib
+)
 goto BUILD_OK
 
 :BUILD_OK

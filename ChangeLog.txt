@@ -2,6 +2,23 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-01-30 22:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letomgmn.c
+    ! fix GPF for lib build for LETO_SMBSERVER, but not set address for it
+    * secure in LETO_SMBSERVER a theoretical possible buffer overrun
+    * missing LetoSetSetExclusive( HB_BOOL fSet )
+      and whitening #define hb_setGetExclusive
+    * split leto_udf() into a new part: LetoUdf() for C-API
+
+  * tests/c_lang/test1.c
+    * add test for new LetoUdf()
+
+  * make_bc32.bat
+  * make_vc.bat
+    ! copy C-API lib into Harbour repository
+
 2018-01-29 16:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * ClientLog.txt
     * missing to note two source files
