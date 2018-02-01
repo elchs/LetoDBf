@@ -12106,13 +12106,17 @@ static HB_USHORT leto_FindFreeArea( PUSERSTRU pUStru )
 }
 
 /* mode 0 = a single, 1 = double found, 2 = DENY_ALL */
-static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
+static HB_BOOL leto_SMBTest( const char * szFilename, int iMode, PUSERSTRU pUStru )
 {
    HB_SIZE      nStdOut = 0;
    char *       pStdOutBuf = NULL;
    int          iResult;
 
-   iResult = hb_fsProcessRun( "smbstatus -L 2>/dev/null", NULL, 0, &pStdOutBuf, &nStdOut, NULL, 0, HB_FALSE );
+   if( s_iDebugMode > 20 )
+      leto_wUsLog( pUStru, 0, "DEBUG leto_SMBTest() exec: /usr/bin/smbstatus -L 2>/dev/null" );
+   iResult = hb_fsProcessRun( "/usr/bin/smbstatus -L 2>/dev/null", NULL, 0, &pStdOutBuf, &nStdOut, NULL, 0, HB_FALSE );
+   if( s_iDebugMode > 20 )
+      leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest() done (%d - %d)", iResult, hb_fsError() );
    hb_fsSetFError( hb_fsError() );
    if( iResult || hb_fsGetFError() )
    {
@@ -12131,6 +12135,9 @@ static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
          int          iStart;
          const char * ptr, * ptr1, *ptr2;
          HB_BOOL      fResult = HB_FALSE;
+
+         if( s_iDebugMode > 20 )
+            leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest() analyze start in mode (%d)", iMode );
 
          if( ( ptr = strchr( szFilename, '.' ) ) != NULL )
          {
@@ -12179,6 +12186,8 @@ static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
             }
          }
 
+         if( s_iDebugMode > 20 )
+            leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest() analyze result (%s)", fResult ? ".T." : ".F." );
          hb_xfree( pStdOutBuf );
          return fResult;
       }
@@ -12461,7 +12470,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                {
                   if( s_iDebugMode > 20 )
                      leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest(%s) start", szFile );
-                  if( leto_SMBTest( szFile, 1 ) )
+                  if( leto_SMBTest( szFile, 1, pUStru ) )
                   {
                      hb_rddReleaseCurrentArea();
                      hb_rddSetNetErr( HB_TRUE );

@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-01 15:44 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    * more debug feedback to track delay .. ToDo ? remove again,
+      use absolute path for smbstatus
+
 2018-02-01 11:12 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     % optimize leto_SMBTest() to push not used stderr to /dev/null
