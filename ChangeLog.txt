@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-01 11:12 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    % optimize leto_SMBTest() to push not used stderr to /dev/null
+    * add debug feedback to track delay caused by OS error for
+      hb_rddOpenTable, if a table is exclusive open by Samba app
+
 2018-01-30 22:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/leto1.c

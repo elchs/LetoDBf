@@ -12108,14 +12108,11 @@ static HB_USHORT leto_FindFreeArea( PUSERSTRU pUStru )
 /* mode 0 = a single, 1 = double found, 2 = DENY_ALL */
 static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
 {
-   HB_SIZE      nStdOut = 0, nStdErr = 0;
+   HB_SIZE      nStdOut = 0;
    char *       pStdOutBuf = NULL;
-   char *       pStdErrBuf = NULL;
    int          iResult;
 
-   iResult = hb_fsProcessRun( "smbstatus -L", NULL, 0, &pStdOutBuf, &nStdOut, &pStdErrBuf, &nStdErr, HB_FALSE );
-   if( pStdErrBuf )
-      hb_xfree( pStdErrBuf );  /* just suppressed error messages */
+   iResult = hb_fsProcessRun( "smbstatus -L 2>/dev/null", NULL, 0, &pStdOutBuf, &nStdOut, NULL, 0, HB_FALSE );
    hb_fsSetFError( hb_fsError() );
    if( iResult || hb_fsGetFError() )
    {
@@ -12438,6 +12435,8 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                }
             }
 
+            if( s_bSMBServer && s_iDebugMode > 20 )
+               leto_wUsLog( pUStru, -1, "DEBUG Open start hb_rddOpenTable(%s)", szFile );
             hb_xvmSeqBegin();
             hb_rddSetNetErr( HB_FALSE );
             errcode = hb_rddOpenTable( szFileName, ( const char * ) szDriver, uiArea, szRealAlias,
@@ -12445,6 +12444,8 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                                        ( ( s_bShareTables || s_bNoSaveWA ) && bReadonly ),
                                        szCdp, 0, NULL, NULL );
             hb_xvmSeqEnd();
+            if( s_bSMBServer && s_iDebugMode > 20 )
+               leto_wUsLog( pUStru, -1, "DEBUG Open ended hb_rddOpenTable(%s)", szFile );
 
             if( pUStru->iHbError )
                errcode = HB_FAILURE;
@@ -12458,6 +12459,8 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             {
                if( ! bMemIO && ! ( ( s_bShareTables || s_bNoSaveWA ) && bShared && ! bMemIO ) )
                {
+                  if( s_iDebugMode > 20 )
+                     leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest(%s) start", szFile );
                   if( leto_SMBTest( szFile, 1 ) )
                   {
                      hb_rddReleaseCurrentArea();
@@ -12465,7 +12468,9 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                      errcode = HB_FAILURE;
                   }
                   if( s_iDebugMode > 1 && hb_rddGetNetErr() )
-                     leto_wUsLog( pUStru, -1, "DEBUG leto_OpenTable(%s) collision with Samba", szFile );
+                     leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest(%s) collision", szFile );
+                  else if( s_iDebugMode > 20 )
+                     leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest(%s) successful", szFile );
                }
             }
 
