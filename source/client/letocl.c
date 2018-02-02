@@ -277,7 +277,7 @@ void letoClearCurrConn( void )
    s_pCurrentConn = NULL;
 }
 
-HB_USHORT uiGetConnCount( void )
+unsigned int uiGetConnCount( void )
 {
    return s_uiConnCount;
 }

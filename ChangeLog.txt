@@ -2,6 +2,37 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-02 21:02 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/let1.c
+  * source/client/leto1.c
+  * source/client/letomgmn.c
+    * compiler warning for uiGetConnCount(): unsigned int <> HB_USHORT
+      remove some HB_USHORT casting for letoGetConnPool()
+
+  * source/server/letofunc.c
+  * source/server/server.prg
+    * try to reduce delay caused by 'smbstatus' query in some environment
+      with an anytime slower alternative: leto_LSOFtest()
+
+  * include/rddleto.h
+    * cleaning
+
+  * tests/c_lang/bldc.bat
+  + tests/c_lang/bldc.sh
+  * tests/c_lang/test1.c
+  * tests/c_lang/test_dbf.c
+  * tests/c_lang/test_var.c
+    * remove OS and compiler bindings
+    * reduce HB libs in build scripts
+
+  + apileto.hbp
+  - make_gcc.sh
+  - makefile.gcc
+    * removing C-API lib build script for GCC
+    ; build C-API lib ( all compiler/ OS ) with: hbmk2 apileto.hbp
+
+  * ReadMe.txt
+
 2018-02-02 04:14 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     * remove debug extras to prove a wrong assumption, formatting

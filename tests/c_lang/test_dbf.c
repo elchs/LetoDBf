@@ -1,7 +1,4 @@
-#include <stdio.h>
-#ifdef __BORLANDC__
-   #include <conio.h>
-#endif
+
 /* set it before ! */
 #define __LETO_C_API__
 #include "letocl.h"
@@ -77,8 +74,8 @@ void main( int argc, char *argv[] )
 
          printf( "test1.dbf has been created." _EOL_ );
 
-         if( !LetoDbRecCount( pTable, &ulRecCount ) )
-            printf( "Records: %d" _EOL_, ulRecCount );
+         if( ! LetoDbRecCount( pTable, &ulRecCount ) )
+            printf( "Records: %lu" _EOL_, ulRecCount );
          else
             printf( "LetoDbRecCount error" _EOL_ );
 
@@ -141,7 +138,7 @@ void main( int argc, char *argv[] )
             if( ! LetoDbPutRecord( pTable ) )
                printf( "%d ", ui );
             else
-               printf( "%d error " );
+               printf( " error " );
          }
 
          printf( _EOL_ "Index creating (NAME) - " );
@@ -177,8 +174,7 @@ void main( int argc, char *argv[] )
       else
          printf( "Can not create the test1.dbf" _EOL_ );
 
-      getch();
-
+      printf( _EOL_ "logging out ..." _EOL_ );
       LetoConnectionClose( pConnection );
    }
    else

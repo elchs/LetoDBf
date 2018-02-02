@@ -45,29 +45,41 @@
  */
 
 #include "hbapi.h"
-#include "hbinit.h"
 #include "hbapiitm.h"
 #include "hbapierr.h"
 #include "hbapilng.h"
-#include "hbapirdd.h"
 #include "hbdbferr.h"
 #include "hbdate.h"
-#include "hbdefs.h"
-#include "hbgtcore.h"
+#include "hbinit.h"
+#include "hbsetup.h"
 #include "hbset.h"
-#include "hbsocket.h"
 #include "hbstack.h"
-#ifndef __XHARBOUR__
+#if ! defined( __XHARBOUR__ )
    #include "hbthread.h"
 #endif
 #include "hbatomic.h"
 #include "hbvm.h"
-#include "hbsetup.h"
 #ifndef USE_LZ4
    #include "hbzlib.h"
 #endif
 
-#if defined( __XHARBOUR__ )
+#include "dbinfo.ch"
+#include "rddsys.ch"
+
+#include "cmdleto.h"
+#include "funcleto.h"
+#include "letocl.h"
+
+#include "rddleto.ch"
+
+#if ! defined( __XHARBOUR__ )
+
+   #define HB_CDP_PAGE()  hb_vmCDP()
+
+#else  /* __XHARBOUR__ */
+
+   #define HB_CDP_PAGE()  hb_cdppage()
+
    #ifndef HB_LONG_LONG_OFF
       #define HB_LONG_LONG_OFF
    #endif
@@ -139,32 +151,27 @@
       #define DBI_LOCKTEST  146
    #endif
 
-   /* CP */
-   #define HB_CDP_PAGE()  hb_cdppage()
-
-#else  /* ! __XHARBOUR__ */
-
-   #define HB_CDP_PAGE()  hb_vmCDP()
-
 #endif
 
 #if ! defined( LETO_USE_THREAD )
-   #define LETO_USE_THREAD    HB_TRUE
+   #ifdef LETO_NO_THREAD
+      #define LETO_USE_THREAD    HB_FALSE
+   #else
+      #define LETO_USE_THREAD    HB_TRUE
+   #endif
 #endif
 
-#include "cmdleto.h"
-#include "funcleto.h"
-#include "letocl.h"
-
-#include "dbinfo.ch"
 #ifdef __HARBOUR30__
    #define HB_SERIALIZE_NUMSIZE   HB_TRUE
 #else
    #include "hbserial.ch"
 #endif
-#include "rddsys.ch"
 
-#include "rddleto.ch"
+#if ! defined( HB_RDD_MAX_DRIVERNAME_LEN ) && defined( HARBOUR_MAX_RDD_DRIVERNAME_LENGTH )
+   #define  HB_RDD_MAX_DRIVERNAME_LEN  HARBOUR_MAX_RDD_DRIVERNAME_LENGTH
+   #define  HB_RDD_MAX_ALIAS_LEN       HARBOUR_MAX_RDD_ALIAS_LENGTH
+#endif
+
 
 HB_EXTERN_BEGIN
 
@@ -207,9 +214,4 @@ typedef struct _LETOAREA_
 typedef LETOAREA * LETOAREAP;
 
 HB_EXTERN_END
-
-#if ! defined( HB_RDD_MAX_DRIVERNAME_LEN ) && defined( HARBOUR_MAX_RDD_DRIVERNAME_LENGTH )
-   #define  HB_RDD_MAX_DRIVERNAME_LEN  HARBOUR_MAX_RDD_DRIVERNAME_LENGTH
-   #define  HB_RDD_MAX_ALIAS_LEN       HARBOUR_MAX_RDD_ALIAS_LENGTH
-#endif
 

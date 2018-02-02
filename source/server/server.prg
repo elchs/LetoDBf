@@ -126,7 +126,7 @@ REQUEST hb_idleSleep, hb_milliSeconds
 REQUEST dbGoTop, dbGoBottom, dbSkip, dbGoto, dbSeek, Bof, Eof, dbEval, dbInfo, dbStruct
 REQUEST dbAppend, dbDelete, dbRecall, dbCommit, dbFilter, dbSetFilter
 #ifndef __HARBOUR30__
-   REQUEST hb_dbGetFilter, HB_WILDMATCH, HB_WILDMATCHI
+   REQUEST hb_dbGetFilter, HB_WILDMATCHI
 #endif
 REQUEST ordKeyVal, dbOrderInfo, RDDinfo, OrdSetFocus, Alias, Select, dbSelectArea
 
@@ -464,6 +464,7 @@ METHOD New() CLASS HApp
    LOCAL lForceOpt := .F.
    LOCAL lUDFEnabled := .F.
    LOCAL lSMBServer := .F.
+   LOCAL cSMBPath := ""
 
 #if ! defined( __PLATFORM__WINDOWS )
 
@@ -604,6 +605,11 @@ METHOD New() CLASS HApp
                   ::nBCPort := VAL( aIni[ i, 2, j, 2 ] )
                ELSEIF aIni[ i, 2, j, 1 ] == "SMB_SERVER"
                   lSMBServer := ( aIni[ i, 2, j, 2 ] == '1' )
+               ELSEIF aIni[ i, 2, j, 1 ] == "SMB_PATH"
+                  cSMBPath := StrTran( aIni[ i, 2, j, 2 ], DEF_CH_SEP, DEF_SEP )
+                  IF AT( ":", cSMBPath ) < 2 .OR. RIGHT( cSMBPath, 1 ) == ":"
+                     cSMBPath := ""
+                  ENDIF
                ENDIF
             NEXT
          ELSEIF aIni[ i, 1 ] == "DATABASE"
@@ -647,7 +653,7 @@ METHOD New() CLASS HApp
          ::lAnyExt, ::lPass4L, ::lPass4M, ::lPass4D, ::cPassName, ::lCryptTraffic, ;
          ::lShare, ::lNoSaveWA, nMaxVars, nMaxVarSize, nCacheRecords, nTables_max, nUsers_max, ;
          nDebugMode, lOptimize, nAutOrder, nMemoType, lForceOpt, ::nBigLock, lUDFEnabled, nMemoBlocksize,;
-         ::lLower, ::cTrigger, lHardCommit, lSMBServer )
+         ::lLower, ::cTrigger, lHardCommit, lSMBServer, cSMBPath )
 
       RETURN Self
 

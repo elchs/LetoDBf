@@ -1,10 +1,9 @@
 
-#include <stdio.h>
 /* set it before ! */
 #define __LETO_C_API__
 #include "letocl.h"
 
-/* for LetoUdf() */
+/* needed for LetoUdf() */
 #include "hbapi.h"
 #include "hbapiitm.h"
 
@@ -44,8 +43,6 @@ void main( int argc, char *argv[] )
          LetoGetCmdItem( ptr, szData );
          printf( "max: %s" _EOL_, szData );
       }
-
-      /* LetoUdf( LETOCONNECTION * pConnection, LETOTABLE * pTable, HB_BOOL fInThread, const char * szFuncName, PHB_ITEM * pArray ); */
 
       printf( _EOL_ "remote execution test" _EOL_ );
 

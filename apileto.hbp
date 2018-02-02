@@ -1,0 +1,54 @@
+#
+# to create the C-API lib, for access LetoDBf with pure-C [ ! not PRG ! ]
+# most times "rddleto.hbp" is what you are looking for
+#
+
+#-env:__BM=yes
+{!bcc}-env:__LZ4=yes
+-env:__PMURHASH=yes
+
+-cflag=-D__LETO_C_API__=1
+-cflag=-DLETO_NO_MT=1
+-cflag=-DLETO_NO_THREAD=1
+
+-olib/leto
+
+# static lib
+-hblib
+
+# shared lib, dll or so
+#-hbdynvm
+#-shared
+
+-n
+-w3
+-q0
+-es2
+-gc3
+-strip
+-rebuild
+
+-iinclude
+{__LZ4}-isource/3rd/lz4/lib
+
+#-cflag=-D__HARBOUR30__=1
+
+-cflag={allmsvc}-D_CRT_SECURE_NO_DEPRECATE
+-cflag={clang}-W
+-cflag={clang}-Wall
+-cflag={clang}-pedantic
+# to avoid spin locks
+#-cflag={win}-DHB_HELGRIND_FRIENDLY=1
+{__PMURHASH}-cflag=-DUSE_PMURHASH=1
+{__BM}-cflag=-D__BM=1
+{__LZ4}-cflag=-DUSE_LZ4=1
+
+source/client/letocl.c
+{__BM}source/client/letobmcl.prg
+
+source/common/blowfish.c
+source/common/common_c.c
+{__LZ4}source/3rd/lz4/lib/lz4.c
+{__LZ4}source/common/lz4net.c
+{__PMURHASH}source/common/PMurHash.c
+

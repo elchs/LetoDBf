@@ -94,6 +94,7 @@ static HB_CRITICAL_NEW( s_ThxMtx );
 static int       s_iDebugMode = 1;
 static char *    s_szServerAddr = NULL;
 static char *    s_pDataPath = NULL;
+static char *    s_pSharePath = NULL;
 static HB_USHORT s_uiDataPathLen = 0;
 static HB_USHORT s_uiDriverDef = 0;
 static HB_BOOL   s_bShareTables = HB_FALSE;
@@ -1482,6 +1483,11 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
       s_bHardCommit = hb_parl( 27 );
    if( HB_ISLOG( 28 ) )
       s_bSMBServer = hb_parl( 28 );
+   if( hb_parclen( 29 ) )
+   {
+      s_pSharePath = ( char * ) hb_xgrab( hb_parclen( 29 ) + 1 );
+      strcpy( s_pSharePath, hb_parc( 29 ) );
+   }
 }
 
 /* leto_udf() */
@@ -3967,6 +3973,11 @@ HB_FUNC( LETO_RELEASEDATA )  /* during server down */
       {
          hb_xfree( s_pDataPath );
          s_pDataPath = NULL;
+      }
+      if( s_pSharePath )
+      {
+         hb_xfree( s_pSharePath );
+         s_pSharePath = NULL;
       }
       if( pDB )
       {
@@ -12178,6 +12189,57 @@ static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
    }
 }
 
+/* mode 0 = a single, 1 = double found */
+static HB_BOOL leto_LSOFtest( const char * szFilename, int iMode )
+{
+   char *  pStdOutBuf = NULL;
+   HB_SIZE nStdOut = 0;
+   char    szFile[ HB_PATH_MAX ];
+   char    szCmd[ HB_PATH_MAX + 64 ];
+   int     iStart = strchr( s_pSharePath, ':' ) - s_pSharePath + 1;
+   int     iLen = strlen( s_pSharePath + iStart );
+   int     iLenLen = strlen( szFilename + iLen );
+
+   if( iLenLen + iStart < HB_PATH_MAX )
+   {
+      memcpy( szFile, s_pSharePath, iStart - 1 );
+      memcpy( szFile + iStart - 1, szFilename + iLen, iLenLen + 1 );  /* incl. '\0' */
+
+      memcpy( szCmd, "/usr/bin/lsof ", 14 );
+      memcpy( szCmd + 14, szFile, iStart + iLenLen - 1 );
+      memcpy( szCmd + 14 + iStart + iLenLen - 1, " 2>/dev/null", 13 );  /* incl. '\0' */
+   }
+   else
+      return HB_TRUE;  /* too long, won't analyze -> don't open */
+
+   hb_fsProcessRun( szCmd, NULL, 0, &pStdOutBuf, &nStdOut, NULL, 0, HB_FALSE );
+   if( ! pStdOutBuf || ! nStdOut )
+   {
+      if( pStdOutBuf )
+         hb_xfree( pStdOutBuf );
+      return HB_FALSE;
+   }
+   else
+   {
+      HB_BOOL      fResult = HB_FALSE;
+      const char * ptr, * ptr1;
+
+      pStdOutBuf[ nStdOut ] = '\0';
+      ptr1 = pStdOutBuf;
+      ptr = leto_stristr( ptr1, szFile );
+      if( ptr && iMode < 2 )
+      {
+         if( iMode == 1 )
+            ptr = leto_stristr( ptr, szFile );
+         if( ptr )
+            fResult = HB_TRUE;
+      }
+
+      hb_xfree( pStdOutBuf );
+      return fResult;
+   }
+}
+
 static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
 {
    char *       szFileRaw = ( char * ) hb_xgrab( HB_PATH_MAX );
@@ -12448,7 +12510,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             {
                if( ! bMemIO && ! ( ( s_bShareTables || s_bNoSaveWA ) && bShared && ! bMemIO ) )
                {
-                  if( leto_SMBTest( szFile, 1 ) )
+                  if( s_pSharePath ? leto_LSOFtest( szFileName, 1 ) : leto_SMBTest( szFile, 1 ) )
                   {
                      hb_rddReleaseCurrentArea();
                      hb_rddSetNetErr( HB_TRUE );

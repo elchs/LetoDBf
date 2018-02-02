@@ -73,9 +73,10 @@ static RDDFUNCS  s_letoSuper;
 #ifndef LETO_NO_THREAD
    HB_ERRCODE delayedError( void );
 #endif
-HB_USHORT uiGetConnCount( void );
+
 LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
 LETOCONNECTION * letoGetCurrConn( void );
+unsigned int uiGetConnCount( void );
 
 void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray );
 
@@ -5130,14 +5131,14 @@ static HB_ERRCODE letoInit( LPRDDNODE pRDD )
 
 static HB_ERRCODE letoExit( LPRDDNODE pRDD )
 {
-   HB_USHORT i;
-
    HB_TRACE( HB_TR_DEBUG, ( "letoExit(%p)", pRDD ) );
 
    HB_SYMBOL_UNUSED( pRDD );
 
    if( letoGetConnPool( 0 ) )
    {
+      unsigned int i;
+
       for( i = 0; i < uiGetConnCount(); i++ )
       {
          leto_ConnectionClose( letoGetConnPool( i ) );
@@ -5159,7 +5160,7 @@ static HB_ERRCODE letoExit( LPRDDNODE pRDD )
 static HB_USHORT leto_MemoType( HB_ULONG ulConnect )
 {
    LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
-                                  letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+                                  letoGetConnPool( ulConnect - 1 ) : letoGetCurrConn();
    HB_USHORT        uiMemoType;
 
    if( pConnection && pConnection->uiMemoType )
@@ -5184,7 +5185,7 @@ static HB_USHORT leto_MemoType( HB_ULONG ulConnect )
 static const char * leto_MemoExt( HB_ULONG ulConnect )
 {
    LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
-                                  letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+                                  letoGetConnPool( ulConnect - 1 ) : letoGetCurrConn();
 
    if( pConnection && *pConnection->szMemoExt )
       return pConnection->szMemoExt;
@@ -5209,7 +5210,7 @@ static const char * leto_MemoExt( HB_ULONG ulConnect )
 static HB_USHORT leto_MemoBlocksize( HB_ULONG ulConnect )
 {
    LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
-                                  letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+                                  letoGetConnPool( ulConnect - 1 ) : letoGetCurrConn();
    HB_USHORT        uiMemoBlocksize;
 
    if( pConnection && pConnection->uiMemoBlocksize )
@@ -5284,7 +5285,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
       case RDDI_CONNECTION:
       {
          LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
-                                        letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+                                        letoGetConnPool( ulConnect - 1 ) : letoGetCurrConn();
          char szAddr[ 96 ];
 
          if( pConnection )
@@ -5329,7 +5330,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
       case RDDI_ORDSTRUCTEXT:   /* single-TAG default */
       {
          LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
-                                        letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+                                        letoGetConnPool( ulConnect - 1 ) : letoGetCurrConn();
 
          if( pConnection && *( pConnection->szDriver ) )
          {
@@ -5359,7 +5360,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
             if( uiMemoType == DB_MEMO_DBT || uiMemoType == DB_MEMO_FPT || uiMemoType == DB_MEMO_SMT )
             {
                LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
-                                              letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+                                              letoGetConnPool( ulConnect - 1 ) : letoGetCurrConn();
 
                if( pConnection && pConnection->uiMemoType != uiMemoType )
                {
@@ -5400,7 +5401,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          if( HB_IS_NUMERIC( pItem ) && hb_itemGetNI( pItem ) > 0 )
          {
             LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
-                                           letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+                                           letoGetConnPool( ulConnect - 1 ) : letoGetCurrConn();
 
             if( pConnection )
             {
@@ -5422,7 +5423,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
       case RDDI_LOCKSCHEME:
       {
          LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() ) ?
-                                        letoGetConnPool( ( HB_USHORT ) ulConnect - 1 ) : letoGetCurrConn();
+                                        letoGetConnPool( ulConnect - 1 ) : letoGetCurrConn();
 
          if( pConnection )
             hb_itemPutNI( pItem, leto_LockScheme( pConnection ) );
@@ -5445,7 +5446,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          int iRes = 1;
 
          if( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() )
-            pConnection = letoGetConnPool( ( HB_USHORT ) ulConnect - 1 );
+            pConnection = letoGetConnPool( ulConnect - 1 );
          else
             pConnection = letoGetCurrConn();
 
@@ -5493,7 +5494,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          int iRes = 1;
 
          if( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() )
-            pConnection = letoGetConnPool( ( HB_USHORT ) ulConnect - 1 );
+            pConnection = letoGetConnPool( ulConnect - 1 );
          else
             pConnection = letoGetCurrConn();
 
@@ -5538,7 +5539,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          LETOCONNECTION * pConnection;
 
          if( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() )
-            pConnection = letoGetConnPool( ( HB_USHORT ) ulConnect - 1 );
+            pConnection = letoGetConnPool( ulConnect - 1 );
          else
             pConnection = letoGetCurrConn();
 
@@ -5561,7 +5562,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          LETOCONNECTION * pConnection;
 
          if( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() )
-            pConnection = letoGetConnPool( ( HB_USHORT ) ulConnect - 1 );
+            pConnection = letoGetConnPool( ulConnect - 1 );
          else
             pConnection = letoGetCurrConn();
 
@@ -5592,7 +5593,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
          LETOCONNECTION * pConnection;
 
          if( ulConnect > 0 && ulConnect <= ( HB_ULONG ) uiGetConnCount() )
-            pConnection = letoGetConnPool( ( HB_USHORT ) ulConnect - 1 );
+            pConnection = letoGetConnPool( ulConnect - 1 );
          else
             pConnection = letoGetCurrConn();
 

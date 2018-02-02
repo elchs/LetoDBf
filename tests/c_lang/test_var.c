@@ -1,4 +1,4 @@
-#include <stdio.h>
+
 /* set it before ! */
 #define __LETO_C_API__
 #include "letocl.h"
@@ -132,6 +132,7 @@ void main( int argc, char *argv[] )
       else
          printf( "Err( %d )" _EOL_, LetoGetError() );
 
+      printf( _EOL_ "logging out ..." _EOL_ );
       LetoConnectionClose( pConnection );
    }
    else

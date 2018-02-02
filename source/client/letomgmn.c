@@ -56,7 +56,7 @@
 LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
 LETOCONNECTION * letoGetCurrConn( void );
 LETOCONNECTION * leto_getConnection( int iParam );
-HB_USHORT uiGetConnCount( void );
+unsigned int uiGetConnCount( void );
 
 void leto_ConnectionClose( LETOCONNECTION * pConnection );
 void letoClearCurrConn( void );
