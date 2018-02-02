@@ -12106,19 +12106,15 @@ static HB_USHORT leto_FindFreeArea( PUSERSTRU pUStru )
 }
 
 /* mode 0 = a single, 1 = double found, 2 = DENY_ALL */
-static HB_BOOL leto_SMBTest( const char * szFilename, int iMode, PUSERSTRU pUStru )
+static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
 {
-   HB_SIZE      nStdOut = 0;
-   char *       pStdOutBuf = NULL;
-   int          iResult;
+   char *  pStdOutBuf = NULL;
+   HB_SIZE nStdOut = 0;
+   int     iResult;
 
-   if( s_iDebugMode > 20 )
-      leto_wUsLog( pUStru, 0, "DEBUG leto_SMBTest() exec: /usr/bin/smbstatus -L 2>/dev/null" );
    iResult = hb_fsProcessRun( "/usr/bin/smbstatus -L 2>/dev/null", NULL, 0, &pStdOutBuf, &nStdOut, NULL, 0, HB_FALSE );
-   if( s_iDebugMode > 20 )
-      leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest() done (%d - %d)", iResult, hb_fsError() );
    hb_fsSetFError( hb_fsError() );
-   if( iResult || hb_fsGetFError() )
+   if( iResult || hb_fsGetFError() || ! pStdOutBuf )  /* not expected serious problem to execute above */
    {
       if( pStdOutBuf )
          hb_xfree( pStdOutBuf );
@@ -12126,71 +12122,59 @@ static HB_BOOL leto_SMBTest( const char * szFilename, int iMode, PUSERSTRU pUStr
    }
    else
    {
-      if( ! pStdOutBuf )
-         return HB_FALSE;
-      else
+      HB_BOOL      fResult = HB_FALSE;
+      char         szFile[ HB_PATH_MAX ];
+      int          iLen, iStart;
+      const char * ptr, * ptr1, * ptr2;
+
+      if( ( ptr = strchr( szFilename, '.' ) ) != NULL )
       {
-         char         szFile[ HB_PATH_MAX ];
-         int          iLen;
-         int          iStart;
-         const char * ptr, * ptr1, *ptr2;
-         HB_BOOL      fResult = HB_FALSE;
-
-         if( s_iDebugMode > 20 )
-            leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest() analyze start in mode (%d)", iMode );
-
-         if( ( ptr = strchr( szFilename, '.' ) ) != NULL )
+         /* cut away dot in first pos or ".." elks */
+         if( ptr == szFilename || *( ptr + 1 ) == '.' )
          {
-            /* cut away dot in first pos or ".." elks */
-            if( ptr == szFilename || *( ptr + 1 ) == '.' )
-            {
-               if( *( ptr + 1 ) == '.' )
-                  szFilename = ptr + 2;
-               else
-                  szFilename = ptr + 1;
-               while( *szFilename == '/' || *szFilename == '\\' )
-                  szFilename++;
-            }
+            if( *( ptr + 1 ) == '.' )
+               szFilename = ptr + 2;
+            else
+               szFilename = ptr + 1;
+            while( *szFilename == '/' || *szFilename == '\\' )
+               szFilename++;
          }
-         iLen = strlen( szFilename );
-         hb_strncpy( szFile, szFilename, HB_MIN( HB_PATH_MAX - 1, iLen ) );
-         leto_BeautifyPath( szFile );
-
-         if( iLen )
-         {
-            pStdOutBuf[ nStdOut ] = '\0';
-            ptr1 = pStdOutBuf;
-            ptr = leto_stristr( ptr1, szFile );
-            if( ptr && iMode < 2 )
-            {
-               if( iMode == 1 )
-                  ptr = leto_stristr( ptr, szFile );
-               if( ptr )
-               {
-                  fResult = HB_TRUE;
-                  ptr = NULL;
-               }
-            }
-
-            while( ptr )
-            {
-               iStart = HB_MIN( 99, ptr - ptr1 - iLen );
-               fResult = ( ( ptr2 = strstr( ptr - iStart, "DENY_ALL" ) ) != NULL ) && ptr2 < ptr - iLen;
-               if( fResult )
-                  break;
-               else
-               {
-                  ptr1 = ptr;
-                  ptr = leto_stristr( ptr1, szFile );
-               }
-            }
-         }
-
-         if( s_iDebugMode > 20 )
-            leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest() analyze result (%s)", fResult ? ".T." : ".F." );
-         hb_xfree( pStdOutBuf );
-         return fResult;
       }
+      hb_strncpy( szFile, szFilename, HB_MIN( HB_PATH_MAX - 1, strlen( szFilename ) ) );
+      leto_BeautifyPath( szFile );
+
+      if( ( iLen = strlen( szFile ) ) > 0 )
+      {
+         pStdOutBuf[ nStdOut ] = '\0';
+         ptr1 = pStdOutBuf;
+         ptr = leto_stristr( ptr1, szFile );
+         if( ptr && iMode < 2 )
+         {
+            if( iMode == 1 )
+               ptr = leto_stristr( ptr, szFile );
+            if( ptr )
+            {
+               fResult = HB_TRUE;
+               ptr = NULL;
+            }
+         }
+
+         while( ptr )
+         {
+            iStart = HB_MIN( 99, ptr - ptr1 - iLen );
+            fResult = ( ( ptr2 = strstr( ptr - iStart, "DENY_ALL" ) ) != NULL ) && ptr2 < ptr - iLen;
+            if( fResult )
+               break;
+            else
+            {
+               ptr1 = ptr;
+               ptr = leto_stristr( ptr1, szFile );
+            }
+         }
+      }
+
+      hb_xfree( pStdOutBuf );
+      return fResult;
    }
 }
 
@@ -12444,8 +12428,6 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                }
             }
 
-            if( s_bSMBServer && s_iDebugMode > 20 )
-               leto_wUsLog( pUStru, -1, "DEBUG Open start hb_rddOpenTable(%s)", szFile );
             hb_xvmSeqBegin();
             hb_rddSetNetErr( HB_FALSE );
             errcode = hb_rddOpenTable( szFileName, ( const char * ) szDriver, uiArea, szRealAlias,
@@ -12453,8 +12435,6 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                                        ( ( s_bShareTables || s_bNoSaveWA ) && bReadonly ),
                                        szCdp, 0, NULL, NULL );
             hb_xvmSeqEnd();
-            if( s_bSMBServer && s_iDebugMode > 20 )
-               leto_wUsLog( pUStru, -1, "DEBUG Open ended hb_rddOpenTable(%s)", szFile );
 
             if( pUStru->iHbError )
                errcode = HB_FAILURE;
@@ -12468,9 +12448,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             {
                if( ! bMemIO && ! ( ( s_bShareTables || s_bNoSaveWA ) && bShared && ! bMemIO ) )
                {
-                  if( s_iDebugMode > 20 )
-                     leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest(%s) start", szFile );
-                  if( leto_SMBTest( szFile, 1, pUStru ) )
+                  if( leto_SMBTest( szFile, 1 ) )
                   {
                      hb_rddReleaseCurrentArea();
                      hb_rddSetNetErr( HB_TRUE );
@@ -12478,8 +12456,6 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                   }
                   if( s_iDebugMode > 1 && hb_rddGetNetErr() )
                      leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest(%s) collision", szFile );
-                  else if( s_iDebugMode > 20 )
-                     leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest(%s) successful", szFile );
                }
             }
 
