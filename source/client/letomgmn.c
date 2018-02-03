@@ -53,13 +53,8 @@
    #define LETOVAR_TYPES    ( HB_IT_LOGICAL | HB_IT_NUMERIC | HB_IT_STRING | HB_IT_DATE )
 #endif
 
-LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
-LETOCONNECTION * letoGetCurrConn( void );
 LETOCONNECTION * leto_getConnection( int iParam );
-unsigned int uiGetConnCount( void );
-
 void leto_ConnectionClose( LETOCONNECTION * pConnection );
-void letoClearCurrConn( void );
 
 
 #ifndef LETO_NO_MT
@@ -999,6 +994,11 @@ HB_FUNC( LETO_CPULOAD )
    hb_retni( leto_CPULoad() );
 }
 
+HB_FUNC( LETO_MILLISEC )
+{
+   hb_retnll( hb_dateMilliSeconds() );
+}
+
 HB_FUNC( LETO_MGGETINFO )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
@@ -1725,6 +1725,22 @@ HB_FUNC( LETO_DECRYPT )
       leto_cryptReset( HB_TRUE );
    else
       hb_xfree( szKey );
+}
+
+HB_FUNC( LETO_HASH )
+{
+   if( hb_parclen( 1 ) )
+   {
+      const char * szKey = hb_parc( 1 );
+      HB_U32 uRet = leto_hash( szKey, hb_parclen( 1 ) );
+
+      if( HB_ISLOG( 2 ) && hb_parl( 2 ) )
+         hb_retc( szKey );
+      else
+         hb_retni( uRet );
+   }
+   else
+      hb_retni( 0 );
 }
 
 HB_FUNC( LETO_CRYPTRESET )

@@ -1,9 +1,19 @@
 /*
- * connect to a LetoDBf server and query for opened DBFs,
- * to compare if the DBF given by param is among them
- * and exclusive opened. Address:port is read of an .ini
- * and here retrieved with LETO_SMBSERVER()
- */
+ * this connect to a LetoDBf server and query for opened DBFs,
+ * to compare if the DBF given by param is in the list and exclusive opened.
+ * Address:port to connect is read of an .ini, below used with LETO_SMBSERVER()
+ * --> set the OS ErrorLevel as return value
+ *     0 means OK, 1 == fail, your <shared> open table is in <exclusive> usage.
+ *
+ * Most basic usage:
+ * IF DbUseArea( ,, cFile,, lShared )
+ *    IF lShared .AND. hb_ProcessRun( THIS_EXECUTABLE + " " + cFile,,,, .F. ) == 1
+ *      DbCloseArea()
+ *      NetErr( .T. )
+ *    ENDIF
+ * ENDIF
+/*
+
 
 /* --- no changes need below  - 2018 Rolf 'elch' Beckmann --- */
 

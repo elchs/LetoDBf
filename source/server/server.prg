@@ -210,6 +210,12 @@ PROCEDURE Main( cCommand, cData )
 
    ELSEIF cCommand != NIL .AND. Left( Lower( cCommand ), 6 ) == "reload"
 
+      IF ! EMPTY( cData )
+         IF .NOT. ".ini" $ cData
+            cData += ".ini"
+         ENDIF
+         s_cIniName := LOWER( cData )
+      ENDIF
       /* send message to reload letoudf.hrb */
       oApp := HApp():New()
       IF ! leto_SendMessage( oApp:nPort, LETOCMD_udf_rel, , cData )

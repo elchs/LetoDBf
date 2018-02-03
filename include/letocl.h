@@ -336,7 +336,10 @@ void LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort );
 
 long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * sData, unsigned long ulLen );
 unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr );
-LETOCONNECTION * letoGetConnPool( HB_UINT uiConnection );
+LETOCONNECTION * letoGetConnPool( unsigned int uiConnection );
+LETOCONNECTION * letoGetCurrConn( void );
+unsigned int uiGetConnCount( void );
+void letoClearCurrConn( void );
 LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort );
 /* int LetoCheckServerVer( LETOCONNECTION * pConnection, HB_USHORT uiVer ); */
 const char * leto_RemoveIpFromPath( const char * szPath );

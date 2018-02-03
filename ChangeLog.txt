@@ -2,6 +2,24 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-03 21:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/server.prg
+    * add configurable .ini option also to 'reload'
+
+  * tests/excltest.prg
+    * add short description of usage at top
+
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letomgmn.c
+    * harmonize vartype, formatting
+    * move LETO_MILLISEC, LETO_HASH into letomgmn.c
+    * move func protos of letocl.c into letocl.h, delete else
+
+  * ReadMe.txt
+    * new chapters about Samba, C-API lib
+    * additions ;-)
+
 2018-02-02 21:02 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/let1.c
   * source/client/leto1.c

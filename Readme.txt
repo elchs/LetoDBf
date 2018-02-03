@@ -20,6 +20,7 @@ Contents
    2.3 MS Visual C compiler
    2.4 Old Harbour 3.0
    2.5 xHarbour
+   2.6 C-API library
 3. Running and stopping server
    3.1 the classic way for all OS
    3.2 Run as Windows service
@@ -27,6 +28,7 @@ Contents
    4.1 letodb.ini
    4.2 Different Server setups
    4.3 Authentication
+   4.4 Samba file service
 5. How to work with the letodb server
    5.1 Connecting to the server from client programs
    5.2 Filters and Relations
@@ -221,6 +223,37 @@ A. Internals
  set up a 'name translation table' -- see LETO_ADDCDPTRANSLATE()
 
 
+      2.6 C-API library
+
+ This is to use a part of the client library from pure C-level *only* with a C-compiler.
+ All Harbour RDD methods ( leto1.c ), and all relations to PRG level functions ( letomgmn.c ) are
+ left out for this purpose. It is build with:
+    hbmk2 apileto.hbp
+ The resulting libleto.[a|lib] is found afterwards in the lib directory.
+ Short examples given in: tests/c_api/*.c should give an bit experienced C-developer a quick vision.
+ To build the examples, use in that directory a bldc.bat [ BCC ] or a bldc.sh [ GCC ].
+ Adapt therein the paths to Harbour and C-compiler bin directory, call them with filename without
+ extension as first param, e.g.;
+    bldc.[bat|sh] test_dbf
+ Result is executed with first param IP|DNS-name of the server to connect, if not given 'localhost'
+ aka '127.0.0.1:2812' will be used.
+
+ Notes: the C-API lib uses Harbours' hb_xgrab[z](), hb_xrealloc() and hb_xfree(). These memory
+ allocations/ frees' can friendly co-exist with another memory system, but memory allocated with
+ one system must be free-ed by the same. Herefore a list of Harbour libs is needed for static builds,
+ caused by hvm.[a|lib] containing the memory functions, but also links to the other libs.
+ Linking to the dynmic Harbour lib would ease this very, example is outcommented in the batch files.
+
+ It is possible to execute functions at server with LetoUdf(), but herefore some basic knowledge
+ of handling PHB_ITEMs is needed to transmit function params to the server and to handle the received
+ result. Please note the second param of LetoUdf( , LETOTABLE * pTable, .. ): if not NULL, this WA
+ will be pre-selected at server before the remote function is executed. [ see also 4.2.1 UDF support ]
+
+ No Harbour HVM is started, so be careful calling Harbour internal functions which need such,
+ e.g. functions relaying on the stack of a HVM like hb_setGet..(). Also the codepage system is not
+ initalized -- that is by intention to keep the usage of the C-API lib a <raw> as possible.
+
+
 
       3. Running and stopping server
 
@@ -245,6 +278,10 @@ A. Internals
  directory same as server executable, use the 'reload' parameter:
       letodb.exe reload             ( Windows )
       ./letodb reload               ( Linux )
+
+ Above examples will use default 'letodb.ini' config file. To use an explicitely named,
+ add these two params: <start-command> config myini.ini
+ or use a third param for stop/ reload, example: ./letodb stop myini.ini 
 
  Linux: it needs a pause of 1-2 minute before you can restart server after a shutdown.
  To automate that, use bash script: 'leto.sh' in "bin" directory, it will start the server
@@ -332,8 +369,9 @@ A. Internals
                                     # No_Save_WA = 1
                                     1  physical record-/ file- locks set with the OS are viewable for other
                                     0  only logical internally locking, don't respect other record locks
-                                    [ note: Samba server do not set/respect EXCLUSIVE of file opened at Unix server,
-                                      so it can only safe cooperate with Record|File locks used in SHARED mode ]
+                                    * SAMBA: *
+                                      co-work with Samba file-service needs very special treatment/ setup
+                                      and have limits of possibilities -- see chapter 4.4
       Default_Driver = CDX     -    default RDD to open DBF tables at server, if not set explicitely in your
                                     sourcecode with leto_DbDriver().
                                     Possible values for config: CDX NTX
@@ -558,6 +596,78 @@ A. Internals
  To connect to a server with an authentication active with username and password, you must use
  the LETO_CONNECT() function.
 
+
+      4.4 Samba file service
+
+ If files served by a Samba server to its clients need to be shared with a LetoDBf server,
+ LetoDBf must be special configured.
+
+ Technical background: <exclusive> OS file-system flag for an opened file is not set,
+ nor even checked by Samba server -- it is handled only internally in itself.
+ Moreover an <exclusive> open table done at network-drive will appear ever as a <shared> one
+ * so such <exclusive> table opened by LetoDBf can be opened shared by a Samba application *
+ LetoDBf does its best to ensure data integrity, aka it will respect exclusive opened
+ tables by Samba.
+
+ Basis of at least partially co-work is to mount the shared <share> at Linux server, from
+ where it is serverd, and where LetoDBf server(s) will run.
+ ( Commonly you need package: <cifs-utils> to be able to mount a cifs network file system.
+   Create a mount-point [ /mnt/samba ], and mount the share there;
+   it can be done e.g. in /etc/fstab or with a mount command in startup init-script:
+      mount -t cifs -o guest,file_mode=0666,dir_mode=0777 //localhost/share_name /mnt/samba
+   the ',' seperated options [-o] list reflects needs in your Samba server setup )
+
+ SINGLE server: you can use a single LetoDBf server as usually, and point
+ DataPath = /mnt/samba, set: Share_Tables = 1 and add special option: SMB_SERVER = 1.
+ *Problem: performance of LetoDBf server working on a network drive, is *drastic* slower
+ as working on a real hard-drive.
+
+ DOUBLE server: then following strategy is used:
+ <exclusive> table are opened at the server working on the network drive
+ <shared> tables are opened at both! server, where all active work happen at hard-drive,
+ the opened table at network drive to inform others and prevent them to open it <exclusive>.
+ * This all will happen fully automatic for the client application, no need to care about *,
+ but the setup is much more complex:
+   # create a copy of letodb.ini ( letosmb.ini ) and adapt
+   -- use different port, [ e.g. Port = 2814 ]
+   -- DataPath to point to this mount-point [ e.g. /mnt/samba ]
+   -- LogPath can be the same, but set: Debug = 0 to get only errors
+   -- add Entry: SMB_SERVER = 1
+      additive may be tried for lower delays: SMB_PATH = /abs/path/of/share:/mnt/samba
+      [ with no blanks around the ':' delimeter ]
+   -- *both* .ini files need option: Share_Tables = 1
+   # start both server with option to specify an ,ini filename, literally in example:
+      letodb config letodb
+      letodb config letosmb
+      ( shutdown is similar, e.g.: letodb stop letodb; letodb stop letosmb )
+
+   * RDD library adaption
+      # outcomment (remove the '#') for LETO_SMBSERVER = 1 in the hbmk2 make files:
+        rddleto[addon].hbp
+        Rebuild RDD library, to get a different behavior to work on two server
+      # in your application you need to connect to *both* server with Leto_Connect(),
+        Connect to the one with letosmb.ini *before* the common default connection,
+        [ to avoid an afterwards need to swich back ]
+      # in directory of your application is a 'rddleto.ini' config file needed:
+        copy tests/rddleto.txt as sample to the place, and set therein:
+        SMB_SERVER = IP|DNS-name
+        SMB_PORT = 2814
+        [ the port you choosed in letosmb.ini, and the address or name of your servers ]
+
+
+   SAMBA application adaption,
+     # build: tests/excltest.prg
+       and copy the executable e.g. into the root directory of the <share>.
+     # copy tests/rddleto.txt as excltest.ini into the same directory;
+       this will be specific to that exe as with same filename
+     # adapt in ini:
+       SMB_SERVER = IP-adress  ( to spare DNS resolution for each call )
+       SMB_PORT = 2814   ( for single server setup, port is 2812 )
+   This executable must be called after any successful <shared> opened table.
+   It set OS ErrorLevel as result to 1, if table is already <exclusive> used,
+   then the just <shared> open was invalid and table must be immediate closed.
+
+   See at top in tests/excltest.prg for further instructions to use.
 
 
       5. How to work with the LetoDBf server
@@ -1272,9 +1382,13 @@ A. Internals
  aInfo[i,5] - timeout
 
       LETO_MGGETTABLES( [nUser] )                              ==> aInfo[x,3]
- aInfo[i,1] - filename of data table ( without root data path of server ).
- aInfo[i,2] - 0 if asked for all connections ( nUser < 0 ), else client workarea number.
- aInfo[i,3] - empty "" if asked for all users, else ALIAS name of client workarea .
+ aInfo[i,1] - table number
+ aInfo[i,2] - filename of data table ( without root data path of server ).
+ aInfo[i,3] - 0 if asked for all connections ( nUser < 0 ), else client! workarea number.
+ aInfo[i,4] - empty "" if asked for all users, else ALIAS name of client! workarea .
+ aInfo[i,5] - shared ? 'T' : 'F',
+ aInfo[i,6] - RDD used
+ aInfo[i,7] - type of memo: 1 = DBT, 2 = FPT, else SMT
 
       LETO_MGGETINDEX( [nUser], [nTable]                       ==> aInfo[x]
  array with filenames of opened index files, global for all connections ( nUser <  0 ),
@@ -1604,7 +1718,7 @@ A. Internals
  The executable will be found afterwards in the "bin" directory.
 
  Full parameter set is: console[.exe] [ IP[:port ] ] [ username ] [ password ]
- These params can be set in letodb.ini with option: <Server> for running it local at server.
+ The first param can be set in letodb.ini with option: <Server> for running it local at server.
  But as this is a OS independent remote console, you can watch the server from any station,
  so you commonly will give IP address as first param.
 
