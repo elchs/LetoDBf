@@ -2,6 +2,24 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-07 18:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/server.prg
+    * one more missing configurable .ini option -- for debug mode
+    ! use configurable option for reload only if explicitely .ini given 
+
+  * source/server/letofunc.c
+    * introducing elch's 'lsof' [ elsof ;-] as much faster replace,
+    * removing former lsof usage
+      ; depend on SMB_PATH entry in .ini, smbstatus or elsof is now used,
+        to verify <exclusive> opened table in concurrency to Samba
+
+  + tests/c_lang/elsof.c
+    ; compile it, e.g. GCC:   gcc -O3 -o elsof elsof.c
+      do as user root:
+      copy executable result: cp elsof /usr/bin/elsof
+      change owner/ group:    chown root:root /usr/bin/elsof
+      make it suid-root:      chmod 4755 /usr/bin/elsof
+
 2018-02-03 21:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/server.prg
     * add configurable .ini option also to 'reload'

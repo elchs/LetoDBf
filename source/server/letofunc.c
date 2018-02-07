@@ -12189,8 +12189,8 @@ static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
    }
 }
 
-/* mode 0 = a single, 1 = double found */
-static HB_BOOL leto_LSOFtest( const char * szFilename, int iMode )
+/* mode 0 = single, 1 = double found */
+static HB_BOOL leto_ELSOFtest( const char * szFilename, int iMode )
 {
    char *  pStdOutBuf = NULL;
    HB_SIZE nStdOut = 0;
@@ -12199,34 +12199,55 @@ static HB_BOOL leto_LSOFtest( const char * szFilename, int iMode )
    int     iStart = strchr( s_pSharePath, ':' ) - s_pSharePath + 1;
    int     iLen = strlen( s_pSharePath + iStart );
    int     iLenLen = strlen( szFilename + iLen );
+   int     iResult = 0;
 
    if( iLenLen + iStart < HB_PATH_MAX )
    {
+      char * ptr, * pptr;
+      int    iCount;
+
       memcpy( szFile, s_pSharePath, iStart - 1 );
       memcpy( szFile + iStart - 1, szFilename + iLen, iLenLen + 1 );  /* incl. '\0' */
 
-      memcpy( szCmd, "/usr/bin/lsof ", 14 );
-      memcpy( szCmd + 14, szFile, iStart + iLenLen - 1 );
-      memcpy( szCmd + 14 + iStart + iLenLen - 1, " 2>/dev/null", 13 );  /* incl. '\0' */
+      /* need to resolve ".." elks */
+      while( ( ptr = strstr( szFile, ".." ) ) != NULL )
+      {
+         iCount = 0;
+         pptr = ptr - 1;
+         while( iCount < 2 && pptr > szFile )
+         {
+            if( *pptr-- == '/' )
+               iCount++;
+         }
+         iCount = ( pptr - szFile ) + 1;
+         iLenLen -= ( ptr + 1 - pptr ) + iCount;
+         memmove( szFile + iCount, szFile + ( ptr + 1 - pptr ) + iCount, iStart + iLenLen );  /* incl. '\0' */
+      }
+      sprintf( szCmd, "/usr/bin/elsof %s%c", szFile, '\0' );
    }
    else
       return HB_TRUE;  /* too long, won't analyze -> don't open */
 
-   hb_fsProcessRun( szCmd, NULL, 0, &pStdOutBuf, &nStdOut, NULL, 0, HB_FALSE );
-   if( ! pStdOutBuf || ! nStdOut )
+   iResult = hb_fsProcessRun( szCmd, NULL, 0, &pStdOutBuf, &nStdOut, NULL, 0, HB_FALSE );
+   if( iResult || ! pStdOutBuf || ! nStdOut )
    {
       if( pStdOutBuf )
          hb_xfree( pStdOutBuf );
-      return HB_FALSE;
+      if( iResult )  /* missing suid ? */
+      {
+         leto_writelog( NULL, 0, "ERROR leto_ELSOFtest() failed to correct execute: /usr/bin/elsof" ); 
+         return HB_TRUE;
+      }
+      else
+         return HB_FALSE;
    }
    else
    {
       HB_BOOL      fResult = HB_FALSE;
-      const char * ptr, * ptr1;
+      const char * ptr;
 
       pStdOutBuf[ nStdOut ] = '\0';
-      ptr1 = pStdOutBuf;
-      ptr = leto_stristr( ptr1, szFile );
+      ptr = leto_stristr( pStdOutBuf, szFile );
       if( ptr && iMode < 2 )
       {
          if( iMode == 1 )
@@ -12510,14 +12531,14 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
             {
                if( ! bMemIO && ! ( ( s_bShareTables || s_bNoSaveWA ) && bShared && ! bMemIO ) )
                {
-                  if( s_pSharePath ? leto_LSOFtest( szFileName, 1 ) : leto_SMBTest( szFile, 1 ) )
+                  if( s_pSharePath ? leto_ELSOFtest( szFileName, 1 ) : leto_SMBTest( szFile, 1 ) )
                   {
                      hb_rddReleaseCurrentArea();
                      hb_rddSetNetErr( HB_TRUE );
                      errcode = HB_FAILURE;
                   }
                   if( s_iDebugMode > 1 && hb_rddGetNetErr() )
-                     leto_wUsLog( pUStru, -1, "DEBUG leto_SMBTest(%s) collision", szFile );
+                     leto_wUsLog( pUStru, -1, "DEBUG leto_ELSOFtest(%s) collision", szFile );
                }
             }
 

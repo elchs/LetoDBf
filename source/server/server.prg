@@ -210,15 +210,13 @@ PROCEDURE Main( cCommand, cData )
 
    ELSEIF cCommand != NIL .AND. Left( Lower( cCommand ), 6 ) == "reload"
 
-      IF ! EMPTY( cData )
-         IF .NOT. ".ini" $ cData
-            cData += ".ini"
-         ENDIF
+      IF ! EMPTY( cData ) .AND. ".ini" $ cData
          s_cIniName := LOWER( cData )
+         cData := NIL
       ENDIF
       /* send message to reload letoudf.hrb */
       oApp := HApp():New()
-      IF ! leto_SendMessage( oApp:nPort, LETOCMD_udf_rel, , cData )
+      IF ! leto_SendMessage( oApp:nPort, LETOCMD_udf_rel,, cData )
          WrLog( "Can't reload letoudf.hrb" )
 #if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
          ? "Can't reload letoudf.hrb"
@@ -233,6 +231,12 @@ PROCEDURE Main( cCommand, cData )
       CLS
       ? "Server up and listening ..."
       ? "for shutdown call me again with param: stop"
+      IF cCommand != NIL .AND. Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
+         IF .NOT. ".ini" $ cData
+            cData += ".ini"
+         ENDIF
+         s_cIniName := LOWER( cData )
+      ENDIF
       StartServer()
 
 #endif
