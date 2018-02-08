@@ -281,7 +281,7 @@ A. Internals
 
  Above examples will use default 'letodb.ini' config file. To use an explicitely named,
  add these two params: <start-command> config myini.ini
- or use a third param for stop/ reload, example: ./letodb stop myini.ini 
+ or use a third param for stop/ reload, example: ./letodb stop myini.ini
 
  Linux: it needs a pause of 1-2 minute before you can restart server after a shutdown.
  To automate that, use bash script: 'leto.sh' in "bin" directory, it will start the server
@@ -633,8 +633,12 @@ A. Internals
    -- DataPath to point to this mount-point [ e.g. /mnt/samba ]
    -- LogPath can be the same, but set: Debug = 0 to get only errors
    -- add Entry: SMB_SERVER = 1
-      additive may be tried for lower delays: SMB_PATH = /abs/path/of/share:/mnt/samba
-      [ with no blanks around the ':' delimeter ]
+      this will use 'smbstatus -L' check to ensure concurrency for <exclusive> table
+      For lower delays add: SMB_PATH = /abs/path/of/share:/mnt/samba
+      with no blanks around the ':' delimeter, and build 'elsof' executable in
+      'tests/c_lang/elsof.c': gcc -O3 -o elsof elsof.c
+      copy executable as 'owner:group root' into '/usr/bin' and set suid-root flag
+      with 'chmod 4755' -- then this executable will be used for above check.
    -- *both* .ini files need option: Share_Tables = 1
    # start both server with option to specify an ,ini filename, literally in example:
       letodb config letodb

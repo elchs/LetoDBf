@@ -2,10 +2,20 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-08 08:02 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * tests/c_lang/elsof.c
+    * formatting, spare one var
+
+  * tests/test_mem.prg
+    * add case _i_nsensitive ! server-side filter test for HB_WILDMATCHi()
+
+  * Readme.txt
+    add description how to build and use 'elsof'
+
 2018-02-07 18:10 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/server.prg
     * one more missing configurable .ini option -- for debug mode
-    ! use configurable option for reload only if explicitely .ini given 
+    ! use configurable option for reload only if explicitely .ini given
 
   * source/server/letofunc.c
     * introducing elch's 'lsof' [ elsof ;-] as much faster replace,

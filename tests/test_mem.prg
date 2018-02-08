@@ -3,12 +3,17 @@
  * Just change the cPath value to that one you need.
  */
 
+/* .T. or .F. */
+#define __DELAYED_ERROR__  .T.
+
 #define __MEM_IO__   1
 #define __LZ4__      1
 // #define __AUTOINC__  1
 
 /* activate for transaction test */
 // #define __TRANSACT__ 1
+
+#define __RANDOM__   1
 
 /* 341 FILED_IDS' == 2046 !max! fields  *  5000 ROUNDS = ~ 4 GB */
 #define FIELD_IDS    1
@@ -38,6 +43,9 @@ Function Main( cPath )
  LOCAL cFile2 := "test2"
  LOCAL nDeleted
  LOCAL aStruct, aStructAll := {}
+#ifdef __RANDOM__
+ LOCAL aRandom, iii
+#endif
  FIELD NAME, NUM, INFO, DINFO, MINFO
 #ifdef __AUTOINC__
  FIELD INTEGER, AUTOINC
@@ -57,7 +65,7 @@ Function Main( cPath )
    ENDIF
 
    IF RDDSETDEFAULT() == "LETO"
-      IF EMPTY( cPath ) .OR. leto_Connect( cPath, /*user*/, /*pass*/, /*timeout*/, nHotBuf /*hot buffer*/ ) == -1
+      IF EMPTY( cPath ) .OR. leto_Connect( cPath, /*user*/, /*pass*/, /*timeout*/, nHotBuf, __DELAYED_ERROR__ ) == -1
          ALERT("NO LETODB SERVER FOUND" )
          QUIT
       ELSE
@@ -121,6 +129,9 @@ Function Main( cPath )
    USE ( cFile1 ) SHARED NEW
    IF ! NetErr() .AND. ! EMPTY( ALIAS() )
       ? "File " + cFile1 + hb_rddInfo( RDDI_TABLEEXT ) + " have been opened shared"
+      IF Leto_IsErrOptim()
+         ?? " (optimized)"
+      ENDIF
    ELSE
       ? "ERROR opening database! -- press any key to quit"
       Inkey( 0 )
@@ -138,6 +149,18 @@ Function Main( cPath )
    ?
 #endif
    IF RecCount() == 0
+#ifdef __RANDOM__
+      /* create a random set of 99 record numbers for special action */
+      aRandom := {}
+      i := 0
+      DO WHILE i < 99
+         ii := INT( hb_random() * ( nRounds * LEN( aNames ) ) )
+         IF ASCAN( aRandom, ii ) < 1
+            AADD( aRandom, ii )
+            i++
+         ENDIF
+      ENDDO
+#endif
       ? "please wait, appending " + hb_ntos( nRounds * LEN( aNames ) ) + " records ..."
       RddInfo( RDDI_REFRESHCOUNT, .F. )
       nSec := hb_milliseconds()
@@ -158,6 +181,12 @@ Function Main( cPath )
                           INFO  WITH "This is a record number "+ Ltrim( Str( i ) ),;
                           DINFO WITH Date() + i - 1, ;
                           MINFO WITH "elk test" + STR( i, 10, 0 )
+#ifdef __RANDOM__
+                  iii := ASCAN( aRandom, RECNO() )
+                  IF( iii > 0 )
+                     REPLACE INFO WITH "wild  Strick" + IIF( iii < 10, "0", "" ) + hb_ntos( iii ) + "land match, Alex"
+                  ENDIF
+#endif
 #ifdef __AUTOINC__
                   REPLACE INTEGER WITH ( ii * 1000 ) + i,;
                           CURRENCY WITH 1234
@@ -212,7 +241,7 @@ Function Main( cPath )
    DbGoBottom()
    IF AUTOINC == RECNO() .AND. IIF( VALTYPE( DbFieldInfo( DBS_STEP, 7 ) ) == "N",;
                                     INTEGER == ( 10 * RECNO() ) - DbFieldInfo( DBS_STEP, 7 ) + 1, .T. )
-      ? "AutoIncrement fine" 
+      ? "AutoIncrement fine"
    ELSE
       ? "AutoIncrement fail"
    ENDIF
@@ -235,7 +264,29 @@ Function Main( cPath )
    NEXT i
    LETO_SETSKIPBUFFER( 21 )
 
-   ? "GoTop, seek ..."
+#ifdef __RANDOM__
+   ? "skipping wildmatch_i filter 10x top->bottom "
+   /* CB not needed for server side filter, only used if server can't evaluate condition */
+   DbSetFilter( {|| HB_WILDMATCHi( "*strick??lanD*", INFO ) },;
+                "HB_WILDMATCHi( " + CHR( 34 ) + "*strick??lanD*" + CHR( 34 ) + ", INFO )" )
+   IF( LETO_ISFLTOPTIM() )
+      ?? "( optimized ) "
+   ENDIF
+   ii := 0
+   nSec := hb_milliseconds()
+   FOR i := 1 TO 10
+      DbGoTop()
+      DO WHILE ! EOF()
+         IF "Alex" $ INFO
+            ii++
+         ENDIF
+         DbSkip( 1 )
+      ENDDO
+   NEXT i
+   ?? STR( ( hb_milliseconds() - nSec ) / 1000, 5,2 ), "s ", STR( ii / 10, 3, 0 ), "found"
+   DbClearFilter()
+#else
+   ? "GoTop, seek ...                                    "
    DbSetorder( 1 )
    nSec := hb_milliseconds()
    DbGoTop()
@@ -246,13 +297,14 @@ Function Main( cPath )
          EXIT
       ENDIF
    NEXT i
-   ?? STR( i - 1, 6, 0 ), "times, ", STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
+   ?? STR( i - 1, 7, 0 ), "times ", STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
+#endif
 
    IF FLock()
 #ifdef __TRANSACT__
          leto_BeginTransaction()
 #endif
-      ? "FILE locked, skip through records, data change two fields ..."
+      ? "FILE locked, skip through records, data change two fields    ...  "
       nSec := hb_milliseconds()
       DbGoTop()
       DO WHILE ! EOF()
@@ -269,7 +321,7 @@ Function Main( cPath )
 #endif
    ENDIF
 
-   ? "record locking, skip through records, data change two fields ..."
+   ? "record locking, skip through records, data change two fields ...  "
    nSec := hb_milliseconds()
    DbGoTop()
 #ifdef __TRANSACT__
@@ -290,7 +342,7 @@ Function Main( cPath )
 #endif
    ?? STR( ( hb_milliseconds() - nSec ) / 1000, 7, 2 ), "s"
 
-   ? "skipping from top to bottom, delete every 3rd record ..."
+   ? "skipping from top to bottom, delete every 3rd record         ...  "
 #ifdef __TRANSACT__
    leto_BeginTransaction()
 #endif
