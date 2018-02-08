@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-08 09:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * tests/c_lang/elsof.c
+    * direct exit after [ default: 2 ] found occurences,
+      new optional second param nCount;
+      possible usage: 'elsof / 1000' to find 1000 by anybody opened files
+      add description of usage, build and install info
+
 2018-02-08 08:02 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * tests/c_lang/elsof.c
     * formatting, spare one var

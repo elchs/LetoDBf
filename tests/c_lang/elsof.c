@@ -1,5 +1,8 @@
 /*
- * optimized lsof to search max. 2 Pid for opened filename
+ * optimized lsof to search default max. 2 Pid for opened filename
+ * usage:   elsof /path/to/File.search [ x_times ]
+ * build:   gcc -O3 -o elsof elsof.c
+ * install: chown root:root; chmod 4755 [suid-root flag ]
  * (c) 2018 Rolf 'elch' Beckmann
  */
 
@@ -13,13 +16,19 @@ void main( const int argc, const char * argv[] )
    char            szProc[ 32 ], szLinkFd[ 64 ], szLink[ 256 ];
    DIR *           procfd, * proc = opendir( "/proc" );
    struct dirent * ent, * entfd;
-   int             iFound = 0;
+   int             iFound = 2;
    register int    iLenLink;
    register char * pptr;
    register char * ptr;
 
    if( proc == NULL || argc < 2 )
       exit( EXIT_FAILURE );
+   if( argc > 2 )
+   {
+      iFound = atoi( argv[ 2 ] );
+      if( ! iFound || iFound < 1 )
+         iFound = 2;
+   }
 
    while( ent = readdir( proc ) )
    {
@@ -65,14 +74,16 @@ void main( const int argc, const char * argv[] )
                if( strstr( szLink, argv[ 1 ] ) )
                {
                   printf( "%s:%s\n", ent->d_name, szLink );
-                  if( ++iFound > 1 )
-                     break;
+                  if( --iFound == 0 )
+                  {
+                     closedir( procfd );
+                     closedir( proc );
+                     exit( EXIT_SUCCESS );
+                  }
                }
             }
 
             closedir( procfd );
-            if( iFound > 1 )
-               break;
          }
          else  /* missing root access ? */
          {
