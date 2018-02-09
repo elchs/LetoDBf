@@ -1,8 +1,10 @@
 /*
- * optimized lsof to search default max. 2 Pid for opened filename
- * usage:   elsof /path/to/File.search [ x_times ]
+ * optimized lsof to search default max. 2 process ID for opened filename
+ * usage:   elsof /path/to/file.search [ x_times ]
  * build:   gcc -O3 -o elsof elsof.c
- * install: chown root:root; chmod 4755 [suid-root flag ]
+ * install: chown root:root elsof
+ *          chmod 4755 elsof [ sets suid-root flag ]
+ *          executable uses /proc FS, and LetoDBf expect it in: /usr/bin
  * (c) 2018 Rolf 'elch' Beckmann
  */
 
@@ -10,64 +12,60 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <string.h>
+#include <unistd.h>
+#include <ctype.h>
 
-void main( const int argc, const char * argv[] )
+int main( const int argc, const char * argv[] )
 {
-   char            szProc[ 32 ], szLinkFd[ 64 ], szLink[ 256 ];
+   char            szLink[ 256 ], szProc[ 64 ] = { '/', 'p', 'r', 'o', 'c', '/' };
    DIR *           procfd, * proc = opendir( "/proc" );
    struct dirent * ent, * entfd;
-   int             iFound = 2;
-   register int    iLenLink;
-   register char * pptr;
-   register char * ptr;
+   int             iLenLink, iFound = 2;
+   char            * ptr, * ptr2, * ptr3;
 
    if( proc == NULL || argc < 2 )
       exit( EXIT_FAILURE );
    if( argc > 2 )
    {
       iFound = atoi( argv[ 2 ] );
-      if( ! iFound || iFound < 1 )
+      if( iFound < 1 )
          iFound = 2;
    }
 
-   while( ent = readdir( proc ) )
+   while( ( ent = readdir( proc ) ) != NULL )
    {
-      pptr = ent->d_name;
-      if( ! isdigit( *pptr ) )
+      ptr3 = ent->d_name;
+      if( ! isdigit( *ptr3 ) )
          continue;
       else
       {
-         pptr = ent->d_name;
-         ptr = szProc;
-         *ptr++ = '/';
-         *ptr++ = 'p';
-         *ptr++ = 'r';
-         *ptr++ = 'o';
-         *ptr++ = 'c';
-         *ptr++ = '/';
-         while( *pptr != '\0' )
-            *ptr++ = *pptr++;
+         ptr = szProc + 6;
+         do
+         {
+            *ptr++ = *ptr3++;
+         }
+         while( *ptr3 != '\0' );
          *ptr++ = '/';
          *ptr++ = 'f';
          *ptr++ = 'd';
          *ptr = '\0';
 
-         if( procfd = opendir( szProc ) )
+         if( ( procfd = opendir( szProc ) ) != NULL )
          {
-            while( entfd = readdir( procfd ) )
+            *ptr++ = '/';
+            while( ( entfd = readdir( procfd ) ) != NULL )
             {
-               if( *entfd->d_name == '.' )
+               ptr3 = entfd->d_name;
+               if( *ptr3 == '.' )
                   continue;
-               ptr = szLinkFd;
-               pptr = szProc;
-               while( *pptr != '\0' )
-                  *ptr++ = *pptr++;
-               *ptr++ = '/';
-               pptr = entfd->d_name;
-               while( *pptr != '\0' )
-                  *ptr++ = *pptr++;
-               *ptr = '\0';
-               iLenLink = readlink( szLinkFd, szLink, 255 );
+               ptr2 = ptr;
+               do
+               {
+                  *ptr2++ = *ptr3++;
+               }
+               while( *ptr3 != '\0' );
+               *ptr2 = '\0';
+               iLenLink = readlink( szProc, szLink, 255 );
                if( *szLink != '/' )
                   continue;
                szLink[ iLenLink ] = '\0';

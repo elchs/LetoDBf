@@ -2,6 +2,20 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-09 09:02 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; work for concurrency usage with Samba file services successful closed
+
+  * tests/c_lang/elsof.c
+    * more optimizing -- not faster, but it made fun! ;-)
+    ! fix clang warnings
+
+  * source/server/letofunc.c
+    * add similar error feedback in leto_SMBTest() like in leto_ELSOFtest(),
+      if smbstatus [ or elsof ] can not be executed --> refuse to open table
+
+  * Readme.txt
+    * refinements for Samba concurrency usage
+
 2018-02-08 09:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * tests/c_lang/elsof.c
     * direct exit after [ default: 2 ] found occurences,

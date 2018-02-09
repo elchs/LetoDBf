@@ -602,43 +602,45 @@ A. Internals
  If files served by a Samba server to its clients need to be shared with a LetoDBf server,
  LetoDBf must be special configured.
 
- Technical background: <exclusive> OS file-system flag for an opened file is not set,
- nor even checked by Samba server -- it is handled only internally in itself.
- Moreover an <exclusive> open table done at network-drive will appear ever as a <shared> one
+ Technical background: <exclusive> OS file-system flag for an opened file is not set, nor even
+ checked by Samba server -- handled only internally in Samba, its not visible to Linux server.
+ Moreover an <exclusive> open table done at a CIFS network-drive will appear ever as a <shared> one,
  * so such <exclusive> table opened by LetoDBf can be opened shared by a Samba application *
- LetoDBf does its best to ensure data integrity, aka it will respect exclusive opened
- tables by Samba.
+ LetoDBf server does its best to ensure data integrity, respects exclusive opened tables by Samba,
+ but need an additional check for <exclusive> tables opened by it.
 
- Basis of at least partially co-work is to mount the shared <share> at Linux server, from
- where it is serverd, and where LetoDBf server(s) will run.
- ( Commonly you need package: <cifs-utils> to be able to mount a cifs network file system.
+ Basis of at least a partially co-work is to mount the handled <share> at Linux server, from
+ where it is served, and where LetoDBf server(s) will run concurrently on same data.
+ ( Commonly you need package: <cifs-utils> to be able to mount a CIFS network file system.
    Create a mount-point [ /mnt/samba ], and mount the share there;
    it can be done e.g. in /etc/fstab or with a mount command in startup init-script:
       mount -t cifs -o guest,file_mode=0666,dir_mode=0777 //localhost/share_name /mnt/samba
    the ',' seperated options [-o] list reflects needs in your Samba server setup )
 
- SINGLE server: you can use a single LetoDBf server as usually, and point
+ SINGLE server: you can use a single LetoDBf server as usually, and point in letodb.ini
  DataPath = /mnt/samba, set: Share_Tables = 1 and add special option: SMB_SERVER = 1.
  *Problem: performance of LetoDBf server working on a network drive, is *drastic* slower
  as working on a real hard-drive.
 
  DOUBLE server: then following strategy is used:
- <exclusive> table are opened at the server working on the network drive
- <shared> tables are opened at both! server, where all active work happen at hard-drive,
- the opened table at network drive to inform others and prevent them to open it <exclusive>.
- * This all will happen fully automatic for the client application, no need to care about *,
+ <exclusive> table are opened at the LetoDBf server working on the network drive
+ <shared> tables are opened at both! server, where all active work happen at hard-drive.
+ The opened table at network drive is to inform Samba user and prevent them to open it <exclusive>.
+ * This all will happen fully automatic for the LETO RDD client application, no need to care about *,
  but the setup is much more complex:
-   # create a copy of letodb.ini ( letosmb.ini ) and adapt
-   -- use different port, [ e.g. Port = 2814 ]
-   -- DataPath to point to this mount-point [ e.g. /mnt/samba ]
+   # create a copy of letodb.ini ( letosmb.ini ) and adapt therein:
+   -- use different port, e.g.: Port = 2814
+   -- DataPath to point to CIFS mount-point [ e.g. /mnt/samba ] or a sub-directory of it
    -- LogPath can be the same, but set: Debug = 0 to get only errors
    -- add Entry: SMB_SERVER = 1
       this will use 'smbstatus -L' check to ensure concurrency for <exclusive> table
-      For lower delays add: SMB_PATH = /abs/path/of/share:/mnt/samba
-      with no blanks around the ':' delimeter, and build 'elsof' executable in
-      'tests/c_lang/elsof.c': gcc -O3 -o elsof elsof.c
-      copy executable as 'owner:group root' into '/usr/bin' and set suid-root flag
-      with 'chmod 4755' -- then this executable will be used for above check.
+   -- For lowering delays, possible caused by the 'smbstatus -L' call, optional add also:
+      SMB_PATH = /absolute/path/of/share:/mnt/samba
+      Left side is the absolute path of the <share> at server, right side the <mount-point> from
+      above mount command or /etc/fstab entry -- with no blanks around the ':' delimiter.
+      *Build* the 'elsof' executable in 'tests/c_lang/elsof.c' --> see at top in that file how to.
+      Without this option, 'smbstatus' is used, and both executables are expected to be in
+      '/usr/bin'. In case of problems to execute, you get an error message in letodbf.log.
    -- *both* .ini files need option: Share_Tables = 1
    # start both server with option to specify an ,ini filename, literally in example:
       letodb config letodb
@@ -660,18 +662,17 @@ A. Internals
 
 
    SAMBA application adaption,
-     # build: tests/excltest.prg
+     # build: hbmk2 tests/excltest.prg
        and copy the executable e.g. into the root directory of the <share>.
      # copy tests/rddleto.txt as excltest.ini into the same directory;
        this will be specific to that exe as with same filename
-     # adapt in ini:
-       SMB_SERVER = IP-adress  ( to spare DNS resolution for each call )
-       SMB_PORT = 2814   ( for single server setup, port is 2812 )
+     # adapt in excltest.ini:
+       SMB_SERVER = its.IP.address  ( to spare DNS resolution time for each call )
+       SMB_PORT = 2814   ( for single server setup default port is 2812 )
    This executable must be called after any successful <shared> opened table.
    It set OS ErrorLevel as result to 1, if table is already <exclusive> used,
    then the just <shared> open was invalid and table must be immediate closed.
-
-   See at top in tests/excltest.prg for further instructions to use.
+   See at top in tests/excltest.prg for further instructions how to use.
 
 
       5. How to work with the LetoDBf server

@@ -12129,7 +12129,13 @@ static HB_BOOL leto_SMBTest( const char * szFilename, int iMode )
    {
       if( pStdOutBuf )
          hb_xfree( pStdOutBuf );
-      return HB_FALSE;
+      if( iResult )
+      {
+         leto_writelog( NULL, 0, "ERROR leto_SMBTest() failed to correct execute: /usr/bin/smbstatus" );
+         return HB_TRUE;
+      }
+      else
+         return HB_FALSE;
    }
    else
    {
@@ -12233,9 +12239,9 @@ static HB_BOOL leto_ELSOFtest( const char * szFilename, int iMode )
    {
       if( pStdOutBuf )
          hb_xfree( pStdOutBuf );
-      if( iResult )  /* missing suid ? */
+      if( iResult )  /* missing suid-root ? */
       {
-         leto_writelog( NULL, 0, "ERROR leto_ELSOFtest() failed to correct execute: /usr/bin/elsof" ); 
+         leto_writelog( NULL, 0, "ERROR leto_ELSOFtest() failed to correct execute: /usr/bin/elsof" );
          return HB_TRUE;
       }
       else
@@ -12538,7 +12544,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
                      errcode = HB_FAILURE;
                   }
                   if( s_iDebugMode > 1 && hb_rddGetNetErr() )
-                     leto_wUsLog( pUStru, -1, "DEBUG leto_ELSOFtest(%s) collision", szFile );
+                     leto_wUsLog( pUStru, -1, "DEBUG leto_OpenTable(%s) collision with SMB", szFile );
                }
             }
 
