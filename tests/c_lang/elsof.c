@@ -1,17 +1,17 @@
 /*
  * optimized lsof to search default max. 2 process ID for opened filename
- * usage:   elsof /path/to/file.search [ x_times ]
+ *          executable uses /proc FS, so need suid-root flag to be set
+ * usage:   elsof [/path/to/]file.search [ x_times ]
  * build:   gcc -O3 -o elsof elsof.c
  * install: chown root:root elsof
- *          chmod 4755 elsof [ sets suid-root flag ]
- *          executable uses /proc FS, and LetoDBf expect it in: /usr/bin
+ *          chmod 4755 elsof
+ *          cp elsof /usr/bin/elsof
  * (c) 2018 Rolf 'elch' Beckmann
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
-#include <string.h>
 #include <unistd.h>
 #include <ctype.h>
 
@@ -21,7 +21,8 @@ int main( const int argc, const char * argv[] )
    DIR *           procfd, * proc = opendir( "/proc" );
    struct dirent * ent, * entfd;
    int             iLenLink, iFound = 2;
-   char            * ptr, * ptr2, * ptr3;
+   char            * ptr, * ptr2;
+   const char      * ptr3;
 
    if( proc == NULL || argc < 2 )
       exit( EXIT_FAILURE );
@@ -66,10 +67,25 @@ int main( const int argc, const char * argv[] )
                while( *ptr3 != '\0' );
                *ptr2 = '\0';
                iLenLink = readlink( szProc, szLink, 255 );
-               if( *szLink != '/' )
+               if( iLenLink < 1 || *szLink != '/' )
                   continue;
                szLink[ iLenLink ] = '\0';
-               if( strstr( szLink, argv[ 1 ] ) )
+
+               ptr2 = szLink;
+               ptr3 = argv[ 1 ];
+               do
+               {
+                  if( *ptr2 == *ptr3 )
+                  {
+                     if( ! *( ++ptr3 ) )
+                        break;
+                  }
+                  else
+                     ptr3 = argv[ 1 ];
+               }
+               while( *( ++ptr2 ) != '\0' );
+
+               if( ! *ptr3 )  /* strstr( szLink, argv[ 1 ] ) */
                {
                   printf( "%s:%s\n", ent->d_name, szLink );
                   if( --iFound == 0 )

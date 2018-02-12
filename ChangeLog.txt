@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-12 18:28 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    * resolve func proto leto_udp(), call directly LetoUdf()
+
+  * tests/c_lang/elsof.c
+    ! fix a possible race condition if link disappeared after checked by
+      readdir() [ then readlink() would return -1 !! ]
+    % replace strstr() with a loop, cutting away last func of string.h
+
 2018-02-09 09:02 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; work for concurrency usage with Samba file services successful closed
 
