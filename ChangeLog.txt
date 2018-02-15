@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-15 17:33 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  - rddletodebug.hbp
+  - letodebug.hbp
+    ; as common users stumble over these 2 hbp's not mentioned for them
+
+  * source/server/leto_2.c
+    * add info about causing station in case of communcation problems
+
 2018-02-12 18:28 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     * resolve func proto leto_udp(), call directly LetoUdf()

@@ -1456,7 +1456,7 @@ static HB_THREAD_STARTFUNC( healthy )
 static HB_THREAD_STARTFUNC( thread2 )
 {
    PUSERSTRU pUStru = ( PUSERSTRU ) Cargo;
-   HB_ULONG  ulRecvLen = 0;
+   HB_ULONG  ulTmp, ulRecvLen = 0;
 #ifdef LETO_CPU_STATISTIC
    HB_I64    llTimePoint;
    HB_U64    ullTimeElapse;
@@ -1707,13 +1707,14 @@ static HB_THREAD_STARTFUNC( thread2 )
       }
 
 #ifdef USE_LZ4
-      if( leto_SockRecv( pUStru->hSocket, ( char * ) pUStru->pBuffer, ulRecvLen ) != ulRecvLen )
+      ulTmp = leto_SockRecv( pUStru->hSocket, ( char * ) pUStru->pBuffer, ulRecvLen );
 #else
-      if( leto_SockRecv( pUStru->hSocket, ( char * ) pUStru->pBuffer, ulRecvLen, pUStru ) != ulRecvLen )
+      ulTmp = leto_SockRecv( pUStru->hSocket, ( char * ) pUStru->pBuffer, ulRecvLen, pUStru );
 #endif
+      if( ulTmp != ulRecvLen )
       {
          hb_vmLock();
-         leto_writelog( NULL, 0, "ERROR thread2() leto_SockRec != ulRecvLen" );
+         leto_writelog( NULL, 0, "ERROR thread2() leto_SockRec(%lu) != ulRecvLen(%lu) [%s:%s]", ulTmp, ulRecvLen, pUStru->szAddr, pUStru->szExename );
          break;
       }
       else  /* !! here the request is successfull complete received !! */
@@ -1727,7 +1728,7 @@ static HB_THREAD_STARTFUNC( thread2 )
       if( ulRecvLen < 2 )  /* must be at least command char + ';' */
       {
          leto_SendAnswer( pUStru, szErr1, 4 );
-         leto_writelog( NULL, -1, "ERROR thread2() command format: %lu too short", ulRecvLen );
+         leto_writelog( NULL, -1, "ERROR thread2() command format: %lu too short [%s:%s]", ulRecvLen, pUStru->szAddr, pUStru->szExename );
          if( ulRecvLen )
             leto_writelog( NULL, ulRecvLen, ( char * ) pUStru->pBuffer );
          continue;
