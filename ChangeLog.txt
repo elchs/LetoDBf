@@ -2,6 +2,67 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-20 18:20 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; made LetoDBf CPP compile-mode safe -- and fix dynamic RDD lib creation
+    Big difference in CPP mode is strchr( const char *, ) to return a const,
+    leading to *many* changes as then a 'char *' must be passed,
+    plus a much stronger var-type casting resulted in a big 'clean-through'
+
+  * include/letocl.h
+    * remove no more existing LetoSetCdp() --> C-API: LetoSetSetCodepage()
+      dito for LetoSetPath() --> C-API: LetoSetSetPath()
+    * add 'extern HB_EXPORT' macro to all func proto used in C-API lib
+
+  * source/client/letocl.c
+    * link leto_clientlog() only if LETO_CLIENTLOG is #define-d
+    * move leto_ClearTagInfos() down below its called LetoDbFreeTag()
+    * remove all HB_EXPORT macros ( moved into letocl.h header )
+      ; initiated by clang 7.3 which complained about a missing HB_EXPORT
+      in the prototypes, but having one at the functions
+
+  * source/client/leto1.c
+    ! correct one type *warning* (long <-> int) in HB_TRACE() for debugging
+      ( left over from 2018-02-03 )
+    ! remove usage of hb_stackRDD(), preventing creation of dynamic RDD lib
+    * add RDDI_MULTITAG, DBOI _ISMULTITAG, _MULTIKEY, _ISCOND to ask server
+    * name space: (internal used) uiGetConnCount() --> letoGetConnCount()
+
+  * source/client/letomgmn.c
+  ; applies also for the 3 above files
+    * add missing casts for hb_xgrab(), hb_lz4net*() pStream, etc
+
+  * include/funcleto.h
+  * include/srvleto.h
+  * source/common/common_c.c
+  * source/common/lz4net.c
+  * source/server/leto_2.c
+  * source/server/letoacc.c
+  * source/server/letofunc.c
+  * source/server/letolist.c
+  * source/server/letovars.c
+    * leto_GetParam() to use and return 'char *' [ not const ]
+    * s_szCmdSetDesc --> static const char * [] on stack without alloc/ free
+    * add missing casts for hb_xgrab() and some others
+    * C-compiler warning: 'ulTmp' shadowing var in outer focus (2018-02-15)
+    * fix typo in LETO_DBEVAL ( remove '*' of PHB_ITEM pBlocks[ 3 ] )
+    * refine leto_stristri()
+
+  * common/PMurHash.c
+    * use type 'long long' in CPP mode and MinGW/clang 64bit build
+
+  * letodb.hbc
+  * apileto.hbp
+  * rddleto.hbp
+  * rddletoaddon.hbp
+    * add dynamic lib in .hbc
+    ! typo in *.hbp: -hbdynvm --> -hbdyn
+    ; this fix also to copy the dynamic lib into system/ Harbour paths.
+      Note for *nix OS: need once 'ldconfig' to update linker search list
+      This dynamic lib is then ever linked, even a static lib is available
+      for a 'static' build.
+
+  - tests/nenadi.prg
+
 2018-02-15 17:33 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   - rddletodebug.hbp
   - letodebug.hbp

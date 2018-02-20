@@ -3,6 +3,8 @@ libpaths=lib
 
 headers=include/rddleto.ch
 requests=LETO
+
+libs=${_HB_DYNPREF}rddleto${_HB_DYNSUFF}
 libs=rddleto
 
 mt=yes

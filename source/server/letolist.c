@@ -122,7 +122,7 @@ void * letoAddToList( PLETO_LIST pList )
    return pNewItem + 1;
 }
 
-void * letoGetListItem( PLETO_LIST pList, HB_ULONG uiNum )
+void * letoGetListItem( PLETO_LIST pList, HB_USHORT uiNum )
 {
    PLETO_LIST_ITEM pItem = pList->pItem;
 
@@ -146,14 +146,14 @@ void * letoGetListItem( PLETO_LIST pList, HB_ULONG uiNum )
    return NULL;
 }
 
-void letoDelFromList( PLETO_LIST pList, HB_ULONG ulNum )
+void letoDelFromList( PLETO_LIST pList, HB_USHORT uiNum )
 {
    PLETO_LIST_ITEM pItem = pList->pItem;
    PLETO_LIST_ITEM pLast = NULL;
 
    while( pItem )
    {
-      if( ! ulNum )
+      if( ! uiNum )
       {
          if( pLast )
             pLast->pNext = pItem->pNext;
@@ -168,7 +168,7 @@ void letoDelFromList( PLETO_LIST pList, HB_ULONG ulNum )
       }
       else
       {
-         ulNum--;
+         uiNum--;
          pLast = pItem;
          pItem = pItem->pNext;
       }

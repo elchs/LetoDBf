@@ -269,79 +269,75 @@ typedef struct _LETOCONNECTION_
    PHB_ITEM          whoCares;             /* temporary tasks, e.g. collect WA relations for Leto_ReConnect() */
 } LETOCONNECTION;                          /* 408 */
 
-HB_EXTERN_END
 
-void LetoInit( void );
-void LetoExit( unsigned int uiFull );
-void LetoSetCdp( const char * szCdp );
-HB_ERRCODE LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szCommand );
-int LetoGetConnectRes( void );
-const char * LetoGetCmdItem( const char * ptr, char * szDest );
-const char * LetoFindCmdItem( const char * ptr );
-void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
-LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
-void LetoConnectionClose( LETOCONNECTION * pConnection );
-int LetoCloseAll( LETOCONNECTION * pConnection );
-const char * LetoGetServerVer( LETOCONNECTION * pConnection );
-void LetoSetPath( LETOCONNECTION * pConnection, const char * szPath );
-HB_BOOL LetoPing( LETOCONNECTION * pConnection );
-int LetoToggleZip( LETOCONNECTION * pConnection, int iZipRecord, const char * szPassword );
-HB_BOOL LetoUdf( LETOCONNECTION * pConnection, LETOTABLE * pTable, HB_BOOL fInThread, const char * szFuncName, PHB_ITEM * pItem );
+extern HB_EXPORT void LetoInit( void );
+extern HB_EXPORT void LetoExit( unsigned int uiFull );
+extern HB_EXPORT HB_ERRCODE LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szCommand );
+extern HB_EXPORT int LetoGetConnectRes( void );
+extern HB_EXPORT const char * LetoGetCmdItem( const char * ptr, char * szDest );
+extern HB_EXPORT const char * LetoFindCmdItem( const char * ptr );
+extern HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
+extern HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
+extern HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection );
+extern HB_EXPORT int LetoCloseAll( LETOCONNECTION * pConnection );
+extern HB_EXPORT const char * LetoGetServerVer( LETOCONNECTION * pConnection );
+extern HB_EXPORT HB_BOOL LetoPing( LETOCONNECTION * pConnection );
+extern HB_EXPORT int LetoToggleZip( LETOCONNECTION * pConnection, int iZipRecord, const char * szPassword );
+extern HB_EXPORT HB_BOOL LetoUdf( LETOCONNECTION * pConnection, LETOTABLE * pTable, HB_BOOL fInThread, const char * szFuncName, PHB_ITEM * pItem );
 
-void leto_clientlog( const char * sFile, int n, const char * s, ... );
-void LetoDbFreeTag( LETOTAGINFO * pTagInfo );
-HB_ERRCODE LetoRddInfo( LETOCONNECTION * pConnection, HB_USHORT uiIndex, const char * szNewSet );
-HB_ERRCODE LetoDbCloseTable( LETOTABLE * pTable );
-HB_ERRCODE LetoDbDrop( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
-HB_ERRCODE LetoDbExists( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
-LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, const char * szFields, unsigned int uiArea, const char * szCdpage );
-LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, int iShared, int iReadOnly, const char * szCdp, unsigned int uiArea );
-const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, unsigned long * ulLen );
-HB_ERRCODE LetoDbRecCount( LETOTABLE * pTable, unsigned long * ulCount );
-HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo );
-HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable );
-HB_ERRCODE LetoDbGoBottom( LETOTABLE * pTable );
-HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip );
-HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable );
-HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, const char * szValue, unsigned long ulLenMemo );
-HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll );
-HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const char * szTag, const char * szKey, unsigned int uiFlags, const char * szFor, const char * szWhile, unsigned long ulNext );
-HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagName, unsigned int uiOrder );
-HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHORT uiKeyLen, HB_BOOL fSoftSeek, HB_BOOL fFindLast );
-HB_ERRCODE LetoDbClearFilter( LETOTABLE * pTable );
-HB_ERRCODE LetoDbSetFilter( LETOTABLE * pTable, const char * szFilter, HB_BOOL fForceOpt );
-HB_ERRCODE LetoDbCommit( LETOTABLE * pTable );
-HB_ERRCODE LetoDbIsRecLocked( LETOTABLE * pTable, unsigned long ulRecNo, unsigned int * uiRes );
-HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo );
-HB_ERRCODE LetoDbRecUnLock( LETOTABLE * pTable, unsigned long ulRecNo );
-HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable );
-HB_ERRCODE LetoDbFileUnLock( LETOTABLE * pTable );
-HB_ERRCODE LetoDbPack( LETOTABLE * pTable );
-HB_ERRCODE LetoDbZap( LETOTABLE * pTable );
-HB_ERRCODE LetoDbReindex( LETOTABLE * pTable );
+extern HB_EXPORT void LetoDbFreeTag( LETOTAGINFO * pTagInfo );
+extern HB_EXPORT HB_ERRCODE LetoRddInfo( LETOCONNECTION * pConnection, HB_USHORT uiIndex, const char * szNewSet );
+extern HB_EXPORT HB_ERRCODE LetoDbCloseTable( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbDrop( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
+extern HB_EXPORT HB_ERRCODE LetoDbExists( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
+extern HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, const char * szFields, unsigned int uiArea, const char * szCdpage );
+extern HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, int iShared, int iReadOnly, const char * szCdp, unsigned int uiArea );
+extern HB_EXPORT const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, unsigned long * ulLen );
+extern HB_EXPORT HB_ERRCODE LetoDbRecCount( LETOTABLE * pTable, unsigned long * ulCount );
+extern HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo );
+extern HB_EXPORT HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbGoBottom( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip );
+extern HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, const char * szValue, unsigned long ulLenMemo );
+extern HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll );
+extern HB_EXPORT HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const char * szTag, const char * szKey, unsigned int uiFlags, const char * szFor, const char * szWhile, unsigned long ulNext );
+extern HB_EXPORT HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagName, unsigned int uiOrder );
+extern HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHORT uiKeyLen, HB_BOOL fSoftSeek, HB_BOOL fFindLast );
+extern HB_EXPORT HB_ERRCODE LetoDbClearFilter( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbSetFilter( LETOTABLE * pTable, const char * szFilter, HB_BOOL fForceOpt );
+extern HB_EXPORT HB_ERRCODE LetoDbCommit( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbIsRecLocked( LETOTABLE * pTable, unsigned long ulRecNo, unsigned int * uiRes );
+extern HB_EXPORT HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo );
+extern HB_EXPORT HB_ERRCODE LetoDbRecUnLock( LETOTABLE * pTable, unsigned long ulRecNo );
+extern HB_EXPORT HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbFileUnLock( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbPack( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbZap( LETOTABLE * pTable );
+extern HB_EXPORT HB_ERRCODE LetoDbReindex( LETOTABLE * pTable );
 
 /* additional pure C access API */
-unsigned int LetoDbBof( LETOTABLE * pTable );
-unsigned int LetoDbEof( LETOTABLE * pTable );
-unsigned int LetoDbGetField( LETOTABLE * pTable, HB_USHORT uiIndex, char ** szRet, unsigned long * ulLen );
-unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, const char * szValue, unsigned long ulLen );
-unsigned int LetoDbRecNo( LETOTABLE * pTable, unsigned long * ulRecNo );
-unsigned int LetoDbFieldCount( LETOTABLE * pTable, unsigned int * uiCount );
-unsigned int LetoDbFieldName( LETOTABLE * pTable, HB_USHORT uiIndex, char * szName );
-unsigned int LetoDbFieldType( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiType );
-unsigned int LetoDbFieldLen( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiLen );
-unsigned int LetoDbFieldDec( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiDec );
-void LetoFreeStr( char * szStr );
-void LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort );
+extern HB_EXPORT unsigned int LetoDbBof( LETOTABLE * pTable );
+extern HB_EXPORT unsigned int LetoDbEof( LETOTABLE * pTable );
+extern HB_EXPORT unsigned int LetoDbGetField( LETOTABLE * pTable, HB_USHORT uiIndex, char ** szRet, unsigned long * ulLen );
+extern HB_EXPORT unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, const char * szValue, unsigned long ulLen );
+extern HB_EXPORT unsigned int LetoDbRecNo( LETOTABLE * pTable, unsigned long * ulRecNo );
+extern HB_EXPORT unsigned int LetoDbFieldCount( LETOTABLE * pTable, unsigned int * uiCount );
+extern HB_EXPORT unsigned int LetoDbFieldName( LETOTABLE * pTable, HB_USHORT uiIndex, char * szName );
+extern HB_EXPORT unsigned int LetoDbFieldType( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiType );
+extern HB_EXPORT unsigned int LetoDbFieldLen( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiLen );
+extern HB_EXPORT unsigned int LetoDbFieldDec( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiDec );
+extern HB_EXPORT void LetoFreeStr( char * szStr );
+extern HB_EXPORT void LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort );
 
 long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * sData, unsigned long ulLen );
 unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr );
 LETOCONNECTION * letoGetConnPool( unsigned int uiConnection );
 LETOCONNECTION * letoGetCurrConn( void );
-unsigned int uiGetConnCount( void );
+unsigned int letoGetConnCount( void );
 void letoClearCurrConn( void );
 LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort );
-/* int LetoCheckServerVer( LETOCONNECTION * pConnection, HB_USHORT uiVer ); */
+/* int leto_CheckServerVer( LETOCONNECTION * pConnection, HB_USHORT uiVer ); */
 const char * leto_RemoveIpFromPath( const char * szPath );
 void leto_BeautifyPath( char * szPath, const char cReplace );
 HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, char * szPath );
@@ -350,42 +346,46 @@ void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMa
 const char * leto_DecryptText( LETOCONNECTION * pConnection, unsigned long * pulLen, char * ptr );
 HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead );
 
-const char * LetoMgGetInfo( LETOCONNECTION * pConnection );
-const char * LetoMgSysInfo( LETOCONNECTION * pConnection );
-const char * LetoMgGetUsers( LETOCONNECTION * pConnection, const char * szTable, const char * szList );
-const char * LetoMgGetTables( LETOCONNECTION * pConnection, const char * szUser, const char * szList );
-const char * LetoMgGetIndex( LETOCONNECTION * pConnection, const char * szUser, const char * szTable, const char * szList );
-const char * LetoMgGetLocks( LETOCONNECTION * pConnection, const char * szUser, const char * szTable, const char * szList );
-int LetoMgKillUser( LETOCONNECTION * pConnection, const char * szUserId );
-const char * LetoMgGetTime( LETOCONNECTION * pConnection );
+extern HB_EXPORT const char * LetoMgGetInfo( LETOCONNECTION * pConnection );
+extern HB_EXPORT const char * LetoMgSysInfo( LETOCONNECTION * pConnection );
+extern HB_EXPORT const char * LetoMgGetUsers( LETOCONNECTION * pConnection, const char * szTable, const char * szList );
+extern HB_EXPORT const char * LetoMgGetTables( LETOCONNECTION * pConnection, const char * szUser, const char * szList );
+extern HB_EXPORT const char * LetoMgGetIndex( LETOCONNECTION * pConnection, const char * szUser, const char * szTable, const char * szList );
+extern HB_EXPORT const char * LetoMgGetLocks( LETOCONNECTION * pConnection, const char * szUser, const char * szTable, const char * szList );
+extern HB_EXPORT int LetoMgKillUser( LETOCONNECTION * pConnection, const char * szUserId );
+extern HB_EXPORT const char * LetoMgGetTime( LETOCONNECTION * pConnection );
 
-int LetoGetError( void );
-int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, char cType, const char * szValue, unsigned int uilLength, unsigned int uiFlags, char ** pRetValue );
-const char * LetoVarGet( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, unsigned long * pulLen );
-long LetoVarIncr( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, unsigned int uiFlags );
-long LetoVarDecr( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, unsigned int uiFlags );
-int LetoVarDel( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar );
-const char * LetoVarGetList( LETOCONNECTION * pConnection, const char * szGroup, HB_LONG lMaxLen );
+extern HB_EXPORT int LetoGetError( void );
+extern HB_EXPORT int LetoVarSet( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, char cType, const char * szValue, unsigned int uilLength, unsigned int uiFlags, char ** pRetValue );
+extern HB_EXPORT const char * LetoVarGet( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, unsigned long * pulLen );
+extern HB_EXPORT long LetoVarIncr( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, unsigned int uiFlags );
+extern HB_EXPORT long LetoVarDecr( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, unsigned int uiFlags );
+extern HB_EXPORT int LetoVarDel( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar );
+extern HB_EXPORT const char * LetoVarGetList( LETOCONNECTION * pConnection, const char * szGroup, HB_LONG lMaxLen );
 
-HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile );
-HB_BYTE LetoFileErase( LETOCONNECTION * pConnection, const char * szFile );
-HB_BYTE LetoFileRename( LETOCONNECTION * pConnection, const char * szFile, const char * szFileNew );
-HB_BYTE LetoFileCopy( LETOCONNECTION * pConnection, const char * szFile, const char * szFileNew );
-const char * LetoMemoRead( LETOCONNECTION * pConnection, const char * szFile, unsigned long * ulMemoLen );
-HB_BOOL LetoMemoWrite( LETOCONNECTION * pConnection, const char * szFile, const char * szValue, unsigned long ulLen );
-const char * LetoFileRead( LETOCONNECTION * pConnection, const char * szFile, unsigned long ulStart, unsigned long * ulLen );
-HB_BOOL LetoFileWrite( LETOCONNECTION * pConnection, const char * szFile, const char * szValue, unsigned long ulStart, unsigned long ulLen );
-long LetoFileSize( LETOCONNECTION * pConnection, const char * szFile );
-const char * LetoFileAttr( LETOCONNECTION * pConnection, const char * szFile, const char * szAttr );
-const char * LetoDirectory( LETOCONNECTION * pConnection, const char * szDir, const char * szAttr );
-HB_BYTE LetoDirMake( LETOCONNECTION * pConnection, const char * szFile );
-HB_BYTE LetoDirExist( LETOCONNECTION * pConnection, const char * szFile );
-HB_BYTE LetoDirRemove( LETOCONNECTION * pConnection, const char * szFile );
+extern HB_EXPORT HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile );
+extern HB_EXPORT HB_BYTE LetoFileErase( LETOCONNECTION * pConnection, const char * szFile );
+extern HB_EXPORT HB_BYTE LetoFileRename( LETOCONNECTION * pConnection, const char * szFile, const char * szFileNew );
+extern HB_EXPORT HB_BYTE LetoFileCopy( LETOCONNECTION * pConnection, const char * szFile, const char * szFileNew );
+extern HB_EXPORT const char * LetoMemoRead( LETOCONNECTION * pConnection, const char * szFile, unsigned long * ulMemoLen );
+extern HB_EXPORT HB_BOOL LetoMemoWrite( LETOCONNECTION * pConnection, const char * szFile, const char * szValue, unsigned long ulLen );
+extern HB_EXPORT const char * LetoFileRead( LETOCONNECTION * pConnection, const char * szFile, unsigned long ulStart, unsigned long * ulLen );
+extern HB_EXPORT HB_BOOL LetoFileWrite( LETOCONNECTION * pConnection, const char * szFile, const char * szValue, unsigned long ulStart, unsigned long ulLen );
+extern HB_EXPORT long LetoFileSize( LETOCONNECTION * pConnection, const char * szFile );
+extern HB_EXPORT const char * LetoFileAttr( LETOCONNECTION * pConnection, const char * szFile, const char * szAttr );
+extern HB_EXPORT const char * LetoDirectory( LETOCONNECTION * pConnection, const char * szDir, const char * szAttr );
+extern HB_EXPORT HB_BYTE LetoDirMake( LETOCONNECTION * pConnection, const char * szFile );
+extern HB_EXPORT HB_BYTE LetoDirExist( LETOCONNECTION * pConnection, const char * szFile );
+extern HB_EXPORT HB_BYTE LetoDirRemove( LETOCONNECTION * pConnection, const char * szFile );
 
 void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const char * szData );
 void leto_SetUpdated( LETOTABLE * pTable, HB_USHORT uiUpdated );
 const char * leto_ParseTagInfo( LETOTABLE * pTable, const char * pBuffer );
 void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen, unsigned long * pulLen );
+
+#ifdef LETO_CLIENTLOG
+   extern HB_EXPORT void leto_clientlog( const char * sFile, int n, const char * s, ... );
+#endif
 
 #if ! defined( __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
    HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr );
@@ -395,17 +395,20 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
    #define Leto_VarExprSync( connection, arr, resync )  /* do { } while( 0 ) */
 #endif
 
-#if defined( __LETO_C_API__ )
-   char * LetoSetModName( char * szModule );
-
-   void LetoSetSetSoftseek( HB_BOOL fSet );
-   void LetoSetSetDeleted( HB_BOOL fSet );
-   void LetoSetSetExclusive( HB_BOOL fSet );
-   void LetoSetSetAutOpen( HB_BOOL fSet );
-   void LetoSetSetAutOrder( HB_UCHAR uSet );
-   void LetoSetSetDateFormat( const char * pSet );
-   void LetoSetSetEpoch( HB_SIZE nSet );
-   void LetoSetSetDefault( const char * pSet );
-   void LetoSetSetPath( const char * pSet );
+#if defined( __HARBOUR30__ ) || defined( __LETO_C_API__ )
+   extern HB_EXPORT char * LetoSetModName( char * szModule );
 #endif
 
+#if defined( __LETO_C_API__ )
+   extern HB_EXPORT void LetoSetSetSoftseek( HB_BOOL fSet );
+   extern HB_EXPORT void LetoSetSetDeleted( HB_BOOL fSet );
+   extern HB_EXPORT void LetoSetSetExclusive( HB_BOOL fSet );
+   extern HB_EXPORT void LetoSetSetAutOpen( HB_BOOL fSet );
+   extern HB_EXPORT void LetoSetSetAutOrder( HB_UCHAR uSet );
+   extern HB_EXPORT void LetoSetSetDateFormat( const char * pSet );
+   extern HB_EXPORT void LetoSetSetEpoch( HB_SIZE nSet );
+   extern HB_EXPORT void LetoSetSetDefault( const char * pSet );
+   extern HB_EXPORT void LetoSetSetPath( const char * pSet );
+#endif
+
+HB_EXTERN_END

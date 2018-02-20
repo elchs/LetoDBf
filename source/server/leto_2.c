@@ -86,11 +86,13 @@ static HB_UINT * s_paSocks;
 static int       s_iSocksMax = 0;
 static int       s_iTimeOut = -1;
 static int       s_iZombieCheck = 0;     /* dead connection check time interval */
-static char **   s_szCmdSetDesc = NULL;
 static int       s_iServerPort = LETO_DEFAULT_PORT;
 static HB_SOCKET s_hSocketUDP = HB_NO_SOCKET;
 static char      s_szUDPService[ HB_PATH_MAX ] = { 0 };
 static char      s_UDPServer[ HB_PATH_MAX ] = { 0 };
+
+/* command description table */
+static const char * s_szCmdSetDesc[ LETOCMD_SETLEN ] = { 0 };
 
 /* statistics */
 static HB_U64 s_ullOperations = 0;
@@ -151,9 +153,6 @@ HB_U64 leto_Statistics( int iEntry )
 
 static void leto_CommandDescInit( void )
 {
-   if( ! s_szCmdSetDesc )
-      s_szCmdSetDesc = ( char ** ) hb_xgrabz( sizeof( char * ) * LETOCMD_SETLEN );
-
    /* @ A - Z */
    s_szCmdSetDesc[ LETOCMD_admin   - LETOCMD_OFFSET ] = "admin";
    s_szCmdSetDesc[ LETOCMD_close   - LETOCMD_OFFSET ] = "close";
@@ -207,12 +206,6 @@ static void leto_CommandDescInit( void )
    s_szCmdSetDesc[ LETOCMD_cmtu    - LETOCMD_OFFSET ] = "updateflush";
    s_szCmdSetDesc[ LETOCMD_udf_dbf - LETOCMD_OFFSET ] = "udf_dbf";
    s_szCmdSetDesc[ LETOCMD_zap     - LETOCMD_OFFSET ] = "zap";
-}
-
-static void leto_CommandDescFree( void )
-{
-   if( s_szCmdSetDesc )
-      hb_xfree( s_szCmdSetDesc );
 }
 
 static const char * leto_CmdToHuman( const char szLetoCmd )
@@ -556,7 +549,7 @@ HB_BOOL leto_AskAnswer( HB_SOCKET hSocket )
 }
 
 /* for delayed errors send at second socket -- or answer at main socket if no second available */
-void leto_SendAnswer2( PUSERSTRU pUStru, char * szData, HB_ULONG ulLen, HB_BOOL bAllFine, int iError )
+void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB_BOOL bAllFine, int iError )
 {
    HB_SOCKET      hSocket = HB_NO_SOCKET;
    HB_BOOL        bDelayedError = HB_FALSE;
@@ -696,7 +689,7 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
    HB_BOOL bUseBuffer = HB_TRUE;
 #else
    #ifdef USE_LZ4
-      HB_BOOL bUseBuffer = hb_lz4netEncryptTest( pUStru->zstream, ulLen );
+      HB_BOOL bUseBuffer = hb_lz4netEncryptTest( ( PHB_LZ4NET ) pUStru->zstream, ulLen );
    #else
       HB_BOOL bUseBuffer = pUStru->zstream ? HB_TRUE : HB_FALSE;
    #endif
@@ -734,7 +727,7 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
    if( bUseBuffer && pUStru->zstream )
    {
 #ifdef USE_LZ4
-      ulLen = hb_lz4netEncrypt( pUStru->zstream, ( char ** ) &pUStru->pSendBuffer, ulLen, &pUStru->ulSndBufLen, szData );
+      ulLen = hb_lz4netEncrypt( ( PHB_LZ4NET ) pUStru->zstream, ( char ** ) &pUStru->pSendBuffer, ulLen, &pUStru->ulSndBufLen, szData );
       pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, 0 );
 #else
       HB_PUT_LE_UINT32( pUStru->pSendBuffer, ulLen );
@@ -779,7 +772,7 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
    if( bUseBuffer && pUStru->ulSndBufLen > LETO_SENDRECV_BUFFSIZE )
    {
       pUStru->ulSndBufLen = LETO_SENDRECV_BUFFSIZE;
-      pUStru->pSendBuffer = hb_xrealloc( pUStru->pSendBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
+      pUStru->pSendBuffer = ( HB_BYTE * ) hb_xrealloc( pUStru->pSendBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
    }
    if( pUStru->ulBytesSend != ulLen )
    {
@@ -908,7 +901,7 @@ static HB_THREAD_STARTFUNC( udpsvc )
    unsigned int uiLen;
    char *       szServiceName = ( char * ) hb_xgrabz( 128 );
    char *       szTmp = ( char * ) hb_xgrabz( 256 );
-   const char * ptr;
+   char *       ptr;
    char *       ptr2, * ptr3;
    HB_BOOL      bAnswered;
    int          iLenAddr, iLenCmp;
@@ -1498,7 +1491,7 @@ static HB_THREAD_STARTFUNC( thread2 )
    {
       char     szBuffer[ 64 ];
       char     szTmp[ 16 ];
-      HB_ULONG ulTmp, ulLen;
+      HB_ULONG ulLen;
 
       ulTmp = sprintf( szBuffer, "%s %s", LETO_RELEASE_STRING, LETO_VERSION_STRING );
       szBuffer[ ulTmp++ ] = ';';
@@ -1722,7 +1715,7 @@ static HB_THREAD_STARTFUNC( thread2 )
 
 #ifdef USE_LZ4
       if( bCompressed || pUStru->bZipCrypt )  /* means compressed and/or encrypted */
-         ulRecvLen = hb_lz4netDecrypt( pUStru->zstream, ( char ** ) &pUStru->pBuffer, ulRecvLen, &pUStru->ulBufferLen, bCompressed );
+         ulRecvLen = hb_lz4netDecrypt( ( PHB_LZ4NET ) pUStru->zstream, ( char ** ) &pUStru->pBuffer, ulRecvLen, &pUStru->ulBufferLen, bCompressed );
 #endif
 
       if( ulRecvLen < 2 )  /* must be at least command char + ';' */
@@ -2288,8 +2281,6 @@ HB_FUNC( LETO_SERVER )
       if( pDetached )
          hb_itemRelease( pDetached );
    }
-
-   leto_CommandDescFree();
 
    if( hThreadPipe[ 1 ] != FS_ERROR )
    {

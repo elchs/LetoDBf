@@ -7,12 +7,13 @@
 # static lib
 -hblib
 
-# shared lib, dll or so
-#-hbdynvm
+# shared lib: dll or so -- outcomment above, remove '#' in next 3 lines
+#-hbdyn
 #-shared
+#-lharbour
+# if 'cannot find -lharbour' --> use instead for HB v3.2
+#-lharbour-32
 
-#-debug
-#-b
 
 -n
 -w
@@ -29,6 +30,10 @@
 
 # remove '#' for special actions to fix concurrency with a Samba server
 #-cflag=-DLETO_SMBSERVER=1
+
+# CPP flags to pacify 'modern' compiler
+#-cflag=-Wno-c++11-long-long
+#-cflag=-Wno-old-style-cast
 
 -cflag={allmsvc}-D_CRT_SECURE_NO_DEPRECATE
 -cflag={clang}-W

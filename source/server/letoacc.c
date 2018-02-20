@@ -72,7 +72,7 @@ static HB_BOOL   s_fLockConnect = HB_FALSE;
    #define HB_GC_UNLOCKA()  hb_threadLeaveCriticalSection( &s_accMtx )
 #endif
 
-extern int leto_GetParam( const char * szData, const char ** pp2, const char ** pp3, const char ** pp4, const char ** pp5 );
+extern int leto_GetParam( char * szData, char ** pp2, char ** pp3, char ** pp4, char ** pp5 );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
 extern HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs );
 extern HB_BOOL leto_CheckPass( int iType );
@@ -762,10 +762,10 @@ void leto_acc_release( void )
       hb_xfree( s_pAccPath );
 }
 
-void leto_Admin( PUSERSTRU pUStru, const char * szData )
+void leto_Admin( PUSERSTRU pUStru, char * szData )
 {
    const char * pData;
-   const char * pp1, * pp2, * pp3, * pp4;
+   char         * pp1, * pp2, * pp3, * pp4;
    HB_ULONG     ulLen;
    int          nParam = leto_GetParam( szData, &pp1, &pp2, &pp3, &pp4 );
 
@@ -876,11 +876,11 @@ void leto_Admin( PUSERSTRU pUStru, const char * szData )
    leto_SendAnswer( pUStru, pData, 4 );
 }
 
-void leto_ToggleZip( PUSERSTRU pUStru, const char * szData )
+void leto_ToggleZip( PUSERSTRU pUStru, char * szData )
 {
-   int          iZipRecord = atoi( szData );
-   HB_ULONG     ulLen;
-   const char * pp1;
+   int      iZipRecord = atoi( szData );
+   HB_ULONG ulLen;
+   char *   pp1;
 
    leto_GetParam( szData, &pp1, NULL, NULL, NULL );
 
@@ -895,7 +895,7 @@ void leto_ToggleZip( PUSERSTRU pUStru, const char * szData )
       if( pUStru->zstream )
       {
 #ifdef USE_LZ4
-         hb_lz4netClose( pUStru->zstream );
+         hb_lz4netClose( ( PHB_LZ4NET ) pUStru->zstream );
 #else
          hb_znetClose( pUStru->zstream );
 #endif
@@ -927,7 +927,7 @@ void leto_ToggleZip( PUSERSTRU pUStru, const char * szData )
          }
 
 #ifdef USE_LZ4
-         hb_lz4netEncryptKey( pUStru->zstream, szPass, ulLen );
+         hb_lz4netEncryptKey( ( PHB_LZ4NET ) pUStru->zstream, szPass, ( int ) ulLen );
 #else
          hb_znetEncryptKey( pUStru->zstream, szPass, ulLen );
 #endif

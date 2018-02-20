@@ -440,7 +440,7 @@ HB_U32 leto_hash( const char * key, int iLen )
 #endif
 
 /* char mapping table for leto_stricmp() */
-static const char s_Upper[ 256 ] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+static const unsigned char s_Upper[ 256 ] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
                                      10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
                                      20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
                                      30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
@@ -480,23 +480,41 @@ int leto_stricmp( const char * s1, const char * s2 )
    return 0;
 }
 
+
 const char * leto_stristr( const char * s1, const char * s2 )
 {
-   const char * s0 = s2;
+   const char * s3, * s0 = s2;
 
-   do
+   if( ! s1 || ! s2 || ! *s2 )
+      return NULL;
+
+   while( *s1 )
    {
       if( s_Upper[ ( const unsigned char ) *s1++ ] == s_Upper[ ( const unsigned char ) *s0 ] )
+      {
          s0++;
-      else
-         s0 = s2;
-   }
-   while( *s1 && *s0 );
+         s3 = s1;
+         while( *s0 && *s1 )
+         {
+            if( s_Upper[ ( const unsigned char ) *s1++ ] == s_Upper[ ( const unsigned char ) *s0 ] )
+               s0++;
+            else
+            {
+              if( *s1 )
+              {
+                 s0 = s2;
+                 s1 = s3;
+              }
+              break;
+            }
+         }
 
-   if( ! *s0 )
-      return s1;
-   else
-      return NULL;
+         if( ! *s0 )
+            return s1;
+      }
+   }
+
+   return NULL;
 }
 
 void leto_byte2hexchar( const char * ptri, int iLen, char * ptro )

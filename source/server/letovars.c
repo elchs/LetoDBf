@@ -131,7 +131,7 @@ static HB_ULONG         s_ulVarLenAllMax = 0x4000000;  /* 64 MB size of all stri
    #define HB_GC_UNLOCKV()     hb_threadLeaveCriticalSection( &s_VarMtx )
 #endif
 
-extern int leto_GetParam( const char * szData, const char ** pp2, const char ** pp3, const char ** pp4, const char ** pp5 );
+extern int leto_GetParam( char * szData, char ** pp2, char ** pp3, char ** pp4, char ** pp5 );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
 extern void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB_BOOL bAllFine, int iError );
 extern PUSERSTRU letoGetsUStru( void );  /* fetch the static TLS in letofunc */
@@ -163,7 +163,7 @@ static HB_TSD_NEW( s_TSDitem, sizeof( PHB_ITEM * ), leto_InitVarCache, leto_Dein
 
 static void leto_SetVarCache( LETO_VAR * pVarItem )
 {
-   PHB_ITEM * ppItemTSD = hb_stackGetTSD( &s_TSDitem );
+   PHB_ITEM * ppItemTSD = ( PHB_ITEM * ) hb_stackGetTSD( &s_TSDitem );
 
    if( *ppItemTSD )
       hb_itemRelease( *ppItemTSD );
@@ -172,7 +172,7 @@ static void leto_SetVarCache( LETO_VAR * pVarItem )
 
 static void leto_ClearVarCache( void )
 {
-   PHB_ITEM * ppItemTSD = hb_stackGetTSD( &s_TSDitem );
+   PHB_ITEM * ppItemTSD = ( PHB_ITEM * ) hb_stackGetTSD( &s_TSDitem );
 
    if( ppItemTSD )
    {
@@ -442,10 +442,10 @@ static _HB_INLINE_ HB_BOOL leto_var_accessdeny( PUSERSTRU pUStru, LETO_VAR * pIt
           ( pItem->uiUser != pUStru->iUserStru );
 }
 
-void leto_Variables( PUSERSTRU pUStru, const char * szData )
+void leto_Variables( PUSERSTRU pUStru, char * szData )
 {
-   const char * pVarGroup, * pVar, * pp3;
-   int          nParam = leto_GetParam( szData, &pVarGroup, &pVar, &pp3, NULL );
+   char * pVarGroup, * pVar, * pp3;
+   int    nParam = leto_GetParam( szData, &pVarGroup, &pVar, &pp3, NULL );
 
    if( nParam < 3 )
       leto_SendAnswer( pUStru, szErr2, 4 );
@@ -524,7 +524,7 @@ void leto_Variables( PUSERSTRU pUStru, const char * szData )
                      pItem->item.asLogical.value = ( *pp4 != '0' );
                   else if( *pp3 == LETOVAR_NUM )
                   {
-                     char * ptr2 = strchr( pp4, '.' );
+                     const char * ptr2 = strchr( pp4, '.' );
 
                      if( ! ptr2 && ! pItem->item.asDouble.length )
                         pItem->item.asLong.value = atol( pp4 );

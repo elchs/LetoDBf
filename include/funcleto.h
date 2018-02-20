@@ -167,9 +167,9 @@
 extern HB_I64 leto_MilliSec( void );
 extern HB_U64 leto_MicroSec( void );
 extern int leto_CPUCores( void );
-extern int leto_CPULoad( void );
+extern HB_UINT leto_CPULoad( void );
 extern HB_UCHAR leto_n2b( char * s, HB_U32 n );
-extern HB_ULONG leto_b2n( const char * s, HB_UCHAR iLenLen );
+extern HB_ULONG leto_b2n( const char * s, const HB_UCHAR iLenLen );
 extern int leto_stricmp( const char * s1, const char * s2 );
 extern const char * leto_stristr( const char * s1, const char * s2 );
 extern HB_BOOL leto_CbTrim( char * szCodeblock );
@@ -197,6 +197,6 @@ extern int eprintf( char * d, const char * fmt, ... );
    extern HB_ULONG hb_lz4netDecrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB_ULONG * pulDataLen, HB_BOOL fCompressed );
    extern PHB_LZ4NET hb_lz4netOpen( int iLevel, int strategy );
    extern void hb_lz4netClose( PHB_LZ4NET pStream );
-   extern void hb_lz4netEncryptKey( PHB_LZ4NET pStream, const void * keydata, int keylen );
+   extern void hb_lz4netEncryptKey( PHB_LZ4NET pStream, const char * keydata, int keylen );
 #endif
 

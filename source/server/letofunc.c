@@ -51,7 +51,7 @@
 #define PARSE_MAXDEEP            5   /* used in leto_ParseFilter() */
 #define SHIFT_FOR_LEN            3
 
-typedef void ( *CMDSET )( PUSERSTRU, const char * );
+typedef void ( *CMDSET )( PUSERSTRU, char * );
 static CMDSET s_cmdSet[ LETOCMD_SETLEN ] = { NULL };
 
 static const char * szOk = "++++";
@@ -86,7 +86,7 @@ static HB_ULONG   s_ulStartDateSec;       /* server startup time */
 static HB_ULONG   s_ulTransAll = 0;       /* executed LetoDBf TRANSACTIONs */
 static HB_ULONG   s_ulTransOK = 0;        /* valid LetoDBf TRANSACTIONs of above */
 
-static PHB_ITEM * s_pThxArray = NULL;
+static PHB_ITEM s_pThxArray = NULL;
 static HB_COND_NEW( s_ThxCond );
 static HB_CRITICAL_NEW( s_ThxMtx );
 
@@ -182,16 +182,16 @@ extern HB_BOOL leto_memowrite( const char * szFilename, const char * pBuffer, HB
 extern void leto_acc_release( void );
 extern HB_BOOL leto_acc_find( const char * szUser, const char * szPass, char ** pAcc );
 extern void leto_acc_setPath( const char * szPath );
-extern void leto_ToggleZip( PUSERSTRU pUStru, const char * szData );
+extern void leto_ToggleZip( PUSERSTRU pUStru, char * szData );
 
 extern void leto_SendError( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
 extern void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB_BOOL bAllFine, int iError );
 extern HB_BOOL leto_AskAnswer( HB_SOCKET hSocket );
-extern void leto_Admin( PUSERSTRU pUStru, const char * szData );
+extern void leto_Admin( PUSERSTRU pUStru, char * szData );
 
-extern void leto_Variables( PUSERSTRU pUStru, const char * szData );
-extern void leto_setVarsMax( HB_ULONG ulMaxVars, HB_USHORT uiMaxVarLen );
+extern void leto_Variables( PUSERSTRU pUStru, char * szData );
+extern void leto_setVarsMax( HB_ULONG ulMaxVars, HB_ULONG ulMaxVarLen );
 extern void leto_varsown_release( PUSERSTRU pUStru );
 extern void leto_vars_release( void );
 
@@ -199,8 +199,8 @@ extern void letoListInit( PLETO_LIST pList, HB_ULONG ulSize );
 extern void letoListFree( PLETO_LIST pList );
 extern HB_BOOL letoListEmptyTS( PLETO_LIST pList );
 extern void * letoAddToList( PLETO_LIST pList );
-extern void * letoGetListItem( PLETO_LIST pList, HB_USHORT ulNum );
-extern void letoDelFromList( PLETO_LIST pList, HB_USHORT ulNum );
+extern void * letoGetListItem( PLETO_LIST pList, HB_USHORT uiNum );
+extern void letoDelFromList( PLETO_LIST pList, HB_USHORT uiNum );
 extern void letoDelItemList( PLETO_LIST pList, PLETO_LIST_ITEM pDelItem );
 extern HB_BOOL letoIsRecInList( PLETO_LIST pLockList, HB_ULONG ulRecNo );
 extern HB_BOOL letoIsRecInListTS( PLETO_LIST pList, HB_ULONG ulRecNo );
@@ -242,7 +242,7 @@ PUSERSTRU letoGetsUStru( void )
 
 static PUSERSTRU letoSetUStru( PUSERSTRU pUStru )
 {
-   PUSERSTRU * pUStruTSD = hb_stackGetTSD( &s_TSDustru );
+   PUSERSTRU * pUStruTSD = ( PUSERSTRU * ) hb_stackGetTSD( &s_TSDustru );
 
    *pUStruTSD = pUStru;
    return *( pUStruTSD );
@@ -1086,7 +1086,7 @@ static char * leto_AliasTranslate( PUSERSTRU pUStru, const char * szExpr, HB_ULO
    HB_SIZE   nStart = 0, nDst = 0, nDstLen = *nLen + lDstLenDif, nAliasLen, nDiff;
    char      szSrcAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
    char *    szDst = ( char * ) hb_xgrab( nDstLen + 1 );
-   char *    ptr = strstr( szExpr + nStart, "->" );
+   const char * ptr = strstr( szExpr + nStart, "->" );
 
    while( ptr )
    {
@@ -1402,7 +1402,7 @@ HB_FUNC( LETO_SETAPPOPTIONS )  /* during server startup */
       s_bNoSaveWA = hb_parl( 11 );
 
    if( HB_ISNUM( 12 ) && HB_ISNUM( 13 ) )
-      leto_setVarsMax( hb_parnl( 12 ), ( HB_USHORT ) hb_parni( 13 ) );
+      leto_setVarsMax( hb_parnl( 12 ), ( HB_ULONG ) hb_parni( 13 ) );
 
    if( HB_ISNUM( 14 ) )
    {
@@ -1849,7 +1849,7 @@ HB_FUNC( LETO_B2N )
    hb_retnl( n );
 }
 
-int leto_GetParam( const char * szData, const char ** pp2, const char ** pp3, const char ** pp4, const char ** pp5 )
+int leto_GetParam( char * szData, char ** pp2, char ** pp3, char ** pp4, char ** pp5 )
 {
    char * ptr;
    int    iRes = 0;
@@ -1950,7 +1950,7 @@ static HB_USHORT leto_DataPath( const char * szFilename, char * szBuffer )
 static HB_BOOL leto_ProdIndex( const char * szTable, const char * szBagName )
 {
    const char * p1, * p1end, * p2, * p2end;
-   char *       ptr;
+   const char * ptr;
 
    if( ! szTable || ! * szTable || ! szBagName || ! * szBagName )
       return HB_FALSE;
@@ -2031,7 +2031,7 @@ static int leto_IsRecLocked( PAREASTRU pAStru, HB_ULONG ulRecNo )
    return 0;
 }
 
-static void leto_IsRecLockedUS( PUSERSTRU pUStru, const char * szData )
+static void leto_IsRecLockedUS( PUSERSTRU pUStru, char * szData )
 {
    HB_ULONG ulRecNo = strtoul( szData, NULL, 10 );
 
@@ -3470,7 +3470,7 @@ void leto_CloseUS( PUSERSTRU pUStru )
    if( pUStru->zstream )
    {
 #ifdef USE_LZ4
-      hb_lz4netClose( pUStru->zstream );
+      hb_lz4netClose( ( PHB_LZ4NET ) pUStru->zstream );
 #else
       hb_znetClose( pUStru->zstream );
 #endif
@@ -3588,7 +3588,7 @@ void leto_ReallocUSbuff( PUSERSTRU pUStru, HB_ULONG ulRecvLen )
       if( s_iDebugMode > 10 )
          leto_wUsLog( pUStru, -1, "DEBUG recv-buffer size %lu realloc", ulRecvLen + 1 );
       pUStru->ulBufferLen = ulRecvLen + 1;
-      pUStru->pBuffer = hb_xrealloc( pUStru->pBuffer, pUStru->ulBufferLen );
+      pUStru->pBuffer = ( HB_BYTE * ) hb_xrealloc( pUStru->pBuffer, pUStru->ulBufferLen );
    }
    else  /* 0 -> default size*/
    {
@@ -3791,7 +3791,7 @@ void leto_ForceCloseAllSocket()
          if( pUStru->zstream )
          {
 #ifdef USE_LZ4
-            hb_lz4netClose( pUStru->zstream );
+            hb_lz4netClose( ( PHB_LZ4NET ) pUStru->zstream );
 #else
             hb_znetClose( pUStru->zstream );
 #endif
@@ -3919,7 +3919,7 @@ HB_FUNC( LETO_RELEASEDATA )  /* during server down */
 {
    DATABASE * pDBNext, * pDB = s_pDB;
    HB_UINT    ui = 0;
-   PUSERSTRU  pUStru = pUStru = letoGetUStru();
+   PUSERSTRU  pUStru = letoGetUStru();
    PTABLESTRU pTStru;
 
    if( ! pUStru )
@@ -4147,11 +4147,11 @@ static HB_ULONG leto_CryptText( PUSERSTRU pUStru, const char * pData, HB_ULONG u
    return ulLen;
 }
 
-static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
+static void leto_RddInfo( PUSERSTRU pUStru, char * szData )
 {
-   const char * pp2, * pp3 = NULL;
-   int          nParam = leto_GetParam( szData, &pp2, &pp3, NULL, NULL );
-   HB_USHORT    uiIndex;
+   char *    pp2, * pp3 = NULL;
+   int       nParam = leto_GetParam( szData, &pp2, &pp3, NULL, NULL );
+   HB_USHORT uiIndex;
 
    if( nParam < 1 || ! *szData || ( uiIndex = ( HB_USHORT ) atoi( pp2 ) ) == 0 )
       leto_SendAnswer( pUStru, szErr2, 4 );
@@ -4212,6 +4212,16 @@ static void leto_RddInfo( PUSERSTRU pUStru, const char * szData )
             }
 
             /* booleans */
+            case RDDI_MULTITAG:
+               {
+                  pItem = hb_itemPutNI( NULL, 0 );
+                  SELF_RDDINFO( pRDDNode, uiIndex, 0, pItem );
+                  sprintf( szInfo, "+%c;", hb_itemGetL( pItem ) ? 'T' : 'F' );
+                  if( pItem )
+                     hb_itemRelease( pItem );
+                  break;
+               }
+
             case RDDI_OPTIMIZE:
                if( pp3 && strlen( pp3 ) == 1 )
                {
@@ -4316,11 +4326,11 @@ static void leto_RddiGetValue( const char * szDriver, HB_USHORT uiIndex, char * 
 }
 
 /* secured, only drop table/ index if not used */
-static void leto_Drop( PUSERSTRU pUStru, const char * szData )
+static void leto_Drop( PUSERSTRU pUStru, char * szData )
 {
-   const char * pIFile, * szNonDefMemoExt = NULL;
-   char         szBuf[ HB_PATH_MAX ];
-   int          nParam = leto_GetParam( szData, &pIFile, &szNonDefMemoExt, NULL, NULL );
+   char * pIFile, * szNonDefMemoExt = NULL;
+   char   szBuf[ HB_PATH_MAX ];
+   int    nParam = leto_GetParam( szData, &pIFile, &szNonDefMemoExt, NULL, NULL );
 
    if( nParam < 2 )
       leto_SendAnswer( pUStru, szErr2, 4 );
@@ -4443,11 +4453,11 @@ static void leto_Drop( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-static void leto_Exists( PUSERSTRU pUStru, const char * szData )
+static void leto_Exists( PUSERSTRU pUStru, char * szData )
 {
-   const char * pIFile;
-   char         szBuf[ HB_PATH_MAX ];
-   int          nParam = leto_GetParam( szData, &pIFile, NULL, NULL, NULL );
+   char * pIFile;
+   char   szBuf[ HB_PATH_MAX ];
+   int    nParam = leto_GetParam( szData, &pIFile, NULL, NULL, NULL );
 
    if( nParam < 2 )
       leto_SendAnswer( pUStru, szErr2, 4 );
@@ -4490,11 +4500,11 @@ static void leto_Exists( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-static void leto_Rename( PUSERSTRU pUStru, const char * szData )
+static void leto_Rename( PUSERSTRU pUStru, char * szData )
 {
-   const char * pIFile, * pNewFile;
-   char         szBuf[ HB_PATH_MAX ];
-   int          nParam = leto_GetParam( szData, &pIFile, &pNewFile, NULL, NULL );
+   char * pIFile, * pNewFile;
+   char   szBuf[ HB_PATH_MAX ];
+   int    nParam = leto_GetParam( szData, &pIFile, &pNewFile, NULL, NULL );
 
    if( nParam < 3 )
       leto_SendAnswer( pUStru, szErr2, 4 );
@@ -4623,7 +4633,7 @@ static void leto_AddHandle( PUSERSTRU pUStru, HB_MAXINT nHandle )
          pUStru->pOpenHandles = ( HB_MAXINT * ) hb_xgrab( sizeof( HB_MAXINT ) );
       }
       else
-         pUStru->pOpenHandles = hb_xrealloc( pUStru->pOpenHandles, sizeof( HB_MAXINT ) * ++pUStru->ulOpenHandles );
+         pUStru->pOpenHandles = ( HB_MAXINT * ) hb_xrealloc( pUStru->pOpenHandles, sizeof( HB_MAXINT ) * ++pUStru->ulOpenHandles );
       pUStru->pOpenHandles[ pUStru->ulOpenHandles - 1 ] = nHandle;
    }
 }
@@ -4644,7 +4654,7 @@ static HB_BOOL leto_DelHandle( PUSERSTRU pUStru, HB_MAXINT nHandle )
                         sizeof( HB_MAXINT ) * pUStru->ulOpenHandles - ( ulPos - 1 ) );
             }
             if( --pUStru->ulOpenHandles )
-               pUStru->pOpenHandles = hb_xrealloc( pUStru->pOpenHandles, sizeof( HB_MAXINT ) * pUStru->ulOpenHandles );
+               pUStru->pOpenHandles = ( HB_MAXINT * ) hb_xrealloc( pUStru->pOpenHandles, sizeof( HB_MAXINT ) * pUStru->ulOpenHandles );
             else
             {
                hb_xfree( pUStru->pOpenHandles );
@@ -4773,7 +4783,7 @@ HB_FUNC( LETO_FRENAME )
 
 static HB_BOOL leto_FilePathChk( const char * szPath )
 {
-   char * ptr;
+   const char * ptr;
 
    /* need the ':' for "mem:hb_memio file and want to allow *ONE* '..' for elch */
    if( ( ptr = strchr( szPath, ':' ) ) != NULL && ( ptr - szPath < 3 || ptr - szPath > 5 ) )  /* 'C:\... */
@@ -4784,12 +4794,12 @@ static HB_BOOL leto_FilePathChk( const char * szPath )
    return HB_TRUE;
 }
 
-static void leto_FileFunc( PUSERSTRU pUStru, const char * szData )
+static void leto_FileFunc( PUSERSTRU pUStru, char * szData )
 {
-   const char * pSrcFile, * pp2, * pp3 = NULL;
-   char         szData1[ 16 ];
-   char         szFile[ HB_PATH_MAX ];
-   int          nParam = leto_GetParam( szData, &pSrcFile, &pp2, &pp3, NULL );
+   char * pSrcFile, * pp2, * pp3 = NULL;
+   char   szData1[ 16 ];
+   char   szFile[ HB_PATH_MAX ];
+   int    nParam = leto_GetParam( szData, &pSrcFile, &pp2, &pp3, NULL );
 
    if( ! s_bFileFunc )
       leto_SendAnswer( pUStru, "+F;100;", 7 );
@@ -5728,7 +5738,7 @@ HB_BOOL leto_BackupTable( PUSERSTRU pUStru, const char * szTargetDir, HB_BOOL bD
                      HB_FATTR  ulAttr;
                      HB_USHORT ui;
 
-                     if( hb_fileAttrGet( pArea->pDataFile, &ulAttr ) )
+                     if( hb_fileAttrGet( pArea->szDataFileName, &ulAttr ) )
                         hb_fileAttrSet( szTarget, ulAttr );
                      errcode = HB_SUCCESS;
                      if( pArea->fHasMemo && pArea->pMemoFile != NULL )
@@ -6020,7 +6030,7 @@ static char * leto_recWithAlloc( AREAP pArea, PUSERSTRU pUStru, PAREASTRU pAStru
    return szData;
 }
 
-static void leto_Lock( PUSERSTRU pUStru, const char * szData )
+static void leto_Lock( PUSERSTRU pUStru, char * szData )
 {
    AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    char *   pTimeOut = NULL;
@@ -6078,7 +6088,7 @@ static void leto_Lock( PUSERSTRU pUStru, const char * szData )
       leto_SendAnswer( pUStru, szErr1, 4 );
 }
 
-static void leto_Unlock( PUSERSTRU pUStru, const char * szData )
+static void leto_Unlock( PUSERSTRU pUStru, char * szData )
 {
    HB_ULONG ulRecNo = 0;
 
@@ -6643,7 +6653,7 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
       hb_xfree( szData2 );
 }
 
-static void leto_Flush( PUSERSTRU pUStru, const char * szData )
+static void leto_Flush( PUSERSTRU pUStru, char * szData )
 {
    AREAP   pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    HB_BOOL bOk;
@@ -6657,23 +6667,23 @@ static void leto_Flush( PUSERSTRU pUStru, const char * szData )
       leto_SendAnswer2( pUStru, szOk, 4, bOk, 1000 );
 }
 
-static void leto_UpdateRecAdd( PUSERSTRU pUStru, const char * szData )
+static void leto_UpdateRecAdd( PUSERSTRU pUStru, char * szData )
 {
    leto_UpdateRec( pUStru, szData, HB_TRUE );
 }
 
-static void leto_UpdateRecAddflush( PUSERSTRU pUStru, const char * szData )
+static void leto_UpdateRecAddflush( PUSERSTRU pUStru, char * szData )
 {
    leto_UpdateRec( pUStru, szData, HB_TRUE );
    leto_Flush( pUStru, NULL );
 }
 
-static void leto_UpdateRecUpd( PUSERSTRU pUStru, const char * szData )
+static void leto_UpdateRecUpd( PUSERSTRU pUStru, char * szData )
 {
    leto_UpdateRec( pUStru, szData, HB_FALSE );
 }
 
-static void leto_UpdateRecUpdflush( PUSERSTRU pUStru, const char * szData )
+static void leto_UpdateRecUpdflush( PUSERSTRU pUStru, char * szData )
 {
    leto_UpdateRec( pUStru, szData, HB_FALSE );
    leto_Flush( pUStru, NULL );
@@ -6865,7 +6875,7 @@ static void leto_ClearAreaEnv( AREAP pArea, LETOTAG * pTag )
    }
 }
 
-static void leto_Seek( PUSERSTRU pUStru, const char * szData )
+static void leto_Seek( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    PAREASTRU    pAStru = pUStru->pCurAStru;
@@ -6933,11 +6943,12 @@ static void leto_Seek( PUSERSTRU pUStru, const char * szData )
       hb_xfree( szData1 );
 }
 
-static void leto_Scope( PUSERSTRU pUStru, const char * szData )
+static void leto_Scope( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    PAREASTRU    pAStru = pUStru->pCurAStru;
-   const char * pOrder, * szKey, * pData;
+   char *       pOrder;
+   const char * szKey, * pData;
    int          nParam = leto_GetParam( szData, &pOrder, /* szKey */ NULL, NULL, NULL );
 
    if( nParam < 2 || ! pArea )
@@ -7017,7 +7028,7 @@ static void leto_Scope( PUSERSTRU pUStru, const char * szData )
    leto_SendAnswer( pUStru, pData, 4 );
 }
 
-static void leto_Skip( PUSERSTRU pUStru, const char * szData )
+static void leto_Skip( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    PAREASTRU    pAStru = pUStru->pCurAStru;
@@ -7212,7 +7223,7 @@ static PHB_ITEM leto_mkCodeBlock( PUSERSTRU pUStru, const char * szExp, HB_ULONG
 }
 
 /* pBlocks in order like for PRG level DbEval(): pBlock, pForCondition, pWhileCondition */
-static PHB_ITEM leto_dbEval( AREAP pArea, PHB_ITEM * pBlocks[], HB_LONG lNext, HB_ULONG ulRecNo, HB_BOOL bRest )
+static PHB_ITEM leto_dbEval( AREAP pArea, PHB_ITEM pBlocks[], HB_LONG lNext, HB_ULONG ulRecNo, HB_BOOL bRest )
 {
    PHB_ITEM pResultArr = hb_itemArrayNew( 0 );
    PHB_ITEM pFirst = hb_itemPutL( NULL, HB_TRUE );
@@ -7274,7 +7285,7 @@ HB_FUNC( LETO_DBEVAL )
 {
    PUSERSTRU  pUStru = letoGetUStru();
    AREAP      pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   PHB_ITEM * pBlocks[ 3 ] = { NULL, NULL, NULL };  /* bBlock, bFor, bWhile */
+   PHB_ITEM   pBlocks[ 3 ] = { NULL, NULL, NULL };  /* bBlock, bFor, bWhile */
    HB_LONG    lNext = HB_ISNUM( 4 ) ? hb_parnl( 4 ) : -1;
    HB_ULONG   ulRecNo =  HB_ISNUM( 5 ) ? ( HB_ULONG ) hb_parnl( 5 ) : 0;
    HB_BOOL    bRest = HB_ISLOG( 6 ) ? hb_parl( 6 ) : HB_FALSE;
@@ -7322,7 +7333,7 @@ HB_FUNC( LETO_DBEVAL )
       hb_vmDestroyBlockOrMacro( pBlocks[ 2 ] );
 }
 
-static void leto_Goto( PUSERSTRU pUStru, const char * szData )
+static void leto_Goto( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    PAREASTRU    pAStru = pUStru->pCurAStru;
@@ -7387,7 +7398,7 @@ static void leto_Goto( PUSERSTRU pUStru, const char * szData )
       hb_xfree( szData1 );
 }
 
-static int leto_Memo( PUSERSTRU pUStru, const char * szData, TRANSACTSTRU * pTA, AREAP pArea )
+static int leto_Memo( PUSERSTRU pUStru, char * szData, TRANSACTSTRU * pTA, AREAP pArea )
 {
    PAREASTRU    pAStru = pUStru->pCurAStru;
    const char * pData = NULL;
@@ -7524,12 +7535,12 @@ static int leto_Memo( PUSERSTRU pUStru, const char * szData, TRANSACTSTRU * pTA,
    return iRes;
 }
 
-static void leto_MemoRaw( PUSERSTRU pUStru, const char * szData )
+static void leto_MemoRaw( PUSERSTRU pUStru, char * szData )
 {
    leto_Memo( pUStru, szData, NULL, NULL );
 }
 
-static void leto_Ordfunc( PUSERSTRU pUStru, const char * szData )
+static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    PAREASTRU    pAStru = pUStru->pCurAStru;
@@ -7537,7 +7548,7 @@ static void leto_Ordfunc( PUSERSTRU pUStru, const char * szData )
    const char * pData = NULL;
    char *       szData2 = NULL;
    HB_ULONG     ulLen = 4;
-   const char * pTagName, * pNumber = NULL, * pDopFlags = NULL, * pFlags = NULL;
+   char         * pTagName, * pNumber = NULL, * pDopFlags = NULL, * pFlags = NULL;
    int          nParam = leto_GetParam( szData, &pTagName, &pNumber, &pFlags, &pDopFlags );
 
    if( nParam < 1 || ! pArea )
@@ -8259,13 +8270,11 @@ static HB_USHORT leto_DriverID( PUSERSTRU pUStru )
    return uiDriver;
 }
 
-static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
+static void leto_Mgmt( PUSERSTRU pUStru, char * szData )
 {
    char *       ptr = NULL;
    HB_BOOL      bShow;
-   const char * pp1 = NULL;
-   const char * pp2 = NULL;
-   const char * pp3 = NULL;
+   char         * pp1 = NULL, * pp2 = NULL, * pp3 = NULL;
    int          nParam = leto_GetParam( szData, &pp1, &pp2, &pp3, NULL );
 
    if( ( s_bPass4M && ! ( pUStru->szAccess[ 0 ] & 0x2 ) ) || nParam < 1 || *szData != '0' )
@@ -8339,7 +8348,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
             }
             if( nParam >= 3 )
             {
-               char * pTmp;
+               const char * pTmp;
 
                iListStart = atoi( pp2 );
                if( iListStart < 0 )
@@ -8450,7 +8459,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                iUser = atoi( pp1 );
             if( nParam >= 3 )
             {
-               char * pTmp;
+               const char * pTmp;
 
                iListStart = atoi( pp2 );
                if( ( pTmp = strchr( pp2, '<' ) ) != NULL )
@@ -8604,7 +8613,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
             }
             if( nParam >= 4 )
             {
-               char * pTmp;
+               const char * pTmp;
 
                if( ( pTmp = strchr( pp3, '<' ) ) != NULL )
                   iListLen = atoi( ++pTmp );
@@ -8635,7 +8644,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                         if( ! pData )
                         {
                            ulMemSize = HB_PATH_MAX + 42;
-                           pData = hb_xgrab( ulMemSize );
+                           pData = ( char * ) hb_xgrab( ulMemSize );
                            ptr = pData;
                            *ptr++ = '+';
                            *ptr++ = '0';
@@ -8711,7 +8720,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                         if( ! pData )
                         {
                            ulMemSize = HB_PATH_MAX + 42;
-                           pData = hb_xgrab( ulMemSize );
+                           pData = ( char * ) hb_xgrab( ulMemSize );
                            ptr = pData;
                            *ptr++ = '+';
                            *ptr++ = '0';
@@ -8818,7 +8827,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
             }
             if( nParam >= 4 )
             {
-               char * pTmp;
+               const char * pTmp;
 
                iListStart = atoi( pp3 );
                if( ( pTmp = strchr( pp3, '<' ) ) != NULL )
@@ -9095,7 +9104,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                               if( pUStru1->zstream )
                               {
 #ifdef USE_LZ4
-                                 hb_lz4netClose( pUStru1->zstream );
+                                 hb_lz4netClose( ( PHB_LZ4NET ) pUStru1->zstream );
 #else
                                  hb_znetClose( pUStru1->zstream );
 #endif
@@ -9163,7 +9172,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, const char * szData )
                            if( pUStru1->zstream )
                            {
 #ifdef USE_LZ4
-                              hb_lz4netClose( pUStru1->zstream );
+                              hb_lz4netClose( ( PHB_LZ4NET ) pUStru1->zstream );
 #else
                               hb_znetClose( pUStru1->zstream );
 #endif
@@ -9235,7 +9244,7 @@ static void leto_BeautifyPath( char * szPath )
 static void leto_PathFinder( char * szOnePath, const char * szDataPath )
 {
    char     szTmpPath[ HB_PATH_MAX ];
-   char *   pContain = strstr( szOnePath, szDataPath );
+   const char *   pContain = strstr( szOnePath, szDataPath );
    HB_ULONG ulLenOne;
 
    if( pContain )
@@ -9270,10 +9279,10 @@ static void leto_PathFinder( char * szOnePath, const char * szDataPath )
    }
 }
 
-static void leto_Intro( PUSERSTRU pUStru, const char * szData )
+static void leto_Intro( PUSERSTRU pUStru, char * szData )
 {
    const char * pData = NULL;
-   const char * pp1 = NULL, * pp2 = NULL, * pp3 = NULL, * pp4 = NULL;
+   char *       pp1 = NULL, * pp2 = NULL, * pp3 = NULL, * pp4 = NULL;
    HB_BOOL      bSuccess = HB_FALSE;
    int          nParam = leto_GetParam( szData, &pp1, &pp2, &pp3, &pp4 );
    char         pBuf[ 256 ];
@@ -9403,7 +9412,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
 
          if( pp5 && *pp5 )
          {
-            char *   ptr;
+            const char *   ptr;
             PHB_ITEM pItem = NULL;
 
             if( ( ptr = strchr( pp5, ';' ) ) != NULL )
@@ -9434,8 +9443,8 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
                /* one ! default path, not allowed to be terminated with ';' ! -- need newest client lib */
                if( *ptr && ( ptr = strchr( ptr, ';' ) ) != NULL )
                {
-                  char * pEnd = strchr( ++ptr, ';' );
-                  int    iLen = pEnd ? ( pEnd - ptr ) : 0;
+                  const char * pEnd = strchr( ++ptr, ';' );
+                  int          iLen = pEnd ? ( pEnd - ptr ) : 0;
 
                   if( iLen )
                   {
@@ -9568,7 +9577,7 @@ static void leto_Intro( PUSERSTRU pUStru, const char * szData )
       leto_wUsLogDelete( pUStru );
 }
 
-static void leto_CloseT( PUSERSTRU pUStru, const char * szData )
+static void leto_CloseT( PUSERSTRU pUStru, char * szData )
 {
    const char * pData;
    HB_BOOL      bOk = HB_FALSE;
@@ -9658,7 +9667,7 @@ HB_FUNC( LETO_DBCLOSEAREA )
    hb_retl( bOk );
 }
 
-static void leto_CloseTall( PUSERSTRU pUStru, const char * szData  )
+static void leto_CloseTall( PUSERSTRU pUStru, char * szData  )
 {
    HB_SYMBOL_UNUSED( szData );
 
@@ -9671,7 +9680,7 @@ static void leto_CloseTall( PUSERSTRU pUStru, const char * szData  )
 }
 
 /* not used, client closes connection by socket shutdown */
-static void leto_CloseUStru( PUSERSTRU pUStru, const char * szData  )
+static void leto_CloseUStru( PUSERSTRU pUStru, char * szData  )
 {
    HB_SYMBOL_UNUSED( szData );
 
@@ -9679,7 +9688,7 @@ static void leto_CloseUStru( PUSERSTRU pUStru, const char * szData  )
    pUStru->bNoAnswer = HB_TRUE;
 }
 
-static void leto_Pack( PUSERSTRU pUStru, const char * szData )
+static void leto_Pack( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    const char * pData;
@@ -9700,7 +9709,7 @@ static void leto_Pack( PUSERSTRU pUStru, const char * szData )
    leto_SendAnswer( pUStru, pData, 4 );
 }
 
-static void leto_Zap( PUSERSTRU pUStru, const char * szData )
+static void leto_Zap( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    const char * pData;
@@ -9717,7 +9726,7 @@ static void leto_Zap( PUSERSTRU pUStru, const char * szData )
    leto_SendAnswer( pUStru, pData, 4 );
 }
 
-static void leto_Reccount( PUSERSTRU pUStru, const char * szData )
+static void leto_Reccount( PUSERSTRU pUStru, char * szData )
 {
    AREAP     pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    HB_ULONG  ulRecCount;
@@ -9736,10 +9745,10 @@ static void leto_Reccount( PUSERSTRU pUStru, const char * szData )
 }
 
 /* ToDo - rework for wrong params */
-static void leto_Set( PUSERSTRU pUStru, const char * szData )
+static void leto_Set( PUSERSTRU pUStru, char * szData )
 {
-   const char * pAreaID, * pSkipBuf = NULL;
-   int          nParam = leto_GetParam( szData, &pAreaID, &pSkipBuf, NULL, NULL );
+   char * pAreaID, * pSkipBuf = NULL;
+   int    nParam = leto_GetParam( szData, &pAreaID, &pSkipBuf, NULL, NULL );
 
    if( nParam < 1 )   // changed protocol || *szData != '0' )
       leto_SendAnswer2( pUStru, szErr2, 4, HB_FALSE, 1000 );
@@ -9788,7 +9797,7 @@ static void leto_Set( PUSERSTRU pUStru, const char * szData )
                   hb_itemPutL( pItem, *pAreaID == 'T' );
                else
                   hb_itemPutNI( pItem, atoi( pAreaID ) );
-               hb_setSetItem( iCmd - 1000, pItem );
+               hb_setSetItem( ( HB_set_enum ) ( iCmd - 1000 ), pItem );
                hb_itemRelease( pItem );
                if( s_iDebugMode >= 10 )
                   leto_wUsLog( pUStru, -1, "DEBUG leto_Set: Set( %d, %s )", iCmd - 1000, pAreaID );
@@ -9800,7 +9809,7 @@ static void leto_Set( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
+static void leto_Transaction( PUSERSTRU pUStru, char * szData )
 {
    char           szData1[ 16 ];
    char *         ptrPar;
@@ -9927,9 +9936,9 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
                {
                   iAppended++;
                   if( pulAppends )
-                     pulAppends = hb_xrealloc( pulAppends, sizeof( HB_ULONG ) * iAppended * 2 );
+                     pulAppends = ( HB_ULONG * ) hb_xrealloc( pulAppends, sizeof( HB_ULONG ) * iAppended * 2 );
                   else
-                     pulAppends = hb_xgrab( sizeof( HB_ULONG ) * iAppended * 2 );
+                     pulAppends = ( HB_ULONG * ) hb_xgrab( sizeof( HB_ULONG ) * iAppended * 2 );
                   pulAppends[ i1 * 2 ] = pTA[ i ].ulSelectID;
                }
                pulAppends[ i1 * 2 + 1 ] = pTA[ i ].ulRecNo;
@@ -10043,7 +10052,7 @@ static void leto_Transaction( PUSERSTRU pUStru, const char * szData )
          {
             if( pulAppends )
             {
-               pResult = hb_xgrab( iAppended * 2 * 22 + 15 );
+               pResult = ( char * ) hb_xgrab( iAppended * 2 * 22 + 15 );
                memcpy( pResult, szOk, 4 );
                ptrPar = pResult + 4;
                ptrPar += sprintf( ptrPar, ";%d;", iAppended );
@@ -10119,7 +10128,7 @@ static void leto_ResetFilter( PAREASTRU pAStru )
 #endif
 }
 
-static void leto_Filter( PUSERSTRU pUStru, const char * szData )
+static void leto_Filter( PUSERSTRU pUStru, char * szData )
 {
    AREAP     pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    HB_ULONG  ulLen = strlen( szData + 2 );
@@ -10203,7 +10212,7 @@ static void leto_Filter( PUSERSTRU pUStru, const char * szData )
 }
 
 /* set/ clear relation only for mode s_bNoSaveWA */
-static void leto_Relation( PUSERSTRU pUStru, const char * szData )
+static void leto_Relation( PUSERSTRU pUStru, char * szData )
 {
    HB_BOOL bFail = HB_FALSE;
 
@@ -10213,8 +10222,8 @@ static void leto_Relation( PUSERSTRU pUStru, const char * szData )
       {
          case '1':  /* set relation */
          {
-            const char * szTmp = szData;
-            const char * pp1 = NULL, * pp2 = NULL;
+            char *       szTmp = szData;
+            char *       pp1 = NULL, * pp2 = NULL;
             int          nParam, iAreaChild;
 
             for( ;; )
@@ -10380,10 +10389,11 @@ static void letoPutDouble( char * ptr, PHB_ITEM pItem, double dSum, HB_SHORT iDe
       hb_xfree( buffer );
 }
 
-static void leto_GroupBy( PUSERSTRU pUStru, const char * szData )
+static void leto_GroupBy( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   const char * pOrder = szData, * pGroup, * pFields, * pFilter, * pFlag;
+   const char * pOrder = szData;
+   char       * pGroup, * pFields, * pFilter, * pFlag;
    HB_ULONG     ulDataLen = strlen( szData );
    int          nParam = leto_GetParam( szData, &pGroup, &pFields, &pFilter, &pFlag );
 
@@ -10400,7 +10410,7 @@ static void leto_GroupBy( PUSERSTRU pUStru, const char * szData )
 
       HB_USHORT    uiCount = 0, uiAllocated = 10, uiIndex, uiGroup;
       HB_BOOL      bEnd = HB_FALSE;
-      VALGRP *     pSumFields = hb_xgrab( sizeof( VALGRP ) * uiAllocated );
+      VALGRP *     pSumFields = ( VALGRP * ) hb_xgrab( sizeof( VALGRP ) * uiAllocated );
       int          iKeyLen, iDec;
       char         szFieldName[ 12 ];
       PHB_ITEM     pValFilter, pNumItem;
@@ -10721,7 +10731,7 @@ static void leto_GroupBy( PUSERSTRU pUStru, const char * szData )
                   uiLen = 0;
             }
             ulSize = ulLen * ( uiLen + 1 + uiCount * 21 ) + 25;
-            pData = hb_xgrab( ulSize );
+            pData = ( char * ) hb_xgrab( ulSize );
 
             ptrTmp = pData + sprintf( pData, "+%lu;%d;%c;", ulLen, uiCount, cGroupType );
 
@@ -10795,10 +10805,11 @@ static void leto_GroupBy( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-static void leto_Sum( PUSERSTRU pUStru, const char * szData )
+static void leto_Sum( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   const char * pOrder = szData, * pFields, * pFilter, * pFlag;
+   const char * pOrder = szData;
+   char       * pFields, * pFilter, * pFlag;
    HB_ULONG     ulDataLen = strlen( szData );
    int          nParam = leto_GetParam( szData, &pFields, &pFilter, &pFlag, NULL );
 
@@ -11050,7 +11061,7 @@ static void leto_Sum( PUSERSTRU pUStru, const char * szData )
          leto_SendError( pUStru, szErr4, 4 );
       else
       {
-         char * pData = hb_xgrab( uiCount * 21 + 3 );
+         char * pData = ( char * ) hb_xgrab( uiCount * 21 + 3 );
          char * ptrTmp;
 
          pData[ 0 ] = '+';
@@ -11218,18 +11229,21 @@ static void letoFreeTransInfo( LPDBTRANSINFO pTransInfo )
 }
 
 /* note: pAreaDst->fTransRec flag handled by client, also changes of DBS_COUNTER|STEP */
-static void leto_Trans( PUSERSTRU pUStru, const char * szData, HB_BOOL bSort )
+static void leto_Trans( PUSERSTRU pUStru, char * szData, HB_BOOL bSort )
 {
    PAREASTRU    pAStru = pUStru->pCurAStru;
    AREAP        pAreaSrc, pAreaDst;
    HB_ULONG     ulAreaDst, ulRecNo;
    const char * pp1, * pp2, * pp3;
-   int          nParam = leto_GetParam( szData, &pp1, &pp2, NULL, NULL );
+   char *       ptr1, * ptr2;
+   int          nParam = leto_GetParam( szData, &ptr1, &ptr2, NULL, NULL );
 
    if( nParam > 2 )
    {
       HB_ULONG ulCurAreaID = pUStru->ulCurAreaID;
 
+      pp1 = ptr1;
+      pp2 = ptr2;
       ulRecNo = strtoul( szData, NULL, 10 );
       if( pUStru->bDeleted != ( *pp1 == 'T' ) )
       {
@@ -11356,12 +11370,12 @@ static void leto_Trans( PUSERSTRU pUStru, const char * szData, HB_BOOL bSort )
       leto_SendAnswer( pUStru, szErr2, 4 );
 }
 
-static void leto_TransSort( PUSERSTRU pUStru, const char * szData )
+static void leto_TransSort( PUSERSTRU pUStru, char * szData )
 {
    leto_Trans( pUStru, szData, HB_TRUE );
 }
 
-static void leto_TransNoSort( PUSERSTRU pUStru, const char * szData )
+static void leto_TransNoSort( PUSERSTRU pUStru, char * szData )
 {
    leto_Trans( pUStru, szData, HB_FALSE );
 }
@@ -11470,9 +11484,9 @@ static HB_THREAD_STARTFUNC( threadX )
    HB_THREAD_END
 }
 
-static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
+static void leto_Udf( PUSERSTRU pUStru, char * szData, HB_ULONG ulAreaID )
 {
-   const char * pp2 = NULL, * pp3 = NULL, * pp4 = NULL, * pp5 = NULL, * pp6 = NULL;
+   char * pp2 = NULL, * pp3 = NULL, * pp4 = NULL, * pp5 = NULL, * pp6 = NULL;
    char *       ptr = NULL;
    int          nParam;
    HB_BYTE      uCommand = ( ( HB_BYTE ) szData[ 0 ] & 0xFF ) - 48;
@@ -11714,20 +11728,20 @@ static void leto_Udf( PUSERSTRU pUStru, const char * szData, HB_ULONG ulAreaID )
    }
 }
 
-static void leto_UdfFun( PUSERSTRU pUStru, const char * szData )
+static void leto_UdfFun( PUSERSTRU pUStru, char * szData )
 {
    leto_Udf( pUStru, szData, 0 );
 }
 
-static void leto_UdfDbf( PUSERSTRU pUStru, const char * szData )
+static void leto_UdfDbf( PUSERSTRU pUStru, char * szData )
 {
    leto_Udf( pUStru, szData, pUStru->ulCurAreaID );
 }
 
-static void leto_Info( PUSERSTRU pUStru, const char * szData )
+static void leto_Info( PUSERSTRU pUStru, char * szData )
 {
-   const char * pp1;
-   int          nParam = leto_GetParam( szData, &pp1, NULL, NULL, NULL );
+   char * pp1;
+   int    nParam = leto_GetParam( szData, &pp1, NULL, NULL, NULL );
 
    if( nParam < 1 )
       leto_SendAnswer( pUStru, szErr3, 4 );
@@ -11945,10 +11959,10 @@ static void leto_Info( PUSERSTRU pUStru, const char * szData )
    }
 }
 
-static void leto_OrderInfo( PUSERSTRU pUStru, const char * szData )
+static void leto_OrderInfo( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   const char * pOrder, * pOrdPar;
+   char       * pOrder, * pOrdPar;
    const char * pData;
    char         szData1[ 20 ];
    int          nParam = leto_GetParam( szData, &pOrder, &pOrdPar, NULL, NULL );
@@ -11969,6 +11983,9 @@ static void leto_OrderInfo( PUSERSTRU pUStru, const char * szData )
          pOrderInfo.itmOrder = hb_itemPutC( NULL, pOrder );
          switch( uiCommand )
          {
+            case DBOI_ISMULTITAG:
+            case DBOI_MULTIKEY:
+            case DBOI_ISCOND:
             case DBOI_ISDESC:
             case DBOI_CUSTOM:
             case DBOI_UNIQUE:
@@ -12021,7 +12038,7 @@ static void leto_OrderInfo( PUSERSTRU pUStru, const char * szData )
    leto_SendAnswer( pUStru, pData, strlen( pData ) );
 }
 
-static void leto_Pong( PUSERSTRU pUStru, const char * szData )
+static void leto_Pong( PUSERSTRU pUStru, char * szData )
 {
    HB_SYMBOL_UNUSED( pUStru );
    HB_SYMBOL_UNUSED( szData );
@@ -12205,7 +12222,7 @@ static HB_BOOL leto_ELSOFtest( const char * szFilename, int iMode )
    int     iStart = strchr( s_pSharePath, ':' ) - s_pSharePath + 1;
    int     iLen = strlen( s_pSharePath + iStart );
    int     iLenLen = strlen( szFilename + iLen );
-   int     iResult = 0;
+   int     iResult;
 
    if( iLenLen + iStart < HB_PATH_MAX )
    {
@@ -12267,7 +12284,7 @@ static HB_BOOL leto_ELSOFtest( const char * szFilename, int iMode )
    }
 }
 
-static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
+static void leto_OpenTable( PUSERSTRU pUStru, char * szRawData )
 {
    char *       szFileRaw = ( char * ) hb_xgrab( HB_PATH_MAX );
    char *       szFileName = ( char * ) hb_xgrab( HB_PATH_MAX );
@@ -12276,10 +12293,10 @@ static void leto_OpenTable( PUSERSTRU pUStru, const char * szRawData )
    char         szRealAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
    char         szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
    unsigned int uiReplyBufLen = 1023;
-   char *       szReply = hb_xgrab( uiReplyBufLen + 1 );
+   char *       szReply = ( char * ) hb_xgrab( uiReplyBufLen + 1 );
    char *       ptr, * ptr2;
    const char * pData = NULL;
-   const char * pp2, * pp3, * szCdp, * pp5;
+   char         * pp2, * pp3, * szCdp, * pp5;
    int          nParam;
    HB_USHORT    uiNtxType;
    AREAP        pArea  = NULL;
@@ -12920,7 +12937,7 @@ static void leto_SetMemoEnv( const char * szDriver, int iMemoType, int iMemoBloc
     }
 }
 
-static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
+static void leto_CreateTable( PUSERSTRU pUStru, char * szRawData )
 {
    char *       szFileRaw = ( char * ) hb_xgrab( HB_PATH_MAX );
    char *       szFileName = ( char * ) hb_xgrab(  HB_PATH_MAX );
@@ -12929,12 +12946,12 @@ static void leto_CreateTable( PUSERSTRU pUStru, const char * szRawData )
    char         szRealAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
    char         szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
    unsigned int uiReplyBufLen = 1023;
-   char *       szReply = hb_xgrab( uiReplyBufLen + 1 );
+   char *       szReply = ( char * ) hb_xgrab( uiReplyBufLen + 1 );
    char *       ptr, * ptr2, * ptrTmp;
    const char * szCdp = NULL;
    const char * pData = NULL;
    const char * szMemoExt = NULL;
-   const char * pp2 = NULL, * pp3 = NULL, * pp4, * pp5;
+   char *       pp2 = NULL, * pp3 = NULL, * pp4, * pp5;
    int          nParam;
    int          iMemoType, iMemoBlocksize;
    AREAP        pArea;
@@ -13461,7 +13478,7 @@ HB_FUNC( LETO_DBCREATE )
                0, "", 0,  /* defaults of RDD: memotype, meoblocksize, memoext */
                uiFields, szFields, uiArea, szCdpage ? szCdpage : "", hb_setGetDateFormat() );
 
-      leto_CreateTable( pUStru, ( const char * ) szData );
+      leto_CreateTable( pUStru, szData );
       bRet = pUStru->bLastAct;
 
       if( bRet && ! bKeepOpen )
@@ -13475,14 +13492,14 @@ HB_FUNC( LETO_DBCREATE )
    hb_retl( bRet );
 }
 
-static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
+static void leto_OpenIndex( PUSERSTRU pUStru, char * szRawData )
 {
    char *       szFileRaw = ( char * ) hb_xgrab( HB_PATH_MAX );
    char *       szFileName = ( char * ) hb_xgrab( HB_PATH_MAX );
    char *       szFile = ( char * ) hb_xgrab( HB_PATH_MAX );
    char *       szBagName = ( char * ) hb_xgrab( HB_PATH_MAX );
    unsigned int uiReplyBufLen = 1023;
-   char *       szReply = hb_xgrab( uiReplyBufLen + 1 );
+   char *       szReply = ( char * ) hb_xgrab( uiReplyBufLen + 1 );
    char *       ptr, * ptr2;
    const char * pp1 = NULL;
    AREAP        pArea;
@@ -13502,7 +13519,7 @@ static void leto_OpenIndex( PUSERSTRU pUStru, const char * szRawData )
    {
       HB_ULONG ulRawLen = pUStru->ulDataLen - 2 - ( ptr - szRawData );
 
-      szRawData = ( const char * ) ptr;
+      szRawData = ptr;
       pp1 = szRawData;
       while( ( HB_ULONG ) ( pp1 - szRawData ) < ulRawLen && *pp1 != ';' )
          pp1++;
@@ -13780,7 +13797,7 @@ HB_FUNC( LETO_ORDLISTADD )
    hb_retl( bRet );
 }
 
-static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
+static void leto_CreateIndex( PUSERSTRU pUStru, char * szRawData )
 {
    char *       szFileRaw = ( char * ) hb_xgrab( HB_PATH_MAX );
    char *       szFileName = ( char * ) hb_xgrab( HB_PATH_MAX );
@@ -13788,10 +13805,10 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
    char         szTagName[ LETO_MAX_TAGNAME + 1 ];
    char         szDefaultExt[ HB_MAX_FILE_EXT + 1 ];
    unsigned int uiReplyBufLen = 1023;
-   char *       szReply = hb_xgrab( uiReplyBufLen + 1 );
+   char *       szReply = ( char * ) hb_xgrab( uiReplyBufLen + 1 );
    char *       ptr, * ptr2, * ptr3;
    const char * pData = NULL;
-   const char * pp2 = NULL, * pp3 = NULL, * pp4;
+   char *       pp2 = NULL, * pp3 = NULL, * pp4;
    const char * szFor, * szWhile, * szUseOrder;
    AREAP        pArea;
    PHB_FNAME    pFilePath;
@@ -13816,7 +13833,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, const char * szRawData )
       int nParam;
 
       ulRawLen -= ptr - szRawData;
-      szRawData = ( const char * ) ptr;
+      szRawData = ptr;
       /* now szRawData = BagName; pp2 = TagName, pp3 = key expression for index */
       nParam = leto_GetParam( szRawData, &pp2, &pp3, NULL, NULL );
       if( nParam < 3 || ( ( nLen = strlen( szRawData ) ) < 1 && strlen( pp2 ) < 1 ) || strlen( pp3 ) < 1 )
@@ -14543,7 +14560,7 @@ HB_FUNC( LETO_ORDCREATE )
          ptr += sprintf( ptr, "%s;", szOrder );
 
       pUStru->ulDataLen = ( ptr - szData ) + 2;
-      leto_CreateIndex( pUStru, ( const char * ) szData );
+      leto_CreateIndex( pUStru, szData );
       bRet = pUStru->bLastAct;
       hb_xfree( szData );
    }
@@ -14552,7 +14569,7 @@ HB_FUNC( LETO_ORDCREATE )
 }
 
 /* only used local */
-static void leto_UdfReload( PUSERSTRU pUStru, const char * szData )
+static void leto_UdfReload( PUSERSTRU pUStru, char * szData )
 {
    PHB_DYNS pSym_Freload = NULL;
 
@@ -14561,7 +14578,7 @@ static void leto_UdfReload( PUSERSTRU pUStru, const char * szData )
 }
 
 /* only used local */
-static void leto_StopServer( PUSERSTRU pUStru, const char * szData )
+static void leto_StopServer( PUSERSTRU pUStru, char * szData )
 {
    HB_SYMBOL_UNUSED( szData );
 

@@ -137,7 +137,7 @@ PHB_LZ4NET hb_lz4netOpen( int iLevel, int iStrategy )
 }
 
 /* create blowfish encryption key */
-void hb_lz4netEncryptKey( PHB_LZ4NET pStream, const unsigned char * pPassword, int iPasslen )
+void hb_lz4netEncryptKey( PHB_LZ4NET pStream, const char * pPassword, int iPasslen )
 {
    if( ! pStream->pBfKey && pPassword && iPasslen )
    {

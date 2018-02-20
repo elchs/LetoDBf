@@ -81,7 +81,7 @@ static HB_TSD_NEW( s_TSDitem, sizeof( PHB_ITEM * ), leto_InitVarCache, leto_Dein
 
 static void leto_SetVarCache( PHB_ITEM pVarItem )
 {
-   PHB_ITEM * ppItemTSD = hb_stackGetTSD( &s_TSDitem );
+   PHB_ITEM * ppItemTSD = ( PHB_ITEM * ) hb_stackGetTSD( &s_TSDitem );
 
    if( *ppItemTSD )
       hb_itemRelease( *ppItemTSD );
@@ -90,7 +90,7 @@ static void leto_SetVarCache( PHB_ITEM pVarItem )
 
 static void leto_ClearVarCache( void )
 {
-   PHB_ITEM * ppItemTSD = hb_stackGetTSD( &s_TSDitem );
+   PHB_ITEM * ppItemTSD = ( PHB_ITEM * ) hb_stackGetTSD( &s_TSDitem );
 
    if( ppItemTSD )
    {
@@ -490,7 +490,7 @@ static void leto_BufferResize( LETOCONNECTION * pConnection )
    if( pConnection->szBuffer && pConnection->ulBufferLen > LETO_SENDRECV_BUFFSIZE )
    {
       pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
-      pConnection->szBuffer = hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
+      pConnection->szBuffer = ( char * ) hb_xrealloc( pConnection->szBuffer, LETO_SENDRECV_BUFFSIZE + 1 );
    }
 }
 
@@ -1929,7 +1929,7 @@ static PHB_ITEM Leto_VarGet( LETOCONNECTION * pCurrentConn, const char * szGroup
 
          case LETOVAR_NUM:
          {
-            char * ptr = strchr( pData + 2, '.' );
+            const char * ptr = strchr( pData + 2, '.' );
 
             if( ptr )
             {
@@ -2264,15 +2264,16 @@ HB_FUNC( LETO_ADDCDPTRANSLATE )
    if( pCurrentConn && hb_parclen( 1 ) && hb_parclen( 2 ) )
    {
       PCDPSTRU pCdps;
+
       if( pCurrentConn->pCdpTable )
       {
          pCdps = pCurrentConn->pCdpTable;
          while( pCdps->pNext )
             pCdps = pCdps->pNext;
-         pCdps = hb_xgrab( sizeof( CDPSTRU ) );
+         pCdps = ( PCDPSTRU ) hb_xgrab( sizeof( CDPSTRU ) );
       }
       else
-         pCdps = pCurrentConn->pCdpTable = hb_xgrab( sizeof( CDPSTRU ) );
+         pCdps = pCurrentConn->pCdpTable = ( PCDPSTRU ) hb_xgrab( sizeof( CDPSTRU ) );
       pCdps->szClientCdp = ( char * ) hb_xgrab( hb_parclen( 1 ) + 1 );
       strcpy( pCdps->szClientCdp, hb_parc( 1 ) );
       pCdps->szServerCdp = ( char * ) hb_xgrab( hb_parclen( 2 ) + 1 );
@@ -2515,7 +2516,7 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
                      {
                         pSub = hb_itemArrayNew( 4 );
                         hb_itemCloneTo( hb_arrayGetItemPtr( pSub, 3 ), pRefValue );
-                        hb_arraySetSymbol( pSub, 4, pDyns );
+                        hb_arraySetSymbol( pSub, 4, ( PHB_SYMB ) pDyns );
                         hb_arraySetC( pSub, 1, szGroup );
                         hb_arraySetC( pSub, 2, szVar );
                         hb_arrayAdd( pArr, pSub );
@@ -2623,7 +2624,7 @@ static void Leto_VarExprParse( LETOCONNECTION * pConnection, const char * szSrc,
                   {
                      pSub = hb_itemArrayNew( 4 );
                      hb_itemCloneTo( hb_arrayGetItemPtr( pSub, 3 ), pRefValue );
-                     hb_arraySetSymbol( pSub, 4, pDyns );
+                     hb_arraySetSymbol( pSub, 4, ( PHB_SYMB ) pDyns );
                   }
                   else
                      pSub = hb_itemArrayNew( 2 );

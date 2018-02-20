@@ -17,8 +17,9 @@
 -hblib
 
 # shared lib, dll or so
-#-hbdynvm
+#-hbdyn
 #-shared
+#-lharbour
 
 -n
 -w3
