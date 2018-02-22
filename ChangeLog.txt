@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-22 16:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/leto_2.c
+    ! fix the fix: add IP, exe name and socket error number
+      in case of communication problems ( plus possible received data )
+
+  * ChangeLog.txt
+    ! was Clang 5.01, not gcc 7.3
+
 2018-02-20 18:20 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; made LetoDBf CPP compile-mode safe -- and fix dynamic RDD lib creation
     Big difference in CPP mode is strchr( const char *, ) to return a const,
@@ -17,7 +25,7 @@
     * link leto_clientlog() only if LETO_CLIENTLOG is #define-d
     * move leto_ClearTagInfos() down below its called LetoDbFreeTag()
     * remove all HB_EXPORT macros ( moved into letocl.h header )
-      ; initiated by clang 7.3 which complained about a missing HB_EXPORT
+      ; initiated by Clang 5.0.1 which complained about a missing HB_EXPORT
       in the prototypes, but having one at the functions
 
   * source/client/leto1.c
