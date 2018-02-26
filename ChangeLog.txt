@@ -2,6 +2,31 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-02-26 19:56 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    * (msvc) vartype warning ( HB_USHORT <-> int ) in letoCreateAliasWA()
+
+  * source/server/leto_2.c
+    * tweak error feedback in case of communication problems,
+      to suppress rare 'false alarm' in case a connection only ended
+
+  * source/server/letofunc.c
+  * source/server/server.prg
+    * reduce log info in case of debug level == 0
+
+  * letodb.hbc
+    * double-d lib
+
+  * apileto.hbp
+  * rddleto.hbp
+  * rddletoaddon.hbp
+    * revert switch for <dynamic> lib to -hbdynvm as before;
+      this hides different filename for lib to link ( -lharbour[-32[-..] )
+    * adapt copy of dynamic lib in rddletoaddon.hbp into OS harbour paths
+    * add/ refine swiches ( -nodefgt, -inc- and -rebuild )
+    ; 'dynamic' lib must be manually activated in hbp, default is 'static'.
+      If both are available, its OS dependend which will be preferred linked
+
 2018-02-22 16:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/leto_2.c
     ! fix the fix: add IP, exe name and socket error number

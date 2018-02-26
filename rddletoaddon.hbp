@@ -7,20 +7,19 @@
 # static lib
 -hblib
 
-# shared lib: dll or so -- outcomment above, remove '#' in next 3 lines
-#-hbdyn
+# shared lib: .dll or .so -- outcomment above, remove '#' in next 2 lines
+#-hbdynvm
 #-shared
-#-lharbour
-# if 'cannot find -lharbour' --> use instead for HB v3.2
-#-lharbour-32
 
 
 -n
--w
+-w3
 -q0
 -es2
 -gc3
 -strip
+-rebuild
+-inc-
 -hbx=letodb.hbx
 
 -iinclude
@@ -72,8 +71,8 @@ source/common/common_c.c
 # static library & dynamic library on *nix
 {hblib}-instpath=${hb_lib}/
 # dynamic library on non-*nix
-{hbdyn&!unix}-instpath=${hb_bin}/
-{hbdyn&unix}-instpath=${hb_lib}/
+{(hbdyn|hbdynvm)&!unix}-instpath=${hb_bin}/
+{(hbdyn|hbdynvm)&unix}-instpath=${hb_lib}/
 
 # misc files, public headers, tests
 -instpath=misc:${hb_addons}/letodb/

@@ -1544,6 +1544,9 @@ HB_FUNC( LETO_GETAPPOPTIONS )
       case LETOOPT_HARDCOMMIT:
          hb_retl( s_bHardCommit );
          break;
+      case LETOOPT_DEBUGLEVEL:
+         hb_retni( s_iDebugMode );
+         break;
       case 42:  /* what else is the answer to all !? */
       {
 #if 0  /* intentional forced crash test for debug test internal crash log */
@@ -1565,7 +1568,7 @@ HB_FUNC( LETO_GETAPPOPTIONS )
       }
 
       default:
-         hb_retc( "please want what ?" );
+         hb_retc( "Error: unknown option for LETO_GETAPPOPTIONS()" );
          break;
    }
 }

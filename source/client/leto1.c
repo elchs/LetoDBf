@@ -2194,13 +2194,13 @@ static LETOCONNECTION * leto_OpenConnection( LETOAREAP pArea, LPDBOPENINFO pOpen
 
 static void letoCreateAliasWA( char * szAlias )
 {
-   HB_USHORT uiArea, uiActiveWA = hb_rddGetCurrentWorkAreaNumber();
+   int iArea, iActiveWA = hb_rddGetCurrentWorkAreaNumber();
 
    hb_rddSelectFirstAvailable();
-   uiArea = hb_rddGetCurrentWorkAreaNumber();
-   hb_rddSelectWorkAreaNumber( uiActiveWA );
+   iArea = hb_rddGetCurrentWorkAreaNumber();
+   hb_rddSelectWorkAreaNumber( iActiveWA );
 
-   eprintf( szAlias, "TmpWA%d", uiArea );
+   eprintf( szAlias, "TmpWA%d", iArea );
 }
 
 static void letoCreateAlias( const char * szFile, char * szAlias )

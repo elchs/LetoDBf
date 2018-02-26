@@ -196,14 +196,16 @@ PROCEDURE Main( cCommand, cData )
       oApp := HApp():New()
 
       IF leto_SendMessage( oApp:nPort, LETOCMD_stop, oApp:cAddr )
-         WrLog( "Have send STOP to server, soon should go down ..." )
+         IF oApp:nDebugMode > 0
+            WrLog( "Have send STOP to server at port " + ALLTRIM( STR( oApp:nPort ) ) + " , should soon go down ..." )
 #if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
-         ? "Send SToP to server..."
+            ? "Send SToP to server at port " + ALLTRIM( STR( oApp:nPort ) + " ..."  )
 #endif
+         ENDIF
       ELSE
-         WrLog( "Can't STOP the server (not started?)..." )
+         WrLog( "Can't STOP the server at port " + ALLTRIM( STR( oApp:nPort ) ) + " ( not started ? )" )
 #if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
-         ? "Can't STOP the server (not started?)..."
+         ? "Can't STOP the server at port " + ALLTRIM( STR( oApp:nPort ) ) + " ( not started? )"
 #endif
       ENDIF
       RETURN
@@ -217,9 +219,9 @@ PROCEDURE Main( cCommand, cData )
       /* send message to reload letoudf.hrb */
       oApp := HApp():New()
       IF ! leto_SendMessage( oApp:nPort, LETOCMD_udf_rel,, cData )
-         WrLog( "Can't reload letoudf.hrb" )
+         WrLog( "Can't reload letoudf.hrb at port " + ALLTRIM( STR( oApp:nPort ) ) )
 #if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
-         ? "Can't reload letoudf.hrb"
+         ? "Can't reload letoudf.hrb at port " + ALLTRIM( STR( oApp:nPort ) )
 #endif
       ENDIF
       RETURN
@@ -328,7 +330,9 @@ PROCEDURE StartServer()
       ENDIF
    ENDIF
 
-   WrLog( "LetoDBf Server try to start ..." )
+   IF oApp:nDebugMode > 0
+      WrLog( "LetoDBf Server at port " + ALLTRIM( STR( oApp:nPort ) ) + " try to start ..." )
+   ENDIF
    leto_InitSet()
    leto_HrbLoad()
    leto_CreateData( oApp:cAddr, oApp:nPort )
@@ -339,15 +343,16 @@ PROCEDURE StartServer()
       ? "Socket error starting LetoDBf ..."
 #endif
       ErrorLevel( 1 )
+   ELSE
+      WrLog( "Server at port " + ALLTRIM( STR( oApp:nPort ) ) + " have shutdown." )
    ENDIF
-
-   WrLog( "Server at port " + ALLTRIM( STR( oApp:nPort ) ) + " have shutdown." )
 
    RETURN
 
 STATIC FUNCTION leto_hrbLoad( cData )
 
    LOCAL lUdfEnabled := leto_GetAppOptions( LETOOPT_UDFENABLED )
+   LOCAL nDebugMode := leto_GetAppOptions( LETOOPT_DEBUGLEVEL )
    LOCAL cHrbName, pInit
    LOCAL lDefault, pHrb, aFunc
    MEMVAR oErr
@@ -356,7 +361,7 @@ STATIC FUNCTION leto_hrbLoad( cData )
       cHrbName := s_cDirBase + "letoudf.hrb"
       lDefault := .T.
    ELSE
-      cHrbName := s_cDirBase + LEFT( cData, LEN( cData ) - 1 )
+      cHrbName := s_cDirBase + cData
       lDefault := .F.
    ENDIF
 
@@ -380,9 +385,9 @@ STATIC FUNCTION leto_hrbLoad( cData )
                ENDIF
             ENDIF
          ELSE
-            WrLog( "using remote UDF is disabled." )
+            WrLog( "UDF Error: using remote functions is disabled." )
          ENDIF
-      ELSE
+      ELSEIF nDebugMode > 0
          WrLog( "UDF file: " + cHrbName + " not present." )
       ENDIF
 
@@ -402,11 +407,14 @@ FUNCTION hs_UdfReload( cData )
       IF VALTYPE( cData ) != "C" .AND. ! Empty( s_pHrb )
          hb_hrbUnload( s_pHrb )
          s_pHrb := nil
-         WrLog( "letoudf.hrb has been unloaded." )
+         WrLog( "UDF file have been unloaded." )
+      ENDIF
+      IF RIGHT( cData, 1 ) == ";"
+         cData := LEFT( cData, LEN( cData ) - 1 )
       ENDIF
       leto_hrbLoad( cData )
    ELSE
-      WrLog( "using remote UDF is disabled." )
+      WrLog( "UDF Error: using remote functions is disabled." )
    ENDIF
 
    RETURN NIL
@@ -451,6 +459,7 @@ CLASS HApp
    DATA cBCService
    DATA cBCInterface
    DATA nBCPort
+   DATA nDebugMode INIT 0
 
    METHOD New()
 
@@ -465,7 +474,6 @@ METHOD New() CLASS HApp
    LOCAL nCacheRecords := 10
    LOCAL nTables_max := NIL
    LOCAL nUsers_max := NIL
-   LOCAL nDebugMode := 0
    LOCAL lHardCommit := .F.
    LOCAL nAutOrder
    LOCAL nMemoType := 0
@@ -567,8 +575,8 @@ METHOD New() CLASS HApp
                      nUsers_max := NIL
                   ENDIF
                ELSEIF aIni[ i, 2, j, 1 ] == "DEBUG"
-                  IF ( nDebugMode := Val( aIni[ i, 2, j, 2 ] ) ) <= 0
-                     nDebugMode := 0
+                  IF ( ::nDebugMode := Val( aIni[ i, 2, j, 2 ] ) ) <= 0
+                     ::nDebugMode := 0
                   ENDIF
                ELSEIF aIni[ i, 2, j, 1 ] == "HARDCOMMIT"
                   lHardCommit := ( aIni[ i, 2, j, 2 ] == '1' )
@@ -662,7 +670,7 @@ METHOD New() CLASS HApp
       leto_SetAppOptions( iif( Empty( ::DataPath ), "", ::DataPath ), ::nDriver, ::lFileFunc, ;
          ::lAnyExt, ::lPass4L, ::lPass4M, ::lPass4D, ::cPassName, ::lCryptTraffic, ;
          ::lShare, ::lNoSaveWA, nMaxVars, nMaxVarSize, nCacheRecords, nTables_max, nUsers_max, ;
-         nDebugMode, lOptimize, nAutOrder, nMemoType, lForceOpt, ::nBigLock, lUDFEnabled, nMemoBlocksize,;
+         ::nDebugMode, lOptimize, nAutOrder, nMemoType, lForceOpt, ::nBigLock, lUDFEnabled, nMemoBlocksize,;
          ::lLower, ::cTrigger, lHardCommit, lSMBServer, cSMBPath )
 
       RETURN Self

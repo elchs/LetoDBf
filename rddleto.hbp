@@ -7,12 +7,9 @@
 # static lib
 -hblib
 
-# shared lib: dll or so -- outcomment above, remove '#' in next 3 lines
-#-hbdyn
+# shared lib: .dll or .so -- outcomment above, remove '#' in next 2 lines
+#-hbdynvm
 #-shared
-#-lharbour
-# if 'cannot find -lharbour' --> use instead for HB v3.2
-#-lharbour-32
 
 
 -n
@@ -22,7 +19,7 @@
 -gc3
 -strip
 -rebuild
-
+-inc-
 -hbx=letodb.hbx
 
 -iinclude

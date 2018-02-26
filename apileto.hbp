@@ -16,10 +16,10 @@
 # static lib
 -hblib
 
-# shared lib, dll or so
-#-hbdyn
+# shared lib, .dll or .so -- outcomment above, remove '#' in next 2 lines
+#-hbdynvm
 #-shared
-#-lharbour
+
 
 -n
 -w3
@@ -28,6 +28,8 @@
 -gc3
 -strip
 -rebuild
+-inc-
+-nodefgt
 
 -iinclude
 {__LZ4}-isource/3rd/lz4/lib
