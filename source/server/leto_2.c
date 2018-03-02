@@ -796,24 +796,19 @@ void leto_SendError( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
 
 HB_FUNC( LETO_SENDMESSAGE )
 {
-   char     szBuffer[ 64 ];
-   HB_BOOL  bRetVal = HB_FALSE;
-
-   void *       pSockAddr;
-   unsigned int uiLen;
+   HB_BOOL      bRetVal = HB_FALSE;
    HB_SOCKET    hSocket;
-
-   int iPort = hb_parni( 1 );
+   int          iPort = hb_parni( 1 );
    const char * szMessage = hb_parc( 2 );
    const char * szData = hb_parclen( 4 ) ? hb_parc( 4 ) : NULL;
-   char *       szAddr;
+   const char * szAddr;
 
    if( hb_parclen( 3 ) > 6 )
-      szAddr = hb_strdup( hb_parc( 3 ) );
+      szAddr = hb_parc( 3 );
    else
-      szAddr = hb_strdup( "127.0.0.1" );
+      szAddr = "127.0.0.1";
 
-   /* security : only allow this two commands */
+   /* security : only allow these two commands */
    if( hb_parclen( 2 ) > 1 || ! ( szMessage[ 0 ] == LETOCMD_stop || szMessage[ 0 ] == LETOCMD_udf_rel ) )
    {
       hb_retl( bRetVal );
@@ -824,12 +819,16 @@ HB_FUNC( LETO_SENDMESSAGE )
 
    if( ( hSocket = hb_socketOpen( HB_SOCKET_AF_INET, HB_SOCKET_PT_STREAM, 0 ) ) != HB_NO_SOCKET )
    {
+      void *       pSockAddr;
+      unsigned int uiLen;
+
       if( hb_socketInetAddr( &pSockAddr, &uiLen, szAddr, iPort ) )
       {
          //hb_socketSetKeepAlive( hSocketMain, HB_TRUE );
          if( hb_socketConnect( hSocket, pSockAddr, uiLen, -1 ) == 0 )
          {
             char *   pBuffer;
+            char     szBuffer[ 64 ];
             HB_ULONG ulRecvLen;
 
             hb_socketSetNoDelay( hSocket, HB_TRUE );
@@ -853,16 +852,20 @@ HB_FUNC( LETO_SENDMESSAGE )
                if( leto_SockRecv( hSocket, pBuffer, ulRecvLen, NULL ) == ulRecvLen )
 #endif
                {
-                  HB_ULONG ulSendLen;
+                  HB_ULONG ulSendLen = 2;
 
-                  strcpy( szBuffer + LETO_MSGSIZE_LEN, szMessage );
-                  strcpy( szBuffer + LETO_MSGSIZE_LEN + 1, ";" );
+                  szBuffer[ LETO_MSGSIZE_LEN ] = szMessage[ 0 ];
+                  szBuffer[ LETO_MSGSIZE_LEN + 1 ] = ';';
+                  szBuffer[ LETO_MSGSIZE_LEN + 2 ] = '\0';
                   if( szData )
                   {
-                     strcpy( szBuffer + LETO_MSGSIZE_LEN + 2, szData );
-                     strcpy( szBuffer + LETO_MSGSIZE_LEN + 2 + strlen( szData ), ";" );
+                     int iLen = HB_MIN( strlen( szData ), 60 - LETO_MSGSIZE_LEN );
+
+                     memcpy( szBuffer + LETO_MSGSIZE_LEN + 2, szData, iLen );
+                     szBuffer[ LETO_MSGSIZE_LEN + 2 + iLen ] = ';';
+                     szBuffer[ LETO_MSGSIZE_LEN + 2 + iLen + 1 ] = '\0';
+                     ulSendLen += iLen + 1;
                   }
-                  ulSendLen = strlen( szBuffer + LETO_MSGSIZE_LEN );
                   HB_PUT_LE_UINT32( szBuffer, ulSendLen );
 #ifdef USE_LZ4
                   if( leto_SockSend( hSocket, szBuffer, ulSendLen + LETO_MSGSIZE_LEN, 0 ) )
@@ -888,7 +891,6 @@ HB_FUNC( LETO_SENDMESSAGE )
       }
    }
 
-   hb_xfree( szAddr );
    hb_retl( bRetVal );
 }
 
@@ -1538,8 +1540,14 @@ static HB_THREAD_STARTFUNC( thread2 )
          else if( pPoll[ 0 ].revents & ( POLLERR | POLLHUP | POLLNVAL ) )
          {
             hb_vmLock();
-            if( iDebugMode() > 0 && ! leto_ExitGlobal( HB_FALSE ) )
-               leto_writelog( NULL, 0, "DEBUG thread2() socket error - maybe closed .." );
+            if( iDebugMode() > 1 && ! leto_ExitGlobal( HB_FALSE ) )
+            {
+               int iErr = LETO_SOCK_GETERROR();
+
+               if( iErr )
+                  leto_writelog( NULL, -1, "DEBUG thread2() socket error %s (%d) - maybe closed ..",
+                                 hb_socketErrorStr( iErr ), iErr );
+            }
             pUStru->hSocket = HB_NO_SOCKET;
             break;
          }
@@ -1634,7 +1642,7 @@ static HB_THREAD_STARTFUNC( thread2 )
       {
          hb_vmLock();
 
-         if( pUStru->hSocket == HB_NO_SOCKET )   // connection closed
+         if( pUStru->hSocket == HB_NO_SOCKET )
          {
             if( iDebugMode() > 0 )
                leto_writelog( NULL, -1, "DEBUG thread2() %s:%d terminated by mgmt(0)",
@@ -1642,20 +1650,18 @@ static HB_THREAD_STARTFUNC( thread2 )
          }
          else
          {
+            int iErr = LETO_SOCK_GETERROR();
+
             if( ulRecvLen )
             {
                pUStru->pBuffer[ ulRecvLen ] = '\0';
-               leto_writelog( NULL, 0, "ERROR thread2() leto_SockRec <> LETO_MSGSIZE_LEN" );
+               leto_writelog( NULL, -1, "ERROR thread2() leto_SockRec(%lu) <> LETO_MSGSIZE_LEN [%s:%s (%d)]",
+                              ulRecvLen, pUStru->szAddr, pUStru->szExename, iErr );
                leto_writelog( NULL, 0, ( const char * ) pUStru->pBuffer );
             }
-            else
-            {
-               int iSocks = hb_socketGetError();
-
-               if( iSocks )
-                  leto_writelog( NULL, -1, "ERROR thread2() Socket error: %s",
-                                 hb_socketErrorStr( iSocks ) );
-            }
+            else if( iErr && iErr != 2 )
+               leto_writelog( NULL, -1, "ERROR thread2() Socket error: %s [%s:%s (%d)]",
+                              hb_socketErrorStr( iErr ), pUStru->szAddr, pUStru->szExename, iErr );
          }
          break;
       }
@@ -1683,7 +1689,12 @@ static HB_THREAD_STARTFUNC( thread2 )
                leto_writelog( NULL, 0, "DEBUG thread2() terminated by mgmt(1)" );
          }
          else
-            leto_writelog( NULL, 0, "ERROR thread2() ulRecvLen == 0" );
+         {
+            int iErr = LETO_SOCK_GETERROR();
+
+            if( iErr && iErr != 2 )
+               leto_writelog( NULL, -1, "ERROR thread2() ulRecvLen == 0 (error: %d)", iErr );
+         }
          break;
       }
       else if( pUStru->ulBufferLen <= ulRecvLen )

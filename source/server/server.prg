@@ -3,7 +3,7 @@
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
  *
- *           2015-2016 Rolf 'elch' Beckmann
+ *           2015-2018 Rolf 'elch' Beckmann
  * removing nearly anything else the pure PRG level server start functions.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -186,10 +186,11 @@ PROCEDURE Main( cCommand, cData )
    IF cCommand != NIL .AND. Lower( cCommand ) == "stop"
 
       IF ! EMPTY( cData )
+         cData := LOWER( cData )
          IF .NOT. ".ini" $ cData
             cData += ".ini"
          ENDIF
-         s_cIniName := LOWER( cData )
+         s_cIniName := cData
       ENDIF
 
       /* connect and send QUIT */
@@ -212,13 +213,19 @@ PROCEDURE Main( cCommand, cData )
 
    ELSEIF cCommand != NIL .AND. Left( Lower( cCommand ), 6 ) == "reload"
 
-      IF ! EMPTY( cData ) .AND. ".ini" $ cData
-         s_cIniName := LOWER( cData )
-         cData := NIL
+      IF ! EMPTY( cData )
+         cData := LOWER( cData )
+         IF .NOT. ".hrb" $ cData
+            IF .NOT. ".ini" $ cData
+               cData += ".ini"
+            ENDIF
+            s_cIniName := cData
+            cData := NIL
+         ENDIF
       ENDIF
       /* send message to reload letoudf.hrb */
       oApp := HApp():New()
-      IF ! leto_SendMessage( oApp:nPort, LETOCMD_udf_rel,, cData )
+      IF ! leto_SendMessage( oApp:nPort, LETOCMD_udf_rel, oApp:cAddr, cData )
          WrLog( "Can't reload letoudf.hrb at port " + ALLTRIM( STR( oApp:nPort ) ) )
 #if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
          ? "Can't reload letoudf.hrb at port " + ALLTRIM( STR( oApp:nPort ) )
@@ -234,10 +241,11 @@ PROCEDURE Main( cCommand, cData )
       ? "Server up and listening ..."
       ? "for shutdown call me again with param: stop"
       IF cCommand != NIL .AND. Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
+         cData := LOWER( cData )
          IF .NOT. ".ini" $ cData
             cData += ".ini"
          ENDIF
-         s_cIniName := LOWER( cData )
+         s_cIniName := cData
       ENDIF
       StartServer()
 
@@ -246,10 +254,11 @@ PROCEDURE Main( cCommand, cData )
 #ifdef __WIN_DAEMON__
 
       IF cCommand != NIL .AND. Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
+         cData := LOWER( cData )
          IF .NOT. ".ini" $ cData
             cData += ".ini"
          ENDIF
-         s_cIniName := LOWER( cData )
+         s_cIniName := cData
       ENDIF
       StartServer()
 
@@ -295,14 +304,15 @@ PROCEDURE Main( cCommand, cData )
 #ifdef __LINUX_DAEMON__
 
       IF cCommand != NIL .AND. Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
+         cData := LOWER( cData )
          IF .NOT. ".ini" $ cData
             cData += ".ini"
          ENDIF
-         s_cIniName := LOWER( cData )
+         s_cIniName := cData
       ENDIF
       oApp := HApp():New()
       IF ! leto_Daemon( oApp:nSUserID, oApp:nSGroupID, oApp:cSUser )
-         WrLog( "Can't become a daemon" )
+         WrLog( "Error: server can't become a daemon" )
          ErrorLevel( 2 )
       ELSE
          StartServer()
@@ -330,7 +340,15 @@ PROCEDURE StartServer()
       ENDIF
    ENDIF
 
-   IF oApp:nDebugMode > 0
+   leto_SetAppOptions( oApp:DataPath, oApp:nDriver, oApp:lFileFunc, oApp:lAnyExt,;
+         oApp:lPass4L, oApp:lPass4M, oApp:lPass4D, oApp:cPassFile, oApp:lCryptTraffic,;
+         oApp:lShare, oApp:lNoSaveWA,;
+         oApp:nMaxVars, oApp:nMaxVarSize, oApp:nCacheRecords, oApp:nTables_max, oApp:nUsers_max,;
+         oApp:nDebugMode, oApp:lOptimize, oApp:nAutOrder, oApp:nMemoType, oApp:lForceOpt, oApp:nBigLock,;
+         oApp:lUDFEnabled, oApp:nMemoBlkSize, oApp:lLower, oApp:cTrigger, oApp:lHardCommit,;
+         oApp:lSMBServer, oApp:cSMBPath )
+
+   IF oApp:nDebugMode > 1
       WrLog( "LetoDBf Server at port " + ALLTRIM( STR( oApp:nPort ) ) + " try to start ..." )
    ENDIF
    leto_InitSet()
@@ -349,20 +367,17 @@ PROCEDURE StartServer()
 
    RETURN
 
-STATIC FUNCTION leto_hrbLoad( cData )
+STATIC PROCEDURE leto_hrbLoad( cData )
 
    LOCAL lUdfEnabled := leto_GetAppOptions( LETOOPT_UDFENABLED )
    LOCAL nDebugMode := leto_GetAppOptions( LETOOPT_DEBUGLEVEL )
-   LOCAL cHrbName, pInit
-   LOCAL lDefault, pHrb, aFunc
+   LOCAL cHrbName, pHrb, pInit, aFunc
    MEMVAR oErr
 
-   IF VALTYPE( cData ) != "C"
+   IF VALTYPE( cData ) != "C" .OR. EMPTY( cData )
       cHrbName := s_cDirBase + "letoudf.hrb"
-      lDefault := .T.
    ELSE
       cHrbName := s_cDirBase + cData
-      lDefault := .F.
    ENDIF
 
    BEGIN SEQUENCE
@@ -372,13 +387,11 @@ STATIC FUNCTION leto_hrbLoad( cData )
             IF ! Empty( pHrb )
                WrLog( "UDF file: " + cHrbName + " have been loaded." )
 
-               IF lDefault
-                  s_pHrb = pHrb
-                  IF ! Empty( pInit := hb_hrbGetFunSym( s_pHrb, 'UDF_Init' ) )
-                     hb_ExecFromArray( pInit )
-                  ENDIF
+               s_pHrb = pHrb
+               IF ! Empty( pInit := hb_hrbGetFunSym( s_pHrb, 'UDF_Init' ) )
+                  hb_ExecFromArray( pInit )
                ELSE
-                  aFunc := hb_hrbGetFunList( pHrb )
+                  aFunc := hb_hrbGetFunList( s_pHrb )
                   IF ! EMPTY( aFunc )
                      hb_hrbGetFunSym( s_pHrb, aFunc[ 1 ] )
                   ENDIF
@@ -387,7 +400,7 @@ STATIC FUNCTION leto_hrbLoad( cData )
          ELSE
             WrLog( "UDF Error: using remote functions is disabled." )
          ENDIF
-      ELSEIF nDebugMode > 0
+      ELSEIF nDebugMode > 0 .AND. lUdfEnabled
          WrLog( "UDF file: " + cHrbName + " not present." )
       ENDIF
 
@@ -396,20 +409,20 @@ STATIC FUNCTION leto_hrbLoad( cData )
        WrLog( "UDF Error: " + Leto_ErrorMessage( oErr ) )
    END SEQUENCE
 
-   RETURN NIL
+   RETURN
 
 
-FUNCTION hs_UdfReload( cData )
+PROCEDURE leto_UdfReload( cData )
 
    LOCAL lUdfEnabled := leto_GetAppOptions( LETOOPT_UDFENABLED )
 
    IF lUdfEnabled
-      IF VALTYPE( cData ) != "C" .AND. ! Empty( s_pHrb )
+      IF ! Empty( s_pHrb )
          hb_hrbUnload( s_pHrb )
-         s_pHrb := nil
+         s_pHrb := NIL
          WrLog( "UDF file have been unloaded." )
       ENDIF
-      IF RIGHT( cData, 1 ) == ";"
+      IF VALTYPE( cData ) == "C" .AND. RIGHT( cData, 1 ) == ";"
          cData := LEFT( cData, LEN( cData ) - 1 )
       ENDIF
       leto_hrbLoad( cData )
@@ -417,7 +430,7 @@ FUNCTION hs_UdfReload( cData )
       WrLog( "UDF Error: using remote functions is disabled." )
    ENDIF
 
-   RETURN NIL
+   RETURN
 
 
 EXIT PROCEDURE EXITP
@@ -434,32 +447,46 @@ EXIT PROCEDURE EXITP
 
 CLASS HApp
 
-   DATA cAddr     INIT NIL
-   DATA nPort     INIT 2812
-   DATA nTimeOut  INIT -1
-   DATA DataPath  INIT ""
-   DATA LogFile   INIT ""
-   DATA lLower    INIT .F.
-   DATA lFileFunc INIT .F.
-   DATA lAnyExt   INIT .F.
-   DATA lShare    INIT .F.      // .T. - new mode, which allows share tables with other processes
-   DATA lNoSaveWA INIT .F.        // .T. - new mode, which forces dbUseArea() each time "open table" is demanded
-   DATA nDriver   INIT 0
-   DATA nBigLock  INIT 0
-   DATA lPass4M   INIT .F.
-   DATA lPass4L   INIT .F.
-   DATA lPass4D   INIT .F.
-   DATA cPassName INIT "leto_users"
-   DATA nSUserID  INIT 0
-   DATA nSGroupID INIT 0
-   DATA cSUser    INIT NIL
+   DATA cAddr         INIT NIL
+   DATA nPort         INIT 2812
+   DATA nTimeOut      INIT -1
+   DATA DataPath      INIT ""
+   DATA LogFile       INIT ""
+   DATA lLower        INIT .F.
+   DATA lFileFunc     INIT .F.
+   DATA lAnyExt       INIT .F.
+   DATA lShare        INIT .F.
+   DATA lNoSaveWA     INIT .F.
+   DATA nDriver       INIT 0
+   DATA nBigLock      INIT 0
+   DATA lPass4M       INIT .F.
+   DATA lPass4L       INIT .F.
+   DATA lPass4D       INIT .F.
+   DATA cPassFile     INIT "leto_users"
+   DATA nSUserID      INIT 0
+   DATA nSGroupID     INIT 0
+   DATA cSUser        INIT NIL
    DATA lCryptTraffic INIT .F.
    DATA cTrigger
-   DATA nZombieCheck INIT 0
+   DATA nZombieCheck  INIT 0
    DATA cBCService
    DATA cBCInterface
    DATA nBCPort
-   DATA nDebugMode INIT 0
+   DATA nDebugMode    INIT 1
+   DATA nMaxVars
+   DATA nMaxVarSize
+   DATA nCacheRecords INIT 10
+   DATA nTables_max
+   DATA nUsers_max
+   DATA lOptimize     INIT .T.
+   DATA nAutOrder
+   DATA nMemoType     INIT 0
+   DATA lForceOpt     INIT .F.
+   DATA lUDFEnabled   INIT .F.
+   DATA nMemoBlkSize  INIT 0
+   DATA lHardCommit   INIT .F.
+   DATA lSMBServer    INIT .F.
+   DATA cSMBPath      INIT ""
 
    METHOD New()
 
@@ -467,168 +494,210 @@ ENDCLASS
 
 METHOD New() CLASS HApp
 
-   LOCAL cIniName := s_cIniName
-   LOCAL aIni, i, j, cTemp, cPath, nDriver
-   LOCAL nPort
-   LOCAL nMaxVars, nMaxVarSize
-   LOCAL nCacheRecords := 10
-   LOCAL nTables_max := NIL
-   LOCAL nUsers_max := NIL
-   LOCAL lHardCommit := .F.
-   LOCAL nAutOrder
-   LOCAL nMemoType := 0
-   LOCAL nMemoBlocksize := 0
-   LOCAL lOptimize := .T.
-   LOCAL lForceOpt := .F.
-   LOCAL lUDFEnabled := .F.
-   LOCAL lSMBServer := .F.
-   LOCAL cSMBPath := ""
+   LOCAL aIni, i, j, cValue
+   LOCAL cTmp, nTmp, cPath, nDriver
 
 #if ! defined( __PLATFORM__WINDOWS )
 
-   IF File( "/etc/" + cIniName )
-      aIni := rdIni( "/etc/" + cIniName )
-   ELSEIF File( s_cDirBase + cIniName )
-      aIni := rdIni( s_cDirBase + cIniName )
+   IF File( "/etc/" + s_cIniName )
+      aIni := rdIni( "/etc/" + s_cIniName )
+   ELSEIF File( s_cDirBase + s_cIniName )
+      aIni := rdIni( s_cDirBase + s_cIniName )
    ENDIF
 
 #else
 
-   IF File( s_cDirBase + cIniName )
-      aIni := rdIni( s_cDirBase + cIniName )
+   IF File( s_cDirBase + s_cIniName )
+      aIni := rdIni( s_cDirBase + s_cIniName )
    ENDIF
 
 #endif
 
-   IF !Empty( aIni )
+   IF ! Empty( aIni )
       FOR i := 1 TO Len( aIni )
          IF aIni[ i, 1 ] == "MAIN"
             FOR j := 1 TO Len( aIni[ i, 2 ] )
-               IF aIni[ i, 2, j, 1 ] == "PORT"
-                  IF ( nPort := Val( aIni[ i, 2, j, 2 ] ) ) >= 42
-                     ::nPort := nPort
+               cValue := aIni[ i, 2, j, 2 ]
+
+               SWITCH aIni[ i, 2, j, 1 ]
+               CASE "PORT"
+                  nTmp := INT( Val( cValue ) )
+                  IF nTmp >= 1024
+                     ::nPort := nTmp
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "IP"
-                  ::cAddr := aIni[ i, 2, j, 2 ]
-               ELSEIF aIni[ i, 2, j, 1 ] == "TIMEOUT"
-                  ::nTimeOut := Val( aIni[ i, 2, j, 2 ] )
-               ELSEIF aIni[ i, 2, j, 1 ] == "DATAPATH"
-                  ::DataPath := StrTran( aIni[ i, 2, j, 2 ], DEF_CH_SEP, DEF_SEP )
+                  EXIT
+               CASE "IP"
+                  ::cAddr := cValue
+                  EXIT
+               CASE "TIMEOUT"
+                  ::nTimeOut := INT( Val( cValue ) )
+                  EXIT
+               CASE "DATAPATH"
+                  ::DataPath := StrTran( cValue, DEF_CH_SEP, DEF_SEP )
                   IF Right( ::DataPath, 1 ) $ DEF_SEP
                      ::DataPath := Left( ::DataPath, Len( ::DataPath ) - 1 )
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "LOGPATH"
-                  ::LogFile := StrTran( aIni[ i, 2, j, 2 ], DEF_CH_SEP, DEF_SEP )
+                  EXIT
+               CASE "LOGPATH"
+                  ::LogFile := StrTran( cValue, DEF_CH_SEP, DEF_SEP )
                   IF ! Empty( ::LogFile )
                      IF Right( ::LogFile, 1 ) != DEF_SEP
                         ::LogFile += DEF_SEP
                      ENDIF
                      leto_setDirBase( ::LogFile )
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "LOWER_PATH"
-                  ::lLower := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "ENABLEFILEFUNC"
-                  ::lFileFunc := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "ENABLEANYEXT"
-                  ::lAnyExt := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "SHARE_TABLES"
-                  ::lShare := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "NO_SAVE_WA"
-                  ::lNoSaveWA := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "DEFAULT_DRIVER"
-                  ::nDriver := iif( Lower( aIni[ i, 2, j, 2 ] ) == "ntx", LETO_NTX, 0 )
-               ELSEIF aIni[ i, 2, j, 1 ] == "LOCK_SCHEME"
-                  ::nBigLock := Val( aIni[ i, 2, j, 2 ] )
-                  IF ::nBigLock < 0 .OR. ::nBigLock > 6
-                     ::nBigLock := 0
+                  EXIT
+               CASE "LOWER_PATH"
+                  ::lLower := ( cValue == '1' )
+                  EXIT
+               CASE "ENABLEFILEFUNC"
+                  ::lFileFunc := ( cValue == '1' )
+                  EXIT
+               CASE "ENABLEANYEXT"
+                  ::lAnyExt := ( cValue == '1' )
+                  EXIT
+               CASE "SHARE_TABLES"
+                  ::lShare := ( cValue == '1' )
+                  EXIT
+               CASE "NO_SAVE_WA"
+                  ::lNoSaveWA := ( cValue == '1' )
+                  EXIT
+               CASE "DEFAULT_DRIVER"
+                  ::nDriver := iif( Lower( cValue ) == "ntx", LETO_NTX, 0 )
+                  EXIT
+               CASE "LOCK_SCHEME"
+                  nTmp := INT( Val( cValue ) )
+                  IF nTmp >= 0 .AND. nTmp <= 6
+                     ::nBigLock := nTmp
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "PASS_FOR_LOGIN"
-                  ::lPass4L := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "PASS_FOR_MANAGE"
-                  ::lPass4M := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "PASS_FOR_DATA"
-                  ::lPass4D := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "PASS_FILE"
-                  ::cPassName := aIni[ i, 2, j, 2 ]
-               ELSEIF aIni[ i, 2, j, 1 ] == "SERVER_USER"
-                  ::cSUser := aIni[ i, 2, j, 2 ]
-               ELSEIF aIni[ i, 2, j, 1 ] == "SERVER_UID"
-                  ::nSUserID := Int( Val( aIni[ i, 2, j, 2 ] ) )
-               ELSEIF aIni[ i, 2, j, 1 ] == "SERVER_GID"
-                  ::nSGroupID := Int( Val( aIni[ i, 2, j, 2 ] ) )
-               ELSEIF aIni[ i, 2, j, 1 ] == "CRYPT_TRAFFIC"
-                  ::lCryptTraffic := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "MAX_VARS_NUMBER"
-                  nMaxVars := Val( aIni[ i, 2, j, 2 ] )
-               ELSEIF aIni[ i, 2, j, 1 ] == "MAX_VAR_SIZE"
-                  nMaxVarSize := Val( aIni[ i, 2, j, 2 ] )
-               ELSEIF aIni[ i, 2, j, 1 ] == "CACHE_RECORDS"
-                  IF ( nCacheRecords := Val( aIni[ i, 2, j, 2 ] ) ) <= 0
-                     nCacheRecords := 10
+                  EXIT
+               CASE "PASS_FOR_LOGIN"
+                  ::lPass4L := ( cValue == '1' )
+                  EXIT
+               CASE "PASS_FOR_MANAGE"
+                  ::lPass4M := ( cValue == '1' )
+                  EXIT
+               CASE "PASS_FOR_DATA"
+                  ::lPass4D := ( cValue == '1' )
+                  EXIT
+               CASE "PASS_FILE"
+                  ::cPassFile := cValue
+                  EXIT
+               CASE "SERVER_USER"
+                  ::cSUser := cValue
+                  EXIT
+               CASE "SERVER_UID"
+                  ::nSUserID := INT( Val( cValue ) )
+                  EXIT
+               CASE "SERVER_GID"
+                  ::nSGroupID := INT( Val( cValue ) )
+                  EXIT
+               CASE "CRYPT_TRAFFIC"
+                  ::lCryptTraffic := ( cValue == '1' )
+                  EXIT
+               CASE "MAX_VARS_NUMBER"
+                  ::nMaxVars := INT( Val( cValue ) )
+                  EXIT
+               CASE "MAX_VAR_SIZE"
+                  ::nMaxVarSize := INT( Val( cValue ) )
+                  EXIT
+               CASE "CACHE_RECORDS"
+                  nTmp := INT( Val( cValue ) )
+                  IF nTmp > 0
+                     ::nCacheRecords := nTmp
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "TABLES_MAX"
-                  IF ( nTables_max := Val( aIni[ i, 2, j, 2 ] ) ) <= 100 .OR. nTables_max > 1000000
-                     nTables_max := NIL
+                  EXIT
+               CASE "TABLES_MAX"
+                  nTmp := INT( Val( cValue ) )
+                  IF nTmp > 100 .AND. nTmp <= 1000000
+                     ::nTables_max := nTmp
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "USERS_MAX"
-                  IF ( nUsers_max := Val( aIni[ i, 2, j, 2 ] ) ) <= 10 .OR. nUsers_max > 100000
-                     nUsers_max := NIL
+                  EXIT
+               CASE "USERS_MAX"
+                  nTmp := INT( Val( cValue ) )
+                  IF nTmp > 10 .AND. nTmp <= 100000
+                     ::nUsers_max := nTmp
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "DEBUG"
-                  IF ( ::nDebugMode := Val( aIni[ i, 2, j, 2 ] ) ) <= 0
-                     ::nDebugMode := 0
+               CASE "DEBUG"
+                  nTmp := INT( Val( cValue ) )
+                  IF nTmp >= 0
+                     ::nDebugMode := nTmp
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "HARDCOMMIT"
-                  lHardCommit := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "OPTIMIZE"
-                  lOptimize := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "AUTORDER"
-                  nAutOrder := Val( aIni[ i, 2, j, 2 ] )
-               ELSEIF aIni[ i, 2, j, 1 ] == "MEMO_BSIZE"
-                  nMemoBlocksize := Val( aIni[ i, 2, j, 2 ] )
-                  IF nMemoBlocksize > 65536
-                     nMemoBlocksize := 65536
-                  ELSEIF nMemoBlocksize < 32
-                     nMemoBlocksize := 0  // default for memotype
+                  EXIT
+               CASE "HARDCOMMIT"
+                  ::lHardCommit := ( cValue == '1' )
+                  EXIT
+               CASE "OPTIMIZE"
+                  ::lOptimize := ( cValue == '1' )
+                  EXIT
+               CASE "AUTORDER"
+                  nTmp := INT( Val( cValue ) )
+                  IF nTmp >= 0 .AND. nTmp < 65535
+                     ::nAutOrder := nTmp
+                  ENDIF
+                  EXIT
+               CASE "MEMO_BSIZE"
+                  nTmp := INT( Val( cValue ) )
+                  IF nTmp > 65536
+                     nTmp := 65536
+                  ELSEIF nTmp < 32
+                     nTmp := 0  /* default size for memotype */
                   ELSE
-                     nMemoBlockSize := Int( nMemoBlocksize / 32 ) * 32
+                     nTmp := Int( nTmp / 32 ) * 32
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "MEMO_TYPE"
-                  IF Lower( aIni[ i, 2, j, 2 ] ) $ 'dbt'
-                     nMemoType := DB_MEMO_DBT
-                  ELSEIF Lower( aIni[ i, 2, j, 2 ] ) $ 'fpt'
-                     nMemoType := DB_MEMO_FPT
-                  ELSEIF Lower( aIni[ i, 2, j, 2 ] ) $ 'smt'
-                     nMemoType := DB_MEMO_SMT
+                  ::nMemoBlkSize := nTmp
+                  EXIT
+               CASE "MEMO_TYPE"
+                  IF Lower( cValue ) $ 'dbt'
+                     ::nMemoType := DB_MEMO_DBT
+                  ELSEIF Lower( cValue ) $ 'fpt'
+                     ::nMemoType := DB_MEMO_FPT
+                  ELSEIF Lower( cValue ) $ 'smt'
+                     ::nMemoType := DB_MEMO_SMT
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "FORCEOPT"
-                  lForceOpt := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "ALLOW_UDF"
-                  lUDFEnabled := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "TRIGGER"
-                  ::cTrigger := aIni[ i, 2, j, 2 ]
-               ELSEIF aIni[ i, 2, j, 1 ] == "ZOMBIE_CHECK"
-                  ::nZombieCheck := Val( aIni[ i, 2, j, 2 ] )
-               ELSEIF aIni[ i, 2, j, 1 ] == "BC_SERVICES"
-                  ::cBCService := aIni[ i, 2, j, 2 ]
-                  IF RIGHT( ::cBCService, 1 ) != ";"
+                  EXIT
+               CASE "FORCEOPT"
+                  ::lForceOpt := ( cValue == '1' )
+                  EXIT
+               CASE "ALLOW_UDF"
+                  ::lUDFEnabled := ( cValue == '1' )
+                  EXIT
+               CASE "TRIGGER"
+                  ::cTrigger := cValue
+                  EXIT
+               CASE "ZOMBIE_CHECK"
+                  ::nZombieCheck := INT( Val( cValue ) )
+                  EXIT
+               CASE "BC_SERVICES"
+                  ::cBCService := cValue
+                  IF Right( ::cBCService, 1 ) != ";"
                      ::cBCService += ";"
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "BC_INTERFACE"
-                  ::cBCInterface := aIni[ i, 2, j, 2 ]
+                  EXIT
+               CASE "BC_INTERFACE"
+                  ::cBCInterface := cValue
                   IF ! leto_isValidIP4( ::cBCInterface )
                      ::cBCInterface := IPForInterface( ::cBCInterface )
                   ENDIF
-               ELSEIF aIni[ i, 2, j, 1 ] == "BC_PORT"
-                  ::nBCPort := VAL( aIni[ i, 2, j, 2 ] )
-               ELSEIF aIni[ i, 2, j, 1 ] == "SMB_SERVER"
-                  lSMBServer := ( aIni[ i, 2, j, 2 ] == '1' )
-               ELSEIF aIni[ i, 2, j, 1 ] == "SMB_PATH"
-                  cSMBPath := StrTran( aIni[ i, 2, j, 2 ], DEF_CH_SEP, DEF_SEP )
-                  IF AT( ":", cSMBPath ) < 2 .OR. RIGHT( cSMBPath, 1 ) == ":"
-                     cSMBPath := ""
+                  EXIT
+               CASE "BC_PORT"
+                  nTmp := INT( Val( cValue ) )
+                  IF nTmp >= 1024
+                     ::nBCPort := nTmp
                   ENDIF
-               ENDIF
+                  EXIT
+               CASE "SMB_SERVER"
+                  ::lSMBServer := ( cValue == '1' )
+                  EXIT
+               CASE "SMB_PATH"
+                  cTmp := StrTran( cValue, DEF_CH_SEP, DEF_SEP )
+                  IF AT( ":", cTmp ) < 2 .OR. Right( cTmp, 1 ) == ":"
+                     cTmp := ""
+                  ENDIF
+                  ::cSMBPath := cTmp
+                  EXIT
+               ENDSWITCH
+
             NEXT
          ELSEIF aIni[ i, 1 ] == "DATABASE"
             cPath := nDriver := Nil
@@ -639,8 +708,8 @@ METHOD New() CLASS HApp
                      cPath := Left( cPath, Len( cPath ) - 1 )
                   ENDIF
                ELSEIF aIni[ i, 2, j, 1 ] == "DRIVER"
-                  nDriver := iif( ( cTemp := Lower( aIni[ i, 2, j, 2 ] ) ) == "cdx", ;
-                     0, iif( cTemp == "ntx", LETO_NTX, Nil ) )
+                  nDriver := iif( ( cTmp := Lower( aIni[ i, 2, j, 2 ] ) ) == "cdx", ;
+                     0, iif( cTmp == "ntx", LETO_NTX, Nil ) )
                ENDIF
             NEXT
             IF cPath != Nil
@@ -660,20 +729,9 @@ METHOD New() CLASS HApp
    IF ::lLower
       SET( _SET_FILECASE, 1 )
       SET( _SET_DIRCASE, 1 )
-      ENDI
-#if 0
-      IF ::lNoSaveWA
-         ::lShare := .T.
-      ENDIF
-#endif
+   ENDIF
 
-      leto_SetAppOptions( iif( Empty( ::DataPath ), "", ::DataPath ), ::nDriver, ::lFileFunc, ;
-         ::lAnyExt, ::lPass4L, ::lPass4M, ::lPass4D, ::cPassName, ::lCryptTraffic, ;
-         ::lShare, ::lNoSaveWA, nMaxVars, nMaxVarSize, nCacheRecords, nTables_max, nUsers_max, ;
-         ::nDebugMode, lOptimize, nAutOrder, nMemoType, lForceOpt, ::nBigLock, lUDFEnabled, nMemoBlocksize,;
-         ::lLower, ::cTrigger, lHardCommit, lSMBServer, cSMBPath )
-
-      RETURN Self
+   RETURN Self
 
 FUNCTION leto_SetEnv( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
 
@@ -732,7 +790,7 @@ FUNCTION leto_ClearEnv( xScope, xScopeBottom, xOrder, cFilter )
    ENDIF
 
    IF ValType( cFilter ) == "C"
-      IF VALTYPE( cOldFilter ) == "C" .AND. ! Empty( cOldFilter )
+      IF ValType( cOldFilter ) == "C" .AND. ! Empty( cOldFilter )
          dbSetFilter( &( "{||" + cOldFilter + "}" ), cOldFilter )
          cOldFilter := NIL
       ELSE

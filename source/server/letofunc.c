@@ -3,7 +3,7 @@
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
  *
- * modification and additions 2015-17 Rolf 'elch' Beckmann
+ * modification and additions 2015-18 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1597,11 +1597,9 @@ static PAREASTRU leto_Select( PUSERSTRU pUStru, HB_ULONG ulAreaID, const char * 
          AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
 
          if( ! pArea )
-            pArea = NULL;
-#if 1
-         if( pArea && s_iDebugMode > 20 )
+            pAStru = NULL;
+         else if( s_iDebugMode > 20 )
             leto_wUsLog( pUStru, -1,"DEBUG leto_Select( %s ) found in %lu ", pArea->atomAlias, pAStru->ulAreaID );
-#endif
       }
       else
          pAStru = NULL;
@@ -1622,10 +1620,8 @@ static PAREASTRU leto_Select( PUSERSTRU pUStru, HB_ULONG ulAreaID, const char * 
          pAStru = leto_FindArea( pUStru, ulAreaID );
       if( pAStru && leto_SelectArea( pUStru, pAStru->ulSelectID ) )
       {
-#if 1
          if( s_iDebugMode > 20 )
             leto_wUsLog( pUStru, -1,"DEBUG leto_Select( %s ) pAStru area %lu (%lu) ", szAlias, pAStru->ulAreaID, pAStru->ulSelectID );
-#endif
       }
       else
          pAStru = NULL;
@@ -11383,41 +11379,6 @@ static void leto_TransNoSort( PUSERSTRU pUStru, char * szData )
    leto_Trans( pUStru, szData, HB_FALSE );
 }
 
-/* note : only used for udf_reload() */
-static void leto_runFunc( PUSERSTRU pUStru, PHB_DYNS * ppSym, const char * szCommand, const char * szData, HB_ULONG ulLen )
-{
-#if 1
-   if( pUStru && leto_IsServerLock( pUStru ) )
-   {
-      leto_SendAnswer( pUStru, szErr4, 4 );
-      return;
-   }
-#endif
-   if( pUStru )
-      letoSetUStru( pUStru );  /* UDF functions then can retrieve it */
-
-   if( ! ( *ppSym ) )
-      *ppSym = hb_dynsymFindName( szCommand );
-
-   if( *ppSym )
-   {
-      hb_vmPushDynSym( *ppSym );
-      hb_vmPushNil();
-      if( pUStru )
-      {
-         hb_vmPushString( szData, ulLen );
-         hb_vmDo( 1 );
-         leto_SendAnswer( pUStru, hb_parc( -1 ), hb_parclen( -1 ) );
-      }
-      else
-      {
-         HB_GC_LOCKT();
-         hb_vmDo( 0 );
-         HB_GC_UNLOCKT();
-      }
-   }
-}
-
 /* the thread for 'headless' UDF threads */
 static HB_THREAD_STARTFUNC( threadX )
 {
@@ -14571,16 +14532,32 @@ HB_FUNC( LETO_ORDCREATE )
    hb_retl( bRet );
 }
 
-/* only used local */
 static void leto_UdfReload( PUSERSTRU pUStru, char * szData )
 {
-   PHB_DYNS pSym_Freload = NULL;
+   PHB_DYNS pSym = hb_dynsymFindName( "LETO_UDFRELOAD" );
 
-   leto_runFunc( NULL, &pSym_Freload, "HS_UDFRELOAD", szData, strlen( szData ) );
+   if( pSym )
+   {
+      int iLen = strlen( szData );
+
+      HB_GC_LOCKT();
+
+      hb_vmPushDynSym( pSym );
+      hb_vmPushNil();
+      if( iLen )
+      {
+         hb_vmPushString( szData, iLen );
+         hb_vmDo( 1 );
+      }
+      else
+         hb_vmDo( 0 );
+
+      HB_GC_UNLOCKT();
+   }
+
    pUStru->bNoAnswer = HB_TRUE;
 }
 
-/* only used local */
 static void leto_StopServer( PUSERSTRU pUStru, char * szData )
 {
    HB_SYMBOL_UNUSED( szData );

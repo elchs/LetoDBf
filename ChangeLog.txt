@@ -2,6 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-03-02 20:32 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/leto_2.c
+    ! file upload missing for last commit
+    * formatting and refinement in LETO_SENDMESSAGE()
+
+  * source/server/letofunc.c
+  * source/server/server.prg
+    * re-fix UDF reload with different filename than default letoudf.hrb
+    * formatting & clean-up
+    * dissolve leto_runFunc() into leto_UdfReload()
+    * move leto_SetAppOptions() out of HApp:New() into: StartServer(),
+      the only place where to call it; all params got class vars
+    * name space: rename HS_UDFRELOAD to LETO_UDFRELOAD
+    * change leto_hrbLoad() and leto_UdfReload() from FUNC to PROC
+
 2018-02-26 19:56 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     * (msvc) vartype warning ( HB_USHORT <-> int ) in letoCreateAliasWA()
