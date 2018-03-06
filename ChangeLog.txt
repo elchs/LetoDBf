@@ -2,6 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-03-06 10:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/leto_2.c
+    * one more 'char *' possible as 'const char *'
+
+  * source/server/letofunc.c
+    * make DBI_LOCKCOUNT/ DBI_GETLOCKARRAY Harbour conform
+      ; formerly returned was the locks -count/-list of *all* table users
+    % inlining leto_GotoIf()
+    % leto_RecordLen() dissolve into leto_InitTable()/ leto_OpenTable()
+    % leto_LastUpdate() dissolve into leto_OpenTable()/ leto_CreateTable()
+    * formatting
+
+  * source/client/leto1.c
+    * DBI_GETLOCKARRAY: ascend sort array now received in descend order
+
 2018-03-02 20:32 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/leto_2.c
     ! file upload missing for last commit

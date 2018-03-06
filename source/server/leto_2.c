@@ -1292,10 +1292,9 @@ static HB_THREAD_STARTFUNC( thread3 )
                   lTmp = hb_socketRecv( hSocket, pBuffer, ulRecvLen, 0, 100 );
                   if( lTmp > 2 && *pBuffer == LETOCMD_intro )
                   {
-                     char * ptr = pBuffer + 1;
+                     const char * ptr = pBuffer + 1;
 
                      pBuffer[ lTmp ] = '\0';
-                     //if( ( ptr = strchr( pBuffer, ';' ) ) != NULL )
                      if( *ptr++ == ';' )
                      {
                         int          iServerPort = atoi( ptr );

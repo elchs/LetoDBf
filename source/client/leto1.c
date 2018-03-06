@@ -2595,7 +2595,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
          ptr = leto_firstchar( pConnection );
          if( *( ptr - 1 ) == '+' )
          {
-            HB_ULONG ulCount;
+            HB_ULONG ulCount, ulPos = 1;
 
             ulCount = strtoul( ptr, &ptr, 10 );
             if( uiIndex == DBI_LOCKCOUNT )
@@ -2605,10 +2605,9 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
             }
 
             hb_arrayNew( pItem, ulCount );
-            while( ptr && ulCount )
+            while( ptr && ulCount-- )
             {
-               hb_arraySetNL( pItem, ulCount, strtoul( ++ptr, &ptr, 10 ) );
-               ulCount--;
+               hb_arraySetNL( pItem, ulPos++, strtoul( ++ptr, &ptr, 10 ) );
             }
          }
          break;

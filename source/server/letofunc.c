@@ -1708,21 +1708,6 @@ static HB_BOOL leto_CheckClientVer( PUSERSTRU pUStru, HB_USHORT uiVer )
 }
 #endif
 
-static long leto_LastUpdate( AREAP pArea )
-{
-   long lJulian = 0;
-
-   if( pArea )
-   {
-      PHB_ITEM pItem = hb_itemNew( NULL );
-
-      SELF_INFO( pArea, DBI_LASTUPDATE, pItem );
-      lJulian = hb_itemGetDL( pItem );
-      hb_itemRelease( pItem );
-   }
-   return lJulian;
-}
-
 static HB_ULONG leto_MemoInfo( AREAP pArea, char * szTemp )
 {
    PHB_ITEM     pItem = hb_itemNew( NULL );
@@ -1978,19 +1963,6 @@ static HB_BOOL leto_ProdIndex( const char * szTable, const char * szBagName )
       return HB_TRUE;
    else
       return HB_FALSE;
-}
-
-/* physical record length including delete flag */
-static HB_USHORT leto_RecordLen( AREAP pArea )
-{
-   PHB_ITEM  pItem = hb_itemNew( NULL );
-   HB_USHORT uiRecordLen;
-
-   SELF_INFO( pArea, DBI_GETRECSIZE, pItem );
-   uiRecordLen = ( HB_USHORT ) hb_itemGetNI( pItem );
-   hb_itemRelease( pItem );
-
-   return uiRecordLen;
 }
 
 static HB_ULONG leto_GetOrdInfoNL( AREAP pArea, HB_USHORT uiCommand )
@@ -2338,9 +2310,8 @@ static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char 
       else
          *pData++ = '#';
 
-      ulRealLen = pData - szData - SHIFT_FOR_LEN;
-      HB_PUT_LE_UINT24( szData, ( HB_U32 ) ulRealLen );
-      ulRealLen += SHIFT_FOR_LEN;
+      ulRealLen = pData - szData;
+      HB_PUT_LE_UINT24( szData, ( HB_U32 ) ulRealLen - SHIFT_FOR_LEN );
    }
    else
       ulRealLen = 0;
@@ -3031,7 +3002,6 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
    pTStru->bReadonly = bReadonly;
    letoListInit( &pTStru->LocksList, sizeof( HB_ULONG ) );
    letoListInit( &pTStru->IndexList, sizeof( INDEXSTRU ) );
-   pTStru->uiRecordLen = leto_RecordLen( pArea );
    SELF_FIELDCOUNT( pArea, &pTStru->uiFields );
 
    pTStru->ulFlags = 0;
@@ -3042,7 +3012,11 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
       s_uiTablesMax = uiTable + 1;
    s_uiTablesCurr++;
 
-   pItem = hb_itemPutNI( NULL, 0 );
+   pItem = hb_itemNew( NULL );
+   SELF_INFO( pArea, DBI_GETRECSIZE, pItem );  /* including delete flag */
+   pTStru->uiRecordLen = ( HB_USHORT ) hb_itemGetNI( pItem );
+
+   pItem = hb_itemPutNI( pItem, 0 );
    SELF_INFO( pArea, DBI_MEMOTYPE, pItem );
 
    pTStru->pGlobe = leto_InitGlobe( szName, pTStru->uiCrc, uiTable, uiLen, szCdp, ( unsigned char ) hb_itemGetNI( pItem ) );
@@ -3834,7 +3808,6 @@ HB_FUNC( LETO_ADDDATABASE )
    }
 }
 
-/* ToDo actually not used */
 static HB_USHORT leto_getDriver( const char * szPath )
 {
    unsigned int iLen, iLenPath;
@@ -4001,7 +3974,7 @@ HB_FUNC( LETO_RELEASEDATA )  /* during server down */
    }
 }
 
-static HB_ERRCODE leto_GotoIf( AREAP pArea, HB_ULONG ulRecNo )
+static _HB_INLINE_ HB_ERRCODE leto_GotoIf( AREAP pArea, HB_ULONG ulRecNo )
 {
    HB_ULONG ulOldRecNo;
 
@@ -6908,7 +6881,7 @@ static void leto_Seek( PUSERSTRU pUStru, char * szData )
 
          if( pKey )
          {
-            HB_BOOL bMutex = ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO && pAStru->itmFltExpr );
+            HB_BOOL bMutex = ( ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) && pAStru->itmFltExpr );
 
             /* see note in leto_Skip(), here the same */
             if( bMutex )
@@ -7050,7 +7023,7 @@ static void leto_Skip( PUSERSTRU pUStru, char * szData )
       }
       ptr += 2;
       bHotBuffer = *ptr == 'T';
-      bMutex = ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO && pAStru->itmFltExpr );
+      bMutex = ( ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) && pAStru->itmFltExpr );
 
       if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
          leto_SetAreaEnv( pAStru, pArea, pUStru );
@@ -8271,10 +8244,10 @@ static HB_USHORT leto_DriverID( PUSERSTRU pUStru )
 
 static void leto_Mgmt( PUSERSTRU pUStru, char * szData )
 {
-   char *       ptr = NULL;
-   HB_BOOL      bShow;
-   char         * pp1 = NULL, * pp2 = NULL, * pp3 = NULL;
-   int          nParam = leto_GetParam( szData, &pp1, &pp2, &pp3, NULL );
+   char *  ptr = NULL;
+   HB_BOOL bShow;
+   char *  pp1 = NULL, * pp2 = NULL, * pp3 = NULL;
+   int     nParam = leto_GetParam( szData, &pp1, &pp2, &pp3, NULL );
 
    if( ( s_bPass4M && ! ( pUStru->szAccess[ 0 ] & 0x2 ) ) || nParam < 1 || *szData != '0' )
       leto_SendAnswer( pUStru, szErrAcc, 4 );
@@ -10221,9 +10194,9 @@ static void leto_Relation( PUSERSTRU pUStru, char * szData )
       {
          case '1':  /* set relation */
          {
-            char *       szTmp = szData;
-            char *       pp1 = NULL, * pp2 = NULL;
-            int          nParam, iAreaChild;
+            char * szTmp = szData;
+            char * pp1 = NULL, * pp2 = NULL;
+            int    nParam, iAreaChild;
 
             for( ;; )
             {
@@ -11450,10 +11423,10 @@ static HB_THREAD_STARTFUNC( threadX )
 
 static void leto_Udf( PUSERSTRU pUStru, char * szData, HB_ULONG ulAreaID )
 {
-   char * pp2 = NULL, * pp3 = NULL, * pp4 = NULL, * pp5 = NULL, * pp6 = NULL;
-   char *       ptr = NULL;
-   int          nParam;
-   HB_BYTE      uCommand = ( ( HB_BYTE ) szData[ 0 ] & 0xFF ) - 48;
+   char *  pp2 = NULL, * pp3 = NULL, * pp4 = NULL, * pp5 = NULL, * pp6 = NULL;
+   char *  ptr = NULL;
+   int     nParam;
+   HB_BYTE uCommand = ( ( HB_BYTE ) szData[ 0 ] & 0xFF ) - 48;
 
    if( ! uCommand || strlen( szData ) <  4 )
    {
@@ -11679,7 +11652,7 @@ static void leto_Udf( PUSERSTRU pUStru, char * szData, HB_ULONG ulAreaID )
 
             if( pArea )
             {
-               if( ! ( s_bNoSaveWA && pAStru && ! pAStru->pTStru->bMemIO ) )
+               if( pAStru && ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
                   leto_ClearAreaEnv( pArea, pTag );
             }
          }
@@ -11791,44 +11764,43 @@ static void leto_Info( PUSERSTRU pUStru, char * szData )
          case DBI_LOCKCOUNT:
          case DBI_GETLOCKARRAY:
          {
+            LETO_LIST       LocksList;
             PLETO_LOCK_ITEM pLockA;
-            char * szData1;
-            char * ptr;
-            int    iLen = 0;
+            char *          szData1, * ptr;
+            int             iLen = 0;
 
+#ifdef LETO_LOCKS_GLOBAL  /* not HB conform -- need mutex */
             HB_GC_LOCKT();
-            /* ToDo ? alternative use: pArray = hb_itemArrayNew(0); SELF_INFO( pArea, DBI_GETLOCKARRAY, pArray ) */
-            /*                       : DBFAREAP pArea->ulNumLocksPos */
-            letoListLock( &pUStru->pCurAStru->pTStru->LocksList );
+            LocksList = pUStru->pCurAStru->pTStru->LocksList;
+            letoListLock( &LocksList );
+#else
+            LocksList = pUStru->pCurAStru->LocksList;
+#endif
 
-            for( pLockA = ( PLETO_LOCK_ITEM ) pUStru->pCurAStru->pTStru->LocksList.pItem;
-                 pLockA; pLockA = pLockA->pNext )
+            for( pLockA = ( PLETO_LOCK_ITEM ) LocksList.pItem; pLockA; pLockA = pLockA->pNext )
             {
                iLen++;
             }
 
-            if( uiCommand == DBI_GETLOCKARRAY )
-            {
-               szData1 = ( char * ) hb_xgrab( ( iLen * 11 ) + 13 );
-               ptr = szData1;
-               ptr += sprintf( ptr, "+%d;", iLen );
+            ptr = szData1 = ( char * ) hb_xgrab( 24 );
+            ptr += sprintf( szData1, "+%d;", iLen );
 
-               for( pLockA = ( PLETO_LOCK_ITEM ) pUStru->pCurAStru->pTStru->LocksList.pItem;
-                    pLockA; pLockA = pLockA->pNext )
+            if( uiCommand == DBI_GETLOCKARRAY && iLen )
+            {
+               szData1 = ( char * ) hb_xrealloc( szData1, ( iLen * 12 ) + 24 );
+               ptr = szData1 + strlen( szData1 );
+
+               for( pLockA = ( PLETO_LOCK_ITEM ) LocksList.pItem; pLockA; pLockA = pLockA->pNext )
                {
                   ptr += ultostr( pLockA->ulRecNo, ptr );
                   *ptr++ = ';';
                }
             }
-            else
-            {
-               szData1 = ( char * ) hb_xgrab( 13 );
-               ptr = szData1;
-               ptr += sprintf( szData1, "+%d;", iLen );
-            }
 
-            letoListUnlock( &pUStru->pCurAStru->pTStru->LocksList );
+#ifdef LETO_LOCKS_GLOBAL
+            letoListUnlock( &LocksList );
             HB_GC_UNLOCKT();
+#endif
             leto_SendAnswer( pUStru, szData1, ptr - szData1 );
             hb_xfree( szData1 );
             break;
@@ -12654,7 +12626,8 @@ static void leto_OpenTable( PUSERSTRU pUStru, char * szRawData )
          pUStru->uiDriver = uiNtxType;
          *ptr++ = ';';
          ptr += leto_MemoInfo( pArea, ptr );
-         ptr += ultostr( leto_LastUpdate( pArea ), ptr );
+         SELF_INFO( pArea, DBI_LASTUPDATE, pFldDec );
+         ptr += ultostr( hb_itemGetDL( pFldDec ), ptr );
          *ptr++ = ';';
          SELF_FIELDCOUNT( pArea, &uiFieldCount );
          ptr += eprintf( ptr, "%u", uiFieldCount );
@@ -12662,7 +12635,9 @@ static void leto_OpenTable( PUSERSTRU pUStru, char * szRawData )
          ulLenLen = ptr - szReply;
 
          /* estimate max needed length -- see leto_recLen() for explanation .. */
-         if( ( ulLen = ulLenLen + leto_RecordLen( pArea ) + 25 + ( uiFieldCount * 30 ) ) > uiReplyBufLen )
+         SELF_INFO( pArea, DBI_GETRECSIZE, pFldLen );
+         ulRecLen = hb_itemGetNL( pFldLen );
+         if( ( ulLen = ulLenLen + ulRecLen + 25 + ( uiFieldCount * 30 ) ) > uiReplyBufLen )
          {
             uiReplyBufLen = ulLen;
             szReply = ( char * ) hb_xrealloc( szReply, uiReplyBufLen + 1 );
@@ -12926,7 +12901,6 @@ static void leto_CreateTable( PUSERSTRU pUStru, char * szRawData )
    PHB_FNAME    pFilePath;
    HB_USHORT    ui, uiFieldCount, uiNtxType;
    HB_ERRCODE   errcode = HB_SUCCESS;
-   PHB_ITEM     pDelim = NULL;
    PHB_ITEM     pFields;
    HB_ULONG     ulLenLen = 4;
    HB_ULONG     ulAreaID = 0;
@@ -13180,7 +13154,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, char * szRawData )
 
          hb_xvmSeqBegin();
          errcode = hb_rddCreateTable( szFileName, szDriver, uiArea, szRealAlias, bKeepOpen,
-                                                  szCdp, 0 /*ulConnection*/, pFields, pDelim );
+                                                  szCdp, 0 /*ulConnection*/, pFields, NULL /* pDelim */ );
          hb_xvmSeqEnd();
          if( pUStru->iHbError )
             errcode = HB_FAILURE;
@@ -13256,6 +13230,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, char * szRawData )
       else
       {
          HB_ULONG ulRecLen;
+         PHB_ITEM pItem = hb_itemNew( NULL );
 
          pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
 
@@ -13267,7 +13242,9 @@ static void leto_CreateTable( PUSERSTRU pUStru, char * szRawData )
          pUStru->uiDriver = uiNtxType;
          *ptr++ = ';';
          ptr += leto_MemoInfo( pArea, ptr );
-         ptr += ultostr( leto_LastUpdate( pArea ), ptr );
+         SELF_INFO( pArea, DBI_LASTUPDATE, pItem );
+         ptr += ultostr( hb_itemGetDL( pItem ), ptr );
+         hb_itemRelease( pItem );
          *ptr++ = ';';
 
          ulLenLen = ptr - szReply;
