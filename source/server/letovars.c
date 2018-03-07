@@ -131,7 +131,7 @@ static HB_ULONG         s_ulVarLenAllMax = 0x4000000;  /* 64 MB size of all stri
    #define HB_GC_UNLOCKV()     hb_threadLeaveCriticalSection( &s_VarMtx )
 #endif
 
-extern int leto_GetParam( char * szData, char ** pp2, char ** pp3, char ** pp4, char ** pp5 );
+extern int leto_GetParam( char * szData, ... );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
 extern void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB_BOOL bAllFine, int iError );
 extern PUSERSTRU letoGetsUStru( void );  /* fetch the static TLS in letofunc */

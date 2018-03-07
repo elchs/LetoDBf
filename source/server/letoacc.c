@@ -72,7 +72,7 @@ static HB_BOOL   s_fLockConnect = HB_FALSE;
    #define HB_GC_UNLOCKA()  hb_threadLeaveCriticalSection( &s_accMtx )
 #endif
 
-extern int leto_GetParam( char * szData, char ** pp2, char ** pp3, char ** pp4, char ** pp5 );
+extern int leto_GetParam( char * szData, ... );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
 extern HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs );
 extern HB_BOOL leto_CheckPass( int iType );
@@ -765,9 +765,9 @@ void leto_acc_release( void )
 void leto_Admin( PUSERSTRU pUStru, char * szData )
 {
    const char * pData;
-   char         * pp1, * pp2, * pp3, * pp4;
+   char         * pp1, * pp2, * pp3;
    HB_ULONG     ulLen;
-   int          nParam = leto_GetParam( szData, &pp1, &pp2, &pp3, &pp4 );
+   int          nParam = leto_GetParam( szData, &pp1, &pp2, &pp3, NULL );
 
    if( leto_CheckPass( 2 ) || ( pUStru->szAccess[ 0 ] & 1 ) )
    {
@@ -882,7 +882,7 @@ void leto_ToggleZip( PUSERSTRU pUStru, char * szData )
    HB_ULONG ulLen;
    char *   pp1;
 
-   leto_GetParam( szData, &pp1, NULL, NULL, NULL );
+   leto_GetParam( szData, &pp1, NULL );
 
 #ifdef USE_LZ4
    if( iZipRecord >= -1 && iZipRecord <= 15 )

@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-03-07 23:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letoacc.c
+  * source/server/letofunc.c
+  * source/server/letovars.c
+    * make leto_GetParam() variadic: use variable argument list [va_arg()]
+      ; last list argument for leto_GetParam() must be <NULL> to terminate
+    * minor changes using above advantage in leto_Intro()/ leto_Ordfunc()
+    * remove nParam var if result of leto_GetParam() is just once checked
+    * some clean-up in leto_CreateIndex()
+
 2018-03-06 10:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/leto_2.c
     * one more 'char *' possible as 'const char *'
