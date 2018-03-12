@@ -2139,7 +2139,7 @@ HB_FUNC( LETO_SERVER )
             while( ( ptr = strchr( szAddrSpace, ';' ) ) != NULL )
             {
                hb_strncpy( szAddrPart, szAddrSpace, HB_MIN( ptr - szAddrSpace, 15 ) );
-               if( strstr( szAddr, szAddrPart ) )
+               if( ! strncmp( szAddr, szAddrPart, strlen( szAddrPart ) ) )
                {
                   bOutSpace = HB_FALSE;
                   break;

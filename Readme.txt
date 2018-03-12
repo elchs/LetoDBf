@@ -489,7 +489,7 @@ A. Internals
      ;BC_Interface = eth2      -    experimental/ Linux: use only specific interface for response
      ;BC_Port = 2812           -    specify different than default port for UDP BC interfaces,
                                     by default the same port as configured for TCP port
-     ;IP_SPACE =               -    like a firewall: it contains an IP-address part which must be
+     ;IP_SPACE =               -    like a firewall: it contains an lefthand IP-address part which must be
                                     found in the IP which want to connect to the server.
                                     Multiple parts can be defined, delimited by ';' ( no extra spaces )
                                     Example for two NIC intranet: IP_SPACE = 192.168.0.;192.168.1.;
@@ -693,20 +693,13 @@ A. Internals
    If not wanted, if there is only one interface for internet and intranet, or having multiple
    interfaces for the intranet for load balancing, leave the IP option empty and set instead
    option: IP_SPACE to limit the allowed IP address-spaces.
+   This string contains lefthand parts of the allowed IP-address range, delimited with ';'.
 
    Further LetoDBf offers blowfish encrypted network traffic in CBC mode.
    This is activated on demand in conjunction with network compression, by using the secomd
    parameter in Leto_Togglezip( nLevel, cPassword ).
    Compression ( plus encryption ) can be activated immediate after a connection is established.
 
-   Preventing applications compiled by someone else from connecting to your server,
-   can be done by changing the hard-coded default for LETO_PASSWORD in file: include/funcleto.h
-   * Think about if this is really needed, as it complicates the build process/ distribution *
-   Keep at least the length ( it may be longer ) and use an non human-readable string.
-   This password is used during inital connect to the server ( and then mixed up with a for each
-   connection specific random string ). After changes, the server and client lib must be re-build.
-   * The file is part of LetoDBf distribution and will be overwritten with fresh source download,
-   so remember/ store seperately the changed password *
 
 
       5. How to work with the LetoDBf server

@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-03-12 14:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/leto_2.c
+    * take given part(s) of IP_SPACE as *lefthand* part, not some in between
+
+  * ReadMe.txt
+    * remove wrong comment about LETO_PASSWORD
+
 2018-03-12 12:34 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/leto_2.c
   * source/server/letofunc.c
