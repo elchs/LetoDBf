@@ -29,6 +29,7 @@ Contents
    4.2 Different Server setups
    4.3 Authentication
    4.4 Samba file service
+   4.5 Security
 5. How to work with the letodb server
    5.1 Connecting to the server from client programs
    5.2 Filters and Relations
@@ -333,10 +334,12 @@ A. Internals
       Currently following parameters exists ( default values are designated ).
 
       [MAIN]
-      IP =                     -    ! Leave it empty for Windows. !
-                                    IP address, where Letodb server listens for connections;
-                                    If not set, all net interfaces ( all IP addresses ) available on the
-                                    computer, are used.
+      IP =                     -    Interface given by IP address, where Letodb server listen for connections.
+                                    Empty ( default ) is recommended for intranet usage, then all interfaces
+                                    available at the computer, including the virtual 'loopback' device are used.
+                                    If set, only this interface ( given by IP address ) is used.
+                                    Unix user can alternatively use interface names like: 'eth1'
+                                    If internet is available at machine, read also section 4.5 Security
       Server =                 -    IP address used by tools like management console to find the server.
                                     This can be, but must not be, the same as used for config option 'IP'
                                     and is just for convenience.
@@ -480,13 +483,19 @@ A. Internals
                                     Such connection will be shut down, opened files and locks are reset-ed.
                                     If set to 0 [ default ], these checks are diabled.
 
-     ;BC_Services = letodb;         build-in 'Uhura' BroadCast servive, default <off> as outcommented:
+     ;BC_Services = letodb;    -    build-in 'Uhura' BroadCast servive, default <off> as outcommented:
                                     it activates BC BroadCast response service for list of 'service-names',
                                     each name to end with an ';' -- a request will get back the server-IP
-     ;BC_Interface = eth2           experimental/ Linux: use only specific interface for response
-     ;BC_Port = 2812                specify different than default port for UDP BC interfaces,
+     ;BC_Interface = eth2      -    experimental/ Linux: use only specific interface for response
+     ;BC_Port = 2812           -    specify different than default port for UDP BC interfaces,
                                     by default the same port as configured for TCP port
-
+     ;IP_SPACE =               -    like a firewall: it contains an IP-address part which must be
+                                    found in the IP which want to connect to the server.
+                                    Multiple parts can be defined, delimited by ';' ( no extra spaces )
+                                    Example for two NIC intranet: IP_SPACE = 192.168.0.;192.168.1.;
+     ;SMB_SERVER = 0           -    set this to 1 for concurrency usage with Samba, and read 4.4 Samba
+     ;SMB_PATH =               -    in conjunction with SMB_SERVER = 1, for both options read further
+                                    in 4.4 Samba file service
 
 
       4.2  Different Server compile setups/ extensions
@@ -673,6 +682,31 @@ A. Internals
    It set OS ErrorLevel as result to 1, if table is already <exclusive> used,
    then the just <shared> open was invalid and table must be immediate closed.
    See at top in tests/excltest.prg for further instructions how to use.
+
+
+      4.5 Security
+
+   By default LetoDBf listen to all interfaces with empty config option: IP
+   If the server have also an interface connected to the internet, it is recommended to
+   limit this to the interface ( given by IP-address or Unix device name ) with the intranet.
+   Doing so will also exclude the local loopback (lo) device.
+   If not wanted, if there is only one interface for internet and intranet, or having multiple
+   interfaces for the intranet for load balancing, leave the IP option empty and set instead
+   option: IP_SPACE to limit the allowed IP address-spaces.
+
+   Further LetoDBf offers blowfish encrypted network traffic in CBC mode.
+   This is activated on demand in conjunction with network compression, by using the secomd
+   parameter in Leto_Togglezip( nLevel, cPassword ).
+   Compression ( plus encryption ) can be activated immediate after a connection is established.
+
+   Preventing applications compiled by someone else from connecting to your server,
+   can be done by changing the hard-coded default for LETO_PASSWORD in file: include/funcleto.h
+   * Think about if this is really needed, as it complicates the build process/ distribution *
+   Keep at least the length ( it may be longer ) and use an non human-readable string.
+   This password is used during inital connect to the server ( and then mixed up with a for each
+   connection specific random string ). After changes, the server and client lib must be re-build.
+   * The file is part of LetoDBf distribution and will be overwritten with fresh source download,
+   so remember/ store seperately the changed password *
 
 
       5. How to work with the LetoDBf server
@@ -2060,6 +2094,12 @@ A. Internals
       https://github.com/lz4/lz4
  LetoDBF distributes only the 'lib' directory with BSD license of that contrib.
 
+      C. Note
+
+ ! Most important: NO WARRANTY from me on nothing -- decide yourself if LetoDBf fulfills your needs !.
+ So far YOU are the only responsible one for all what happens with and around LetoDBf at your places.
+
+ For the case you wish reliable *quick & personal* ! support from me, we should talk about 'donation'.
 
 
  whish all possible fun !

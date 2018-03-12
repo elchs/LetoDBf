@@ -90,6 +90,7 @@ static int       s_iServerPort = LETO_DEFAULT_PORT;
 static HB_SOCKET s_hSocketUDP = HB_NO_SOCKET;
 static char      s_szUDPService[ HB_PATH_MAX ] = { 0 };
 static char      s_UDPServer[ HB_PATH_MAX ] = { 0 };
+static char      s_szAddrSpace[ HB_PATH_MAX ] = { 0 };
 
 /* command description table */
 static const char * s_szCmdSetDesc[ LETOCMD_SETLEN ] = { 0 };
@@ -126,9 +127,11 @@ extern void leto_CommandSetInit( void );
 extern void leto_setTimeout( HB_ULONG iTimeOut );
 
 
-void leto_SrvSetPort( int iPort )
+void leto_SrvSetPort( int iPort, const char * szAddrSpace )
 {
    s_iServerPort = iPort;
+   if( szAddrSpace && *szAddrSpace )
+      hb_strncpy( s_szAddrSpace, szAddrSpace, HB_PATH_MAX - 1 );
 }
 
 HB_U64 leto_Statistics( int iEntry )
@@ -1647,7 +1650,7 @@ static HB_THREAD_STARTFUNC( thread2 )
                leto_writelog( NULL, -1, "DEBUG thread2() %s:%d terminated by mgmt(0)",
                               pUStru->szAddr, pUStru->iPort );
          }
-         else
+         else if( *pUStru->szExename )
          {
             int iErr = LETO_SOCK_GETERROR();
 
@@ -1662,6 +1665,9 @@ static HB_THREAD_STARTFUNC( thread2 )
                leto_writelog( NULL, -1, "ERROR thread2() Socket error: %s [%s:%s (%d)]",
                               hb_socketErrorStr( iErr ), pUStru->szAddr, pUStru->szExename, iErr );
          }
+         else if( iDebugMode() > 0 )
+            leto_writelog( NULL, -1, "DEBUG thread2() no LetoDBf client at %s:%d ! leto_SockRec(%lu) != LETO_MSGSIZE_LEN",
+                           pUStru->szAddr, pUStru->iPort, ulRecvLen );
          break;
       }
 
@@ -1687,7 +1693,7 @@ static HB_THREAD_STARTFUNC( thread2 )
             if( iDebugMode() > 0 )
                leto_writelog( NULL, 0, "DEBUG thread2() terminated by mgmt(1)" );
          }
-         else
+         else if( *pUStru->szExename )
          {
             int iErr = LETO_SOCK_GETERROR();
 
@@ -1717,10 +1723,16 @@ static HB_THREAD_STARTFUNC( thread2 )
       if( ulTmp != ulRecvLen )
       {
          hb_vmLock();
-         leto_writelog( NULL, -1, "ERROR thread2() leto_SockRec(%lu) != ulRecvLen(%lu) [%s:%s (%d)]",
-                        ulTmp, ulRecvLen, pUStru->szAddr, pUStru->szExename, LETO_SOCK_GETERROR() );
-         if( ulTmp )
-            leto_writelog( NULL, ulTmp, ( char * ) pUStru->pBuffer );
+         if( *pUStru->szExename )
+         {
+            leto_writelog( NULL, -1, "ERROR thread2() leto_SockRec(%lu) != ulRecvLen(%lu) [%s:%s (%d)]",
+                           ulTmp, ulRecvLen, pUStru->szAddr, pUStru->szExename, LETO_SOCK_GETERROR() );
+            if( ulTmp )
+               leto_writelog( NULL, ulTmp, ( char * ) pUStru->pBuffer );
+         }
+         else if( iDebugMode() > 0 )
+            leto_writelog( NULL, -1, "DEBUG thread2() no LetoDBf client at %s:%d ! leto_SockRec(%lu) != ulRecvLen(%lu)",
+                           pUStru->szAddr, pUStru->iPort, ulTmp, ulRecvLen );
          break;
       }
       else  /* !! here the request is successfull complete received !! */
@@ -1733,12 +1745,21 @@ static HB_THREAD_STARTFUNC( thread2 )
 
       if( ulRecvLen < 2 )  /* must be at least command char + ';' */
       {
-         leto_SendAnswer( pUStru, szErr1, 4 );
-         leto_writelog( NULL, -1, "ERROR thread2() command format: %lu too short [%s:%s (%d)]",
-                        ulRecvLen, pUStru->szAddr, pUStru->szExename, LETO_SOCK_GETERROR() );
-         if( ulRecvLen )
-            leto_writelog( NULL, ulRecvLen, ( char * ) pUStru->pBuffer );
-         continue;
+         if( *pUStru->szExename )
+         {
+            leto_SendAnswer( pUStru, szErr1, 4 );
+            leto_writelog( NULL, -1, "ERROR thread2() command format: %lu too short [%s:%s (%d)]",
+                           ulRecvLen, pUStru->szAddr, pUStru->szExename, LETO_SOCK_GETERROR() );
+            if( ulRecvLen )
+               leto_writelog( NULL, ulRecvLen, ( char * ) pUStru->pBuffer );
+            continue;
+         }
+         else
+         {
+            leto_writelog( NULL, -1, "DEBUG thread2() no LetoDBf client at %s:%d ! wrong command",
+                           pUStru->szAddr, pUStru->iPort );
+            break;
+         }
       }
 
       pUStru->ulDataLen = ulRecvLen;
@@ -2107,7 +2128,34 @@ HB_FUNC( LETO_SERVER )
       if( pSockAddr )
       {
          szAddr = hb_socketAddrGetName( pSockAddr, uiLen );
-         bExtraWait = ( ! strncmp( ( const char * ) szAddr, "127.0.0.1", 9 ) );
+         bExtraWait = ( ! strncmp( szAddr, "127.0.0.1", 9 ) );
+
+         if( ! bExtraWait && *s_szAddrSpace )
+         {
+            HB_BOOL bOutSpace = HB_TRUE;
+            char *  szAddrSpace = s_szAddrSpace;
+            char    szAddrPart[ 16 ], * ptr;
+
+            while( ( ptr = strchr( szAddrSpace, ';' ) ) != NULL )
+            {
+               hb_strncpy( szAddrPart, szAddrSpace, HB_MIN( ptr - szAddrSpace, 15 ) );
+               if( strstr( szAddr, szAddrPart ) )
+               {
+                  bOutSpace = HB_FALSE;
+                  break;
+               }
+               szAddrSpace = ptr + 1;
+            }
+
+            if( bOutSpace )
+            {
+               leto_writelog( NULL, -1, "ERROR illegal request from %s:%d ( limited by: %s)",
+                              szAddr, hb_socketAddrGetPort( pSockAddr, uiLen ), s_szAddrSpace );
+               hb_socketShutdown( incoming, HB_SOCKET_SHUT_RDWR );
+               hb_socketClose( incoming );
+               continue;
+            }
+         }
       }
       else
       {

@@ -353,7 +353,7 @@ PROCEDURE StartServer()
    ENDIF
    leto_InitSet()
    leto_HrbLoad()
-   leto_CreateData( oApp:cAddr, oApp:nPort )
+   leto_CreateData( oApp:cAddr, oApp:nPort, oApp:cAddrSpace )
 
    IF ! leto_Server( oApp:nPort, oApp:cAddr, oApp:nTimeOut, oApp:nZombieCheck, oApp:cBCService, oApp:cBCInterface, oApp:nBCPort )
       WrLog( "Socket error " + hb_socketErrorString( hb_socketGetError() ) )
@@ -487,6 +487,7 @@ CLASS HApp
    DATA lHardCommit   INIT .F.
    DATA lSMBServer    INIT .F.
    DATA cSMBPath      INIT ""
+   DATA cAddrSpace
 
    METHOD New()
 
@@ -527,7 +528,12 @@ METHOD New() CLASS HApp
                   ENDIF
                   EXIT
                CASE "IP"
-                  ::cAddr := cValue
+                  IF ! EMPTY( cValue )
+                     ::cAddr := cValue
+                     IF ! leto_isValidIP4( ::cAddr )
+                        ::cAddr := IPForInterface( ::cAddr )
+                     ENDIF
+                  ENDIF
                   EXIT
                CASE "TIMEOUT"
                   ::nTimeOut := INT( Val( cValue ) )
@@ -695,6 +701,12 @@ METHOD New() CLASS HApp
                      cTmp := ""
                   ENDIF
                   ::cSMBPath := cTmp
+                  EXIT
+               CASE "IP_SPACE"
+                  ::cAddrSpace := cValue
+                  IF Right( ::cAddrSpace, 1 ) != ";"
+                     ::cAddrSpace += ";"
+                  ENDIF
                   EXIT
                ENDSWITCH
 

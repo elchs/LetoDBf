@@ -2,6 +2,22 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-03-12 12:34 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+  * source/server/server.prg
+    * allow for *nix OS interface names ( e.g.: eth1 ) for config option: IP
+    * add new config option: IP_SPACE
+      ; contains ';' seperated list of parts of an IP to limit allowed
+        IP address space for connections
+    * throw different warning if non-LetoDBf client is connected
+    * remove obsolete checks 'if( PHB_ITEM )' befor hb_itemRelease()
+      ; in time critical moments it spares a function call for empty item,
+        but it will be verified again in hb_itemRelease() before
+
+  * ReadMe.txt
+    * new section 4.5 about security, and above news
+
 2018-03-07 23:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letoacc.c
   * source/server/letofunc.c
