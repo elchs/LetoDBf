@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-03-14 18:14 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    * call SELF_CLOSE() for failed SUPER_CREATE(), else apply WA flags
+    * use leto_SetAreaFlags() in letoOpen() instead direct assign
+    * remove obsolete checks 'if( PHB_ITEM )' before hb_itemRelease()
+    * unused headers
+
 2018-03-12 14:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/leto_2.c
     * take given part(s) of IP_SPACE as *lefthand* part, not some in between

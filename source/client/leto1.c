@@ -2,7 +2,7 @@
  * Harbour Leto RDD
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
- *           2015-17 Rolf 'elch' Beckmann
+ *           2015-18 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,16 +46,6 @@
  */
 
 #include "rddleto.h"
-#include <ctype.h>
-
-#if defined( HB_OS_UNIX )
-   #include <netinet/in.h>
-   #include <arpa/inet.h>
-#endif
-
-#if defined ( _MSC_VER )
-   #define _WINSOCKAPI_
-#endif
 
 #define SUPERTABLE   ( &s_letoSuper )
 
@@ -2468,7 +2458,14 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
    else
       pArea->area.cdPage = HB_CDP_PAGE();
 
-   return SUPER_CREATE( ( AREAP ) pArea, pCreateInfo );
+   if( SUPER_CREATE( ( AREAP ) pArea, pCreateInfo ) != HB_SUCCESS )
+   {
+      SELF_CLOSE( ( AREAP ) pArea );
+      return HB_FAILURE;
+   }
+
+   leto_SetAreaFlags( pArea );
+   return HB_SUCCESS;
 }
 
 #if ! defined( __HARBOUR30__ )
@@ -2484,7 +2481,7 @@ static void leto_dbfTransCheckCounters( LPDBTRANSINFO lpdbTransInfo )
       fCopyCtr = HB_FALSE;
    else if( pTable->fHaveAutoinc )
    {
-      PHB_ITEM pItem = NULL;
+      PHB_ITEM pItem = hb_itemNew( NULL );
 
       for( uiCount = 0; uiCount < lpdbTransInfo->uiItemCount; ++uiCount )
       {
@@ -2493,8 +2490,6 @@ static void leto_dbfTransCheckCounters( LPDBTRANSINFO lpdbTransInfo )
 
          if( ( pField->uiFlags & HB_FF_AUTOINC ) )
          {
-            if( pItem == NULL )
-               pItem = hb_itemNew( NULL );
             if( SELF_FIELDINFO( lpdbTransInfo->lpaSource,
                                 lpdbTransInfo->lpTransItems[ uiCount ].uiSource,
                                 DBS_COUNTER, pItem ) != HB_SUCCESS )
@@ -2504,8 +2499,7 @@ static void leto_dbfTransCheckCounters( LPDBTRANSINFO lpdbTransInfo )
             }
          }
       }
-      if( pItem != NULL )
-         hb_itemRelease( pItem );
+      hb_itemRelease( pItem );
    }
 
    if( fCopyCtr )
@@ -2963,10 +2957,8 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
          pTagInfo = pTagInfo->pNext;
       }
    }
-   pArea->area.fBof = pTable->fBof;
-   pArea->area.fEof = pTable->fEof;
-   pArea->area.fFound = pTable->fFound;
 
+   leto_SetAreaFlags( pArea );
    return HB_SUCCESS;
 }
 
@@ -3492,10 +3484,8 @@ static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
 
    if( bCyclic )
    {
-      if( pRelInf->abKey )
-         hb_itemRelease( pRelInf->abKey );
-      if( pRelInf->itmCobExpr )
-         hb_itemRelease( pRelInf->itmCobExpr );
+      hb_itemRelease( pRelInf->abKey );
+      hb_itemRelease( pRelInf->itmCobExpr );
       commonError( pArea, EG_SYNTAX, 1020, 0, NULL, 0, "Cyclic relation detected" );
 
       return HB_FAILURE;
@@ -3652,9 +3642,8 @@ static HB_BOOL letoProdSupport( void )
    pRDDNode = hb_rddFindNode( "LETO", &uiRddID );
    if( pRDDNode )
    {
-      PHB_ITEM pItem = NULL;
+      PHB_ITEM pItem = hb_itemPutC( NULL, NULL );
 
-      pItem = hb_itemPutC( pItem, NULL );
       if( SELF_RDDINFO( pRDDNode, RDDI_STRUCTORD, 0, pItem ) == HB_SUCCESS )
          fSupportStruct = hb_itemGetL( pItem );
       hb_itemRelease( pItem );
@@ -4489,11 +4478,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
          break;
 
       case DBOI_BAGEXT:
-         if( pOrderInfo->itmResult )
-            hb_itemClear( pOrderInfo->itmResult );
-         else
-            pOrderInfo->itmResult = hb_itemNew( NULL );
-         hb_itemPutC( pOrderInfo->itmResult, pTable->szOrderExt );
+         pOrderInfo->itmResult = hb_itemPutC( pOrderInfo->itmResult, pTable->szOrderExt );
          break;
 
       case DBOI_NUMBER:
@@ -6106,19 +6091,14 @@ HB_FUNC( LETO_DBEVAL )
       HB_BOOL          fSuccess = LetoUdf( pConnection, pArea->pTable, HB_FALSE, "LETO_DBEVAL", &pParams );
 
       if( fSuccess && pParams )
-         hb_itemReturnRelease( pParams );
-      else
       {
-         if( pParams )
-            hb_itemRelease( pParams );
-         hb_ret();
+         hb_itemReturnRelease( pParams );
+         return;
       }
    }
-   else
-   {
-      hb_itemRelease( pParams );
-      hb_ret();
-   }
+
+   hb_itemRelease( pParams );
+   hb_ret();
 }
 
 HB_FUNC( LETO_GROUPBY )
@@ -6356,9 +6336,8 @@ HB_FUNC( LETO_DBTRANS )
       errCode = hb_dbTransStruct( pSrcArea, pDstArea, &dbTransInfo, NULL, pFields );
       if( errCode == HB_SUCCESS )
       {
-#if ! defined( __HARBOUR30__ )
          PHB_ITEM pTransItm;
-#endif
+
          dbTransInfo.dbsci.itmCobFor   = hb_param( 3, HB_IT_BLOCK );
          dbTransInfo.dbsci.lpstrFor    = hb_param( 3, HB_IT_STRING );
          dbTransInfo.dbsci.itmCobWhile = hb_param( 4, HB_IT_BLOCK );
@@ -6380,6 +6359,8 @@ HB_FUNC( LETO_DBTRANS )
          /* call hb_dbfTransCheckCounters() to add DBTF_CPYCTR or remove DBTF_MATCH & DBTF_PUTREC */
          /* content of pTransItem will be afterwards boolean with state of previous fTransRec */
          errCode = SELF_INFO( dbTransInfo.lpaDest, DBI_TRANSREC, pTransItm );
+#else
+         pTransItm = NULL;
 #endif
          if( errCode == HB_SUCCESS )
          {
@@ -6394,10 +6375,7 @@ HB_FUNC( LETO_DBTRANS )
                hb_dbTransCounters( &dbTransInfo );
 #endif
          }
-#if ! defined( __HARBOUR30__ )
-         if( pTransItm )
-            hb_itemRelease( pTransItm );
-#endif
+         hb_itemRelease( pTransItm );
       }
 
       if( dbTransInfo.lpTransItems )
@@ -7051,12 +7029,10 @@ static HB_ERRCODE leto_doReopen( AREAP pArea, void * p )
                hb_arraySetNI( pRelation, 4, uiArea );
                hb_arraySetNL( pRelation, 5, ulRecNo );
                hb_arrayAdd( pRelationList, pRelation );
-               hb_itemRelease( pRelation );
 
-               if( pRelInf->itmCobExpr )
-                  hb_itemRelease( pRelInf->itmCobExpr );
-               if( pRelInf->abKey )
-                  hb_itemRelease( pRelInf->abKey );
+               hb_itemRelease( pRelation );
+               hb_itemRelease( pRelInf->itmCobExpr );
+               hb_itemRelease( pRelInf->abKey );
                hb_xfree( pRelInf );
             }
             pArea->lpdbRelations = NULL;
@@ -7181,18 +7157,14 @@ static HB_ERRCODE leto_doReopen( AREAP pArea, void * p )
          }
          else  /* HB_FAILURE to open table */
          {
-            if( pFilterBlock )
-               hb_itemRelease( pFilterBlock );
-            if( pFilterText )
-               hb_itemRelease( pFilterText );
+            hb_itemRelease( pFilterBlock );
+            hb_itemRelease( pFilterText );
          }
 
-         if( pOrderList )
-            hb_itemRelease( pOrderList );
+         hb_itemRelease( pOrderList );
+         hb_itemRelease( pItem );
          if( pLocksPos )
             hb_xfree( pLocksPos );
-         if( pItem )
-            hb_itemRelease( pItem );
       }
    }
 
