@@ -2,7 +2,7 @@
  * Leto db server core function, Harbour mt model
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
- *           2014-17 Rolf 'elch' Beckmann
+ *           2014-18 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -116,6 +116,7 @@ extern void leto_CloseUS( PUSERSTRU pUStru );
 extern HB_BOOL leto_ParseCommand( PUSERSTRU pUStru );
 extern PUSERSTRU leto_FindUserStru( HB_THREAD_ID hThreadID );
 extern void leto_wUsLog( PUSERSTRU pUStru, int n, const char * s, ... );
+extern HB_BOOL leto_wUsLogDelete( PUSERSTRU pUStru );
 extern void leto_CloseAllSocket( void );
 extern void leto_ForceCloseAllSocket( void );
 extern int leto_PingForZombies( long lTimeInactive );
@@ -1490,11 +1491,12 @@ static HB_THREAD_STARTFUNC( thread2 )
 
    hb_vmThreadInit( NULL );
    leto_initSet();
+   leto_wUsLogDelete( pUStru );
 
    /* prepare and send initial answer for fresh connect */
    {
-      char     szBuffer[ 64 ];
-      char     szTmp[ 16 ];
+      char     szBuffer[ 128 ];
+      char     szTmp[ 64 ];
       HB_ULONG ulLen;
 
       ulTmp = sprintf( szBuffer, "%s %s", LETO_RELEASE_STRING, LETO_VERSION_STRING );
@@ -1665,7 +1667,7 @@ static HB_THREAD_STARTFUNC( thread2 )
                leto_writelog( NULL, -1, "ERROR thread2() Socket error: %s [%s:%s (%d)]",
                               hb_socketErrorStr( iErr ), pUStru->szAddr, pUStru->szExename, iErr );
          }
-         else if( iDebugMode() > 0 )
+         else if( iDebugMode() > 0 && ulRecvLen )
             leto_writelog( NULL, -1, "DEBUG thread2() no LetoDBf client at %s:%d ! leto_SockRec(%lu) != LETO_MSGSIZE_LEN",
                            pUStru->szAddr, pUStru->iPort, ulRecvLen );
          break;

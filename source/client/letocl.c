@@ -4,7 +4,7 @@
  * Copyright 2013 Alexander S. Kresin <alex / at / kresin.ru>
  * www - http://www.kresin.ru
  *
- *           2015-17 Rolf 'elch' Beckmann
+ *           2015-18 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -77,8 +77,6 @@
 #if defined ( _MSC_VER )
    #define _WINSOCKAPI_
 #endif
-
-#define LETO_DEFAULT_TIMEOUT 120000;  /* two minutes */
 
 #ifndef LETO_NO_THREAD
    static PHB_ITEM s_pError = NULL;   /* elch's prepared GLOBAL error object from second thread */
@@ -751,52 +749,91 @@ void LetoExit( unsigned int uiFull )
 #endif
 
 /* Note: first answer from server is never compressed, no pConnection->zstream matters */
-static long leto_RecvFirst( LETOCONNECTION * pConnection )
+static void leto_RecvFirst( LETOCONNECTION * pConnection )
 {
    HB_SOCKET hSocket = pConnection->hSocket;
    long      lRet;
    char      szRet[ LETO_MSGSIZE_LEN + 1 ];
    char *    ptr = pConnection->szBuffer;
    HB_U32    ulMsgLen;
+   int       iTimeOut;
 
-   lRet = hb_socketRecv( hSocket, szRet, LETO_MSGSIZE_LEN, 0, pConnection->iTimeOut );
+   if( pConnection->iTimeOut <= 0 || pConnection->iTimeOut == LETO_DEFAULT_TIMEOUT )
+      iTimeOut = LETO_INITIAL_TIMEOUT;
+   else
+      iTimeOut = HB_MAX( 100, pConnection->iTimeOut );
+   iTimeOut = HB_MIN( LETO_DEFAULT_TIMEOUT / 10, iTimeOut );
+
+   lRet = hb_socketRecv( hSocket, szRet, LETO_MSGSIZE_LEN, 0, iTimeOut );
 
    if( lRet < LETO_MSGSIZE_LEN )
+      pConnection->iConnectRes = LETO_ERR_RECV;
+   else if( ( ulMsgLen = HB_GET_LE_UINT32( szRet ) ) < 1 )
+      pConnection->iConnectRes = LETO_ERR_RECV;
+   else if( ulMsgLen > pConnection->ulBufferLen )
+      pConnection->iConnectRes = LETO_ERR_RECV;
+   else
    {
-      printf( "hard fail after only <%ld> bytes\n", lRet ); fflush( stdout );
-      return 0;
-   }
-
-   pConnection->uiProto = 3;
-   pConnection->uiTBufOffset = 7;
-
-   ulMsgLen = HB_GET_LE_UINT32( szRet );
-   if( ! ulMsgLen || ( ulMsgLen > pConnection->ulBufferLen ) )
-   {
-#ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "ERROR intro server will transfer <%lu>, we offer: %lu",
-                      ulMsgLen, pConnection->ulBufferLen );
-#endif
-      /* about ulMsgLen == 17; should be expected */
-      return 0;
-   }
-
-   do
-   {
-      lRet = hb_socketRecv( hSocket, ptr, ulMsgLen, 0, pConnection->iTimeOut );
-      if( lRet <= 0 )
-         break;
-      else
+      do
       {
-         ptr += lRet;
-         ulMsgLen -= lRet;
+         lRet = hb_socketRecv( hSocket, ptr, ulMsgLen, 0, 1000 );
+         if( lRet <= 0 )
+         {
+            pConnection->iConnectRes = LETO_ERR_RECV;
+            break;
+         }
+         else
+         {
+            ptr += lRet;
+            ulMsgLen -= lRet;
+         }
       }
+      while( ulMsgLen );
+
+      *ptr = '\0';
    }
-   while( ulMsgLen );
 
-   *ptr = '\0';
+   if( ! pConnection->iConnectRes )
+   {
+      ptr = strchr( pConnection->szBuffer, ';' );
+      if( ptr )
+      {
+         HB_ULONG ulLen = ( HB_ULONG ) ( ptr - pConnection->szBuffer );
 
-   return ( long ) ( ptr - pConnection->szBuffer );
+         if( ulLen < 24 )
+         {
+            memcpy( pConnection->szVersion, pConnection->szBuffer, ulLen );
+            pConnection->szVersion[ ulLen ] = '\0';
+            ptr += 2;  /* no more usesd CryptTraf 'N' */
+            ulLen = strlen( ptr );
+         }
+         else
+            ulLen = 0;
+
+         if( ulLen )
+         {
+            char * szPassTmp = ( char * ) hb_xgrab( ulLen );
+
+            leto_hexchar2byte( ptr, ulLen, szPassTmp );
+            leto_decrypt( szPassTmp, ulLen / 2, szPassTmp, &ulLen, LETO_PASSWORD, HB_TRUE );
+            if( ulLen == LETO_DOPCODE_LEN )  /* we urgent need that for encryption of user password */
+               memcpy( pConnection->cDopcode, szPassTmp, LETO_DOPCODE_LEN );
+            else  /* LETO_PASSWORD different to server --> leto_decrypt() fail about padded bytes -> 0 */
+               pConnection->iConnectRes = LETO_ERR_ACCESS;
+            hb_xfree( szPassTmp );
+         }
+         else
+            pConnection->iConnectRes = LETO_ERR_PROTO;
+
+         ptr = pConnection->szVersion;
+         while( *ptr && ! HB_ISDIGIT( *ptr ) )
+            ptr++;
+         if( *ptr )
+            sscanf( ptr, "%u.%u", &pConnection->uiMajorVer, &pConnection->uiMinorVer );
+      }
+      else
+         pConnection->iConnectRes = LETO_ERR_PROTO;
+   }
 }
 
 /* will get a 4 bytes ACK or NIO */
@@ -1301,7 +1338,11 @@ long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * szData, unsig
 
    if( lRecv > 0 )  /* only receive in case of no above send errors */
    {
-      lRecv = leto_Recv( pConnection );
+      if( ! pConnection->fMustResync )
+         lRecv = leto_Recv( pConnection );
+      else
+         lRecv = 0;
+
       if( lRecv <= 0 )
       {
 #if ! defined( __HARBOUR30__ )  /* new function since 2015/08/17 */
@@ -1339,7 +1380,7 @@ unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData,
       if( ! ulRet )
 #endif
       {
-         pConnection->fMustResync = HB_FALSE;
+         pConnection->fMustResync = HB_TRUE;
          pConnection->iError = 1000;
       }
    }
@@ -2505,38 +2546,6 @@ static const char * leto_ReadMemoInfo( LETOTABLE * pTable, const char * ptr )
    return ptr;
 }
 
-static char * leto_NetName( void )
-{
-#if defined( HB_OS_UNIX ) || ( defined( HB_OS_OS2 ) && defined( __GNUC__ ) )
-
-   #define MAXGETHOSTNAME  256
-
-   char szValue[ MAXGETHOSTNAME + 1 ], * szRet;
-   unsigned int uiLen;
-
-   szValue[ 0 ] = '\0';
-   gethostname( szValue, MAXGETHOSTNAME );
-
-#elif defined( HB_OS_WIN_32 ) || defined( HB_OS_WIN )
-
-   DWORD uiLen = MAX_COMPUTERNAME_LENGTH + 1;
-   char  szValue[ MAX_COMPUTERNAME_LENGTH + 1 ], * szRet;
-
-   szValue[ 0 ] = '\0';
-   GetComputerName( szValue, &uiLen );
-
-#else
-
-   return NULL;
-
-#endif
-
-   uiLen = strlen( szValue );
-   szRet = ( char * ) hb_xgrab( uiLen + 1 );
-   memcpy( szRet, szValue, uiLen );
-   szRet[ uiLen ] = '\0';
-   return szRet;
-}
 
 #ifndef LETO_NO_THREAD
 
@@ -2810,51 +2819,34 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
       pConnection->iZipRecord = -1;
       pConnection->fRefreshCount = HB_TRUE;
       pConnection->iBufRefreshTime = 100;
-      memset( pConnection->cDopcode, 0, LETO_DOPCODE_LEN );
+      memset( pConnection->cDopcode, 0, LETO_DOPCODE_LEN + 1 );
       pConnection->hSockPipe[ 0 ] = FS_ERROR;
       pConnection->hSockPipe[ 1 ] = FS_ERROR;
       pConnection->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
       pConnection->szBuffer = ( char * ) hb_xgrabz( pConnection->ulBufferLen + 1 );
+      pConnection->uiProto = 3;
+      pConnection->uiTBufOffset = 7;
+      pConnection->szVersion[ 0 ] = '\0';
+      pConnection->uiMajorVer = 0;
+      pConnection->uiMinorVer = 0;
+      pConnection->fMustResync = HB_FALSE;
+      pConnection->iError = 0;
 
-      if( leto_RecvFirst( pConnection ) )
+      leto_RecvFirst( pConnection );
+      if( ! pConnection->iConnectRes )
       {
-         char *       ptr, * pName;
-         unsigned int uiSizeLen = ( pConnection->uiProto == 1 ) ? 0 : LETO_MSGSIZE_LEN;
-         char *       szModName;
-         int          iMod;
+         char * ptr = szData + LETO_MSGSIZE_LEN;
+         char   szNetName[ 64 ] = { 0 };
+         char * szModName;
+         int    iMod = 0;
 
-         ptr = strchr( pConnection->szBuffer, ';' );
-         if( ptr )
-         {
-            memcpy( pConnection->szVersion, pConnection->szBuffer, ptr - pConnection->szBuffer );
-            pConnection->szVersion[ ptr - pConnection->szBuffer ] = '\0';
-            ptr += 2;
+#if defined( HB_OS_UNIX ) || ( defined( HB_OS_OS2 ) && defined( __GNUC__ ) )
+         gethostname( szNetName, 63 );
+#elif defined( HB_OS_WIN_32 ) || defined( HB_OS_WIN )
+         DWORD  uiLen = 63;
 
-            ulLen = strlen( ptr );
-            if( ulLen )
-            {
-               char * szPassTmp = ( char * ) hb_xgrab( ulLen );
-
-               leto_hexchar2byte( ptr, ulLen, szPassTmp );
-               leto_decrypt( szPassTmp, ulLen / 2, szPassTmp, &ulLen, LETO_PASSWORD, HB_TRUE );
-               if( ulLen == LETO_DOPCODE_LEN )  /* we urgent need that for encryption of user password */
-                  memcpy( pConnection->cDopcode, szPassTmp, LETO_DOPCODE_LEN );
-               hb_xfree( szPassTmp );
-            }
-         }
-         else  /* should never happen */
-         {
-            memcpy( pConnection->szVersion, pConnection->szBuffer, strlen( pConnection->szBuffer ) );
-            pConnection->szVersion[ strlen( pConnection->szBuffer ) ] = '\0';
-         }
-
-         ptr = pConnection->szVersion;
-         while( ptr && ! HB_ISDIGIT( *ptr ) )
-            ptr++;
-         if( ptr != NULL )
-            sscanf( ptr, "%u.%u", &pConnection->uiMajorVer, &pConnection->uiMinorVer );
-         else
-            pConnection->uiMajorVer = pConnection->uiMinorVer = 0;
+         GetComputerName( szNetName, &uiLen );
+#endif
 
 #if defined( __HARBOUR30__ ) || defined( __LETO_C_API__ )
          szModName = s_szModName;
@@ -2872,19 +2864,14 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
             if( szModName[ iMod ] == '\\' || szModName[ iMod ] == '/' )
                iMod++;
          }
-         else
-            iMod = 0;
-         pName = leto_NetName();
-         ptr = szData + uiSizeLen;
+
          ptr += eprintf( ptr, "%c;%s;%s;%s;", LETOCMD_intro,
-                         LETO_VERSION_STRING, ( ( pName ) ? pName : "" ),
-                         ( ( szModName ) ? szModName + iMod : "LetoClient" ) );
+                         LETO_VERSION_STRING, szNetName,
+                         szModName ? szModName + iMod : "LetoClient" );
 #if ! defined( __HARBOUR30__ ) && ! defined( __LETO_C_API__ )
          if( szModName )
             hb_xfree( szModName );
 #endif
-         if( pName )
-            hb_xfree( pName );
 
          if( szUser )
          {
@@ -2950,7 +2937,9 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
             pConnection->iConnectRes = LETO_ERR_MANY_CONN;
          else
          {
-            if( ( pName = strchr( ptr, ';' ) ) != NULL && ( pName - ptr ) >= 3 )
+            char * pName = strchr( ptr, ';' );
+
+            if( pName != NULL && ( pName - ptr ) >= 3 )
             {
                memcpy( pConnection->szAccess, ptr, ( pName - ptr > 3 ) ? 3 : pName - ptr );
                ptr = pName + 1;
@@ -3060,8 +3049,6 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
                pConnection->iConnectRes = LETO_ERR_PROTO;
          }
       }
-      else
-         pConnection->iConnectRes = LETO_ERR_RECV;
    }
    else
       pConnection->iConnectRes = LETO_ERR_SOCKET;

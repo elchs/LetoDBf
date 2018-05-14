@@ -490,7 +490,7 @@ PUSERSTRU leto_FindUserStru( HB_THREAD_ID hThreadID )
 }
 
 /* remove log file with intro for new connection if exists */
-static HB_BOOL leto_wUsLogDelete( PUSERSTRU pUStru )
+HB_BOOL leto_wUsLogDelete( PUSERSTRU pUStru )
 {
    char    szName[ HB_PATH_MAX ];
    HB_BOOL bErased = HB_FALSE;
@@ -2418,9 +2418,8 @@ static HB_BOOL leto_ProdSupport( const char * szDriver )
    pRDDNode = hb_rddFindNode( szDriver, &uiRddID );
    if( pRDDNode )
    {
-      PHB_ITEM pItem = NULL;
+      PHB_ITEM pItem = hb_itemPutC( NULL, NULL );
 
-      pItem = hb_itemPutC( pItem, NULL );
       if( SELF_RDDINFO( pRDDNode, RDDI_STRUCTORD, 0, pItem ) == HB_SUCCESS )
          fSupportStruct = hb_itemGetL( pItem );
       hb_itemRelease( pItem );
@@ -9220,7 +9219,6 @@ static void leto_Intro( PUSERSTRU pUStru, char * szData )
    const char * pData = NULL;
    char *       pp1 = NULL, * pp2 = NULL, * pp3 = NULL, * pp4 = NULL;
    char *       pp5 = NULL, * pp6 = NULL;
-   HB_BOOL      bSuccess = HB_FALSE;
    int          nParam = leto_GetParam( szData, &pp1, &pp2, &pp3, &pp4, &pp5, &pp6, NULL );
    char         pBuf[ 256 ];
 
@@ -9315,15 +9313,12 @@ static void leto_Intro( PUSERSTRU pUStru, char * szData )
 
             hb_itemPutL( pItem, *pp6++ == 'T' ? HB_TRUE : HB_FALSE );
             hb_setSetItem( HB_SET_SOFTSEEK, pItem );
-            hb_itemClear( pItem );
 
             hb_itemPutL( pItem, *pp6++ == 'T' ? HB_TRUE : HB_FALSE );
             hb_setSetItem( HB_SET_DELETED, pItem );
-            hb_itemClear( pItem );
 
             hb_itemPutL( pItem, *pp6++ == 'T' ? HB_TRUE : HB_FALSE );
             hb_setSetItem( HB_SET_AUTOPEN, pItem );
-            hb_itemClear( pItem );
 
             hb_itemPutNI( pItem, strtoul( pp6, &pTmp, 10 ) );
             hb_setSetItem( HB_SET_AUTORDER, pItem );
@@ -9472,7 +9467,6 @@ static void leto_Intro( PUSERSTRU pUStru, char * szData )
       {
          char * szVersion = hb_verHarbour();
 
-         bSuccess = HB_TRUE;
          hb_snprintf( pBuf, 255, "+%c%c%c;%s;%s;%d;%d;%d;%d;%d;%c;%c;",
                       ( pUStru->szAccess[ 0 ] & 0x1 ) ? 'Y' : 'N',
                       ( pUStru->szAccess[ 0 ] & 0x2 ) ? 'Y' : 'N',
@@ -9497,8 +9491,6 @@ static void leto_Intro( PUSERSTRU pUStru, char * szData )
    }
 
    leto_SendAnswer( pUStru, pData, strlen( pData ) );
-   if( bSuccess )
-      leto_wUsLogDelete( pUStru );
 }
 
 static void leto_CloseT( PUSERSTRU pUStru, char * szData )

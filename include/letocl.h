@@ -82,6 +82,8 @@
 
 #define leto_firstchar( pConnection )  pConnection->szBuffer + 1
 #define LETO_CENTISEC()                ( leto_MilliSec() / 10 )
+#define LETO_DEFAULT_TIMEOUT           120000  /* two minutes */
+#define LETO_INITIAL_TIMEOUT             6000
 
 #ifndef LETO_DOPCODE_LEN
    #define LETO_DOPCODE_LEN         7

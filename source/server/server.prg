@@ -75,24 +75,14 @@ REQUEST HB_MEMIO
    REQUEST BM_DBSEEKWILD
 #endif
 
+/* NULL as default GT */
+ANNOUNCE HB_GTSYS
+REQUEST HB_GT_NUL_DEFAULT
+
 #if ! defined( __PLATFORM__WINDOWS )
-   #ifdef __CONSOLE__
-      ANNOUNCE HB_GTSYS
-      REQUEST HB_GT_STD_DEFAULT
-   #else  /* __LINUX_DAEMON__ */
-      ANNOUNCE HB_GTSYS
-      REQUEST HB_GT_NUL_DEFAULT
-   #endif
    #define DEF_SEP      '/'
    #define DEF_CH_SEP   '\'
 #else
-   #ifdef __WIN_DAEMON__
-      ANNOUNCE HB_GTSYS
-      REQUEST HB_GT_GUI_DEFAULT
-   #else  /* __WIN_SERVICE__ */
-      ANNOUNCE HB_GTSYS
-      REQUEST HB_GT_NUL_DEFAULT
-   #endif
    #define DEF_SEP      '\'
    #define DEF_CH_SEP   '/'
 #endif
@@ -199,17 +189,10 @@ PROCEDURE Main( cCommand, cData )
       IF leto_SendMessage( oApp:nPort, LETOCMD_stop, oApp:cAddr )
          IF oApp:nDebugMode > 0
             WrLog( "Have send STOP to server at port " + ALLTRIM( STR( oApp:nPort ) ) + " , should soon go down ..." )
-#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
-            ? "Send SToP to server at port " + ALLTRIM( STR( oApp:nPort ) + " ..."  )
-#endif
          ENDIF
       ELSE
          WrLog( "Can't STOP the server at port " + ALLTRIM( STR( oApp:nPort ) ) + " ( not started ? )" )
-#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
-         ? "Can't STOP the server at port " + ALLTRIM( STR( oApp:nPort ) ) + " ( not started? )"
-#endif
       ENDIF
-      RETURN
 
    ELSEIF cCommand != NIL .AND. Left( Lower( cCommand ), 6 ) == "reload"
 
@@ -227,42 +210,9 @@ PROCEDURE Main( cCommand, cData )
       oApp := HApp():New()
       IF ! leto_SendMessage( oApp:nPort, LETOCMD_udf_rel, oApp:cAddr, cData )
          WrLog( "Can't reload letoudf.hrb at port " + ALLTRIM( STR( oApp:nPort ) ) )
-#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
-         ? "Can't reload letoudf.hrb at port " + ALLTRIM( STR( oApp:nPort ) )
-#endif
       ENDIF
-      RETURN
 
-   ELSE
-
-#ifdef __CONSOLE__
-
-      CLS
-      ? "Server up and listening ..."
-      ? "for shutdown call me again with param: stop"
-      IF cCommand != NIL .AND. Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
-         cData := LOWER( cData )
-         IF .NOT. ".ini" $ cData
-            cData += ".ini"
-         ENDIF
-         s_cIniName := cData
-      ENDIF
-      StartServer()
-
-#endif
-
-#ifdef __WIN_DAEMON__
-
-      IF cCommand != NIL .AND. Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
-         cData := LOWER( cData )
-         IF .NOT. ".ini" $ cData
-            cData += ".ini"
-         ENDIF
-         s_cIniName := cData
-      ENDIF
-      StartServer()
-
-#endif
+   ELSE  /* start the server */
 
 #ifdef __WIN_SERVICE__
 
@@ -299,9 +249,7 @@ PROCEDURE Main( cCommand, cData )
          ErrorLevel( 1 )
       ENDIF
 
-#endif
-
-#ifdef __LINUX_DAEMON__
+#else
 
       IF cCommand != NIL .AND. Lower( cCommand ) == "config" .AND. ! EMPTY( cData )
          cData := LOWER( cData )
@@ -310,6 +258,9 @@ PROCEDURE Main( cCommand, cData )
          ENDIF
          s_cIniName := cData
       ENDIF
+
+   #ifdef __LINUX_DAEMON__
+
       oApp := HApp():New()
       IF ! leto_Daemon( oApp:nSUserID, oApp:nSGroupID, oApp:cSUser )
          WrLog( "Error: server can't become a daemon" )
@@ -317,6 +268,12 @@ PROCEDURE Main( cCommand, cData )
       ELSE
          StartServer()
       ENDIF
+
+   #else  /* __CONSOLE__ || __WIN_DAEMON__ */
+
+      StartServer()
+
+   #endif
 
 #endif
 
@@ -332,9 +289,6 @@ PROCEDURE StartServer()
    IF ! Empty( oApp:DataPath )
       IF ! hb_DirExists( oApp:DataPath )
          WrLog( "LetoDBf Server: DataPath '" + oApp:DataPath + "' does not exists .." )
-#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
-         ? "LetoDBf Server: DataPath '" + oApp:DataPath + "' does not exists .."
-#endif
          ErrorLevel( 2 )
          RETURN
       ENDIF
@@ -357,9 +311,6 @@ PROCEDURE StartServer()
 
    IF ! leto_Server( oApp:nPort, oApp:cAddr, oApp:nTimeOut, oApp:nZombieCheck, oApp:cBCService, oApp:cBCInterface, oApp:nBCPort )
       WrLog( "Socket error " + hb_socketErrorString( hb_socketGetError() ) )
-#if defined( __CONSOLE__ ) || defined( __WIN_DAEMON__ )
-      ? "Socket error starting LetoDBf ..."
-#endif
       ErrorLevel( 1 )
    ELSE
       WrLog( "Server at port " + ALLTRIM( STR( oApp:nPort ) ) + " have shutdown." )

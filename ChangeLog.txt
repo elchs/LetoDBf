@@ -2,6 +2,51 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-05-14 19:18 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+    * move #define LETO_DEFAULT_TIMEOUT from letocl.c
+
+  * source/client/leto1.c
+    ! re-set WA flags [EOF/BOF/FOUND] in letoOrderCreate(),
+      e.g. clear an old EOF() flag -- bug-report by Itamar, THANKS !!
+    * remove a doubled, obsolete WA set-flag in letoOrderListAdd()
+    * clean up of function letoRddInfo():
+      centralize pConnection determination, dissolve leto_MemoExt() herein;
+      use connection pointer ( not ID ) as param for leto_MemoType() and
+      leto_MemoBlocksize()
+    * add experimental <iLockTimeOut> as optional 8th param of
+      LETO_RECONNECT() [ in ms, temporary used for lock restore ]
+
+  * source/client/letomgmn.c
+    * change default in LETO_CONNECT() to LETO_DEFAULT_TIMEOUT ( 120 s )
+      if timeout is given apply it also for an ready established connection;
+      where nTimeOut '< 0' == -1 == infinite, '0' == LETO_DEFAULT_TIMEOUT
+    * verify in Leto_VarExprCreate() a not aliased ( M-> or MEMVAR-> )
+      memvar is not *also* a fieldname in active LETO workarea;
+      take care of such memvar prefix to be removed in result
+
+  * source/client/letocl.c
+    ! fix compile time LETO_PASSWORD is verified for new connection
+      in leto_RecvFirst() --> LETO_ERR_ACCESS
+    * dissolve leto_NetName() into LetoConnectionOpen()
+    * leto_RecvFirst():
+      move a section out of LetoConnectionOpen() which belongs here;
+      use initial timeout <default>: 6 s to establish a new connection
+      ( else given_value in range: 100  <=> LETO_DEFAULT_TIMEOUT/10 [12 s] )
+
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+    * delete existing log earlier, just after connect ( leto_wUsLogDelete() )
+      to possible log the 'intro' greating string for highest debug levels
+    * increase a buffer
+
+  * source/server/server.prg
+  * Readme.txt
+    * change default GT for all modes to: HB_GT_NUL, and remove ( mostly
+      failure ) feedback as gone with immediate closing window
+      ; this will not prevent a black-screen window created by Windows OS;
+        to avoid use 'start /B' or similar ( see Readme.txt: 3.1 )
+
 2018-03-14 18:14 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     * call SELF_CLOSE() for failed SUPER_CREATE(), else apply WA flags

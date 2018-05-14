@@ -721,7 +721,6 @@ static HB_ERRCODE letoSkipRaw( LETOAREAP pArea, HB_LONG lToSkip )
    return HB_SUCCESS;
 }
 
-
 static HB_ERRCODE letoAddField( LETOAREAP pArea, LPDBFIELDINFO pFieldInfo )
 {
    HB_TRACE( HB_TR_DEBUG, ( "letoAddField(%p, %p)", pArea, pFieldInfo ) );
@@ -3626,7 +3625,6 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
    }
    pTable->ptrBuf = NULL;
 
-   leto_SetAreaFlags( pArea );
    if( pArea->area.lpdbRelations )
       return SELF_SYNCCHILDREN( ( AREAP ) pArea );
 
@@ -3924,6 +3922,7 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
          leto_CheckError( pArea, pConnection );
       return HB_FAILURE;
    }
+   leto_SetAreaFlags( pArea );  /* leto_ParseRecord() done in LetoDbOrderCreate() */
 
    pTagInfo = pTable->pTagInfo;
    while( pTagInfo )
@@ -3937,7 +3936,7 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
       pTagInfo = pTagInfo->pNext;
    }
 
-   return HB_SUCCESS;  /* Harbour should do for us: return SELF_GOTOP( ( AREAP ) pArea ); */
+   return HB_SUCCESS;
 }
 
 static HB_ERRCODE letoOrderDestroy( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )  /* orddestroy() */
@@ -5147,67 +5146,43 @@ static HB_ERRCODE letoExit( LPRDDNODE pRDD )
    return HB_SUCCESS;
 }
 
-static HB_USHORT leto_MemoType( unsigned int uiConnect )
+static HB_USHORT leto_MemoType( LETOCONNECTION * pConnection )
 {
-   LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
-                                  letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
-   HB_USHORT        uiMemoType;
+   HB_USHORT uiMemoType;
 
-   if( pConnection && pConnection->uiMemoType )
-      uiMemoType = pConnection->uiMemoType;
-   else if( pConnection && *( pConnection->szDriver ) )
+   if( pConnection )
    {
-      if( strstr( pConnection->szDriver, "NTX" ) != NULL )
+      if( pConnection->uiMemoType )
+         uiMemoType = pConnection->uiMemoType;
+      else if( *pConnection->szDriver )
+      {
+         if( strstr( pConnection->szDriver, "NTX" ) != NULL )
+            uiMemoType = DB_MEMO_DBT;
+         else if( strstr( pConnection->szDriver, "CDX" ) != NULL )
+            uiMemoType = DB_MEMO_FPT;
+         else
+            uiMemoType = DB_MEMO_SMT;
+      }
+      else if( pConnection->uiDriver == LETO_NTX )
          uiMemoType = DB_MEMO_DBT;
-      else if( strstr( pConnection->szDriver, "CDX" ) != NULL )
-         uiMemoType = DB_MEMO_FPT;
       else
-         uiMemoType = DB_MEMO_SMT;
+         uiMemoType = DB_MEMO_FPT;
    }
-   else if( pConnection && pConnection->uiDriver == LETO_NTX )
-      uiMemoType = DB_MEMO_DBT;
    else
       uiMemoType = DB_MEMO_FPT;
 
    return uiMemoType;
 }
 
-static const char * leto_MemoExt( unsigned int uiConnect )
+static HB_USHORT leto_MemoBlocksize( LETOCONNECTION * pConnection )
 {
-   LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
-                                  letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
-
-   if( pConnection && *pConnection->szMemoExt )
-      return pConnection->szMemoExt;
-   else if( pConnection )
-   {
-      switch( leto_MemoType( uiConnect ) )
-      {
-         case DB_MEMO_DBT:
-            return ".dbt";
-
-         case DB_MEMO_FPT:
-            return ".fpt";
-
-         case DB_MEMO_SMT:
-            return ".smt";
-      }
-   }
-
-   return NULL;
-}
-
-static HB_USHORT leto_MemoBlocksize( unsigned int uiConnect )
-{
-   LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
-                                  letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
-   HB_USHORT        uiMemoBlocksize;
+   HB_USHORT uiMemoBlocksize;
 
    if( pConnection && pConnection->uiMemoBlocksize )
       uiMemoBlocksize = pConnection->uiMemoBlocksize;
    else if( pConnection )
    {
-      switch( leto_MemoType( uiConnect ) )
+      switch( leto_MemoType( pConnection ) )
       {
          case DB_MEMO_DBT:
             uiMemoBlocksize = 512;
@@ -5263,6 +5238,8 @@ static int leto_LockScheme( LETOCONNECTION * pConnection )
 
 static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int uiConnect, PHB_ITEM pItem )
 {
+   LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
+                                    letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
    HB_TRACE( HB_TR_DEBUG, ( "letoRddInfo(%p, %hu, %d, %p)", pRDD, uiIndex, uiConnect, pItem ) );
 
    switch( uiIndex )
@@ -5273,8 +5250,6 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
 
       case RDDI_CONNECTION:
       {
-         LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
-                                        letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
          char szAddr[ 96 ];
 
          if( pConnection )
@@ -5317,10 +5292,6 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
       case RDDI_ORDBAGEXT:      /* multi-TAG default */
       case RDDI_ORDEREXT:       /* single-TAG default */
       case RDDI_ORDSTRUCTEXT:   /* single-TAG default */
-      {
-         LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
-                                        letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
-
          if( pConnection && *( pConnection->szDriver ) )
          {
             if( strstr( pConnection->szDriver, "NTX" ) != NULL )
@@ -5335,91 +5306,92 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
          else
             hb_itemPutC( pItem, "" );
          break;
-      }
 
       case RDDI_MEMOEXT:  /* by intention not setable ! */
-         hb_itemPutC( pItem, leto_MemoExt( uiConnect ) );
+      {
+         char szExt[ HB_MAX_FILE_EXT + 1 ] = { 0 };
+
+         if( pConnection && *pConnection->szMemoExt )
+            hb_strncpy( szExt, pConnection->szMemoExt, HB_MAX_FILE_EXT );
+         else if( pConnection )
+         {
+            switch( leto_MemoType( pConnection ) )
+            {
+               case DB_MEMO_DBT:
+                  strcpy( szExt, ".dbt" );
+                  break;
+
+               case DB_MEMO_FPT:
+                  strcpy( szExt, ".fpt" );
+                  break;
+
+               case DB_MEMO_SMT:
+                  strcpy( szExt, ".smt" );
+                  break;
+            }
+         }
+
+         hb_itemPutC( pItem, szExt );
          break;
+      }
 
       case RDDI_MEMOTYPE:
-         if( HB_IS_NUMERIC( pItem ) )
+      {
+         HB_USHORT uiType = leto_MemoType( pConnection );
+
+         if( HB_IS_NUMERIC( pItem ) && pConnection )
          {
             HB_USHORT uiMemoType = ( HB_USHORT ) hb_itemGetNI( pItem );
 
-            if( uiMemoType == DB_MEMO_DBT || uiMemoType == DB_MEMO_FPT || uiMemoType == DB_MEMO_SMT )
+            if( pConnection->uiMemoType != uiMemoType )
             {
-               LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
-                                              letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
-
-               if( pConnection && pConnection->uiMemoType != uiMemoType )
+               switch( uiMemoType )
                {
-                  HB_USHORT uiOldMemoType = pConnection->uiMemoType;
-
-                  pConnection->uiMemoType = uiMemoType;
-                  if( uiMemoType == DB_MEMO_DBT )
-                  {
+                  case DB_MEMO_DBT:
+                     pConnection->uiMemoType = uiMemoType;
                      strcpy( pConnection->szMemoExt, ".dbt" );
                      pConnection->uiMemoBlocksize = 512;
-                  }
-                  else if( uiMemoType == DB_MEMO_FPT )
-                  {
+                     break;
+
+                  case DB_MEMO_FPT:
+                     pConnection->uiMemoType = uiMemoType;
                      strcpy( pConnection->szMemoExt, ".fpt" );
                      pConnection->uiMemoBlocksize = 64;
-                  }
-                  else
-                  {
+                     break;
+
+                  case DB_MEMO_SMT:
+                     pConnection->uiMemoType = uiMemoType;
                      strcpy( pConnection->szMemoExt, ".smt" );
                      pConnection->uiMemoBlocksize = 32;
-                  }
-
-                  hb_itemPutNI( pItem, uiOldMemoType );
+                     break;
                }
-               else if( pConnection )
-                  hb_itemPutNI( pItem, pConnection->uiMemoType );
-               else
-                  hb_itemPutNI( pItem, 0 );
             }
-            else
-               hb_itemPutNI( pItem, leto_MemoType( uiConnect ) );
          }
-         else
-            hb_itemPutNI( pItem, leto_MemoType( uiConnect ) );
+
+         hb_itemPutNI( pItem, uiType );
          break;
+      }
 
       case RDDI_MEMOBLOCKSIZE:
-         if( HB_IS_NUMERIC( pItem ) && hb_itemGetNI( pItem ) > 0 )
+      {
+         HB_USHORT uiSize = leto_MemoBlocksize( pConnection );
+
+         if( HB_IS_NUMERIC( pItem ) && hb_itemGetNI( pItem ) > 0 && pConnection )
          {
-            LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
-                                           letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
-
-            if( pConnection )
-            {
-               HB_USHORT uiOldSize = pConnection->uiMemoBlocksize;
-
-               pConnection->uiMemoBlocksize = ( HB_USHORT ) hb_itemGetNI( pItem );
-               if( uiOldSize )
-                  hb_itemPutNI( pItem, uiOldSize );
-               else
-                  hb_itemPutNI( pItem, leto_MemoBlocksize( uiConnect ) );
-            }
-            else
-               hb_itemPutNI( pItem, leto_MemoBlocksize( uiConnect ) );
+            /* validated by client */
+            pConnection->uiMemoBlocksize = ( HB_USHORT ) hb_itemGetNI( pItem );
          }
-         else
-            hb_itemPutNI( pItem, leto_MemoBlocksize( uiConnect ) );
+
+         hb_itemPutNI( pItem, uiSize );
          break;
+      }
 
       case RDDI_LOCKSCHEME:
-      {
-         LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
-                                        letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
-
          if( pConnection )
             hb_itemPutNI( pItem, leto_LockScheme( pConnection ) );
          else
             hb_itemPutNI( pItem, 0 );
          break;
-      }
 
       case RDDI_TABLEEXT:
          hb_itemPutC( pItem, ".dbf" );
@@ -5432,13 +5404,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
       case RDDI_AUTOOPEN:
       case RDDI_STRUCTORD:
       {
-         LETOCONNECTION * pConnection;
          int iRes = 1;
-
-         if( uiConnect > 0 && uiConnect <= letoGetConnCount() )
-            pConnection = letoGetConnPool( uiConnect - 1 );
-         else
-            pConnection = letoGetCurrConn();
 
          if( pConnection )
          {
@@ -5480,13 +5446,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
       case RDDI_AUTOORDER:
       case RDDI_DEBUGLEVEL:
       {
-         LETOCONNECTION * pConnection;
          int iRes = 1;
-
-         if( uiConnect > 0 && uiConnect <= letoGetConnCount() )
-            pConnection = letoGetConnPool( uiConnect - 1 );
-         else
-            pConnection = letoGetCurrConn();
 
          if( pConnection )
          {
@@ -5525,14 +5485,6 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
       }
 
       case RDDI_REFRESHCOUNT:
-      {
-         LETOCONNECTION * pConnection;
-
-         if( uiConnect > 0 && uiConnect <= letoGetConnCount() )
-            pConnection = letoGetConnPool( uiConnect - 1 );
-         else
-            pConnection = letoGetCurrConn();
-
          if( pConnection )
          {
             HB_BOOL fSet = HB_IS_LOGICAL( pItem );
@@ -5544,18 +5496,9 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
          else
             hb_itemPutL( pItem, HB_TRUE );
          break;
-      }
 
       case RDDI_BUFKEYNO:
       case RDDI_BUFKEYCOUNT:
-      {
-         LETOCONNECTION * pConnection;
-
-         if( uiConnect > 0 && uiConnect <= letoGetConnCount() )
-            pConnection = letoGetConnPool( uiConnect - 1 );
-         else
-            pConnection = letoGetCurrConn();
-
          if( pConnection )
          {
             if( HB_IS_LOGICAL( pItem ) )
@@ -5576,17 +5519,8 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
          else
             hb_itemPutL( pItem, HB_FALSE );
          break;
-      }
 
       case RDDI_TRIGGER:
-      {
-         LETOCONNECTION * pConnection;
-
-         if( uiConnect > 0 && uiConnect <= letoGetConnCount() )
-            pConnection = letoGetConnPool( uiConnect - 1 );
-         else
-            pConnection = letoGetCurrConn();
-
          if( pConnection )
          {
             if( LetoRddInfo( pConnection, uiIndex, NULL ) == HB_SUCCESS )
@@ -5602,7 +5536,6 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
          else
             hb_itemPutC( pItem, "?" );
          break;
-      }
 
       case RDDI_VERSION:
          hb_itemPutC( pItem, LETO_VERSION_STRING );
@@ -7201,6 +7134,8 @@ HB_FUNC( LETO_RECONNECT )
 
          if( ! leto_stricmp( pConnection->pAddr, szAddr ) && ! HB_ISNUM( 7 ) )
             dIdle = HB_MAX( 1, dIdle );
+         if( pConnection->fMustResync || pConnection->iError )  /* extra delay */
+            hb_idleSleep( HB_MIN( 1.0, dIdle * 2 ) );
          LetoConnectionClose( pConnection );  /* only socket shutdown, free pConnection resources */
          if( dIdle > 0 )
             hb_idleSleep( dIdle );
@@ -7221,10 +7156,14 @@ HB_FUNC( LETO_RECONNECT )
          HB_USHORT  uiActiveWA = pLetoArea ? pLetoArea->area.uiArea : 0;
          char       szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
          HB_ERRCODE errCode;
+         int        iLockTimeOut = pConnection->iLockTimeOut;
 
          strcpy( szDriver, pConnection->szDriver );
          pConnection->whoCares = hb_itemArrayNew( 0 );  /* for collecting relations */
+         if( HB_ISNUM( 8 ) )  /* experimental: temporary increase iLockTimeOut for next line */
+            pConnection->iLockTimeOut = HB_MAX( 0, hb_parni( 8 ) );
          errCode = hb_rddIterateWorkAreas( leto_doReopen, ( void * ) pConnection );
+         pConnection->iLockTimeOut = iLockTimeOut;
          if( errCode == HB_SUCCESS )
          {
             if( hb_arrayLen( pConnection->whoCares ) )

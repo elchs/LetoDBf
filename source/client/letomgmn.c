@@ -2,7 +2,7 @@
  * Harbour Leto management functions
  *
  * Copyright 2008 Pavel Tsarenko <tpe2 / at / mail.ru>
- *           2015-16 Rolf 'elch' Beckmann
+ *           2015-18 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -842,7 +842,7 @@ HB_FUNC( LETO_CONNECT )
    int  iPort = 0;
    const char * szUser = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
    const char * szPass = hb_parclen( 3 ) ? hb_parc( 3 ) : NULL;
-   int          iTimeOut = ( HB_ISNUM( 4 ) ) ? hb_parni( 4 ) : -1;
+   int          iTimeOut = HB_MAX( -1, hb_parni( 4 ) );  /* defaults to 0 */
    HB_BOOL      fZombieCheck = ( HB_ISLOG( 6 ) ) ? hb_parl( 6 ) : LETO_USE_THREAD;
    int          iRet = -1;
 
@@ -872,6 +872,12 @@ HB_FUNC( LETO_CONNECT )
        ( ( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) != NULL ) ||
          ( ( pConnection = LetoConnectionNew( szAddr, iPort, szUser, szPass, iTimeOut, fZombieCheck ) ) != NULL ) ) )
    {
+      if( HB_ISNUM( 4 ) )
+      {
+         if( iTimeOut == 0 )
+            iTimeOut = LETO_DEFAULT_TIMEOUT;
+         pConnection->iTimeOut = iTimeOut;
+      }
       if( HB_ISNUM( 5 ) )
          pConnection->iBufRefreshTime = HB_MAX( hb_parni( 5 ), -1 );
       hb_rddDefaultDrv( "LETO" );
@@ -2423,12 +2429,37 @@ HB_FUNC( LETO_UDF )
 
 #if ! defined( __XHARBOUR__ )
 
+static HB_BOOL leto_isFieldVar( const char * szVar )
+{
+   LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_BOOL   fIsField = HB_FALSE;
+
+   if( leto_IsLetoArea( pArea ) && pArea->pTable )
+   {
+      HB_USHORT   uiField = 0;
+      LETOFIELD * pField;
+
+      while( uiField < pArea->pTable->uiFieldExtent )
+      {
+         pField = pArea->pTable->pFields + uiField;
+         if( ! leto_stricmp( pField->szName, szVar ) )
+         {
+            fIsField = HB_TRUE;
+            break;
+         }
+         uiField++;
+      }
+   }
+
+   return fIsField;
+}
+
 /* with szDst == NULL test only and break with first valid memvar -- else collect also into optional 3-dim pArr */
 HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr )
 {
    HB_SIZE  nStart = 0, nDst = 0, nDstLen = nSrcLen + 1;
    HB_SIZE  nTmp, nTmpLen;
-   HB_BOOL  fField, fValid = HB_FALSE;
+   HB_BOOL  fField, fAliased, fValid = HB_FALSE;
    HB_UINT  uiRes;
    PHB_DYNS pDyns;
    PHB_ITEM pRefValue, pSub;
@@ -2476,7 +2507,15 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
 
          if( szSrc[ nTmp ] == '-' && nTmp < nSrcLen - 1 && szSrc[ nTmp + 1 ] == '>' )
          {
-            fField = HB_TRUE;
+            fAliased = HB_TRUE;
+            if( nTmp - nStart == 1 || nTmp - nStart == 6 )  /* M-> or MEMVAR-> */
+            {
+               fField = hb_strnicmp( szSrc + nStart, "MEMVAR",  nTmp - nStart ) == 0 ? HB_FALSE : HB_TRUE;
+               if( ! fField )  /* remove memvar prefix */
+                  nStart = nTmp + 2;
+            }
+            else
+               fField = HB_TRUE;
             nTmp += 2;
             while( nTmp <= nSrcLen && HB_ISNEXTIDCHAR( szSrc[ nTmp ] ) )
             {
@@ -2484,7 +2523,7 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
             }
          }
          else
-            fField = HB_FALSE;
+            fAliased = fField = HB_FALSE;
 
          nTmpLen = nTmp - nStart;
          if( szSrc[ nTmp ] != '(' && ! fField && nTmpLen <= HB_SYMBOL_NAME_LEN )
@@ -2492,7 +2531,7 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
             memcpy( szVar, szSrc + nStart, nTmpLen );
             szVar[ nTmpLen ] = '\0';
             pDyns = hb_dynsymFindName( szVar );  /* converts to upper */
-            if( pDyns && hb_dynsymIsMemvar( pDyns ) )
+            if( pDyns && hb_dynsymIsMemvar( pDyns ) && ( ! fAliased ? ! leto_isFieldVar( szVar ) : HB_TRUE ) )
             {
                pRefValue = hb_memvarGetValueBySym( pDyns );
                if( pRefValue && ( hb_itemType( pRefValue ) & LETOVAR_TYPES ) )

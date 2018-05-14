@@ -285,9 +285,12 @@ A. Internals
  or use a third param for stop/ reload, example: ./letodb stop myini.ini
 
  Linux: it needs a pause of 1-2 minute before you can restart server after a shutdown.
- To automate that, use bash script: 'leto.sh' in "bin" directory, it will start the server
- when it is again possible. It is about the time that must elapse before TCP/IP can release a
- closed connection and reuse its resources. This is known as TIME_WAIT state.
+   To automate that, use bash script: 'leto.sh' in "bin" directory, it will start the server
+   when it is again possible. It is about the time that must elapse before TCP/IP can release a
+   closed connection and reuse its resources. This is known as TIME_WAIT state.
+ Windows: above 'start /B' command to prevent a black window can be put into a '.bat' batch file.
+   There exists some tiny tools, aka executables to 'hidden' start another process.
+   ( example incl. C-source found in: http://www.commandline.co.uk/chp/ ).
 
  --> Look into letodbf.log, that server is up -- also further server related error goes here.
  At same place, in 'letodbf_xx.log' error feedback of a specific connection may appear.
@@ -1024,9 +1027,15 @@ A. Internals
  simply forwarded to the SET() function.
  With no given <xNewSet>, you get the active setting without changing it.
 
+      LETO_SETLOCKTIMEOUT( [ nTimeout ] )
+ Return the old <nTimeout> value and optional set this for the active connection.
+ Default is 0 == immediate one-time single request, units are in ms ( 1/1000 s ).
+ A timeout value is applied at server as multiple lock requests as long the timespan
+ is not outreached in case of failure. Values between 50 and x000 should be useful.
 
       LETO_RECONNECT( [ cAddress ], [ cUserName ], [ cPassword ],
-                    [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck ], [ nDelay ] )
+                      [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck ],
+                      [ nDelay ], [ nLockTimeout ] )
                                                                ==> nConnection, -1 if failed
  All param are optional! and same as LETO_CONNECT(), plus optional 7th param <nDelay> in unit seconds.
  This will close a possible still alive or dead connection to server, and re-establish a new connection
@@ -1037,7 +1046,10 @@ A. Internals
  If it is the same server, <nDelay> will be 1.0 second to let the server close the tables and remove
  existing locks before try to establish a new connection, for different server no delay is needed.
  <nDelay> should only needed to be manually set, if a connection is made to same server, but over
- different network.
+ different network. In case of a LETO error of the old connection an extra delay is applied before
+ the network socket is closed ( default: 1 s ).
+ <nLockTimeout> in ms can be used as timeout-value to re-establish former existing locks,
+ where default value is 0 == *no* extra timeout to get a lock, one time immediate try.
 
 
       7.2 Transaction functions
