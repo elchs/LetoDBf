@@ -51,6 +51,7 @@
 #ifndef RDDLETO_CH_
 #define RDDLETO_CH_
 
+
 #ifndef LETO_DEFAULT_PORT
    #define LETO_DEFAULT_PORT  2812
 #endif
@@ -67,6 +68,7 @@
 #define LETO_ERR_LOCKED       9
 #define LETO_ERR_RESTORE     10
 
+#define LETO_DBF
 #define LETO_CDX              0
 #define LETO_NTX              1
 
@@ -93,12 +95,14 @@
 #define RDDI_BUFKEYCOUNT      103
 #define RDDI_VERSION          104
 #define RDDI_DEBUGLEVEL       110
+#define RDDI_LOCKTIMEOUT      111
 
 #define DBI_BUFREFRESHTIME    1001
 #define DBI_CLEARBUFFER       1002
 #define DBI_DBS_COUNTER       1003
 #define DBI_DBS_STEP          1004
 #define DBI_AUTOREFRESH       1005
+#define DBI_CHILDPARENT       1006
 
 /* server config options */
 #define LETOOPT_DATAPATH      1   // C

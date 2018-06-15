@@ -55,6 +55,15 @@ REQUEST LETO_UDF
    REQUEST HB_ZCOMPRESS
 #endif
 
+/* leto_std.ch */
+REQUEST HB_DBCREATETEMP, __DBTOTAL
+/* for LETO_DBEVAL */
+REQUEST LETO_VARSET, LETO_VARGET, LETO_VARINCR
+
+/* used in LETO_SETLOCKTIMEOUT */
+REQUEST RDDINFO
+
+
 #include "hbsocket.ch"
 #include "rddleto.ch"
 

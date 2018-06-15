@@ -181,7 +181,7 @@ typedef struct
    HB_BOOL           bShared;                  /* TRUE = non-exclusive opened */
    HB_BOOL           bReadonly;                /* TRUE = not write- lock- able */
    HB_BOOL           bMemIO;                   /* is this a HbMemIO table = special handling */
-   HB_BOOL           bWhoCares;
+   HB_BOOL           bTemporary;               /* is this a named/ unnamed temporary table */
    HB_BYTE *         szTable;                  /* may include leading [back]slash, name of table */
    char              szLetoAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];  /* server internal alias: 7 + 1 or No_save_WA: 63 + 1 */
    HB_U32            uiCrc;                    /* hash value for szTable speed search */
@@ -267,6 +267,7 @@ typedef struct
    HB_BOOL           bBufKeyNo;
    HB_BOOL           bBufKeyCount;
    int               iPort;
+   int               iLockTimeOut;            /* used for RDDI_AUTOLOCK; value >= 0; 0 = none ms */
    HB_FHANDLE        hSockPipe[ 2 ];          /* the magic pipe */
    HB_BOOL           bCloseConnection;        /* connection will be closed, e.g. after wrong login */
    HB_BOOL           bBeQuiet;                /* disable network answer for request; used by UDF functions */

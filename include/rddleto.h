@@ -208,6 +208,8 @@ typedef struct _LETOAREA_
    LPDBRELINFO lpdbPendingRel;         /* Pointer to parent rel struct */
    char *      szDataFileName;         /* case sensitive name of data file */
    HB_BOOL     fTransRec;              /* active target WA for transition */
+   HB_BOOL     fTemporary;             /* temporary table */
+   PHB_ITEM    pWhoCares;
 
 } LETOAREA;
 

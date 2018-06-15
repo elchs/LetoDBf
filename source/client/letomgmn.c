@@ -956,18 +956,24 @@ HB_FUNC( LETO_GETCURRENTCONNECTION )
       hb_retc( "" );
 }
 
+/* redirected to RDDINFO [ request in letostd.ch ]; pConnection->iLockTimeOut */
 HB_FUNC( LETO_SETLOCKTIMEOUT )
 {
-   LETOCONNECTION * pConnection = letoGetCurrConn();
+   PHB_DYNS pDo = hb_dynsymFind( "RDDINFO" );
 
-   if( pConnection )
+   if( pDo )
    {
-      hb_retni( pConnection->iLockTimeOut );
-      if( HB_ISNUM( 1 ) && hb_parni( 1 ) >= 0 )
-         pConnection->iLockTimeOut = hb_parni( 1 );
+      hb_vmPushDynSym( pDo );
+      hb_vmPushNil();
+      hb_vmPushNumInt( RDDI_LOCKTIMEOUT );
+      if( HB_ISNUM( 1 ) )
+      {
+         hb_vmPushNumInt( hb_parns( 1 ) );
+         hb_vmDo( 2 );
+      }
+      else
+         hb_vmDo( 1 );
    }
-   else
-      hb_retni( -1 );
 }
 
 HB_FUNC( LETO_GETSERVERMODE )
@@ -2024,9 +2030,15 @@ HB_FUNC( LETO_VARINCR )
       {
          if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
          {
-            int iFlag = ( ! HB_ISNUM( 3 ) ) ? 0 : hb_parni( 3 );
+            PHB_ITEM pIncrement = hb_param( 4, HB_IT_NUMERIC );
+            char     szIncrement[ 32 ] = { 0 };
+            int      iFlag = ( ! HB_ISNUM( 3 ) ) ? 0 : hb_parni( 3 );
 
-            lValue = LetoVarIncr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag );
+            if( pIncrement && ( HB_IS_INTEGER( pIncrement ) || HB_IS_LONG( pIncrement ) ) )
+               ultostr( hb_parni( 4 ), szIncrement );
+            else
+               sprintf( szIncrement, "%f", hb_parnd( 4 ) );
+            lValue = LetoVarIncr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag, szIncrement );
             if( ! pCurrentConn->iError )
             {
                leto_SetVarCache( hb_itemPutNL( NULL, lValue ) );
@@ -2055,9 +2067,15 @@ HB_FUNC( LETO_VARDECR )
       {
          if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
          {
-            int iFlag = ( ! HB_ISNUM( 3 ) ) ? 0 : hb_parni( 3 );
+            PHB_ITEM pDecrement = hb_param( 4, HB_IT_NUMERIC );
+            char     szDecrement[ 32 ] = { 0 };
+            int      iFlag = ( ! HB_ISNUM( 3 ) ) ? 0 : hb_parni( 3 );
 
-            lValue = LetoVarDecr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag );
+            if( pDecrement && ( HB_IS_INTEGER( pDecrement ) || HB_IS_LONG( pDecrement ) ) )
+               ultostr( hb_parni( 4 ), szDecrement );
+            else
+               sprintf( szDecrement, "%f", hb_parnd( 4 ) );
+            lValue = LetoVarDecr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag, szDecrement );
             if( ! pCurrentConn->iError )
             {
                leto_SetVarCache( hb_itemPutNL( NULL, lValue ) );
@@ -2425,6 +2443,64 @@ HB_FUNC( LETO_UDF )
       leto_udp( HB_FALSE, NULL );
    else
       hb_ret();
+}
+
+/* Leto_FTS( [ cSearch[, lCaseInsensitive, [ lNoMemos ] ] ] ) */
+HB_FUNC( LETO_FTS )
+{
+   LETOAREAP   pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
+   LETOTABLE * pTable = leto_IsLetoArea( pArea ) ? pArea->pTable : NULL;
+   HB_USHORT   uiRecordLen = 0, uiSearchLen = ( HB_USHORT ) hb_parclen( 1 );
+   HB_BOOL     bCaseI;
+   HB_SIZE     nPos = 0;
+
+   if( pTable && ! pTable->fEof )
+   {
+      uiRecordLen = ( HB_USHORT ) pTable->uiRecordLen;
+      if( uiRecordLen && uiSearchLen )
+      {
+         const char * szSearch = hb_parc( 1 );
+
+         bCaseI = HB_ISLOG( 2 ) && hb_parl( 2 );
+         if( bCaseI )
+            nPos = hb_strAtI( szSearch, uiSearchLen, ( char * ) pTable->pRecord, uiRecordLen );
+         else
+            nPos = hb_strAt( szSearch, uiSearchLen, ( char * ) pTable->pRecord, uiRecordLen );
+
+         if( ! nPos && pTable->fHaveMemo && ! ( HB_ISLOG( 3 ) && hb_parl( 3 ) ) )
+         {
+            HB_USHORT   uiCount = pTable->uiFieldExtent;
+            PHB_ITEM    pValue = hb_itemNew( NULL );
+            LETOFIELD * pField;
+            int         iLen;
+
+            while( uiCount-- )
+            {
+               pField = pTable->pFields + uiCount;
+               /* as Harbour has no HB_FF_EXTERN ... ;-) */
+               if( pField->uiType == HB_FT_MEMO || pField->uiType == HB_FT_BLOB ||
+                   pField->uiType == HB_FT_IMAGE || pField->uiType == HB_FT_OLE ||
+                   ( pField->uiType == HB_FT_ANY && pField->uiLen >= 6 ) )
+               {
+                  SELF_GETVALUE( ( AREAP ) pArea, uiCount + 1, pValue );
+                  if( ( iLen = hb_itemGetCLen( pValue ) ) > 0 )
+                  {
+                     if( bCaseI )
+                         nPos = hb_strAtI( szSearch, uiSearchLen, hb_itemGetCPtr( pValue ), iLen );
+                     else
+                         nPos = hb_strAt( szSearch, uiSearchLen, hb_itemGetCPtr( pValue ), iLen );
+                  }
+               }
+            }
+            hb_itemRelease( pValue );
+         }
+      }
+   }
+
+   if( ! HB_ISCHAR( 1 ) )  /* raw record for extern process */
+      hb_retclen( ( char * ) pTable->pRecord, uiRecordLen );
+   else
+      hb_retl( nPos != 0 );
 }
 
 #if ! defined( __XHARBOUR__ )

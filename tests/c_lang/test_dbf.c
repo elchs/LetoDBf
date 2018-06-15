@@ -42,7 +42,7 @@ static void printRec( LETOTABLE * pTable )
    hb_xfree( szRet );
 }
 
-void main( int argc, char *argv[] )
+int main( int argc, char *argv[] )
 {
    LETOCONNECTION * pConnection;
    int iPort;
@@ -63,7 +63,7 @@ void main( int argc, char *argv[] )
 
       pTable = LetoDbCreateTable( pConnection, "test1", "TEST1",
                                   "NAME;C;10;0;NUM;N;4;0;INFO;C;32;0;DINFO;D;8;0;MINFO;M;10;0;",
-                                  1, NULL );
+                                  1, NULL, HB_FALSE );
       if( pTable )
       {
          unsigned int ui, uiFields, uiRet;

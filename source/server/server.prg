@@ -67,6 +67,7 @@ REQUEST DBFFPT
 REQUEST SIXCDX
 REQUEST DBFNSX
 REQUEST HB_MEMIO
+/* REQUEST SDF, Delim */
 
 #ifdef __BM
    REQUEST BMDBFNTX
@@ -107,16 +108,19 @@ REQUEST HB_DATETIME, HB_DTOT, HB_TTOD, HB_NTOT, HB_TTON, HB_CTOT, HB_TTOC, ;
         HB_TTOS, HB_STOT, HB_HOUR, HB_MINUTE, HB_SEC, HB_VALTOEXP, HB_ZCOMPRESS
 REQUEST HB_HEXTONUM, HB_NUMTOHEX
 
-REQUEST hb_ATokens, hb_tokenGet, hb_tokenCount, hb_WildMatch, hb_DiskSpace, hb_strformat
-REQUEST FieldPos, FieldGet, FieldPut, Deleted, hb_FieldType, hb_FieldLen, hb_FieldDec
+REQUEST hb_ATokens, hb_tokenGet, hb_tokenCount, hb_DiskSpace, hb_strformat
+REQUEST FieldPos, FieldGet, FieldPut, hb_FieldType, hb_FieldLen, hb_FieldDec
+REQUEST hb_WildMatch, hb_AtX
+REQUEST Deleted, Found, Bof, Eof
+REQUEST hb_Hash, hb_Hset, hb_Hget, hb_Hdel
 
 REQUEST Array, AClone, ASize, ADel, AIns, AEval, AScan, ASize, ASort
 REQUEST hb_idleSleep, hb_milliSeconds
 
-REQUEST dbGoTop, dbGoBottom, dbSkip, dbGoto, dbSeek, Bof, Eof, dbEval, dbInfo, dbStruct
+REQUEST dbGoTop, dbGoBottom, dbSkip, dbGoto, dbSeek, dbEval, dbInfo, dbStruct
 REQUEST dbAppend, dbDelete, dbRecall, dbCommit, dbFilter, dbSetFilter
 #ifndef __HARBOUR30__
-   REQUEST hb_dbGetFilter, HB_WILDMATCHI
+   REQUEST hb_dbGetFilter, HB_WILDMATCHI, hb_RegexHas, hb_RegexLike
 #endif
 REQUEST ordKeyVal, dbOrderInfo, RDDinfo, OrdSetFocus, Alias, Select, dbSelectArea
 
@@ -127,11 +131,12 @@ REQUEST LETO_VARSET, LETO_VARGET, LETO_VARINCR, LETO_VARDECR, LETO_VARDEL, LETO_
 REQUEST LETO_VARGETCACHED, LETO_BVALUE, LETO_BSEARCH
 
 REQUEST LETO_GETUSTRUID, LETO_WUSLOG, LETO_GETAPPOPTIONS
-REQUEST LETO_SELECT, LETO_SELECTAREA, LETO_ALIAS, LETO_AREAID
+REQUEST LETO_SELECT, LETO_SELECTAREA, LETO_ALIAS, LETO_AREAID, LETO_FTS
 REQUEST LETO_RECLOCK, LETO_RECLOCKLIST, LETO_RECUNLOCK, LETO_TABLELOCK, LETO_TABLEUNLOCK
 REQUEST LETO_DBUSEAREA, LETO_DBCLOSEAREA, LETO_ORDLISTADD
 REQUEST LETO_DBCREATE, LETO_ORDCREATE
-REQUEST LETO_DBEVAL
+REQUEST LETO_DBEVAL, LETO_DBJOIN, LETO_DBTOTAL
+REQUEST __dbTotal
 
 REQUEST LETO_IDLESLEEP
 REQUEST LETO_UDFMUSTQUIT
@@ -307,7 +312,7 @@ PROCEDURE StartServer()
    ENDIF
    leto_InitSet()
    leto_HrbLoad()
-   leto_CreateData( oApp:cAddr, oApp:nPort, oApp:cAddrSpace )
+   leto_CreateData( oApp:cAddr, oApp:nPort, oApp:cAddrSpace, oApp:cServer )
 
    IF ! leto_Server( oApp:nPort, oApp:cAddr, oApp:nTimeOut, oApp:nZombieCheck, oApp:cBCService, oApp:cBCInterface, oApp:nBCPort )
       WrLog( "Socket error " + hb_socketErrorString( hb_socketGetError() ) )
@@ -398,6 +403,7 @@ EXIT PROCEDURE EXITP
 
 CLASS HApp
 
+   DATA cServer       INIT NIL
    DATA cAddr         INIT NIL
    DATA nPort         INIT 2812
    DATA nTimeOut      INIT -1
@@ -472,6 +478,9 @@ METHOD New() CLASS HApp
                cValue := aIni[ i, 2, j, 2 ]
 
                SWITCH aIni[ i, 2, j, 1 ]
+               CASE "SERVER"
+                  ::cServer := cValue
+                  EXIT
                CASE "PORT"
                   nTmp := INT( Val( cValue ) )
                   IF nTmp >= 1024

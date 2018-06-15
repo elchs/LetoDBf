@@ -1,6 +1,13 @@
 /* do NOT use for xHarbour */
 #include "dbinfo.ch"
 
+/* pre-process commands COPY APPEND SORT and xtranslate __dbtrans ... */
+/* missing in  letodb.hbc ? */
+#ifndef LETO_STD_CH_
+   #include "leto_std.ch"
+#endif
+
+
 #if defined( __PLATFORM__LINUX )
    REQUEST HB_GT_XWC
    REQUEST HB_GT_XWC_DEFAULT
@@ -156,9 +163,25 @@ Function main( cPath )
    ? " ", Reccount(), Field->Code, Field->Name, Field->AutoInc, Field->Text
 
    DbSelectArea( "TEST" )
-   ? Leto_dbTrans( SELECT( "TEST2" ), { "Code", "Name", "Text" }, "Code==2" )
+   DbGoTop()
+   nRecord := 2
+   /* stringifiyed! block fail at server because local memvar, so try afterwards at client */
+   COPY to "test5" FOR { || Code == nRecord }
+   IF DbExists( cPath + "test5" )
+      IF DbUseArea( .t.,, cPath + 'test5',, .T. )
+         ? "Copy Test"
+         ? "*", 1, " 2 Second              2"
+         ? " ", Reccount(), Field->Code, Field->Name, Field->AutoInc
+         DbCloseArea()
+      ENDIF
+      hb_dbDrop( "test5" )
+   ENDIF
+
+   DbSelectArea( "TEST" )
+   ? __DBTRANS( SELECT( "TEST2" ), { "Code", "Name", "Text" }, "Code==2" )
    DbSelectArea( "TEST2" )
    DbGoBottom()
+   ? "Dbtrans Test"
    ? "*          4  2 Second              4 Elch"
    ? " ", Reccount(), Field->Code, Field->Name, Field->AutoInc, Field->Text
    IF DbAppend()
@@ -166,10 +189,12 @@ Function main( cPath )
               Field->Name WITH "Forth"
       DbUnlock()
    ENDIF
-   ? " ", Reccount(), Field->Code, Field->Name, Field->AutoInc, Field->Text
+
+   ?
+   WAIT
 
    DbSelectArea( "TEST" )
-   ? Leto_dbTrans( SELECT( "TEST2" ), { "Code", "Name" }, {|| Code == 3 } )
+   ? __DBTRANS( SELECT( "TEST2" ), { "Code", "Name" }, {|| Code == 3 } )
    DbSelectArea( "TEST2" )
    ? "*          6  3 Third               6"
    ? " ", Reccount(), Field->Code, Field->Name, Field->AutoInc, Field->Text
@@ -178,7 +203,6 @@ Function main( cPath )
               Field->Name WITH "Forth"
       DbUnlock()
    ENDIF
-   ? " ", Reccount(), Field->Code, Field->Name, Field->AutoInc, Field->Text
 
    IF FLOCK()
       ? Leto_dbTrans( SELECT( "TEST4" ) )   // TEST2 --> TEST4
@@ -193,7 +217,7 @@ Function main( cPath )
                 { { 'Code', 'N', 2, 0 },{ 'Name', 'C', 10, 0 },{ 'Text', 'M', 10, 0 }, { 'AutoInc', '+', 4, 0 } },;
                 "DBFNTX", .T., "TEST5" )
       DbSelectArea( "TEST4" )
-      __dbTrans( SELECT( "TEST5" ) )
+      Leto_dbTrans( SELECT( "TEST5" ) )
       DbSelectArea( "TEST5" )
       ? "*         10  7 Forth               7"
       ? " ", Reccount(), Field->Code, Field->Name, Field->AutoInc, Field->Text
@@ -221,6 +245,36 @@ Function main( cPath )
       ENDIF
    ENDIF
 
+   /* HbMemIO from server to named temporary DBF */
+   IF LETO_DBCREATETEMP( "test7", { { 'Code', 'N', 2, 0 },{ 'Name', 'C', 10, 0 },{ 'Text', 'M', 10, 0 }, { 'AutoInc', '+', 4, 0 } },;
+                         "LETO", .T., "TEST7" )
+      DbSelectArea( "TEST4" )
+      __dbTrans( SELECT( "TEST7" ) )
+      DbSelectArea( "TEST7" )
+      ?
+      ? "Named temporary table"
+      ? "*         10  7 Forth               7"
+      ? " ", Reccount(), Field->Code, Field->Name, Field->AutoInc, Field->Text
+      DbCloseArea()
+      IF DbExists( "test7.dbf",, "DBFNTX" )
+         ? "Fail to drop local file 'test7.dbf"
+      ELSE
+         ? "Success to delete temporary table 'test7'"
+      ENDIF
+   ENDIF
+
+   DbSelectArea( "TEST4" )
+   nRec := Reccount()
+   DbSelectArea( "TEST" )
+   nRec *= Reccount()
+   IF nRec > 0
+      ?
+      IF Leto_dbJoin( "test4", "test10", { "name", "test4->name", "name", "test4->name","name", "test4->name","name", "test4->name","name", "test4->name","name", "test4->name","name", "test4->name","name", "test4->name","name", "test4->name","name", "test4->name" },,,,, .T. )
+         ? "leto_DbJoin() records", RecCount(), " == ", nRec
+      ENDIF
+      DbSelectArea( "TEST" )
+   ENDIF
+
    ?
    ? "may start a second instance of this app, but END it before continue..."
    WAIT
@@ -234,272 +288,3 @@ Function main( cPath )
 
 RETURN nil
 
-
-
-/* C-level */
-#pragma BEGINDUMP
-
-/*
- * replicas of: __DBARRANGE(), __DBTRANS(), __DBAPP(), __DBCOPY()
- * Copyright 1999 Bruno Cantero <bruno@issnet.net>
- * Copyright 2004-2007 Przemyslaw Czerpak <druzus / at / priv.onet.pl>
- * slightly modified  2017 Rolf 'elch' Beckmann
- */
-
-#include "hbapi.h"
-#include "hbapierr.h"
-#include "hbapiitm.h"
-#include "hbapirdd.h"
-#include "funcleto.h"
-
-/* replaces __DBARRANGE() by optional use of string expressions instead of codeblocks,
- * __dbArrange( nToArea, aStruct, bFor, bWhile, nNext, nRecord, lRest, aFields ) */
-HB_FUNC( LETO_DBARRANGE )
-{
-   HB_ERRCODE errCode = HB_FAILURE;
-   AREAP pSrcArea, pDstArea;
-
-   pSrcArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   pDstArea = ( AREAP ) hb_rddGetWorkAreaPointer( ( HB_AREANO ) hb_parni( 1 ) );
-
-   /* TODO: check what Clipper does when pDstArea == NULL or pSrcArea == pDstArea */
-   if( pSrcArea && pDstArea && pSrcArea != pDstArea )
-   {
-      DBSORTINFO dbSortInfo;
-      /* structure with fields copied copied from source WorkArea */
-      PHB_ITEM pStruct = hb_param( 2, HB_IT_ARRAY );
-      /* array with sorted fields in source WorkArea */
-      PHB_ITEM pFields = hb_param( 8, HB_IT_ARRAY );
-
-      memset( &dbSortInfo, 0, sizeof( dbSortInfo ) );
-      errCode = hb_dbTransStruct( pSrcArea, pDstArea, &dbSortInfo.dbtri,
-                                  NULL, pStruct );
-      if( errCode == HB_SUCCESS )
-      {
-         PHB_ITEM pTransItm;
-
-         dbSortInfo.dbtri.dbsci.itmCobFor   = hb_param( 3, HB_IT_BLOCK );
-         dbSortInfo.dbtri.dbsci.lpstrFor    = hb_param( 3, HB_IT_STRING );
-         dbSortInfo.dbtri.dbsci.itmCobWhile = hb_param( 4, HB_IT_BLOCK );
-         dbSortInfo.dbtri.dbsci.lpstrWhile  = hb_param( 4, HB_IT_STRING );
-         dbSortInfo.dbtri.dbsci.lNext       = hb_param( 5, HB_IT_NUMERIC );
-         dbSortInfo.dbtri.dbsci.itmRecID    = HB_ISNIL( 6 ) ? NULL : hb_param( 6, HB_IT_ANY );
-         dbSortInfo.dbtri.dbsci.fRest       = hb_param( 7, HB_IT_LOGICAL );
-
-         dbSortInfo.dbtri.dbsci.fIgnoreFilter     =
-         dbSortInfo.dbtri.dbsci.fLast             =
-         dbSortInfo.dbtri.dbsci.fIgnoreDuplicates =
-         dbSortInfo.dbtri.dbsci.fBackward         =
-         dbSortInfo.dbtri.dbsci.fOptimized        = HB_FALSE;
-         dbSortInfo.dbtri.dbsci.fIncludeDeleted   = HB_TRUE;
-
-         /* do not transfer record deleted flag to destination area */
-         dbSortInfo.dbtri.uiFlags |= DBTF_RECALL;
-
-         dbSortInfo.uiItemCount = pFields ? ( HB_USHORT ) hb_arrayLen( pFields ) : 0;
-         if( dbSortInfo.uiItemCount > 0 )
-         {
-            HB_USHORT uiCount, uiDest;
-            char * szFieldLine;
-            HB_SIZE nSize = 0;
-
-            dbSortInfo.lpdbsItem = ( LPDBSORTITEM ) hb_xgrab( dbSortInfo.uiItemCount * sizeof( DBSORTITEM ) );
-            for( uiCount = 1; uiCount <= dbSortInfo.uiItemCount; ++uiCount )
-            {
-               HB_SIZE nLine = hb_arrayGetCLen( pFields, uiCount );
-               if( nLine > nSize )
-                  nSize = nLine;
-            }
-            szFieldLine = ( char * ) hb_xgrab( nSize + 1 );
-            for( uiDest = 0, uiCount = 1; uiCount <= dbSortInfo.uiItemCount; ++uiCount )
-            {
-               char * szPos;
-               dbSortInfo.lpdbsItem[ uiDest ].uiFlags = 0;
-               hb_strncpyUpper( szFieldLine, hb_arrayGetCPtr( pFields, uiCount ),
-                                hb_arrayGetCLen( pFields, uiCount ) );
-               szPos = strchr( szFieldLine, '/' );
-               if( szPos )
-               {
-                  *szPos++ = 0;
-                  /* It's not Cl*pper compatible, Cl*pper checks only
-                     for /D flag and ignores any /A flags [druzus] */
-                  if( strchr( szPos, 'D' ) > strchr( szPos, 'A' ) )
-                     dbSortInfo.lpdbsItem[ uiDest ].uiFlags |= SF_DESCEND;
-                  else
-                     dbSortInfo.lpdbsItem[ uiDest ].uiFlags |= SF_ASCEND;
-                  if( strchr( szPos, 'C' ) != NULL )
-                     dbSortInfo.lpdbsItem[ uiDest ].uiFlags |= SF_CASE;
-               }
-               else
-                  dbSortInfo.lpdbsItem[ uiDest ].uiFlags |= SF_ASCEND;
-
-               /* Cl*pper sorts records using field values from source
-                  area only, destination area may not contain sorted
-                  fields at all [druzus] */
-               dbSortInfo.lpdbsItem[ uiDest ].uiField = hb_rddFieldExpIndex( pSrcArea, szFieldLine );
-               /* Field found */
-               if( dbSortInfo.lpdbsItem[ uiDest ].uiField != 0 )
-                  ++uiDest;
-            }
-            dbSortInfo.uiItemCount = uiDest;
-            hb_xfree( szFieldLine );
-         }
-
-         pTransItm = hb_dbTransInfoPut( NULL, &dbSortInfo.dbtri );
-         errCode = SELF_INFO( dbSortInfo.dbtri.lpaDest, DBI_TRANSREC, pTransItm );
-         if( errCode == HB_SUCCESS )
-         {
-            errCode = dbSortInfo.dbtri.uiItemCount == 0 ? HB_FAILURE :
-                      ( dbSortInfo.uiItemCount == 0 ?
-                        SELF_TRANS( pSrcArea, &dbSortInfo.dbtri ) :
-                        SELF_SORT( pSrcArea, &dbSortInfo ) );
-            SELF_INFO( dbSortInfo.dbtri.lpaDest, DBI_TRANSREC, pTransItm );
-            if( errCode == HB_SUCCESS && ( dbSortInfo.dbtri.uiFlags & DBTF_CPYCTR ) )
-               errCode = hb_dbTransCounters( &dbSortInfo.dbtri );
-         }
-         hb_itemRelease( pTransItm );
-      }
-
-      /* Free items */
-      if( dbSortInfo.lpdbsItem )
-         hb_xfree( dbSortInfo.lpdbsItem );
-      if( dbSortInfo.dbtri.lpTransItems )
-         hb_xfree( dbSortInfo.dbtri.lpTransItems );
-   }
-
-   hb_retl( errCode == HB_SUCCESS );
-}
-
-
-#if 0  /* LETO_DBTRANS integrated in LetoDBf client library */
-
-/* replaces __DBTRANS() by optional use of string expressions instead of codeblocks,
- * Leto_dbTrans( cnDstArea, aFields, cFor, cWhile, nNext, nRecord, lRest ) */
-HB_FUNC( LETO_DBTRANS )
-{
-   HB_UINT uiDstArea = 0;
-   AREAP   pSrcArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-
-   if( HB_ISCHAR( 1 ) )  /* ALIAS */
-      hb_rddGetAliasNumber( hb_parc( 1 ), ( int * ) &uiDstArea );
-   else if( HB_ISNUM( 1 ) )  /* WA number */
-      uiDstArea = hb_parni( 1 );
-
-   if( uiDstArea > 0 && pSrcArea )
-   {
-      HB_UINT uiSrcArea;
-      AREAP   pDstArea;
-
-      uiSrcArea = hb_rddGetCurrentWorkAreaNumber();
-      hb_rddSelectWorkAreaNumber( uiDstArea );
-      pDstArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-
-      if( pDstArea )
-      {
-         DBTRANSINFO dbTransInfo;
-         PHB_ITEM pFields = hb_param( 2, HB_IT_ARRAY );
-         HB_ERRCODE errCode;
-
-         memset( &dbTransInfo, 0, sizeof( DBTRANSINFO ) );
-         errCode = hb_dbTransStruct( pSrcArea, pDstArea, &dbTransInfo, NULL, pFields );
-         if( errCode == HB_SUCCESS )
-         {
-            hb_rddSelectWorkAreaNumber( dbTransInfo.lpaSource->uiArea );
-
-            dbTransInfo.dbsci.itmCobFor   = hb_param( 3, HB_IT_BLOCK );
-            dbTransInfo.dbsci.lpstrFor    = hb_param( 3, HB_IT_STRING );
-            dbTransInfo.dbsci.itmCobWhile = hb_param( 4, HB_IT_BLOCK );
-            dbTransInfo.dbsci.lpstrWhile  = hb_param( 4, HB_IT_STRING );
-            dbTransInfo.dbsci.lNext       = hb_param( 5, HB_IT_NUMERIC );
-            dbTransInfo.dbsci.itmRecID    = HB_ISNIL( 6 ) ? NULL : hb_param( 6, HB_IT_ANY );
-            dbTransInfo.dbsci.fRest       = hb_param( 7, HB_IT_LOGICAL );
-
-            /* different to Harbour: fIgnoreFilter = HB_FALSE */
-            dbTransInfo.dbsci.fIgnoreFilter     = HB_TRUE;
-            dbTransInfo.dbsci.fIncludeDeleted   = HB_TRUE;
-            dbTransInfo.dbsci.fLast             = HB_FALSE;
-            dbTransInfo.dbsci.fIgnoreDuplicates = HB_FALSE;
-            dbTransInfo.dbsci.fBackward         = HB_FALSE;
-            dbTransInfo.dbsci.fOptimized        = HB_FALSE;
-
-            errCode = SELF_TRANS( dbTransInfo.lpaSource, &dbTransInfo );
-         }
-
-         if( dbTransInfo.lpTransItems )
-            hb_xfree( dbTransInfo.lpTransItems );
-
-         hb_retl( errCode == HB_SUCCESS );
-      }
-      else
-         hb_errRT_DBCMD( EG_NOTABLE, EDBCMD_NOTABLE, NULL, "LETO_DBTRANS" );
-
-      hb_rddSelectWorkAreaNumber( uiSrcArea );
-   }
-   else
-      hb_errRT_DBCMD( EG_ARG, EDBCMD_USE_BADPARAMETER, NULL, "LETO_DBTRANS" );
-}
-
-#endif  /* LETO_DBTRANS */
-
-
-/* replaces __DBAPP() [ APPEND FROM ] by optional use of string expressions instead of codeblocks
- * Leto_dbApp( cFilename, aFields, cbFor, cbWhile, nNext, nRecord, lRest, cRDD, nConnection, cCDP, xDelimiter ) */
-HB_FUNC( LETO_DBAPP )
-{
-   AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-
-   if( pArea )
-      hb_retl( HB_SUCCESS == hb_rddTransRecords( pArea,
-               hb_parc( 1 ),                     /* file name */
-               hb_parc( 8 ),                     /* RDD */
-               hb_parnl( 9 ),                    /* connection */
-               hb_param( 2, HB_IT_ARRAY ),       /* Fields */
-               HB_FALSE,                         /* Export? */
-               hb_param( 3, HB_IT_BLOCK ),       /* cobFor */
-               hb_param( 3, HB_IT_STRING ),      /* lpStrFor */
-               hb_param( 4, HB_IT_BLOCK ),       /* cobWhile */
-               hb_param( 4, HB_IT_STRING ),      /* lpStrWhile */
-               hb_param( 5, HB_IT_NUMERIC ),     /* Next */
-               HB_ISNIL( 6 ) ? NULL : hb_param( 6, HB_IT_ANY ),   /* RecID */
-               hb_param( 7, HB_IT_LOGICAL ),     /* Rest */
-               hb_parc( 10 ),                    /* Codepage */
-               hb_param( 11, HB_IT_ANY ) ) );    /* Delimiter */
-   else
-#if 0
-      commonError( ( LETOAREAP ) pArea, EG_NOTABLE, EDBCMD_NOTABLE, 0, NULL, 0, "LETO_DBAPP" );
-#else
-      hb_errRT_DBCMD( EG_NOTABLE, EDBCMD_NOTABLE, NULL, "LETO_DBAPP" );
-#endif
-}
-
-/* replaces __DBCOPY() [ COPY TO ] by optional use of string expressions instead of codeblocks
- * Leto_dbCopy( cFilename, aFields, cbFor, cbWhile, nNext, xRecID, lRest, cRDD, nConnection, cCDP, xDelim ) */
-HB_FUNC( LETO_DBCOPY )
-{
-   AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-
-   if( pArea )
-      hb_retl( HB_SUCCESS == hb_rddTransRecords( pArea,
-               hb_parc( 1 ),                     /* file name */
-               hb_parc( 8 ),                     /* RDD */
-               hb_parnl( 9 ),                    /* connection */
-               hb_param( 2, HB_IT_ARRAY ),       /* Fields */
-               HB_TRUE,                          /* Export? */
-               hb_param( 3, HB_IT_BLOCK ),       /* cobFor */
-               hb_param( 3, HB_IT_STRING ),      /* lpStrFor */
-               hb_param( 4, HB_IT_BLOCK ),       /* cobWhile */
-               hb_param( 4, HB_IT_STRING ),      /* lpStrWhile */
-               hb_param( 5, HB_IT_NUMERIC ),     /* Next */
-               HB_ISNIL( 6 ) ? NULL : hb_param( 6, HB_IT_ANY ),   /* RecID */
-               hb_param( 7, HB_IT_LOGICAL ),     /* Rest */
-               hb_parc( 10 ),                    /* Codepage */
-               hb_param( 11, HB_IT_ANY ) ) );    /* Delimiter */
-   else
-#if 0
-      commonError( ( LETOAREAP ) pArea, EG_NOTABLE, EDBCMD_NOTABLE, 0, NULL, 0, "LETO_DBCOPY" );
-#else
-      hb_errRT_DBCMD( EG_NOTABLE, EDBCMD_NOTABLE, NULL, "LETO_DBCOPY" );
-#endif
-}
-
-#pragma ENDDUMP

@@ -2,6 +2,106 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-06-15 18:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; ( maybe rare used ) bug fixes ! -- refresh server and client for news:
+    # support named ( LETO extension ) and OS none-named temporary tables
+    # server-side executable ( by stingified codeblocks <for> and <while> )
+      'record processing commands' with new header file "leto_std.ch"
+    # transactions: ignore-to-unlock until commit' mode for easy integration
+      to existing source with 'unlocks'
+    # RDDI_AUTOLOCK in conjunction with a timeout value to get lock success,
+      used in letoDbEval() for shared opened tables -- whereas letoDbEval()
+      is fast server side query [opt. data change] into a sum or resultset!
+    # performance for sequence: Rlock(); change data; DbUnlock()
+      spares a network package ( 'unlock' send together with data update )
+
+  * letodb.hbc
+  + include/leto_std.h
+  * include/letocl.h
+  * include/rddleto.ch
+  * include/rddleto.h
+  * source/client/leto1.c
+    + new LETO_*:
+      _DBARRANGE, _DBSORT, _DBCOPY, _DBAPP, _DBJOIN, _TOTAL, _UPDATE
+      LetoDBf adapted/ optimized replicas of __db*() functions
+    * + prep up! LETO_DBEVAL() to act at server if ever possible,
+      to be a full replace for dbEval() *plus* LetoDBf extensions like
+      to give back result-sets, using Leto_Var*(), AUTOLOCKing, ...
+    * refine letoSort() and letoTrans() to use 'fOptimized' flag;
+      do not send non-optimzed query ( with 'for/while'-codeblocks ! ),
+      and instead execute it (must be) local at client.
+      With string expressions for the evil-block, the for/while' expression,
+      its tried as optimized at server -- if query then fails at server,
+      - a local var or function in it - its tried at client ( if here the
+        expressions are valid as a CB )
+    ; General aim is to let Leto_Db*() functions act at server-side,
+      very wanted for exactly case to 'filter' records at the bright! side.
+      HB core functions __db*() omit the string alternative,
+      and expressions are blockyfied in 'std.ch', so ...
+    * use new header file to pre-process Harbour __db*() commands
+      ( by stringify their params ) into Leto_db*() variants
+    * include new header 'leto_std.ch' in letodb.hbc
+    * refine leto_mkCodeBlock() used in above
+    + new LETO DBI_CHILDPARENT to check if a relation points to this WA
+    + use DBI_ISTEMPORARY to set new flag in WA; return HB_SUCCESS
+    + Leto_DbCreateTemp() to create 'temporary' tables, aka automatically
+      deleted when closed. Without given filename, a unique file in the
+      temporary OS path at server is created, else with given name relative
+      to the server datapath. [ "mem:/temptable" without path in RAM ]
+    + Leto_BeginTransaction( .T. ) [ given TRUE ]: not only all existing locks
+      are unlocked, but following R-F-unlocks ignored until transaction end.
+      This should it make easy to add transactions to existing source.
+    * LetoDbAppend() during transaction ever to use: fUnLockAll = .F.
+    + leto_Var[Decr|Incr](): optional increment amount as 4th param,
+      so nice to sum up a value with e.g. flag: LETO_VCREAT
+    + new RDDI_LOCKTIMEOUT, add RDDI_AUTOLOCK, changed Leto_SetLockTimeOut()
+      to set value also at server
+
+  * source/client/letomgmt.c
+    + new LETO_FTS( [ cSearch[, lCaseInsensitive, [ lNoMemos ] ] ] )
+      Full-Text-Search over all fields, default including also memofields
+
+  * source/client/letocl.c
+    ! more fix to 2017-06-09, LetoDbGoTo():
+      instead looking up the cache for recno() > reccount() [out of space],
+      ask the server for fresh data; ( sets in return also EOF/ BOF );
+      THANKS for hint by Leon; -- reset 'found' flag to false in any! case
+    ! fix data refresh: if DbRlock() not the active record,
+      and its data is cached in (still) valid skipbuffer
+    * minor add of field-types
+
+  * source/client/rddsys.prg
+    * link HB internal funtions needed in leto_std.ch
+
+  * include/srvleto.h
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+  * source/server/server.prg
+    + LETO_FTS() Full-Text-Search *all* fields, well for filter expressions
+    ! fix to set from client a table trigger at server with DBI_TRIGGER
+      ; a global server trigger ever have precedence, then do not set
+    ! possibility to create temporary tables, deleted with closing them.
+      Likely a DbCreate() with lKeepOpen flag, ever in 'exclusive' mode.
+    * rework also server side part of leto_DbEdit(), and add same for
+    + leto_dbJoin(): accepts named/ unnamed temporary table
+    + new RDDI_LOCKTIMEOUT to query/ set a session iLockTimeOut,
+      used in conjunction with added RDDI_AUTOLOCK in e.g. Leto_DbEval()
+    * add a server name known to itself, existing config option 'SERVER'
+    * add missing REQUESTs for Leto_Var[Inc|Dec]
+
+  * source/server/letovars.c
+    * make leto_VarIncr()/ leto_VarDevr() work also with decimals
+    ! fix to create above from server side
+    + optional given amount to increment or decrement -- if not given: '1'
+
+  * tests/c_lang/test_dbf.c
+    * new temporary param for LetoDbCreateTable()
+
+  * tests/test_tr.prg
+    * clean up of code which went into rddleto library
+
+  * Readme.txt
+
 2018-05-14 19:18 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
     * move #define LETO_DEFAULT_TIMEOUT from letocl.c
