@@ -2,7 +2,30 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
-2018-06-15 18:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+2018-06-18 18:56 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/funcleto.h
+  * include/leto_std.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+    % if DbRUnlock( nRecno ) is active record to update, add unlock to update
+      like for DbUnlock()
+    ! leto_dbEval() in data change mode need to call RDD method FieldPut()
+      when executed at client, to set markers which fields to update;
+      PP fill into FieldPut('fieldname'), leto_DbEval() convert to fieldpos
+    + flag LETO_FLAG_UPD_ALL to update all non-extern stored fields
+    * send outstanding updated record before to start leto_dbeval()
+    * add numeric constant alternative to 2. param in Leto_DbDriver()
+
+  * source/client/rddsys.prg
+    * add function requests used in Leto_DbEval()
+
+  * source/server/letofunc.c
+    ! server mode No_Save_WA=0; ! NTX, AUTORDER == 0; then re-open production
+      or open another index bag: missing set order to first in bag
+      ; Thanks! to Theo for pointing bug for rare usage
+    % leto_dbEval() in lock-mode: inital try one F-lock, if fails R-locks
+
+2018-06-15 18:48 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; ( maybe rare used ) bug fixes ! -- refresh server and client for news:
     # support named ( LETO extension ) and OS none-named temporary tables
     # server-side executable ( by stingified codeblocks <for> and <while> )
@@ -10,7 +33,7 @@
     # transactions: ignore-to-unlock until commit' mode for easy integration
       to existing source with 'unlocks'
     # RDDI_AUTOLOCK in conjunction with a timeout value to get lock success,
-      used in letoDbEval() for shared opened tables -- whereas letoDbEval()
+      used in leto_DbEval() for shared opened tables -- whereas leto_DbEval()
       is fast server side query [opt. data change] into a sum or resultset!
     # performance for sequence: Rlock(); change data; DbUnlock()
       spares a network package ( 'unlock' send together with data update )
@@ -74,7 +97,6 @@
     * link HB internal funtions needed in leto_std.ch
 
   * include/srvleto.h
-  * source/server/leto_2.c
   * source/server/letofunc.c
   * source/server/server.prg
     + LETO_FTS() Full-Text-Search *all* fields, well for filter expressions

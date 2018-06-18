@@ -4579,7 +4579,21 @@ HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
 
    for( ui = 0; ui < pTable->uiFieldExtent; ui++ )
    {
-      if( pTable->pFieldUpd[ ui ] )
+      if( ( pTable->uiUpdated & LETO_FLAG_UPD_ALL ) )  /* pTable->fHaveMemo */
+      {
+         switch( ( pTable->pFields + ui )->uiType )
+         {
+            case HB_FT_MEMO:
+            case HB_FT_BLOB:
+            case HB_FT_PICTURE:
+            case HB_FT_OLE:
+               break;
+
+            default:
+               uiUpd++;
+         }
+      }
+      else if( pTable->pFieldUpd[ ui ] )
          uiUpd++;
    }
    szData = ( char * ) hb_xgrab( pTable->uiRecordLen + ( uiUpd * 8 ) + 20 );
@@ -4610,7 +4624,7 @@ HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
 
       for( ui = 0; ui < pTable->uiFieldExtent; ui++ )
       {
-         if( pTable->pFieldUpd[ ui ] )
+         if( pTable->pFieldUpd[ ui ] || ( pTable->uiUpdated & LETO_FLAG_UPD_ALL ) )
          {
             pField = pTable->pFields + ui;
             ptr = ( char * ) ( pTable->pRecord + pTable->pFieldOffset[ ui ] );

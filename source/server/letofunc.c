@@ -7304,7 +7304,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
       HB_BOOL  bEof;
 
       pRLocks = hb_itemArrayNew( 0 );
-      dbLockInfo.uiMethod = DBLM_MULTIPLE;
+      dbLockInfo.uiMethod = DBLM_FILE;  /* try first Flock, else R-lock each */
       SELF_RECNO( pArea, &ulNewRecNo );
 
       hb_xvmSeqBegin();
@@ -7329,7 +7329,9 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
             iTimeOut = iLockTime;
             do
             {
-               if( pUStru->pCurAStru->pTStru->bMemIO )
+               if( dbLockInfo.uiMethod == DBLM_FILE && hb_arrayLen( pRLocks ) )
+                  dbLockInfo.fResult = HB_TRUE;  /* initial Flock successful */
+               else if( pUStru->pCurAStru->pTStru->bMemIO )
                {
                   if( leto_RecLock( pUStru, pUStru->pCurAStru, ulLockRecNo, HB_FALSE, iTimeOut ) )
                      dbLockInfo.fResult = HB_TRUE;
@@ -7339,7 +7341,15 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
                else
                   SELF_LOCK( pArea, &dbLockInfo );
                if( dbLockInfo.fResult || iTimeOut < 20 )
-                  break;
+               {
+                  if( ! dbLockInfo.fResult && iTimeOut < 20 && dbLockInfo.uiMethod == DBLM_FILE )
+                  {
+                     dbLockInfo.uiMethod = DBLM_MULTIPLE;
+                     iTimeOut = iLockTime;
+                  }
+                  else
+                     break;
+               }
                else
                {
                   hb_threadReleaseCPU();
@@ -14385,7 +14395,7 @@ static void leto_OpenIndex( PUSERSTRU pUStru, char * szRawData )
             {
                if( ! pUStru->pCurAStru->pTag )
                   uiOrdToSet = 1;
-               else
+               else if( pTag )
                   uiOrdToSet = 0;
             }
             else  /* NTX: if no active order, set to new opened, else stay  */

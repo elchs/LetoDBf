@@ -119,7 +119,7 @@
 #command REPLACE [<f1> WITH <x1> [, <fN> WITH <xN>]] ;
                  [FOR <for>] [WHILE <while>] [NEXT <next>] ;
                  [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] => ;
-         leto_dbEval( "{|| _FIELD->"+<"f1">+" := "+<"x1">[+", _FIELD->"+<"fN">+" := "+<"xN">]+" }", ;
+         leto_dbEval( "{|| FIELDPUT('"+<"f1">+"',"+<"x1">+")"[+", FIELDPUT('"+<"fN">+"',"+<"xN">+")"]+" }", ;
                       <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.> )
 #command REPLACE <f1> WITH <v1>[, <fN> WITH <vN>] => ;
          _FIELD-><f1> := <v1> [; _FIELD-><fN> := <vN>]

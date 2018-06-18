@@ -3249,6 +3249,9 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
 
          if( pRLocks )
          {
+            if( ! pArea->pTable->uiUpdated )  /* data changes without RDD methods */
+               pArea->pTable->uiUpdated |= LETO_FLAG_UPD_ALL;
+            leto_PutRec( pArea );
             if( ( HB_SIZE ) hb_itemGetNL( pProces ) < hb_arrayLen( pRLocks ) )
                SELF_GOTO( pRawArea, hb_arrayGetNL( pRLocks, hb_itemGetNL( pProces ) + 1 ) );
             else
@@ -5230,7 +5233,7 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
          {
             fInstant = HB_TRUE;
             pTable->uiUpdated |= LETO_FLAG_UPD_FLUSH;
-            if( uiAction == FILE_UNLOCK )
+            if( uiAction == FILE_UNLOCK || ( ulRecNo && ulRecNo == pTable->ulRecNo ) )
                pTable->uiUpdated |= LETO_FLAG_UPD_UNLOCK;
          }
       }
@@ -6485,7 +6488,7 @@ static HB_BOOL leto_IsUDFAllowed( LETOCONNECTION * pConnection, const char * szC
    return fUDFAllowed;
 }
 
-/* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward ) */
+/* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward ] ) */
 HB_FUNC( LETO_DBEVAL )
 {
    LETOCONNECTION * pConnection = NULL;
@@ -6532,6 +6535,9 @@ HB_FUNC( LETO_DBEVAL )
 
    if( fValid )  /* WA & first param */
    {
+      if( pArea && pArea->pTable && pArea->pTable->uiUpdated )
+         leto_PutRec( pArea );
+
       if( hb_parclen( 1 ) )
       {
          HB_SIZE      nBlockSize = HB_MAX( HB_PATH_MAX, hb_parclen( 1 ) + 8 + ( ( hb_parclen( 1 ) / 8 ) * 10 ) );
@@ -6544,7 +6550,7 @@ HB_FUNC( LETO_DBEVAL )
          {
             char    szNewKey[ 16 ] = { 0 };
             char    szLastKey[ HB_SYMBOL_NAME_LEN + 1 ] = { 0 };
-            char    * pptr;
+            char *  pptr;
             HB_SIZE nKey = 0;
             int     iKeyLen;
 
@@ -6623,6 +6629,51 @@ HB_FUNC( LETO_DBEVAL )
                nHPos += eprintf( szBlock + nHPos, "%c%c%s%c => %s", ui == 1 ? ' ' : ',','"', szField, '"', szField );
             }
             strcpy( szBlock + nHPos, " } }" );
+         }
+         else if( strstr( szBlock, "FIELDPUT(" ) )  /* replace field-name with field-num */
+         {
+            char      szField[ 16 ];
+            int       iKeyLen, iKeyDiff;
+            char *    pptr;
+            HB_USHORT uiField;
+            HB_ULONG  ulLen;
+
+            ptr = strstr( szBlock, "FIELDPUT(" );
+            while( ptr )
+            {
+               iKeyLen = 0;
+               if( *( ptr + 9 ) == '\'' )
+               {
+                  while( *( ptr + 10 + iKeyLen ) != '\'' )
+                  {
+                     if( ! *( ptr + 10 + iKeyLen ) )
+                     {
+                        iKeyLen = 0;
+                        break;
+                     }
+                     iKeyLen++;
+                  }
+                  if( iKeyLen && iKeyLen < 16 )
+                  {
+                     memcpy( szField, ptr + 10, iKeyLen );
+                     szField[ iKeyLen ] = '\0';
+                     uiField = hb_rddFieldIndex( ( AREAP ) pArea, szField );
+
+                     if( uiField )
+                     {
+                        pptr = szBlock + ( ptr - szBlock ) + 9;
+                        ulLen = ultostr( uiField, szField );
+                        iKeyDiff = iKeyLen + 2 - ( int ) ulLen;
+                        if( iKeyDiff != 0 )  /* < 0 --> move right */
+                           memmove( pptr + iKeyLen + 2 - iKeyDiff, pptr + iKeyLen + 2, strlen( pptr + iKeyLen + 2 ) + 1 );
+                        memcpy( pptr, szField, ulLen );
+                        ptr -= iKeyDiff;
+                     }
+                  }
+               }
+
+               ptr = strstr( ptr + 2, "FIELDPUT(" );
+            }
          }
       }
       if( hb_parclen( 4 ) )
@@ -6740,7 +6791,6 @@ HB_FUNC( LETO_DBEVAL )
          else
             fNeedLock = HB_FALSE;
       }
-
       if( ! fNeedLock )
          pConnection->uSrvLock &= ~( 0x01 );  /* deactivate as hint for RDD method */
 
@@ -8380,6 +8430,22 @@ HB_FUNC( LETO_DBDRIVER )
                strcpy( pConnection->szDriver, szDriver );
                pConnection->uiDriver = ( HB_USHORT ) iDriver;  /* internal use, indicate NTX == 1 versus somthing else */
             }
+         }
+      }
+
+      if( HB_ISNUM( 2 ) )
+      {
+         switch( hb_parni( 2 ) )
+         {
+            case DB_MEMO_DBT:
+               szMemoType = "DBT";
+               break;
+            case DB_MEMO_FPT:
+               szMemoType = "FPT";
+               break;
+            case DB_MEMO_SMT:
+               szMemoType = "SMT";
+               break;
          }
       }
 
