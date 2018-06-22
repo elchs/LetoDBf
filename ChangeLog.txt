@@ -2,6 +2,20 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-06-22 10:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    ! no DBGoTop() in letoEval()/ leto_dbEval() *if* given <while> condition
+      ; THANKS Mario for pointing at misbehaviour
+    ! check for <lNext> before above, start also at current record
+    ! fix an ALIAS problem in leto_FindAlias() for server mode No_Save_WA=0
+      when replacing universal 'field->' alias
+    + boolean 10th param to Leto_DbEval() to stay at last processed record or
+      goto back to the one when starting
+    * move handling to go back to record as before out of letoEval() into
+      Leto_DbEval(); then DbEval() can perform Harbour conform.
+      move leto_PutRec() from here into letoEval()
+
 2018-06-18 18:56 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/funcleto.h
   * include/leto_std.h

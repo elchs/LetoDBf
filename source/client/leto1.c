@@ -3082,15 +3082,15 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
    PHB_ITEM pRLocks = NULL;
    PHB_ITEM pSaveValResult = NULL;
    AREAP    pRawArea = ( AREAP ) pArea;
-   HB_ULONG ulLastRecNo;
    HB_LONG  lNext = -1;
    HB_BOOL  fValid = ( hb_itemType( pEvalInfo->itmBlock ) & HB_IT_BLOCK ) ? HB_TRUE : HB_FALSE;
    HB_BOOL  fProved = HB_TRUE;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoEval(%p, %p)", pArea, pEvalInfo ) );
 
+   if( pArea->pTable && pArea->pTable->uiUpdated )
+      leto_PutRec( pArea );
    memset( &dbLockInfo, 0, sizeof( DBLOCKINFO ) );
-   SELF_RECNO( pRawArea, &ulLastRecNo );
 
    if( fValid )
    {
@@ -3105,15 +3105,16 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
 
       if( pEvalInfo->dbsci.itmRecID && hb_itemGetNL( pEvalInfo->dbsci.itmRecID ) )
          fValid = ( SELF_GOTOID( pRawArea, pEvalInfo->dbsci.itmRecID ) == HB_SUCCESS );
-      else if( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) )
+      else if( pEvalInfo->dbsci.lNext && hb_itemGetNL( pEvalInfo->dbsci.lNext ) >= 0 )
+         lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
+      else if( ! pEvalInfo->dbsci.itmCobWhile &&
+               ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) ) )
       {
          if( ! pEvalInfo->dbsci.fBackward )
             fValid = ( SELF_GOTOP( pRawArea ) == HB_SUCCESS );
          else
             fValid = ( SELF_GOBOTTOM( pRawArea ) == HB_SUCCESS );
       }
-      else if( pEvalInfo->dbsci.lNext )
-         lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
 
       if( lNext >= 0 )
       {
@@ -3158,8 +3159,6 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
                fProved = HB_FALSE;
                break;
             }
-            else if( hb_itemGetNS( pProces ) == 1 )
-               ulLastRecNo = ulLockRecNo;
 
             hb_arrayAdd( pRLocks, dbLockInfo.itmRecID );
 
@@ -3271,7 +3270,6 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
 
    if( pRawArea )
    {
-      SELF_GOTO( pRawArea, ulLastRecNo );
       if( pRLocks && hb_arrayLen( pRLocks ) )  /* RDDI_AUTOLOCK */
          SELF_UNLOCK( pRawArea, NULL );
 
@@ -6488,7 +6486,7 @@ static HB_BOOL leto_IsUDFAllowed( LETOCONNECTION * pConnection, const char * szC
    return fUDFAllowed;
 }
 
-/* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward ] ) */
+/* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward, lStay ] ) */
 HB_FUNC( LETO_DBEVAL )
 {
    LETOCONNECTION * pConnection = NULL;
@@ -6497,21 +6495,24 @@ HB_FUNC( LETO_DBEVAL )
    HB_BOOL   fResultAsArr = hb_parldef( 7, HB_FALSE );
    HB_BOOL   fNeedLock = hb_parldef( 8, HB_FALSE );
    HB_BOOL   fBackward = hb_parldef( 9, HB_FALSE );
+   HB_BOOL   fStay = hb_parldef( 10, HB_TRUE );
    HB_BOOL   fValid = pArea && ( hb_parclen( 1 ) || HB_ISBLOCK( 1 ) ) ? HB_TRUE : HB_FALSE;
    HB_LONG   lNext = -1;
-   HB_ULONG  ulRecNo = 0;
+   HB_ULONG  ulRecNo = 0, ulLastRecNo = 0;
    HB_BOOL   fRest = HB_FALSE;
    char *    szBlock = NULL;
 
    HB_TRACE( HB_TR_DEBUG, ( "LETO_DBEVAL(%s, %s, %s, %ld, %lu, %d, %d, %d)",  hb_parc( 1 ), hb_parc( 2 ), hb_parc( 3 ),
                             lNext, ulRecNo, ( int ) fRest, ( int ) fResultAsArr, ( int ) fNeedLock ) );
 
+   if( fValid && leto_CheckArea( pArea ) && pArea->pTable )
+      pConnection = letoGetConnPool( pArea->pTable->uiConnection );
+
    if( fValid && ( hb_parclen( 1 ) ) &&
        ( hb_parclen( 2 ) || ! HB_ISBLOCK( 2 ) ) &&
        ( hb_parclen( 3 ) || ! HB_ISBLOCK( 3 ) ) &&
        leto_CheckArea( pArea ) )
    {
-      pConnection = letoGetConnPool( pArea->pTable->uiConnection );
       fOptimized = leto_IsUDFAllowed( pConnection, NULL );  /* new! "LETO_DBEVAL" */
 
       /* none or optimized filter, none or all optimzed relations */
@@ -6535,8 +6536,7 @@ HB_FUNC( LETO_DBEVAL )
 
    if( fValid )  /* WA & first param */
    {
-      if( pArea && pArea->pTable && pArea->pTable->uiUpdated )
-         leto_PutRec( pArea );
+      SELF_RECNO( ( AREAP ) pArea, &ulLastRecNo );
 
       if( hb_parclen( 1 ) )
       {
@@ -6698,7 +6698,10 @@ HB_FUNC( LETO_DBEVAL )
 
    if( fValid && fOptimized )
    {
-      PHB_ITEM pParams = hb_itemArrayNew( 9 );
+      PHB_ITEM pParams = hb_itemArrayNew( 10 );
+
+      if( pArea->pTable && pArea->pTable->uiUpdated )
+         leto_PutRec( pArea );
 
       hb_arraySetC( pParams, 1, szBlock );
 
@@ -6722,6 +6725,7 @@ HB_FUNC( LETO_DBEVAL )
       hb_arraySetL( pParams, 7, fResultAsArr );
       hb_arraySetL( pParams, 8, fNeedLock );
       hb_arraySetL( pParams, 9, fBackward );
+      hb_arraySetL( pParams, 10, fStay );
 
       if( fValid )
          fValid = LetoUdf( pConnection, pArea->pTable, HB_FALSE, "LETO_DBEVAL", &pParams );
@@ -6738,7 +6742,11 @@ HB_FUNC( LETO_DBEVAL )
          pArea->pTable->ptrBuf = NULL;
          pArea->pTable->llCentiSec = 0;
       }
-      SELF_SKIP( ( AREAP ) pArea, 0 );
+      SELF_RECNO( ( AREAP ) pArea, &ulRecNo );
+      if( ! fStay && ulRecNo != ulLastRecNo )
+         SELF_GOTO( ( AREAP ) pArea, ulLastRecNo );
+      else
+         SELF_SKIP( ( AREAP ) pArea, 0 );
    }
    else if( fValid )  /* but not optimized */
    {
@@ -6747,7 +6755,7 @@ HB_FUNC( LETO_DBEVAL )
       AREAP       pRawArea = ( AREAP ) pArea;
       PHB_ITEM    pBlock = NULL, pFor = NULL, pWhile = NULL;
       PHB_ITEM    pNext = NULL, pRec = NULL, pRest = NULL;
-      HB_BYTE     uOldSrvMode = pConnection->uSrvLock;
+      HB_BYTE     uOldSrvMode = pConnection ? pConnection->uSrvLock : 0;
 
       memset( &pEvalInfo, 0, sizeof( pEvalInfo ) );
       if( szBlock )
@@ -6785,19 +6793,20 @@ HB_FUNC( LETO_DBEVAL )
             fValid = HB_FALSE;
          else if( ! ( pTable->fFLocked || ! pTable->fShared ) )
          {
-            if( ! ( pConnection->uSrvLock & 0x01 ) )  /* RDDI_AUTOLOCK */
+            if( ! ( uOldSrvMode & 0x01 ) )  /* RDDI_AUTOLOCK */
                fValid = HB_FALSE;
          }
          else
             fNeedLock = HB_FALSE;
       }
-      if( ! fNeedLock )
+      if( ! fNeedLock && ( uOldSrvMode & 0x01 ) )
          pConnection->uSrvLock &= ~( 0x01 );  /* deactivate as hint for RDD method */
 
       if( fValid )
          fValid = SELF_DBEVAL( pRawArea, &pEvalInfo ) == HB_SUCCESS;
 
-      pConnection->uSrvLock = uOldSrvMode;
+      if( pConnection )
+         pConnection->uSrvLock = uOldSrvMode;
 
       if( ( hb_itemType( pRawArea->valResult ) & HB_IT_ARRAY ) )
       {
@@ -6828,6 +6837,10 @@ HB_FUNC( LETO_DBEVAL )
                break;
          }
       }
+
+      /* AFTER! ->valResult is processed */
+      if( ! fStay )
+         SELF_GOTO( pRawArea, ulLastRecNo );
 
       hb_itemRelease( pBlock );
       hb_itemRelease( pFor );

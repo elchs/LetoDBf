@@ -867,7 +867,7 @@ static PAREASTRU leto_FindAlias( PUSERSTRU pUStru, const char * szAlias )
 
    if( ! szAlias || ! *szAlias )  /* active area this case */
    {
-      HB_ULONG ulAreaID = hb_rddGetCurrentWorkAreaNumber();
+      HB_ULONG ulAreaID = pUStru->ulCurAreaID;  /* <> hb_rddGetCurrentWorkAreaNumber() */
 
       pListItem = pUStru->AreasList.pItem;
       while( pListItem )
@@ -7245,7 +7245,7 @@ static PHB_ITEM leto_mkCodeBlock( PUSERSTRU pUStru, const char * szExp, HB_ULONG
    return pBlock;
 }
 
-static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEvalInfo, const int iLockTime )
+static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEvalInfo, const int iLockTime, HB_BOOL bStay )
 {
    DBLOCKINFO dbLockInfo;
    HB_ERRCODE errCode = HB_FAILURE;
@@ -7274,15 +7274,16 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
       if( pEvalInfo->dbsci.itmRecID && hb_itemGetNL( pEvalInfo->dbsci.itmRecID ) )
          bValid = ( leto_GotoIf( pArea, hb_itemGetNL( pEvalInfo->dbsci.itmRecID ) ) == HB_SUCCESS );
-      else if( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) )
+      else if( pEvalInfo->dbsci.lNext && hb_itemGetNL( pEvalInfo->dbsci.lNext ) >= 0 )
+         lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
+      else if( ! pEvalInfo->dbsci.itmCobWhile &&
+               ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) ) )
       {
          if( ! pEvalInfo->dbsci.fBackward )
             bValid = ( SELF_GOTOP( pArea ) == HB_SUCCESS );
          else
             bValid = ( SELF_GOBOTTOM( pArea ) == HB_SUCCESS );
       }
-      else if( pEvalInfo->dbsci.lNext )
-         lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
 
       if( lNext >= 0 )
       {
@@ -7510,7 +7511,8 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
    }
    if( pArea )
    {
-      leto_GotoIf( pArea, ulLastRecNo );
+      if( ! bStay )
+         leto_GotoIf( pArea, ulLastRecNo );
 
       if( pArea->valResult )
       {
@@ -7538,12 +7540,13 @@ HB_FUNC( LETO_DBEVAL )
    HB_ERRCODE errCode = HB_FAILURE;
    DBEVALINFO pEvalInfo;
    AREAP      pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   HB_ULONG   ulRecNo =  HB_ISNUM( 5 ) ? ( HB_ULONG ) hb_parnl( 5 ) : 0;
    HB_LONG    lNext = HB_ISNUM( 4 ) ? hb_parnl( 4 ) : -1;
+   HB_ULONG   ulRecNo =  HB_ISNUM( 5 ) ? ( HB_ULONG ) hb_parnl( 5 ) : 0;
    HB_BOOL    bRest = HB_ISLOG( 6 ) ? hb_parl( 6 ) : HB_FALSE;
    HB_BOOL    bResultAsArr = hb_parldef( 7, HB_FALSE );
    HB_BOOL    bNeedLock = hb_parldef( 8, HB_FALSE );
    HB_BOOL    bBackward = hb_parldef( 9, HB_FALSE );
+   HB_BOOL    bStay = hb_parldef( 10, HB_TRUE );
    HB_BOOL    bValid = pArea ? HB_TRUE : HB_FALSE;
 
    memset( &pEvalInfo, 0, sizeof( DBEVALINFO ) );
@@ -7600,6 +7603,9 @@ HB_FUNC( LETO_DBEVAL )
       PHB_ITEM pRec = hb_itemPutNL( NULL, ulRecNo );
       PHB_ITEM pRest = hb_itemPutL( NULL, bRest );
 
+      pEvalInfo.dbsci.lNext = pNext;
+      pEvalInfo.dbsci.itmRecID = pRec;
+      pEvalInfo.dbsci.fRest = pRest;
       pEvalInfo.dbsci.fBackward = bBackward;
       if( bResultAsArr )
          pArea->valResult = hb_itemArrayNew( 0 );
@@ -7611,7 +7617,7 @@ HB_FUNC( LETO_DBEVAL )
                                    hb_parc( 1 ), hb_parc( 2 ), hb_parc( 3 ),
                                    ulRecNo, lNext, ( int ) bRest, ( int ) bResultAsArr, ( int ) bNeedLock, ( int ) bBackward );
 
-      errCode = leto_dbEval( pUStru, pArea, &pEvalInfo, bNeedLock ? pUStru->iLockTimeOut : -1 );
+      errCode = leto_dbEval( pUStru, pArea, &pEvalInfo, bNeedLock ? pUStru->iLockTimeOut : -1, bStay );
       hb_itemRelease( pNext );
       hb_itemRelease( pRec );
       hb_itemRelease( pRest );
