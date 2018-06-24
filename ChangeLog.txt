@@ -2,6 +2,32 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-06-24 18:58 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/leto_std.ch
+    + add optional 'INTO variable' option for delete and recall commands,
+      will contain number of records processed.
+    + add translate DbEval() => Leto_DBEval()
+
+  * source/client/rddsys.prg
+  * source/client/leto1.c
+    + RDDI_LOCKRETRY as recommended constant for LetoDBf RDDI_LOCKTIMEOUT
+    + add PRG functions LETO- _RECLOCK, _RECUNLOCK for client side;
+      Leto_RecUnlock() return boolean if R-locked before
+      add REQUESTs for these ( as possible only literally used in source )
+  * source/server/letofunc.c
+    % make <nNext> starting at active record depending on <lRest>, likely
+      for <bWhile>: explicit given FALSE starts at table top (filter <bFor>)
+    - remove to convert 'stringified' params nNext, nRec, lRest ...
+
+  * source/server/letofunc.c
+    ! server side auto-locking in leto_dbEval() to follow letodb.ini option
+      Share_Tables; use server internal lock-functions instead 'real' locks
+    % try an initial F-lock in leto_DbEval() if given 10th param <lStay> is
+      given as non default: HB_FALSE
+    * return boolean in Leto_RecUnlock(), -TableUnlock() if locked before
+
+  * Readme.txt
+
 2018-06-22 10:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
   * source/server/letofunc.c

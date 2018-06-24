@@ -1043,7 +1043,9 @@ A. Internals
  simply forwarded to the SET() function.
  With no given <xNewSet>, you get the active setting without changing it.
 
-      LETO_SETLOCKTIMEOUT( [ nTimeout ] )
+      * LETO_SETLOCKTIMEOUT( [ nTimeout ] ) *
+ * deprecated -- better use RddInfo with a constant known in Harbour:
+      RDDInfo( RDDI_LOCKRETRY( [ nMilliSec ] )
  * Setting is ignored for server mode: No_Save_WA = 0, here ever default: '0' == one try *
  Return the old <nTimeout> value and optional set this for the active connection.
  Default is 0 == immediate one-time single request, units are in ms ( 1/1000 s ).
@@ -1116,7 +1118,7 @@ A. Internals
  This is thought to keep source-code changes as less as possible, aka it is enough to add two lines
  with Begin/Commit -transaction to existing source, without need to remove existing unlocks.
 
- Note: with LETO_SETLOCKTIMEOUT() [ default: 0 ] a timeout to get a lock can be set.
+ Note: with RDDInfo( RDDI_LOCKRETRY[, nMilliSec ( default 0 ) ] ) a timeout to get a lock can be set.
  This is very effective against repeated tries to get a lock from client side, as all happens at
  server side, no new request to again try to lock must be send.
 
@@ -1161,19 +1163,31 @@ A. Internals
  used during transactions.
 
 
+      LETO_RECLOCK( [ nRecord ], [ nSecs ] )                   ==> lSuccess
+      LETO_RECUNLOCK( [ nRecord ] )                            ==> lWasLocked
+
+ Useable at client as replace for these both server-side in: 9. Server-side.
+ At client they just redirect to DbRlock() and DbRunlock(), whereas <nSecs> will temporary change
+ the timeout value setable with RDDI_LOCKRETRY, and <lWasLocked> will be FALSE if the record was
+ not R-locked. ( <nSecs> means full seconds: nSecs == 0.7 == 700 millisecond RDDI_LOCKRETRY )
+ If <nRecord> is not given, it is the active RecNo().
+
+
       LETO_DBEVAL( <cbBlock> , [ <cbFor> ], [ <cbWhile> ], [ nNext ], [ nRecord ], [ lRest ],;
-                   [ <lResultArr> ], [ <lNeedLock> ], [ <lDescend> )
-                                                               ==>lSuccess | aResults | xValue
+                   [ <lResultArr> ], [ <lNeedLock> ], [ <lDescend> ], <lStay> )
+                                                               ==> lSuccess | aResults | xValue
+ This function is a 'drop-in' replace for DBEval(), and "leto_std.ch" pre-process all DBEval() calls to
+ use this function.
  ! The codeblocks: <cBlock>, <cFor>, <cWhile> must be given literally [ "{||}" ]" to be executable at server,
  which actually needs also server option: Allow_udf = 1.
- ( Given as non literal codeblock, the WA must be processed local at client side. )
+ If param given as (non literal) codeblock, the WA must be processed local at client side. This is also the
+ case if a non-optimized FILTER or non-optimzed RELATION are active. [ non-optimize == only at client active ].
 
  This works alike Harbours' DbEval() command, but is optimized to act likely an UDF directly at the server,
- so only the resulting array is transferred over network, not all the records [ to be ] processed.
+ so only the result is transferred over network, not all the records [ to be ] processed.
  Codeblock expressions may, but not mandatory, start/ end with '{' and '}' chars -- if these are missing,
- at front a '{||' and at end a '}' is added.
+ at front a '{||' and at end a '}' is added. "Literally codeblocks" are a LETO extension for DBEval().
 
- #changed: first param for the evaluated! <cbBlock>
  * LetoDBf extended capability: pass two params to the codeblocks: "{ |<n>, <x>| ... }"
    <cbBlock>: receives as <n> number of processing record, e.g.:
               "{ | nDone | IIF( nDone == 1, DoThis(), DoThat() ), DoEver() }"
@@ -1187,20 +1201,42 @@ A. Internals
               "{ | nReadyDone, nEvaluated | nReadyDone < 3 .AND. nEvaluated <= 1000 }"
 
  <nNext>, <nRecord> and <lRest> are used in same kind as in Harbour DbEval() function.
+   LetoDBf ensures the <nNext> value to be started at active record/ top of table is influenced by
+   <lRest>: given explicit as FALSE nNext starts at top of table, else it start at active record.
 
- <lResultArr> set to TRUE ( .T. ) gives back a <aResults> array of the results of <cbBlock> for each valid.
- With default <lResultArr> == FALSE ( .F. ), then:
-   if <cbBlock> returns a numeric, string, or boolean value, the *last* <xResult> is returned
-   if codeblock returns no value, boolean <lSuccess> is returned if at least one records was processed,
-   else a FALSE ( .F. ) also in case of an error at server happened. ( e.g. invalid codeblocks )
+ <lResultArr> set to TRUE ( .T. ) return a <aResults> array of the results of <cbBlock>
+   for each processed record. ( to be precise: return value of last function inside <cbBlock> )
+   With default <lResultArr> == FALSE ( .F. ), result is return value of *last* executed <cbBock>.
 
  <lNeedLock> set TRUE ( .T. ) informs Leto_DbEvil(), that records must be locked for executing <cbBlock>.
    If the table is *not* opened as <exclusive> or <shared with set Flock()>, RDDI_AUTOLOCK needs activated.
-   for internal RLock() done by Leto_DbEvil() for each valid record.
+   for internal RLock() done by Leto_DbEvil() for each valid record, possible with an timout given with
+   RDDI_LOCKRETRY in millisecond.
    Default is no locking need, to just view the record data without modifying it.
+
+   With <lNeedLock> == .F., manually locking is possible by using LOCK functions inside <cbBlock>
+   [R|F]lock, DbR[un]lock and DbUnlock are invalid at server, instead Leto_Rec[Un]Lock() must be used,
+   these both functions are valid at client and at server. Example:
+   "{|| IIF( Leto_RecLock(), ..task-to-do.., NIL ), IIF( Leto_RecUnlock(), 1, -1 ) * RecNo() ) }"
+   will return with <lResultArr> == .T. an array with RecNo of processed records, failed to lock are negative.
+   Above example as CB ( without quotation "" ) is forcible executed local at client.
+
  <lDescend> set to TRUE ( .T. ) will start at bottom and DbSkip() to the top -- default is top to bottom.
 
- Tip: have a look into "leto_std.ch" for some further examples ...
+ <lStay>, default is ,T., will stay at last processed record,
+   with a given .F. it is jumped back to record which was active when Leto_DbEval() started.
+   This FALSE activates also to try an initial Flock() for the first processed record, when successful it
+   will increases the performance drastical if *many* records have to be processed. If Flock() fails,
+   each record will be tried to be Rlock()ed.
+   Using Rlocks for some x00 records is fine, maybe even for a few thoused, but many more 'makes no fun'.
+
+ RETURN value: FALSE (.F.) for FAILURE ( e,g, auto-locking failed to lock all records )
+   <xValue> return value of last executed <cbBock> ( of the last function inside )
+   <lSuccess> == .T. if <xValue> is NIL
+   <aResults> array of <xResult> with <lResultArr> == .T.
+   A RTE occure, if one of the <cb*> codeblocks is invalid, syntactical or if local variable are in there.
+
+ Tip: have a look into "leto_std.ch" for some further examples, used in 'data processing commands' ...
 
 
       LETO_SUM( <cFieldNames>|<cExpr>, [ cFilter ], [xScopeTop], [xScopeBottom] )
@@ -1381,8 +1417,9 @@ A. Internals
       RddInfo( RDDI_AUTOLOCK [, lActivated ] )                 ==> lWasActive
 
  By default deactivated, its used in Leto_DbEval() to automatic Rlock() records before changing record data.
- If not changed timeout with LETO_SETLOCKTIMEOUT(), such a Rlock() will be tried one time -- else the server
- will try to lock the record withing given locktimeout
+ If not changed default timeout: 0 with RddInfo( RDDI_LOCKRETRY[ nMilliSec ] ), such a Rlock() will be tried only
+ one time successful or not. With timeout, server will try multiple times during the timespan. This spares
+ repeated request from the client over network.
 
       LETO_SETSEEKBUFFER( nRecsInBuf )                         ==> 0
  ! DEPRECATED !
@@ -1977,8 +2014,10 @@ A. Internals
   If you append a record in your UDF, which is locked after a successful append, you have to only
   register it for your connection, done by third param set to TRUE ( .T. ) == append lock.
 
-      leto_RecUnLock( [ nRecord ] )                            ==> Nil
-  leto_RecUnlock function unlocks a locked record with <nRecord> number, or the current record.
+      leto_RecUnLock( [ nRecord ] )                            ==> lWasLocked
+  leto_RecUnlock function unlocks a locked record with <nRecord> number.
+  No given <nRecord> means the active record.
+  If the record was not R-locked, FALSE (.F.) is returned.
 
       leto_RecLockList( aRecNo )                               ==> lSuccess
   leto_ReclockList function locked records with number in the <aRecNo> array.
@@ -1988,12 +2027,13 @@ A. Internals
   client by a call leto_UDF( "leto_RecLockList", aRecNo ).
 
       leto_TableLock( [ nSecs ] )                              ==> lSuccess
-      leto_TableUnLock()
+      leto_TableUnLock()                                       ==> lWasLocked
   [ deprecated: no more <nFlags> param available ]
   This will lock the whole DBF table, not only a single record, for data change access.
   <nSecs> param is only available in server file open mode: No_save_WA = 1.
   With given optional <nSecs> [ can be decimal: 1.5 ] it will wait for success if not
   immediate succesfull.
+  If the table was not F-locked, FALSE (.F.) is returned.
 
       leto_SelectArea( nAreaId )                               ==> lSuccess
 
@@ -2041,8 +2081,11 @@ A. Internals
       leto_DbCloseArea( [ ncAreaID ] )                         ==> lSuccess
  Close the active or by numeric or by string ALIAS given workarea.
 
-      leto_DbEval( cbBlock, cbFor, cbWhile, nNext, nRecord, lRest )
-                                                               ==> aResults
+      LETO_DBEVAL( <cbBlock> , [ <cbFor> ], [ <cbWhile> ], [ nNext ], [ nRecord ], [ lRest ],;
+                   [ <lResultArr> ], [ <lNeedLock> ], [ <lDescend> ], <lStay> )
+                                                               ==>lSuccess | aResults | xValue
+
+ * look for explanation for extended params versus DBEval() in chapter:  7.3 Additional functions *
 
  This UDF function is same kind as DbEval() of Harbour. The three codeblocks may be given
  instead as a codeBlock within an UDF function or as string parameters when called 'directly'
@@ -2149,7 +2192,7 @@ A. Internals
         [ chapter: 5.2 Filters and Relations ]
         Important is usage of param *<cEpression>* in functions:
         DbSetFilter( [ <bCodeBlock> ], <cEpression> ) and
-        DbSetRelation( <cbAlias>, <bCodeBlock>, cEpression> )
+        DbSetRelation( <cnAlias>, <bCodeBlock>, cEpression> )
       * increase Leto_SetSkipbuffer() size for occasions where to skip a lot,
         [ e.g. the classic: "DO WHILE ! EOF(), DbSkip(), ... " ]
         It is counter-productive! when only a few records need to be skipped,
@@ -2158,6 +2201,10 @@ A. Internals
       * increase cached records timeout [ default is 1 second ] with setting
         DBI_BUFREFRESHTIME, or with: LETO_CONNECT( ,,,,,<nBufRefreshTime> )
         Do not exaggerate!, try 5 to 10 seconds [ values given as x / !100! s ]
+      * in need to determine if a MEMO-field is 'empty or not empty', without needing the
+        content itself ( i.e. to display in a browse "MEMO" or "memo" if its empty ),
+        use Leto_MemoIsEmpty(): needs no extra request to server, client knows that already
+      * try to activate network traffic compression with Leto_ToggleZip()
       * check if you can use TRANSACTIONs,
       * hire me! ;-)
  + high frequent changing data must be viewed

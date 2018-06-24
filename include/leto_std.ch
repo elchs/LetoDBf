@@ -99,7 +99,7 @@
 #xtranslate __DBSORT( [<x,...>] )   => LETO_DBSORT( <x> )
 /* note: positioned at new WA in case of success */
 #xtranslate __DBJOIN( [<x,...>] )   => LETO_DBJOIN( <x> )
-#xtranslate __DBTOTAL( [<x,...>] )   => LETO_DBTOTAL( <x> )
+#xtranslate __DBTOTAL( [<x,...>] )  => LETO_DBTOTAL( <x> )
 
 #xtranslate HB_DBCREATETEMP( [<cAlias>], <aStruct>, [<cRDD>], [<cCdp>], [<nConnection>] ) ;
             => Leto_DbCreateTemp( "", <aStruct>, "LETO", .T., <cAlias>, NIL, <cCdp>, <nConnection>  )
@@ -112,26 +112,30 @@
 #ifdef LETO_DBEVAL_USE
 
 /* versions with given <for> or <while> stringyfied for leto_DbEval() */
- * need locks or flocked/ exclusive table */
+ * if table is ! flocked/ not exclusive, needs RDDI_AUTOLOCK .T. for Rlock() */
 
 /* REQUEST LETO_VARSET, LETO_VARGET, LETO_VARINCR */
+
+#xtranslate DBEVAL( [<x,...>] )     => LETO_DBEVAL( <x> )
 
 #command REPLACE [<f1> WITH <x1> [, <fN> WITH <xN>]] ;
                  [FOR <for>] [WHILE <while>] [NEXT <next>] ;
                  [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] => ;
          leto_dbEval( "{|| FIELDPUT('"+<"f1">+"',"+<"x1">+")"[+", FIELDPUT('"+<"fN">+"',"+<"xN">+")"]+" }", ;
-                      <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.> )
+                      <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.>, .F. )
 #command REPLACE <f1> WITH <v1>[, <fN> WITH <vN>] => ;
          _FIELD-><f1> := <v1> [; _FIELD-><fN> := <vN>]
 
 #command DELETE [FOR <for>] [WHILE <while>] [NEXT <next>] ;
-                [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] => ;
-         leto_dbEval( "{|| dbDelete() }", <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.> )
+                [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] [INTO <v>] => ;
+         [ <v> := ];
+         leto_dbEval( "{|n| dbDelete(), n }", <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.>, .F. )
 #command DELETE =>  dbDelete()
 
 #command RECALL [FOR <for>] [WHILE <while>] [NEXT <next>] ;
-                [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] => ;
-         leto_dbEval( "{|| dbRecall() }", <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.> )
+                [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] [INTO <v>] => ;
+         [ <v> := ];
+         leto_dbEval( "{|n| dbRecall(), n }", <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.>, .T. )
 #command RECALL =>  dbRecall()
 
 #command COUNT [[INTO][TO] <v>] ;
@@ -192,7 +196,6 @@
          [ DbSelectArea( SELECT( <(aliasN)> ) );;
               DbClearFilter( <"forN">  ); ]
 #endif
-
 
 #endif  /* LETO_DBEVAL_USE */
 
