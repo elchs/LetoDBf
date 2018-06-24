@@ -3094,6 +3094,8 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
 
    if( fValid )
    {
+      HB_BOOL fGoTop;
+
       if( pRawArea->valResult )  /* used by local filter block */
       {
          pSaveValResult = hb_itemClone( pRawArea->valResult );
@@ -3105,12 +3107,15 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
 
       if( pEvalInfo->dbsci.lNext && hb_itemGetNL( pEvalInfo->dbsci.lNext ) >= 0 )
          lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
+      fGoTop = ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) );
+      if( lNext >= 0 && fGoTop && ! pEvalInfo->dbsci.fRest )
+         fGoTop = HB_FALSE;
+      if( pEvalInfo->dbsci.itmCobWhile && fGoTop && ! pEvalInfo->dbsci.fRest )
+         fGoTop = HB_FALSE;
 
       if( pEvalInfo->dbsci.itmRecID && hb_itemGetNL( pEvalInfo->dbsci.itmRecID ) )
          fValid = ( SELF_GOTOID( pRawArea, pEvalInfo->dbsci.itmRecID ) == HB_SUCCESS );
-      else if( ! ( lNext >= 0 && ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) ) ) &&
-               ( ! pEvalInfo->dbsci.itmCobWhile &&
-                 ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) ) ) )
+      else if( fGoTop )
       {
          if( ! pEvalInfo->dbsci.fBackward )
             fValid = ( SELF_GOTOP( pRawArea ) == HB_SUCCESS );

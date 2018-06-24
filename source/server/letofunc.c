@@ -7269,6 +7269,8 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
    if( bValid )
    {
+      HB_BOOL bGoTop;
+
       if( pArea->valResult )  /* used if (optimized) filter block active */
       {
          pSaveValResult = hb_itemClone( pArea->valResult );
@@ -7280,12 +7282,15 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
       if( pEvalInfo->dbsci.lNext && hb_itemGetNL( pEvalInfo->dbsci.lNext ) >= 0 )
          lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
+      bGoTop = ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) );
+      if( lNext >= 0 && bGoTop && ! pEvalInfo->dbsci.fRest )
+         bGoTop = HB_FALSE;
+      if( pEvalInfo->dbsci.itmCobWhile && bGoTop && ! pEvalInfo->dbsci.fRest )
+         bGoTop = HB_FALSE;
 
       if( pEvalInfo->dbsci.itmRecID && hb_itemGetNL( pEvalInfo->dbsci.itmRecID ) )
          bValid = ( leto_GotoIf( pArea, hb_itemGetNL( pEvalInfo->dbsci.itmRecID ) ) == HB_SUCCESS );
-      else if( ! ( lNext >= 0 && ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) ) ) &&
-               ( ! pEvalInfo->dbsci.itmCobWhile &&
-                 ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) ) ) )
+      else if( bGoTop )
       {
          if( ! pEvalInfo->dbsci.fBackward )
             bValid = ( SELF_GOTOP( pArea ) == HB_SUCCESS );
@@ -7323,6 +7328,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
          SELF_BOF( pArea, &bEof );
       if( ! bEof )
          hb_itemPutNS( pEvalut, 1 );
+
       while( ! bEof && ( ! pEvalInfo->dbsci.itmCobWhile || hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobWhile, 2, pProces, pEvalut ) ) ) )
       {
          if( pEvalInfo->dbsci.itmCobFor )  /* FOR */
@@ -7572,15 +7578,11 @@ HB_FUNC( LETO_DBEVAL )
       pEvalInfo.dbsci.itmCobFor = leto_mkCodeBlock( pUStru, hb_parc( 2 ), hb_parclen( 2 ), HB_FALSE );
    else if( HB_ISEVALITEM( 2 ) || HB_ISBLOCK( 2 ) )
       pEvalInfo.dbsci.itmCobFor = hb_itemClone( hb_param( 2, HB_IT_EVALITEM | HB_IT_BLOCK  ) );
-   if( pEvalInfo.dbsci.itmCobFor && hb_itemType( hb_vmEvalBlock( pEvalInfo.dbsci.itmCobFor ) ) != HB_IT_LOGICAL )
-      pUStru->iHbError = 2;
 
    if( HB_ISCHAR( 3 ) )
       pEvalInfo.dbsci.itmCobWhile = leto_mkCodeBlock( pUStru, hb_parc( 3 ), hb_parclen( 3 ), HB_FALSE );
    else if( HB_ISEVALITEM( 3 ) || HB_ISBLOCK( 3 ) )
       pEvalInfo.dbsci.itmCobWhile = hb_itemClone( hb_param( 3, HB_IT_EVALITEM | HB_IT_BLOCK ) );
-   if( pEvalInfo.dbsci.itmCobWhile && hb_itemType( hb_vmEvalBlock( pEvalInfo.dbsci.itmCobWhile ) ) != HB_IT_LOGICAL )
-      pUStru->iHbError = 3;
 
    hb_xvmSeqEnd();
 

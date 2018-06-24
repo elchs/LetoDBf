@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-06-25 01:11 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    ! remove test, if <cbFor> and <cbWhile> return a boolean value:
+      it would need to transmit 2 numeric params as in real usage,
+      and may distract a logic in the CB, if its called the first time;
+      so blocks can even return numeric values, analysed by hb_itemGetL()
+    ! (hopefully) fixed GoTop behaviour with <cbWhile>
+
 2018-06-24 18:58 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/leto_std.ch
     + add optional 'INTO variable' option for delete and recall commands,
