@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-06-25 22:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    ! don't set <nNext> value -1, esp. not for non-LETO RDD method,
+      instead check if param is given numeric -- similar for <nRec>
+    * accept and go-to any given <nRecord> in leto_dbEval()
+    * simplify two 'if' into one
+    * tiny MsVc warning, as dbLockInfo.fResult is a HB_USHORT
+
 2018-06-25 01:11 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/server/letofunc.c

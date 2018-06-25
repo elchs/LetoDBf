@@ -7282,13 +7282,12 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
       if( pEvalInfo->dbsci.lNext && hb_itemGetNL( pEvalInfo->dbsci.lNext ) >= 0 )
          lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
+
       bGoTop = ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) );
-      if( lNext >= 0 && bGoTop && ! pEvalInfo->dbsci.fRest )
-         bGoTop = HB_FALSE;
-      if( pEvalInfo->dbsci.itmCobWhile && bGoTop && ! pEvalInfo->dbsci.fRest )
+      if( ( pEvalInfo->dbsci.itmCobWhile || lNext >= 0 ) && bGoTop && ! pEvalInfo->dbsci.fRest )
          bGoTop = HB_FALSE;
 
-      if( pEvalInfo->dbsci.itmRecID && hb_itemGetNL( pEvalInfo->dbsci.itmRecID ) )
+      if( pEvalInfo->dbsci.itmRecID )
          bValid = ( leto_GotoIf( pArea, hb_itemGetNL( pEvalInfo->dbsci.itmRecID ) ) == HB_SUCCESS );
       else if( bGoTop )
       {
@@ -7347,7 +7346,12 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
                do
                {
                   if( dbLockInfo.uiMethod == DBLM_FILE )
-                     dbLockInfo.fResult = leto_TableLock( pUStru->pCurAStru, iLockTime );
+                  {
+                     if( leto_TableLock( pUStru->pCurAStru, iLockTime ) )
+                        dbLockInfo.fResult = HB_TRUE;
+                     else
+                        dbLockInfo.fResult = HB_FALSE;
+                  }
                   else if( leto_RecLock( pUStru, pUStru->pCurAStru, ulLockRecNo, HB_FALSE, iLockTime ) )
                      dbLockInfo.fResult = HB_TRUE;
                   else
@@ -7604,11 +7608,11 @@ HB_FUNC( LETO_DBEVAL )
       if( s_iDebugMode > 20 )
       {
          HB_LONG  lNext = pNext ? hb_itemGetNL( pNext ) : -1;
-         HB_ULONG ulRecNo = pRec ? ( HB_ULONG ) hb_itemGetNL( pRec ) : 0;
+         HB_ULONG lRecNo = pRec ? hb_itemGetNL( pRec ) : -1;
          int      iRest = pRest ? ( int ) hb_itemGetL( pRest ) : -1;
 
-         leto_wUsLog( pUStru, -1, "DEBUG LETO_DBEVAL: %s FOR %s WHILE %s (RECNO %lu NEXT %ld REST %d) [RESULT/LOCKS/DESC:%d/%d/%d]",
-                                   hb_parc( 1 ), hb_parc( 2 ), hb_parc( 3 ), ulRecNo, lNext, iRest,
+         leto_wUsLog( pUStru, -1, "DEBUG LETO_DBEVAL: %s FOR %s WHILE %s (RECNO %ld NEXT %ld REST %d) [RESULT/LOCKS/DESC:%d/%d/%d]",
+                                   hb_parc( 1 ), hb_parc( 2 ), hb_parc( 3 ), lRecNo, lNext, iRest,
                                    ( int ) bResultAsArr, ( int ) bNeedLock, ( int ) bBackward );
       }
 

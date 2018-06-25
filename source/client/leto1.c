@@ -3107,13 +3107,12 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
 
       if( pEvalInfo->dbsci.lNext && hb_itemGetNL( pEvalInfo->dbsci.lNext ) >= 0 )
          lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
+
       fGoTop = ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) );
-      if( lNext >= 0 && fGoTop && ! pEvalInfo->dbsci.fRest )
-         fGoTop = HB_FALSE;
-      if( pEvalInfo->dbsci.itmCobWhile && fGoTop && ! pEvalInfo->dbsci.fRest )
+      if( ( pEvalInfo->dbsci.itmCobWhile || lNext >= 0 ) && fGoTop && ! pEvalInfo->dbsci.fRest )
          fGoTop = HB_FALSE;
 
-      if( pEvalInfo->dbsci.itmRecID && hb_itemGetNL( pEvalInfo->dbsci.itmRecID ) )
+      if( pEvalInfo->dbsci.itmRecID )
          fValid = ( SELF_GOTOID( pRawArea, pEvalInfo->dbsci.itmRecID ) == HB_SUCCESS );
       else if( fGoTop )
       {
@@ -6503,7 +6502,7 @@ HB_FUNC( LETO_DBEVAL )
    LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
    HB_BOOL   fOptimized = HB_FALSE;
    HB_LONG   lNext = hb_parnldef( 4, -1 );
-   HB_ULONG  ulRecNo = hb_parnldef( 5, 0 );
+   HB_ULONG  ulRecNo = hb_parnldef( 5, 0 );  /* -1, if given checked later */
    HB_BOOL   fRest = hb_parldef( 6, hb_param( 3, HB_IT_BLOCK | HB_IT_STRING ) || lNext >= 0 ? HB_TRUE : HB_FALSE );
    HB_BOOL   fResultAsArr = hb_parldef( 7, HB_FALSE );
    HB_BOOL   fNeedLock = hb_parldef( 8, HB_FALSE );
@@ -6712,8 +6711,10 @@ HB_FUNC( LETO_DBEVAL )
             hb_arraySetC( pParams, 3, szBlock );  /* WHILE */
       }
 
-      hb_arraySetNL( pParams, 4, lNext );
-      hb_arraySetNL( pParams, 5, ulRecNo );
+      if( HB_ISNUM( 4 ) )
+         hb_arraySetNL( pParams, 4, lNext );
+      if( HB_ISNUM( 5 ) )
+         hb_arraySetNL( pParams, 5, ulRecNo );
       if( HB_ISLOG( 6 ) )
          hb_arraySetL( pParams, 6, fRest );
       hb_arraySetL( pParams, 7, fResultAsArr );
@@ -6767,9 +6768,11 @@ HB_FUNC( LETO_DBEVAL )
       else if( HB_ISBLOCK( 3 ) )
          pEvalInfo.dbsci.itmCobWhile = hb_param( 3, HB_IT_BLOCK );
 
-      pNext = hb_itemPutNL( pNext, lNext );
+      if( HB_ISNUM( 4 ) )
+         pNext = hb_itemPutNL( pNext, lNext );
       pEvalInfo.dbsci.lNext = pNext;
-      pRec = hb_itemPutNL( pRec, ulRecNo );
+      if( HB_ISNUM( 5 ) )
+         pRec = hb_itemPutNL( pRec, ulRecNo );
       pEvalInfo.dbsci.itmRecID = pRec;
       if( HB_ISLOG( 6 ) )
          pRest = hb_itemPutL( pRest, fRest );
