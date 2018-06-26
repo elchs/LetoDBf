@@ -1165,9 +1165,11 @@ A. Internals
 
       LETO_RECLOCK( [ nRecord ], [ nSecs ] )                   ==> lSuccess
       LETO_RECUNLOCK( [ nRecord ] )                            ==> lWasLocked
+      LETO_TABLELOCK( [ nSecs ] )                              ==> lSuccess
+      LETO_TABLEUNLOCK()                                       ==> lWasLocked
 
- Useable at client as replace for these both server-side in: 9. Server-side.
- At client they just redirect to DbRlock() and DbRunlock(), whereas <nSecs> will temporary change
+ Useable at client as replace for these at server-side in: 9. Server-side.
+ At client they redirect to universal RDD methods for any WA, whereas <nSecs> will temporary change
  the timeout value setable with RDDI_LOCKRETRY, and <lWasLocked> will be FALSE if the record was
  not R-locked. ( <nSecs> means full seconds: nSecs == 0.7 == 700 millisecond RDDI_LOCKRETRY )
  If <nRecord> is not given, it is the active RecNo().
@@ -1217,7 +1219,7 @@ A. Internals
    With <lNeedLock> == .F., manually locking is possible by using LOCK functions inside <cbBlock>
    [R|F]lock, DbR[un]lock and DbUnlock are invalid at server, instead Leto_Rec[Un]Lock() must be used,
    these both functions are valid at client and at server. Example:
-   "{|| IIF( Leto_RecLock(), ..task-to-do.., NIL ), IIF( Leto_RecUnlock(), 1, -1 ) * RecNo() ) }"
+   "{|| IIF( Leto_RecLock(), ..task-to-do.., NIL ), IIF( Leto_RecUnlock(), 1, -1 ) * RecNo() }"
    will return with <lResultArr> == .T. an array with RecNo of processed records, failed to lock are negative.
    Above example as CB ( without quotation "" ) is forcible executed local at client.
 

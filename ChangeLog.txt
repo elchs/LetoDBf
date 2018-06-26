@@ -2,6 +2,22 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-06-26 19:50 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    + add PRG functions LETO- _TABLELOCK, _TABLEUNLOCK for client side;
+    * universalize LETO- _RECLOCK, _RECUNLOCK to handle also non-LETO WA
+    + leto_LockValidate()
+      automatic replace in Leto_DBEval() expression Harbour lock functions
+      with LETO variants -- validate made lock is unlocked:
+      rlock()/ dbrlock() => Leto_RecLock(); dbrunlock() => Leto_RecUnlock()
+      flock() => Leto_TableLock(); dbunlock() => Leto_TableUnlock()
+
+  * source/client/rddsys.prg
+    * add REQUESTs for LETO- _TABLELOCK, _TABLEUNLOCK
+
+  * Readme.txt
+    * a straying bracket :-(
+
 2018-06-25 22:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/server/letofunc.c

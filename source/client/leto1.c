@@ -6495,6 +6495,91 @@ static HB_BOOL leto_IsUDFAllowed( LETOCONNECTION * pConnection, const char * szC
    return fUDFAllowed;
 }
 
+static HB_BOOL leto_LockValidate( LETOAREAP pArea, char * szBlock, HB_SIZE nLen )
+{
+   HB_SIZE nPos = hb_strAtI( "LOCK(", 5, szBlock, nLen );
+   HB_SIZE nSearchLen, nReplLen, nCount = 0;
+   HB_BOOL fFileLock = HB_FALSE;
+
+   HB_TRACE( HB_TR_DEBUG, ( "leto_LockValidate(%p, %s, %ld)", pArea, szBlock, nLen ) );
+
+   while( nPos )
+   {
+      nSearchLen = 7;
+      nPos = hb_strAtI( "DBRLOCK(", nSearchLen + 1, szBlock, nLen );
+      if( ! nPos )
+      {
+         nSearchLen = 5;
+         nPos = hb_strAtI( "RLOCK(", nSearchLen + 1, szBlock, nLen );
+         if( ! nPos )
+         {
+            nPos = hb_strAtI( "FLOCK(", nSearchLen + 1, szBlock, nLen );
+            if( nPos )
+               fFileLock = HB_TRUE;
+         }
+      }
+      if( nPos )
+      {
+         if( fFileLock )
+         {
+            nCount += 999;
+            nReplLen = 14;  /* "Leto_TableLock" */
+         }
+         else
+         {
+            nCount++;
+            nReplLen = 12;  /* "Leto_RecLock" */
+         }
+      }
+      else
+      {
+         nSearchLen = 9;
+         nPos = hb_strAtI( "DBRUNLOCK(", nSearchLen + 1, szBlock, nLen );
+         if( nPos )
+         {
+            nCount--;
+            nReplLen = 14;  /* "Leto_RecUnlock" */
+         }
+         else
+         {
+            nSearchLen = 8;
+            nPos = hb_strAtI( "DBUNLOCK(", nSearchLen + 1, szBlock, nLen );
+            if( nPos )
+            {
+               nCount = 0;
+               nReplLen = 16;  /* "Leto_TableUnlock" */
+            }
+            else
+              nReplLen = 0;  /* and done! */
+         }
+      }
+
+      if( nPos && nReplLen )
+      {
+         memmove( szBlock + nPos + nSearchLen + ( nReplLen - nSearchLen ) - 1, szBlock + nPos + nSearchLen - 1, nLen - ( nPos + nSearchLen ) + 1 );
+         nLen += ( nReplLen - nSearchLen );
+         if( nReplLen == 12 )
+            memcpy( szBlock + nPos - 1, "Leto_RecLock", nReplLen );
+         else if( nReplLen == 14 )
+         {
+            if( fFileLock )
+            {
+               memcpy( szBlock + nPos - 1, "Leto_TableLock", nReplLen );
+               fFileLock = HB_FALSE;
+            }
+            else
+               memcpy( szBlock + nPos - 1, "Leto_RecUnlock", nReplLen );
+         }
+         else  /* 16 */
+            memcpy( szBlock + nPos - 1, "Leto_TableUnlock", nReplLen );
+      }
+   }
+   if( nCount )
+      commonError( pArea, EG_ARG, EDBCMD_BADPARAMETER, 0, NULL, 0, "UNRESOLVED LOCKING IN EXPRESSION" );
+
+   return ! nCount ? HB_TRUE : HB_FALSE;
+}
+
 /* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward, lStay ] ) */
 HB_FUNC( LETO_DBEVAL )
 {
@@ -6551,10 +6636,14 @@ HB_FUNC( LETO_DBEVAL )
       if( hb_parclen( 1 ) )
       {
          HB_SIZE      nBlockSize = HB_MAX( HB_PATH_MAX, hb_parclen( 1 ) + 8 + ( ( hb_parclen( 1 ) / 8 ) * 10 ) );
+         char         szSearch[ 16 ] = { 'F', 'I', 'E', 'L', 'D', 'P', 'U', 'T', '(', '\'', 0 };
          const char * ptr, * ptr2;
 
-         szBlock = ( char * ) hb_xgrab( nBlockSize );
+         szBlock = ( char * ) hb_xgrabz( nBlockSize );
          strcpy( szBlock, hb_parc( 1 ) );
+         /* translate Harbour lock functions to LetoDBf variant & verify unlock */
+         fValid = leto_LockValidate( pArea, szBlock, hb_parclen( 1 ) );
+
          ptr = strstr( szBlock, "=>" );
          if( ptr )  /* check for empty '' ( or PP repeated ) hashkey to substitute */
          {
@@ -6640,7 +6729,7 @@ HB_FUNC( LETO_DBEVAL )
             }
             strcpy( szBlock + nHPos, " } }" );
          }
-         else if( strstr( szBlock, "FIELDPUT(" ) )  /* replace field-name with field-num */
+         else if( strstr( szBlock, szSearch ) )  /* "FIELDPUT('" replace field-name with field-num */
          {
             char      szField[ 16 ];
             int       iKeyLen, iKeyDiff;
@@ -6648,7 +6737,7 @@ HB_FUNC( LETO_DBEVAL )
             HB_USHORT uiField;
             HB_ULONG  ulLen;
 
-            ptr = strstr( szBlock, "FIELDPUT(" );
+            ptr = strstr( szBlock, szSearch );
             while( ptr )
             {
                iKeyLen = 0;
@@ -6682,7 +6771,7 @@ HB_FUNC( LETO_DBEVAL )
                   }
                }
 
-               ptr = strstr( ptr + 2, "FIELDPUT(" );
+               ptr = strstr( ptr + 2, szSearch );
             }
          }
       }
@@ -8234,8 +8323,7 @@ HB_FUNC( LETO_DBCREATETEMP )
       else if( ! szDriver )
          szDriver = "LETO";
 
-      // if( hb_rddSelectFirstAvailable() != HB_SUCCESS )
-         hb_rddSelectWorkAreaNumber( 0 );
+      hb_rddSelectWorkAreaNumber( 0 );
       if( ! hb_rddInsertAreaNode( szDriver ) )  /* new WorkArea */
       {
          hb_rddSelectWorkAreaNumber( iLastArea );
@@ -8591,16 +8679,25 @@ HB_FUNC( LETO_RECLOCK )
    HB_ULONG  ulRecNo = ( HB_ULONG ) hb_parnldef( 1, 0 );
    HB_BOOL   fRet = HB_FALSE;
 
+   HB_TRACE( HB_TR_DEBUG, ( "LETO_RECLOCK(%p, %lu, %f)", pArea, ulRecNo, hb_parnd( 2 ) ) );
+
    if( pArea && ! ulRecNo )
       SELF_RECNO( ( AREAP ) pArea, &ulRecNo );
-   if( pArea && pArea->pTable && ulRecNo )
+   if( pArea && ulRecNo )
    {
-      LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
-      int        iOldTimeout = pConnection->iLockTimeOut;
+      LETOCONNECTION * pConnection = NULL;
+      int        iOldTimeout = 0;
       DBLOCKINFO dbLockInfo;
 
-      if( HB_ISNUM( 2 ) && hb_parnd( 2 ) >= 0 )
-         pConnection->iLockTimeOut = ( int ) ( hb_parnd( 2 ) * 1000 );
+      if( pArea->pTable && HB_ISNUM( 2 ) && hb_parnd( 2 ) >= 0 )
+      {
+         pConnection = letoGetConnPool( pArea->pTable->uiConnection );
+         if( pConnection )
+         {
+            iOldTimeout = pConnection->iLockTimeOut;
+            pConnection->iLockTimeOut = ( int ) ( hb_parnd( 2 ) * 1000 );
+         }
+      }
 
       memset( &dbLockInfo, 0, sizeof( DBLOCKINFO ) );
       dbLockInfo.itmRecID = hb_itemPutNL( NULL, ulRecNo );
@@ -8610,31 +8707,88 @@ HB_FUNC( LETO_RECLOCK )
          fRet = HB_TRUE;
       hb_itemRelease( dbLockInfo.itmRecID );
 
-      pConnection->iLockTimeOut = iOldTimeout;
+      if( pConnection )
+         pConnection->iLockTimeOut = iOldTimeout;
    }
    hb_retl( fRet );
 }
 
 HB_FUNC( LETO_RECUNLOCK )  /* mimic server-side with DbRunlock() */
 {
-   LETOAREAP  pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-   HB_ULONG   ulRecNo = ( HB_ULONG ) hb_parnldef( 1, 0 );
-   HB_BOOL    fRet = HB_FALSE;
+   LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_ULONG  ulRecNo = ( HB_ULONG ) hb_parnldef( 1, 0 );
+   HB_BOOL   fRet = HB_FALSE;
+
+   HB_TRACE( HB_TR_DEBUG, ( "LETO_RECUNLOCK(%p, %lu)", pArea, ulRecNo ) );
 
    if( pArea && ! ulRecNo )
       SELF_RECNO( ( AREAP ) pArea, &ulRecNo );
-   if( pArea && pArea->pTable && ulRecNo )
+   if( pArea && ulRecNo )
    {
-      unsigned int uiRes;
+      PHB_ITEM pRecNo = hb_itemPutNL( NULL, ulRecNo );
+      PHB_ITEM pItem = hb_itemNew( NULL );
 
-      if( ! LetoDbIsRecLocked( pArea->pTable, ulRecNo, &uiRes ) )
-         fRet = uiRes ? HB_TRUE : HB_FALSE;
-      if( fRet )
+      SELF_RECINFO( ( AREAP ) pArea, pRecNo, DBRI_LOCKED, pItem );
+      fRet = hb_itemGetL( pItem );
+      SELF_UNLOCK( ( AREAP ) pArea, pRecNo );
+
+      hb_itemRelease( pItem );
+      hb_itemRelease( pRecNo );
+   }
+   hb_retl( fRet );
+}
+
+HB_FUNC( LETO_TABLELOCK )
+{
+   LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_BOOL   fRet = HB_FALSE;
+
+   HB_TRACE( HB_TR_DEBUG, ( "LETO_TABLELOCK(%p, %f)", pArea, hb_parnd( 1 ) ) );
+
+   if( pArea && pArea->pTable )
+   {
+      LETOCONNECTION * pConnection = NULL;
+      int        iOldTimeout = 0;
+      DBLOCKINFO dbLockInfo;
+
+      if( pArea->pTable && HB_ISNUM( 1 ) && hb_parnd( 1 ) >= 0 )
       {
-         PHB_ITEM pLock = hb_itemPutNL( NULL, ulRecNo );
-
-         SELF_UNLOCK( ( AREAP ) pArea, pLock );
+         pConnection = letoGetConnPool( pArea->pTable->uiConnection );
+         if( pConnection )
+         {
+            iOldTimeout = pConnection->iLockTimeOut;
+            pConnection->iLockTimeOut = ( int ) ( hb_parnd( 1 ) * 1000 );
+         }
       }
+
+      memset( &dbLockInfo, 0, sizeof( DBLOCKINFO ) );
+      dbLockInfo.uiMethod = DBLM_FILE;
+      SELF_LOCK( ( AREAP ) pArea, &dbLockInfo );
+      if( dbLockInfo.fResult )
+         fRet = HB_TRUE;
+
+      if( pConnection )
+         pConnection->iLockTimeOut = iOldTimeout;
+   }
+   hb_retl( fRet );
+}
+
+HB_FUNC( LETO_TABLEUNLOCK )
+{
+   LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_BOOL   fRet = HB_FALSE;
+
+   HB_TRACE( HB_TR_DEBUG, ( "LETO_TABLEUNLOCK(%p)", pArea ) );
+
+   if( pArea )
+   {
+      PHB_ITEM pItem = hb_itemNew( NULL );
+
+      SELF_INFO( ( AREAP ) pArea, DBI_ISFLOCK, pItem );
+      fRet = hb_itemGetL( pItem );
+      SELF_UNLOCK( ( AREAP ) pArea, NULL );
+
+      hb_itemRelease( pItem );
    }
    hb_retl( fRet );
 }
