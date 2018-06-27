@@ -216,6 +216,17 @@ static _HB_INLINE_ HB_BOOL leto_CheckAreaConn( AREAP pArea, LETOCONNECTION * pCo
           ( ( LETOAREAP ) pArea )->pTable->uiConnection == pConnection->iConnection;
 }
 
+static HB_ERRCODE leto_ClearBuffer( AREAP pArea, void * p )
+{
+   if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) )
+   {
+      ( ( LETOAREAP ) pArea )->pTable->ptrBuf = NULL;
+      SELF_SKIP( pArea, 0 );
+   }
+
+   return HB_SUCCESS;
+}
+
 static HB_ERRCODE leto_doClose( AREAP pArea, void * p )
 {
    if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) )
@@ -2912,6 +2923,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
 
       case DBI_CLEARBUFFER:
          pTable->ptrBuf = NULL;
+         SELF_SKIP( ( AREAP ) pArea, 0 );
          pTable->llCentiSec = 0;
          break;
 
@@ -5949,6 +5961,11 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
          hb_itemPutC( pItem, LETO_VERSION_STRING );
          break;
 
+      case RDDI_CLEARBUFFER:
+         if( pConnection )
+            hb_rddIterateWorkAreas( leto_ClearBuffer, ( void * ) pConnection );
+         break;
+
       default:
          return SUPER_RDDINFO( pRDD, uiIndex, uiConnect, pItem );
    }
@@ -6500,11 +6517,21 @@ static HB_BOOL leto_LockValidate( LETOAREAP pArea, char * szBlock, HB_SIZE nLen 
    HB_SIZE nPos = hb_strAtI( "LOCK(", 5, szBlock, nLen );
    HB_SIZE nSearchLen, nReplLen, nCount = 0;
    HB_BOOL fFileLock = HB_FALSE;
+   HB_BOOL fTestLock = HB_TRUE, fTestUnlock = HB_TRUE;;
 
    HB_TRACE( HB_TR_DEBUG, ( "leto_LockValidate(%p, %s, %ld)", pArea, szBlock, nLen ) );
 
    while( nPos )
    {
+      if( fTestLock )
+      {
+         fTestLock = HB_FALSE;
+         if( hb_strAtI( "Leto_RecLock(", 13, szBlock, nLen ) )
+            nCount++;
+         if( hb_strAtI( "Leto_TableLock(", 15, szBlock, nLen ) )
+            nCount += 999;
+      }
+
       nSearchLen = 7;
       nPos = hb_strAtI( "DBRLOCK(", nSearchLen + 1, szBlock, nLen );
       if( ! nPos )
@@ -6533,11 +6560,21 @@ static HB_BOOL leto_LockValidate( LETOAREAP pArea, char * szBlock, HB_SIZE nLen 
       }
       else
       {
+         if( fTestUnlock )
+         {
+            fTestUnlock = HB_FALSE;
+            if( hb_strAtI( "Leto_RecUnlock(", 15, szBlock, nLen ) && nCount )
+               nCount--;
+            if( hb_strAtI( "Leto_TableUnlock(", 17, szBlock, nLen ) )
+               nCount = 0;
+         }
+
          nSearchLen = 9;
          nPos = hb_strAtI( "DBRUNLOCK(", nSearchLen + 1, szBlock, nLen );
          if( nPos )
          {
-            nCount--;
+            if( nCount )
+               nCount--;
             nReplLen = 14;  /* "Leto_RecUnlock" */
          }
          else
@@ -6550,7 +6587,7 @@ static HB_BOOL leto_LockValidate( LETOAREAP pArea, char * szBlock, HB_SIZE nLen 
                nReplLen = 16;  /* "Leto_TableUnlock" */
             }
             else
-              nReplLen = 0;  /* and done! */
+               nReplLen = 0;  /* and done! */
          }
       }
 
@@ -6575,9 +6612,28 @@ static HB_BOOL leto_LockValidate( LETOAREAP pArea, char * szBlock, HB_SIZE nLen 
       }
    }
    if( nCount )
-      commonError( pArea, EG_ARG, EDBCMD_BADPARAMETER, 0, NULL, 0, "UNRESOLVED LOCKING IN EXPRESSION" );
+      commonError( pArea, EG_ARG, EDBCMD_BADPARAMETER, 0, NULL, 0, "Unresolved Locking in Expression" );
 
    return ! nCount ? HB_TRUE : HB_FALSE;
+}
+
+static HB_BOOL leto_RelOptimized( LETOAREAP pArea )
+{
+   LPDBRELINFO lpDbRel = ( ( AREAP ) pArea )->lpdbRelations;
+   HB_BOOL     fOptimized = HB_TRUE;
+
+   if( ! ( ! pArea->area.dbfi.fFilter || pArea->area.dbfi.fOptimized ) )
+      fOptimized = HB_FALSE;
+   while( lpDbRel && fOptimized )
+   {
+      if( ! lpDbRel->isOptimized )
+         fOptimized = HB_FALSE;
+      else
+         fOptimized = leto_RelOptimized( ( LETOAREAP ) lpDbRel->lpaChild );
+      lpDbRel = lpDbRel->lpdbriNext;
+   }
+
+   return fOptimized;
 }
 
 /* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward, lStay ] ) */
@@ -6613,20 +6669,8 @@ HB_FUNC( LETO_DBEVAL )
       /* none or optimized filter, none or all optimzed relations */
       if( ! ( ! pArea->area.dbfi.fFilter || pArea->area.dbfi.fOptimized ) )
          fOptimized = HB_FALSE;
-      else if( fOptimized )
-      {
-         LPDBRELINFO lpDbRel = ( ( AREAP ) pArea )->lpdbRelations;
-
-         while( lpDbRel )
-         {
-            if( ! lpDbRel->isOptimized )
-            {
-               fOptimized = HB_FALSE;
-               break;
-            }
-            lpDbRel = lpDbRel->lpdbriNext;
-         }
-      }
+      else if( fOptimized && ( ( AREAP ) pArea )->lpdbRelations )
+         fOptimized = leto_RelOptimized( pArea );
    }
 
    if( fValid )  /* WA & first param */

@@ -96,6 +96,7 @@
 #define RDDI_VERSION          104
 #define RDDI_DEBUGLEVEL       110
 #define RDDI_LOCKTIMEOUT      111
+#define RDDI_CLEARBUFFER      112
 
 #define DBI_BUFREFRESHTIME    1001
 #define DBI_CLEARBUFFER       1002

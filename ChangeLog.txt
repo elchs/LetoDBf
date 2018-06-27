@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-06-27 18:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/rddleto.ch
+  * source/client/leto1.c
+    + RDDI_CLEARBUFFER for RDDInfo: discard skip-buffer of all WA and
+      refresh record-buffer with a skip( 0 )
+    * add to refresh record buffer with a skip( 0 ) in DBI_CLEARBUFFER
+    + leto_RelOptimized() ..
+    ! .. for check all relationed WA are optimized in filter and relations;
+      used in Leto_DbEval()
+
 2018-06-26 19:50 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     + add PRG functions LETO- _TABLELOCK, _TABLEUNLOCK for client side;
