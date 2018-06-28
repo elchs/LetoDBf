@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-06-28 12:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    * Leto_DbEval(): if <lNeedLock> = true and fOptimized,
+      refresh also all WA found in the expression as ALIAS name
+
 2018-06-27 18:00 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/rddleto.ch
   * source/client/leto1.c

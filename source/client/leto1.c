@@ -6650,6 +6650,7 @@ HB_FUNC( LETO_DBEVAL )
    HB_BOOL   fBackward = hb_parldef( 9, HB_FALSE );
    HB_BOOL   fStay = hb_parldef( 10, HB_TRUE );
    HB_BOOL   fValid = pArea && ( hb_parclen( 1 ) || HB_ISBLOCK( 1 ) ) ? HB_TRUE : HB_FALSE;
+   PHB_ITEM  pRefresh = NULL;
    HB_ULONG  ulLastRecNo = 0;
    char *    szBlock = NULL;
 
@@ -6687,6 +6688,49 @@ HB_FUNC( LETO_DBEVAL )
          strcpy( szBlock, hb_parc( 1 ) );
          /* translate Harbour lock functions to LetoDBf variant & verify unlock */
          fValid = leto_LockValidate( pArea, szBlock, hb_parclen( 1 ) );
+
+         if( fValid && fOptimized && fNeedLock )  /* collect ALIAS of WA to refresh */
+         {
+            char    szMasterAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
+            HB_SIZE n, nMasterLen, nAliasLen;
+
+            ptr = strstr( szBlock, "->" );
+            if( ptr )
+            {
+               SELF_ALIAS( ( AREAP ) pArea, szMasterAlias );
+               nMasterLen = strlen( szMasterAlias );
+            }
+            while( ptr )
+            {
+               nAliasLen = 0;
+               while( ptr - nAliasLen - 1 >= szBlock )
+               {
+                  if( ! HB_ISNEXTIDCHAR( *( ptr - nAliasLen - 1 ) ) )
+                     break;
+                  nAliasLen++;
+               }
+
+               if( nAliasLen && ( nMasterLen != nAliasLen || hb_strnicmp( ptr - nAliasLen, szMasterAlias, nAliasLen ) ) )
+               {
+                  if( ! pRefresh )
+                     pRefresh = hb_itemArrayNew( 0 );
+
+                  for( n = 1; n <= hb_arrayLen( pRefresh ); n++ )
+                  {
+                     if( hb_arrayGetCLen( pRefresh, n ) == nAliasLen &&
+                         ! hb_strnicmp( ptr - nAliasLen, hb_arrayGetCPtr( pRefresh, n ), nAliasLen ) )
+                        break;
+                  }
+                  if( n > hb_arrayLen( pRefresh ) )
+                  {
+                     hb_arraySize( pRefresh, n );
+                     hb_arraySetCL( pRefresh, n, ptr - nAliasLen, nAliasLen );
+                  }
+               }
+
+               ptr = strstr( ptr + 2, "->" );
+            }
+         }
 
          ptr = strstr( szBlock, "=>" );
          if( ptr )  /* check for empty '' ( or PP repeated ) hashkey to substitute */
@@ -6867,7 +6911,7 @@ HB_FUNC( LETO_DBEVAL )
             hb_retl( HB_FALSE );
       }
 
-      if( pArea->pTable && pArea->pTable->ptrBuf )
+      if( fNeedLock && pArea->pTable && pArea->pTable->ptrBuf )
       {
          pArea->pTable->ptrBuf = NULL;
          pArea->pTable->llCentiSec = 0;
@@ -6877,6 +6921,22 @@ HB_FUNC( LETO_DBEVAL )
          SELF_GOTO( ( AREAP ) pArea, ulLastRecNo );
       else
          SELF_SKIP( ( AREAP ) pArea, 0 );
+
+      if( pRefresh )  /* fNeedLock & sub WAs to refresh */
+      {
+         LETOAREAP pSubArea = NULL;
+         int       iSubArea = 0;
+         HB_SIZE   n;
+
+         for( n = 1; n <= hb_arrayLen( pRefresh ); n++ )
+         {
+            hb_rddGetAliasNumber( hb_arrayGetCPtr( pRefresh, n ), &iSubArea );
+            if( iSubArea )
+               pSubArea = ( LETOAREAP ) hb_rddGetWorkAreaPointer( ( HB_AREANO ) iSubArea );
+            if( pSubArea )
+               SELF_INFO( ( AREAP ) pSubArea, DBI_CLEARBUFFER, NULL );
+         }
+      }
    }
    else if( fValid )  /* but not optimized */
    {
@@ -6972,6 +7032,7 @@ HB_FUNC( LETO_DBEVAL )
 
    if( szBlock )
       hb_xfree( szBlock );
+   hb_itemRelease( pRefresh );
 }
 
 HB_FUNC( LETO_GROUPBY )
