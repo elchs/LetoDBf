@@ -3094,6 +3094,7 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
    PHB_ITEM pRLocks = NULL;
    PHB_ITEM pSaveValResult = NULL;
    AREAP    pRawArea = ( AREAP ) pArea;
+   HB_ULONG ulNextRecNo = 0;
    HB_LONG  lNext = -1;
    HB_BOOL  fValid = ( hb_itemType( pEvalInfo->itmBlock ) & HB_IT_BLOCK ) ? HB_TRUE : HB_FALSE;
    HB_BOOL  fProved = HB_TRUE;
@@ -3192,6 +3193,7 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
             SELF_BOF( pRawArea, &fEof );
       }
 
+      SELF_RECNO( pRawArea, &ulNextRecNo );
       fValid = HB_TRUE;
       lNext = lNewNext;
       SELF_GOTO( pRawArea, ulNewRecNo );
@@ -3272,7 +3274,10 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
             if( ( HB_SIZE ) hb_itemGetNL( pProces ) < hb_arrayLen( pRLocks ) )
                SELF_GOTO( pRawArea, hb_arrayGetNL( pRLocks, hb_itemGetNL( pProces ) + 1 ) );
             else
+            {
+               SELF_GOTO( pRawArea, ulNextRecNo );
                break;
+            }
          }
          else
          {

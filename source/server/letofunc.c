@@ -7261,7 +7261,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
    PHB_ITEM   pEvalut = hb_itemPutNS( NULL, 0 );
    PHB_ITEM   pRLocks = NULL;
    PHB_ITEM   pSaveValResult = NULL;
-   HB_ULONG   ulLastRecNo;
+   HB_ULONG   ulLastRecNo, ulNextRecNo = 0;
    HB_LONG    lNext = -1;
 
    memset( &dbLockInfo, 0, sizeof( DBLOCKINFO ) );
@@ -7397,6 +7397,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
                                  hb_itemGetNS( pProces ), iLockTime );
       lNext = lNewNext;
       bValid = HB_TRUE;
+      SELF_RECNO( pArea, &ulNextRecNo );
       leto_GotoIf( pArea, ulNewRecNo );
       hb_itemRelease( dbLockInfo.itmRecID );
    }
@@ -7476,7 +7477,10 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
             if( ( HB_SIZE ) hb_itemGetNL( pProces ) < hb_arrayLen( pRLocks ) )
                SELF_GOTO( pArea, hb_arrayGetNL( pRLocks, hb_itemGetNL( pProces ) + 1 ) );
             else
+            {
+               SELF_GOTO( pArea, ulNextRecNo );
                break;
+            }
          }
          else
          {
