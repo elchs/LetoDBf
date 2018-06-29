@@ -577,7 +577,9 @@ void leto_wUsLog( PUSERSTRU pUStru, int iMsgLen, const char * s, ... )
 
 HB_FUNC( LETO_WUSLOG )
 {
-   leto_wUsLog( NULL, hb_parclen( 1 ), hb_parc( 1 ) );
+   PUSERSTRU pUStru = letoGetUStru();
+
+   leto_wUsLog( pUStru, hb_parclen( 1 ), hb_parc( 1 ) );
 }
 
 HB_FUNC( LETO_WRLOG )
@@ -7516,7 +7518,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
    if( pArea )
    {
-      if( ! bStay )
+      if( ! bStay || ! bProved )
          leto_GotoIf( pArea, ulLastRecNo );
 
       if( pArea->valResult )
@@ -7536,6 +7538,146 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
    hb_itemRelease( pRLocks );
 
    return errCode;
+}
+
+static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
+{
+   AREAP      pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+   DBEVALINFO pEvalInfo;
+   HB_ERRCODE errCode = HB_FAILURE;
+   PHB_ITEM   pNext = NULL, pRec = NULL, pRest = NULL;
+   HB_ULONG   ulRecNo;
+   HB_BOOL    bValid = HB_TRUE;
+   HB_BOOL    bResultAsArr, bNeedLock, bStay;
+   HB_U32     uiLen;
+   HB_SIZE    nPos;
+   char *     ptr, * szData1 = NULL;
+
+   letoSetUStru( pUStru );
+   memset( &pEvalInfo, 0, sizeof( DBEVALINFO ) );
+
+   hb_xvmSeqBegin();
+
+   uiLen = HB_GET_LE_UINT32( szData );
+   pEvalInfo.itmBlock = leto_mkCodeBlock( pUStru, szData + 4, uiLen, HB_FALSE );
+
+   nPos = 4 + uiLen + 1;
+   uiLen = HB_GET_LE_UINT32( szData + nPos );
+   if( uiLen )
+      pEvalInfo.dbsci.itmCobFor = leto_mkCodeBlock( pUStru, szData + 4 + nPos, uiLen, HB_FALSE );
+   nPos += 4 + uiLen + 1;
+   uiLen = HB_GET_LE_UINT32( szData + nPos );
+   if( uiLen )
+      pEvalInfo.dbsci.itmCobWhile = leto_mkCodeBlock( pUStru, szData + 4 + nPos, uiLen, HB_FALSE );
+   nPos += 4 + uiLen + 1;
+
+   pNext = hb_itemPutNL( pNext, strtol( szData + nPos, &ptr, 10 ) );
+   if( hb_itemGetNL( pNext ) >= 0 )
+      pEvalInfo.dbsci.lNext = pNext;
+   pRec = hb_itemPutNL( pRec, strtol( ++ptr, &ptr, 10 ) );
+   if( hb_itemGetNL( pRec ) >= 0 )
+      pEvalInfo.dbsci.itmRecID = pRec;
+   pRest = hb_itemPutNL( pRest, strtol( ++ptr, &ptr, 10 ) );
+   if( hb_itemGetNL( pRest ) >= 0 )
+   {
+      pRest = hb_itemPutL( pRest, hb_itemGetNL( pRest ) == 0 ? HB_FALSE : HB_TRUE );
+      pEvalInfo.dbsci.fRest = pRest;
+   }
+
+   ptr++;
+   bResultAsArr = *ptr == 'T';
+   ptr += 2;
+   bNeedLock = *ptr == 'T';
+   ptr += 2;
+   pEvalInfo.dbsci.fBackward = *ptr == 'T' ? HB_TRUE : HB_FALSE;
+   ptr += 2;
+   bStay = *ptr == 'T';
+   ptr += 2;
+   ulRecNo = strtoul( ptr, &ptr, 10 );
+
+   hb_xvmSeqEnd();
+
+   if( pUStru->iHbError || ! pEvalInfo.itmBlock )
+      bValid = HB_FALSE;
+   if( bValid && bNeedLock )
+   {
+      if( pUStru->pCurAStru->pTStru->bReadonly )
+         bValid = HB_FALSE;
+      else
+      {
+         bNeedLock = ! ( pUStru->pCurAStru->bLocked || ! pUStru->pCurAStru->pTStru->bShared );
+         if( bNeedLock && ! ( pUStru->uSrvLock & 0x01 ) )  /* RDDI_AUTOLOCK */
+         {
+            if( s_iDebugMode > 0 )
+               leto_wUsLog( pUStru, -1, "ERROR leto_Dbeval: R-locks need, but no RDDI_AUTOLOCK for WA %s", pUStru->pCurAStru->szAlias );
+            bValid = HB_FALSE;
+         }
+         else if( s_iDebugMode > 20 )
+            leto_wUsLog( pUStru, -1, "DEBUG leto_Dbeval: will use RDDI_AUTOLOCK for WA %s", pUStru->pCurAStru->szAlias );
+      }
+   }
+
+   if( ! bValid )
+      errCode = HB_FAILURE;
+   else
+   {
+      if( pArea->valResult )
+         hb_vmDestroyBlockOrMacro( pArea->valResult );
+      if( bResultAsArr )
+         pArea->valResult = hb_itemArrayNew( 0 );
+      else
+         pArea->valResult = hb_itemNew( NULL );
+      SELF_GOTO( pArea, ulRecNo );
+
+      if( s_iDebugMode > 20 )
+      {
+         HB_LONG  lNext = pNext ? hb_itemGetNL( pNext ) : -1;
+         HB_ULONG lRecNo = pRec ? hb_itemGetNL( pRec ) : -1;
+         int      iRest = pRest ? ( int ) hb_itemGetL( pRest ) : -1;
+
+         leto_wUsLog( pUStru, -1, "DEBUG leto_Dbeval: %s FOR %s WHILE %s (RECNO %ld NEXT %ld REST %d) [RESULT/LOCKS/DESC:%d/%d/%d]",
+                                   szData + 4, pEvalInfo.dbsci.itmCobFor ? "!":"", pEvalInfo.dbsci.itmCobWhile ? "!":"", lRecNo, lNext, iRest,
+                                   ( int ) bResultAsArr, ( int ) bNeedLock, ( int ) pEvalInfo.dbsci.fBackward );
+      }
+
+      errCode = leto_dbEval( pUStru, pArea, &pEvalInfo, bNeedLock ? pUStru->iLockTimeOut : -1, bStay );
+   }
+   if( errCode == HB_SUCCESS )
+   {
+      HB_SIZE  nSize;
+      char *   pParam = hb_itemSerialize( pArea->valResult, HB_SERIALIZE_NUMSIZE, &nSize );
+      HB_ULONG ulLen = 0, ulPLen = leto_CryptText( pUStru, pParam, nSize, 0 );
+
+      szData1 = leto_recWithAlloc( pArea, pUStru, pUStru->pCurAStru, &ulLen );
+      szData1 = ( char * ) hb_xrealloc( szData1, ulLen + ulPLen + 1 );
+      memcpy( szData1 + ulLen, pUStru->pBufCrypt, ulPLen );
+      ulLen += ulPLen;
+
+      leto_SendAnswer( pUStru, szData1, ulLen );
+
+      if( pParam )
+         hb_xfree( pParam );
+   }
+   else if( pUStru->iHbError )
+      leto_SendError( pUStru, szErr4, 4 );
+   else
+      leto_SendAnswer( pUStru, szErr3, 4 );
+
+   if( pArea->valResult )
+      hb_vmDestroyBlockOrMacro( pArea->valResult );
+   pArea->valResult = NULL;
+
+   if( szData1 )
+      hb_xfree( szData1 );
+   if( pEvalInfo.itmBlock )
+      hb_vmDestroyBlockOrMacro( pEvalInfo.itmBlock );
+   if( pEvalInfo.dbsci.itmCobFor)
+      hb_vmDestroyBlockOrMacro( pEvalInfo.dbsci.itmCobFor );
+   if( pEvalInfo.dbsci.itmCobWhile )
+      hb_vmDestroyBlockOrMacro( pEvalInfo.dbsci.itmCobWhile );
+   hb_itemRelease( pNext );
+   hb_itemRelease( pRec );
+   hb_itemRelease( pRest );
 }
 
 /* leto_udf() leto_DbEval( cbBlock, cbFor, cbWhile, nNext, nRec, lRest[, lResultArr, lNeedLock, lBackward ] ) */
@@ -15319,6 +15461,7 @@ void leto_CommandSetInit()
    s_cmdSet[ LETOCMD_cmta    - LETOCMD_OFFSET ] = leto_UpdateRecAddflush;
    s_cmdSet[ LETOCMD_dbi     - LETOCMD_OFFSET ] = leto_Info;
    s_cmdSet[ LETOCMD_dboi    - LETOCMD_OFFSET ] = leto_OrderInfo;
+   s_cmdSet[ LETOCMD_dbeval  - LETOCMD_OFFSET ] = leto_Dbeval;
    s_cmdSet[ LETOCMD_flush   - LETOCMD_OFFSET ] = leto_Flush;
    s_cmdSet[ LETOCMD_goto    - LETOCMD_OFFSET ] = leto_Goto;
    s_cmdSet[ LETOCMD_group   - LETOCMD_OFFSET ] = leto_GroupBy;

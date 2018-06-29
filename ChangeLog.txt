@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-06-29 16:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/cmdleto.h
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+    + implement Leto_DbEval() into the command set
+
+  * source/client/leto1.c
+    ! pacify a MsVc warning - Thanks Theo for note.
+
 2018-06-28 16:32 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
   * source/server/letofunc.c

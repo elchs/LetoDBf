@@ -305,6 +305,7 @@ extern HB_EXPORT HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip );
 extern HB_EXPORT HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable );
 extern HB_EXPORT HB_ERRCODE LetoDbPutMemo( LETOTABLE * pTable, unsigned int uiIndex, const char * szValue, unsigned long ulLenMemo );
 extern HB_EXPORT HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll );
+extern HB_EXPORT HB_ERRCODE LetoDbEval( LETOTABLE * pTable, const char * szBlock, const char * szFor, const char * szWhile, long lNext, long lRecNo, int iRest, HB_BOOL fResultSet, HB_BOOL fNeedLock, HB_BOOL fBackward, HB_BOOL fStay, PHB_ITEM * pParams );
 extern HB_EXPORT HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const char * szTag, const char * szKey, unsigned int uiFlags, const char * szFor, const char * szWhile, unsigned long ulNext );
 extern HB_EXPORT HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagName, unsigned int uiOrder );
 extern HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHORT uiKeyLen, HB_BOOL fSoftSeek, HB_BOOL fFindLast );

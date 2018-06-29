@@ -115,7 +115,7 @@
 #define LETOCMD_skip       's'
 #define LETOCMD_cmta       't'
 #define LETOCMD_upd        'u' // not bAppend, else +
-// #define LETOCMD_dbeval     'v'
+#define LETOCMD_dbeval     'v'
 #define LETOCMD_rela       'w'
 #define LETOCMD_cmtu       'x'
 #define LETOCMD_rcou       'y'

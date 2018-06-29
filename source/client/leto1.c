@@ -6670,13 +6670,13 @@ HB_FUNC( LETO_DBEVAL )
        ( hb_parclen( 3 ) || ! HB_ISBLOCK( 3 ) ) &&
        leto_CheckArea( pArea ) )
    {
-      fOptimized = leto_IsUDFAllowed( pConnection, NULL );  /* new! "LETO_DBEVAL" */
-
       /* none or optimized filter, none or all optimzed relations */
       if( ! ( ! pArea->area.dbfi.fFilter || pArea->area.dbfi.fOptimized ) )
          fOptimized = HB_FALSE;
-      else if( fOptimized && ( ( AREAP ) pArea )->lpdbRelations )
+      else if( ( ( AREAP ) pArea )->lpdbRelations )
          fOptimized = leto_RelOptimized( pArea );
+      else
+         fOptimized = HB_TRUE;
    }
 
    if( fValid )  /* WA & first param */
@@ -6697,7 +6697,7 @@ HB_FUNC( LETO_DBEVAL )
          if( fValid && fOptimized && fNeedLock )  /* collect ALIAS of WA to refresh */
          {
             char    szMasterAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
-            HB_SIZE n, nMasterLen, nAliasLen;
+            HB_SIZE n, nMasterLen = 0, nAliasLen;
 
             ptr = strstr( szBlock, "->" );
             if( ptr )
@@ -6803,13 +6803,15 @@ HB_FUNC( LETO_DBEVAL )
             if( ! leto_CbTrim( szBlock ) )
                fValid = HB_FALSE;
          }
-         else if( strstr( szBlock, "{|n| { * } }" ) )  /* add all fields as hashtable */
+         else if( strstr( szBlock, "{ * }" ) )  /* "{|n| { * } }" add all fields as hashtable */
          {
             HB_USHORT    ui, uiCount;
             char         szField[ 16 ];
-            HB_SIZE      nHPos = 6;
+            HB_SIZE      nHPos = 24;
 
             SELF_FIELDCOUNT( ( AREAP ) pArea, &uiCount );
+            if( uiCount )
+               memcpy( szBlock, "{|n| {'recno'=>RecNo(), ", 24 );
             for( ui = 1; ui <= uiCount; ui++ )
             {
                SELF_FIELDNAME( ( AREAP ) pArea, ui, szField );
@@ -6872,60 +6874,52 @@ HB_FUNC( LETO_DBEVAL )
 
    if( fValid && fOptimized )
    {
-      PHB_ITEM pParams = hb_itemArrayNew( 10 );
+      PHB_ITEM pParams = NULL;
+      HB_LONG  lRecNo;
+      int      iRest;
 
       if( pArea->pTable && pArea->pTable->uiUpdated )
          leto_PutRec( pArea );
 
-      hb_arraySetC( pParams, 1, szBlock );
-
-      szBlock = ( char * ) hb_xrealloc( szBlock, HB_MAX( hb_parclen( 2 ), hb_parclen( 3 ) ) + 1 );
-      if( hb_parclen( 2 ) )
-      {
-         strcpy( szBlock, hb_parc( 2 ) );
-         if( leto_CbTrim( szBlock ) )
-            hb_arraySetC( pParams, 2, szBlock );  /* FOR */
-      }
-      if( hb_parclen( 3 ) )
-      {
-         strcpy( szBlock, hb_parc( 3 ) );
-         if( leto_CbTrim( szBlock ) )
-            hb_arraySetC( pParams, 3, szBlock );  /* WHILE */
-      }
-
-      if( HB_ISNUM( 4 ) )
-         hb_arraySetNL( pParams, 4, lNext );
       if( HB_ISNUM( 5 ) )
-         hb_arraySetNL( pParams, 5, ulRecNo );
+         lRecNo = ( HB_LONG ) ulRecNo;
+      else
+         lRecNo = -1;
       if( HB_ISLOG( 6 ) )
-         hb_arraySetL( pParams, 6, fRest );
-      hb_arraySetL( pParams, 7, fResultAsArr );
-      hb_arraySetL( pParams, 8, fNeedLock );
-      hb_arraySetL( pParams, 9, fBackward );
-      hb_arraySetL( pParams, 10, fStay );
-
-      fValid = LetoUdf( pConnection, pArea->pTable, HB_FALSE, "LETO_DBEVAL", &pParams );
-      if( fValid && pParams )
-         hb_itemReturnRelease( pParams );
+         iRest = fRest ? 1 : 0;
       else
+         iRest = -1;
+
+      do
       {
-         hb_itemRelease( pParams );
-         if( ! strncmp( pConnection->szBuffer + 1, "004", 3 ) )  /* error in expression ? */
-            leto_CheckError( pArea, pConnection );
+         if( LetoDbEval( pArea->pTable, szBlock, hb_parclen( 2 ) ? hb_parc( 2 ) : "", hb_parclen( 3 ) ? hb_parc( 3 ) : "",
+                           lNext, lRecNo, iRest, fResultAsArr, fNeedLock, fBackward, fStay, &pParams ) )
+         {
+            hb_itemRelease( pParams );
+            if( ! strncmp( pConnection->szBuffer + 1, "004", 3 ) )  /* error in expression ? */
+            {
+               leto_CheckError( pArea, pConnection );
+               break;
+            }
+            else if( fNeedLock && ! strncmp( pConnection->szBuffer + 1, "003", 3 ) )  /* not all locked */
+            {
+               if( commonError( pArea, EG_UNLOCKED, EDBF_UNLOCKED, 0, NULL, EF_CANRETRY, NULL ) != E_RETRY )
+                  break;
+            }
+            else
+            {
+               hb_retl( HB_FALSE );
+               break;
+            }
+         }
          else
-            hb_retl( HB_FALSE );
+         {
+            hb_itemReturnRelease( pParams );
+            leto_SetAreaFlags( pArea );
+            break;
+         }
       }
-
-      if( fNeedLock && pArea->pTable && pArea->pTable->ptrBuf )
-      {
-         pArea->pTable->ptrBuf = NULL;
-         pArea->pTable->llCentiSec = 0;
-      }
-      SELF_RECNO( ( AREAP ) pArea, &ulRecNo );
-      if( ! fStay && ulRecNo != ulLastRecNo )
-         SELF_GOTO( ( AREAP ) pArea, ulLastRecNo );
-      else
-         SELF_SKIP( ( AREAP ) pArea, 0 );
+      while( HB_TRUE );
 
       if( pRefresh )  /* fNeedLock & sub WAs to refresh */
       {
@@ -6985,7 +6979,7 @@ HB_FUNC( LETO_DBEVAL )
       else
          pRawArea->valResult = hb_itemNew( NULL );
 
-      if( fNeedLock )
+      if( fNeedLock && leto_CheckArea( pArea ) )
       {
          if( pTable->fReadonly )
             fValid = HB_FALSE;
@@ -7000,8 +6994,14 @@ HB_FUNC( LETO_DBEVAL )
       if( ! fNeedLock && ( uOldSrvMode & 0x01 ) )
          pConnection->uSrvLock &= ~( 0x01 );  /* deactivate as hint for RDD method */
 
-      if( fValid )
+      while( fValid )
+      {
          fValid = SELF_DBEVAL( pRawArea, &pEvalInfo ) == HB_SUCCESS;
+         if( ! fValid && fNeedLock && commonError( pArea, EG_UNLOCKED, EDBF_UNLOCKED, 0, NULL, EF_CANRETRY, NULL ) == E_RETRY )
+            fValid = HB_TRUE;
+         else
+            break;
+      }
 
       if( pConnection )
          pConnection->uSrvLock = uOldSrvMode;
@@ -7022,7 +7022,7 @@ HB_FUNC( LETO_DBEVAL )
       }
 
       /* AFTER! ->valResult is processed */
-      if( ! fStay )
+      if( ! fStay || ! fValid )
          SELF_GOTO( pRawArea, ulLastRecNo );
 
       hb_itemRelease( pBlock );

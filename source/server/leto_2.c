@@ -188,6 +188,7 @@ static void leto_CommandDescInit( void )
    s_szCmdSetDesc[ LETOCMD_cmta    - LETOCMD_OFFSET ] = "appendflush";
    s_szCmdSetDesc[ LETOCMD_dbi     - LETOCMD_OFFSET ] = "dbinfo";
    s_szCmdSetDesc[ LETOCMD_dboi    - LETOCMD_OFFSET ] = "dborderinfo";
+   s_szCmdSetDesc[ LETOCMD_dbeval  - LETOCMD_OFFSET ] = "dbeval";
    s_szCmdSetDesc[ LETOCMD_flush   - LETOCMD_OFFSET ] = "flush";
    s_szCmdSetDesc[ LETOCMD_goto    - LETOCMD_OFFSET ] = "goto";
    s_szCmdSetDesc[ LETOCMD_group   - LETOCMD_OFFSET ] = "group";

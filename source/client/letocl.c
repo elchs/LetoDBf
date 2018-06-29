@@ -4833,6 +4833,63 @@ HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
    return HB_FAILURE;
 }
 
+HB_ERRCODE LetoDbEval( LETOTABLE * pTable, const char * szBlock, const char * szFor, const char * szWhile,
+                                           long lNext, long lRecNo, int iRest,
+                                           HB_BOOL fResultSet, HB_BOOL fNeedLock, HB_BOOL fBackward, HB_BOOL fStay, PHB_ITEM * pParams )
+{
+   LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+   HB_SIZE  nLen = strlen( szBlock ) + strlen( szFor ) + strlen( szWhile ) + 96;
+   char *   szData = ( char * ) hb_xgrab( nLen );
+   HB_ULONG ulLen, ulRecLen, ulRecNo;
+
+   ulLen = eprintf( szData, "%c;%lu;", LETOCMD_dbeval, pTable->hTable );
+   HB_PUT_LE_UINT32( szData + ulLen, strlen( szBlock ) );
+   ulLen += 4;
+   ulLen += eprintf( szData + ulLen, "%s;", szBlock );
+   HB_PUT_LE_UINT32( szData + ulLen, strlen( szFor ) );
+   ulLen += 4;
+   ulLen += eprintf( szData + ulLen, "%s;", szFor );
+   HB_PUT_LE_UINT32( szData + ulLen, strlen( szWhile ) );
+   ulLen += 4;
+   ulLen += eprintf( szData + ulLen, "%s;", szWhile );
+   ulLen += eprintf( szData + ulLen, "%ld;%ld;%d;%c;%c;%c;%c;%lu;", lNext, lRecNo, iRest,
+                                     fResultSet ? 'T' : 'F',
+                                     fNeedLock  ? 'T' : 'F',
+                                     fBackward  ? 'T' : 'F',
+                                     fStay      ? 'T' : 'F',
+                                     pTable->ulRecNo );
+
+   if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) || *pConnection->szBuffer != '+' )
+   {
+      hb_xfree( szData );
+      return 1;
+   }
+
+   ulRecLen = HB_GET_LE_UINT24( pConnection->szBuffer + 1 );
+   ulRecNo = HB_GET_LE_UINT32( pConnection->szBuffer + 5 );
+
+   leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
+
+   if( pTable->ptrBuf && ( ulRecNo != pTable->ulRecNo || fNeedLock ) )
+      pTable->ptrBuf = NULL;
+   if( pTable->fAutoRefresh )
+      pTable->llCentiSec = LETO_CENTISEC();
+
+   if( ulRecLen )
+   {
+#ifndef __XHARBOUR__
+      const char * pPar = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer + 4 + ulRecLen );
+
+      *pParams = hb_itemDeserialize( &pPar, ( HB_SIZE * ) &ulLen );
+#else
+      *pParams = hb_itemNew( NULL );
+#endif
+   }
+
+   hb_xfree( szData );
+   return 0;
+}
+
 HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const char * szTag,
                                         const char * szKey, unsigned int uiFlags,
                                         const char * szFor, const char * szWhile, unsigned long ulNext )
