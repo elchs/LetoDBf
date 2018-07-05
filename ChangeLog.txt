@@ -2,6 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-07-05 23:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    + adding SQL JOIN types ( 'set theory' ) to Leto_DbEval()
+      ;test phase!, it have to prove its working,
+       use this extension! to Leto_DbEval() still not for production usage
+      ;ToDo: explain how to test ;-)
+    + add Leto_DbLocate() and RDD method letoLocate()
+      ;for optimized WA it calls a LetoDbEval() to LOCATE at server-side
+      ;by intention no PP-rule for LOCATE command in leto_std.ch
+    ! fix for last update: logic to preserve the skipbbuffer was wrong in
+      LetoDbEval(); also hardened to handle some NULL pointers
+
 2018-06-29 16:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/cmdleto.h
   * include/letocl.h

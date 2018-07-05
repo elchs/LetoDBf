@@ -4834,30 +4834,33 @@ HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
 }
 
 HB_ERRCODE LetoDbEval( LETOTABLE * pTable, const char * szBlock, const char * szFor, const char * szWhile,
-                                           long lNext, long lRecNo, int iRest,
-                                           HB_BOOL fResultSet, HB_BOOL fNeedLock, HB_BOOL fBackward, HB_BOOL fStay, PHB_ITEM * pParams )
+                       long lNext, long lRecNo, int iRest, HB_BOOL fResultSet, HB_BOOL fNeedLock, HB_BOOL fBackward, HB_BOOL fStay,
+                       PHB_ITEM * pParams, const char * szJoins )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-   HB_SIZE  nLen = strlen( szBlock ) + strlen( szFor ) + strlen( szWhile ) + 96;
+   HB_SIZE  nLenBlock = szBlock ? strlen( szBlock ) : 0;
+   HB_SIZE  nLenFor = szFor ? strlen( szFor ) : 0;
+   HB_SIZE  nLenWhile = szWhile ? strlen( szWhile ) : 0;
+   HB_SIZE  nLen = nLenBlock + nLenFor + nLenWhile + 96;
    char *   szData = ( char * ) hb_xgrab( nLen );
-   HB_ULONG ulLen, ulRecLen, ulRecNo;
+   HB_ULONG ulLen, ulRecLen, ulRecNo = pTable->ulRecNo;
 
    ulLen = eprintf( szData, "%c;%lu;", LETOCMD_dbeval, pTable->hTable );
-   HB_PUT_LE_UINT32( szData + ulLen, strlen( szBlock ) );
+   HB_PUT_LE_UINT32( szData + ulLen, nLenBlock );
    ulLen += 4;
    ulLen += eprintf( szData + ulLen, "%s;", szBlock );
-   HB_PUT_LE_UINT32( szData + ulLen, strlen( szFor ) );
+   HB_PUT_LE_UINT32( szData + ulLen, nLenFor );
    ulLen += 4;
    ulLen += eprintf( szData + ulLen, "%s;", szFor );
-   HB_PUT_LE_UINT32( szData + ulLen, strlen( szWhile ) );
+   HB_PUT_LE_UINT32( szData + ulLen, nLenWhile );
    ulLen += 4;
    ulLen += eprintf( szData + ulLen, "%s;", szWhile );
-   ulLen += eprintf( szData + ulLen, "%ld;%ld;%d;%c;%c;%c;%c;%lu;", lNext, lRecNo, iRest,
+   ulLen += eprintf( szData + ulLen, "%ld;%ld;%d;%c;%c;%c;%c;%lu;%s;", lNext, lRecNo, iRest,
                                      fResultSet ? 'T' : 'F',
                                      fNeedLock  ? 'T' : 'F',
                                      fBackward  ? 'T' : 'F',
                                      fStay      ? 'T' : 'F',
-                                     pTable->ulRecNo );
+                                     pTable->ulRecNo, szJoins );
 
    if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) || *pConnection->szBuffer != '+' )
    {
@@ -4866,8 +4869,6 @@ HB_ERRCODE LetoDbEval( LETOTABLE * pTable, const char * szBlock, const char * sz
    }
 
    ulRecLen = HB_GET_LE_UINT24( pConnection->szBuffer + 1 );
-   ulRecNo = HB_GET_LE_UINT32( pConnection->szBuffer + 5 );
-
    leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
 
    if( pTable->ptrBuf && ( ulRecNo != pTable->ulRecNo || fNeedLock ) )
@@ -4875,7 +4876,7 @@ HB_ERRCODE LetoDbEval( LETOTABLE * pTable, const char * szBlock, const char * sz
    if( pTable->fAutoRefresh )
       pTable->llCentiSec = LETO_CENTISEC();
 
-   if( ulRecLen )
+   if( ulRecLen && pParams )
    {
 #ifndef __XHARBOUR__
       const char * pPar = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer + 4 + ulRecLen );
