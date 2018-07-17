@@ -2422,7 +2422,10 @@ void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
       else if( pArray )
       {
          hb_itemRelease( pArray );
-         hb_retl( fSuccess );
+         if( ! strncmp( leto_firstchar( pConnection ), "004", 3 ) )
+            hb_ret();
+         else
+            hb_retl( fSuccess );
       }
    }
    else

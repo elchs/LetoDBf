@@ -4171,8 +4171,7 @@ static HB_ERRCODE letoOrderListFocus( LETOAREAP pArea, LPDBORDERINFO pOrderInfo 
    if( ! pTable->pTagCurrent || ! pTable->pTagCurrent->TagName )
       pOrderInfo->itmResult = hb_itemPutC( pOrderInfo->itmResult, "" );
    else
-      pOrderInfo->itmResult = hb_itemPutC( pOrderInfo->itmResult,
-                                           pTable->pTagCurrent->TagName );
+      pOrderInfo->itmResult = hb_itemPutC( pOrderInfo->itmResult, pTable->pTagCurrent->TagName );
 
    if( pOrderInfo->itmOrder )
    {
@@ -4180,18 +4179,15 @@ static HB_ERRCODE letoOrderListFocus( LETOAREAP pArea, LPDBORDERINFO pOrderInfo 
       {
          char szTag[ LETO_MAX_TAGNAME + 1 ];
 
-         hb_strncpyUpper( szTag, hb_itemGetCPtr( pOrderInfo->itmOrder ), hb_itemGetCLen( pOrderInfo->itmOrder ) );
-         pOrderInfo->itmOrder = hb_itemPutC( pOrderInfo->itmOrder, szTag );
+         hb_strncpyUpper( szTag, hb_itemGetCPtr( pOrderInfo->itmOrder ),
+                                 HB_MIN( hb_itemGetCLen( pOrderInfo->itmOrder ), LETO_MAX_TAGNAME ) );
+         return LetoDbOrderFocus( pTable, szTag, 0 );
       }
-
-      if( HB_IS_STRING( pOrderInfo->itmOrder ) || HB_IS_NUMERIC( pOrderInfo->itmOrder ) )
-         return LetoDbOrderFocus( pTable,
-                                  HB_IS_STRING( pOrderInfo->itmOrder ) ? hb_itemGetCPtr( pOrderInfo->itmOrder ) : NULL,
-                                  HB_IS_NUMERIC( pOrderInfo->itmOrder ) ? ( HB_USHORT ) hb_itemGetNI( pOrderInfo->itmOrder ) : 0 );
-      return HB_SUCCESS;
+      else if( HB_IS_NUMERIC( pOrderInfo->itmOrder ) )
+         return LetoDbOrderFocus( pTable, NULL, ( HB_USHORT ) hb_itemGetNI( pOrderInfo->itmOrder ) );
    }
 
-   return HB_FAILURE;
+   return HB_SUCCESS;
 }
 
 static HB_ERRCODE letoOrderListRebuild( LETOAREAP pArea )
@@ -5302,8 +5298,11 @@ static HB_ERRCODE letoLocate( LETOAREAP pArea, HB_BOOL fContinue )
                         lNext, lRecNo, iRest, HB_FALSE, HB_FALSE, HB_FALSE, HB_TRUE, &pParams, NULL ) )
       {
          leto_SetAreaFlags( pArea );
-         if( ! pArea->area.fEof && ( pParams && ( hb_itemType( pParams ) & HB_IT_NUMERIC ) && hb_itemGetNL( pParams ) ) )
+         if( ! pArea->area.fEof )
+         {
+            pArea->area.fFound = pArea->pTable->fFound = HB_TRUE;
             errCode = HB_SUCCESS;
+         }
          else
          {
             hb_itemRelease( pParams );
@@ -6621,7 +6620,7 @@ static HB_BOOL leto_LockValidate( LETOAREAP pArea, char * szBlock, HB_SIZE nLen 
    HB_SIZE nPos = hb_strAtI( "LOCK(", 5, szBlock, nLen );
    HB_SIZE nSearchLen, nReplLen, nCount = 0;
    HB_BOOL fFileLock = HB_FALSE;
-   HB_BOOL fTestLock = HB_TRUE, fTestUnlock = HB_TRUE;;
+   HB_BOOL fTestLock = HB_TRUE, fTestUnlock = HB_TRUE;
 
    HB_TRACE( HB_TR_DEBUG, ( "leto_LockValidate(%p, %s, %ld)", pArea, szBlock, nLen ) );
 
@@ -6983,7 +6982,9 @@ HB_FUNC( LETO_DBEVAL )
             }
             else if( fNeedLock && ! strncmp( pConnection->szBuffer + 1, "003", 3 ) )  /* not all locked */
             {
-               if( commonError( pArea, EG_UNLOCKED, EDBF_UNLOCKED, 0, NULL, EF_CANRETRY, NULL ) != E_RETRY )
+               if( ! fValid && fNeedLock )
+                  hb_rddSetNetErr( HB_TRUE );
+               if( commonError( pArea, EG_UNLOCKED, EDBF_UNLOCKED, 0, NULL, EF_CANDEFAULT | EF_CANRETRY, NULL ) != E_RETRY )
                   break;
             }
             else
@@ -7054,7 +7055,7 @@ HB_FUNC( LETO_DBEVAL )
 
       if( pRawArea->valResult )
          hb_vmDestroyBlockOrMacro( pRawArea->valResult );
-      if( fResultAsArr )
+      if( fResultAsArr && leto_CheckArea( pArea ) )
          pRawArea->valResult = hb_itemArrayNew( 0 );
       else
          pRawArea->valResult = hb_itemNew( NULL );
@@ -7077,7 +7078,9 @@ HB_FUNC( LETO_DBEVAL )
       while( fValid )
       {
          fValid = SELF_DBEVAL( pRawArea, &pEvalInfo ) == HB_SUCCESS;
-         if( ! fValid && fNeedLock && commonError( pArea, EG_UNLOCKED, EDBF_UNLOCKED, 0, NULL, EF_CANRETRY, NULL ) == E_RETRY )
+         if( ! fValid && fNeedLock )
+            hb_rddSetNetErr( HB_TRUE );
+         if( ! fValid && fNeedLock && commonError( pArea, EG_UNLOCKED, EDBF_UNLOCKED, 0, NULL, EF_CANDEFAULT | EF_CANRETRY, NULL ) == E_RETRY )
             fValid = HB_TRUE;
          else
             break;
@@ -7088,13 +7091,15 @@ HB_FUNC( LETO_DBEVAL )
 
       if( ! fValid )
          hb_retl( HB_FALSE );
-      else
+      else if( leto_CheckArea( pArea ) )
       {
          if( ( hb_itemType( pRawArea->valResult ) & HB_IT_NIL ) )
             hb_retl( HB_TRUE );
          else
             hb_itemReturn( pRawArea->valResult );
       }
+      else
+         hb_ret();
       if( pRawArea->valResult )
       {
          hb_itemRelease( pRawArea->valResult );

@@ -4841,7 +4841,7 @@ HB_ERRCODE LetoDbEval( LETOTABLE * pTable, const char * szBlock, const char * sz
    HB_SIZE  nLenBlock = szBlock ? strlen( szBlock ) : 0;
    HB_SIZE  nLenFor = szFor ? strlen( szFor ) : 0;
    HB_SIZE  nLenWhile = szWhile ? strlen( szWhile ) : 0;
-   HB_SIZE  nLen = nLenBlock + nLenFor + nLenWhile + 96;
+   HB_SIZE  nLen = nLenBlock + nLenFor + nLenWhile + ( szJoins ? strlen( szJoins ) : 0 )  + 96;
    char *   szData = ( char * ) hb_xgrab( nLen );
    HB_ULONG ulLen, ulRecLen, ulRecNo = pTable->ulRecNo;
 
@@ -4987,7 +4987,7 @@ HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagName, unsigne
    if( pTable->fAutoRefresh )
       pTable->llCentiSec = LETO_CENTISEC();
 
-   return pTagInfo ? 0 : 1;
+   return 0;
 }
 
 HB_ERRCODE LetoDbIsRecLocked( LETOTABLE * pTable, unsigned long ulRecNo, unsigned int * uiRes )
@@ -6145,7 +6145,7 @@ void LetoFreeStr( char * szStr )
 
 void LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort )
 {
-   *iPort = 2812;
+   *iPort = LETO_DEFAULT_PORT;
 
 #if defined( __LETO_C_API__ )
    if( argc )

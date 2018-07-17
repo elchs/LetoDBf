@@ -2,6 +2,30 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-07-17 22:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/funcleto.h
+    + add LETO_MYPASSWORD as command line define to replace LETO_PASSWORD
+      ( -cflag=-DLETO_MYPASSWORD=password )
+
+  * source/client/leto1.c
+    ! letoOrderListFocus() possible stack corruption when copy shortened!
+      upper string to pOrderInfo->itmOrder [hb_param(1)]; Thanks, Valgrind
+    ! missing WA FOUND flag for new server-side Leto_Locate()
+
+  * source/client/letocl.c
+    * LetoDbOrderFocus() return SUCCESS also for order '0' [recno]
+
+  * source/client/letomgmn.c
+    * leto_udp() to return NIL (instead FALSE) in case of expression error;
+      so a CB with boolean return value can be tested if valid at server:
+      Leto_Udf( "{|| created to fail }" ) --> NIL
+
+  * source/server/letofunc.c
+    * leto_AliasTranslate() to not process more as given length of origin
+    * fix infinite loop in case of malformed JOINs in leto_dbEvalJoinAdd()
+
+  * Readme.txt
+
 2018-07-05 23:13 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/leto1.c

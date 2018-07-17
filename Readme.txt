@@ -705,9 +705,15 @@ A. Internals
 
    For establishing a new connection to the server, a hardcoded password is used.
    'Hardcoded' means it is burned into the server executable and in the client library.
-   These passwords must be the same, else connecting will fail.
+   These passwords must be the same for server and RDD library, else connecting will fail.
    By using another string for 'LETO_PASSWORD' in 'include/funcleto.h', you can personalize
    your server only to be connected by applications linked with your client library.
+   To change value of LETO_PASSWORD *without* source code change, use switch to set flag:
+      hbmk2 [letodb|rddleto] -cflag=-DLETO_MYPASSWORD=MyOwnSecurePassword
+   where <MyOwnSecurePassword> can not contain ',' and avoid single and double quotation marks.
+   [ getting a compile error indicates the password string is invalid ]
+   As these passwords are burned into as 'plain text', it is fine they consist of no real words,
+   have a look for the default.
 
    LetoDbf server can be configured to forcible accept only connections with username/ password.
    See herefore: 4.3 Authentication
@@ -1004,13 +1010,15 @@ A. Internals
  Dis-connnect current connection, returns boolean if a connection is disconnected.
  With optional param <cAddress> that connection is tried to disconnect.
 
-      LETO_DETECT( [ cService ], [ nNrOfPossible ], [ nPort ] )
- This functions sends a broadcast to a specific network given by avail interfaces,
- loopback (lo) and other interfaces without MAC address are excluded from that.
+      LETO_DETECT( [ cService ],[ nNrOfPossible ],[ nPort ] )  ==> cServerIP
+ This functions sends a broadcast into the local network, to all available interfaces,
+ (virtual) interfaces loopback (lo) and other without MAC address are excluded from that.
  Default <cService> is "letodb", and this is correlating to the server side:
  see in example letodb.ini for config option: BC_Services = letodb;
- Such LetoDBf server then will respond to this query with its IP address.
- With <nNrOfPossible> can be selected between server, if more than one server is active.
+ Such configured LetoDBf server then will respond to this query with its IP/Port,
+ where <cServerIP> is in the format: "//9.9.9.9:2812/" to be used i.e. to connect
+ to the server: Leto_Connect( Leto_Detect() ),
+ With <nNrOfPossible> can be selected between multiple server responding to same service name.
  Alternative to new build-in at server was before a standalone exe: 8.2. 'Uhura'
 
       LETO_SETCURRENTCONNECTION( cAddress )                    ==> cAddress
@@ -1028,8 +1036,8 @@ A. Internals
 
       LETO_GETLOCALIP( [ lLocal ] )                            ==> IP address of client [ server ]
  Returns IP address of first found interface for subnet, which may be the wrong one,
- if you have multiple ( pgysical or logical like bridges ) NICs for that subnet.
- With optional <lLocal> == FALSE ( .F. ) returns IP address of server.
+ if you have multiple ( physical or logical like bridges ) NICs for that subnet.
+ With optional <lLocal> == FALSE ( .F. ) returns IP address of connected server.
 
       LETO_ADDCDPTRANSLATE( cClientCdp, cServerCdp )           ==> lAdded
  For xHarbour user with different CP names as Harbour ones at server.
@@ -1307,8 +1315,10 @@ A. Internals
  specific timeout -- else much network traffic will occure.
 
       DbInfo( DBI_CLEARBUFFER )
+      RDDInfo( RDDI_CLEARBUFFER )
 
-  This command clears the skip buffer, to forces to get fresh data with next Dbskip( [ 0 ] ), DbGoTo().
+  This command clears the skip buffer, and forces to get fresh data with a Dbskip( 0 ).
+  <RDDI_CLEARBUFFER> will do so for all LETO workareas of active connection.
 
       leto_DbCreateTemp( cFile, aStruct [, cDriver, lKeepOpen, cAlias, xDelim, cCdp, nConnection ] )
                                                               ==> lSucccess
@@ -2110,6 +2120,13 @@ A. Internals
  thread. This functions reports about that, then it shell end.
  Example: DO WHILE .NOT. leto_UDFMustQuit(); do something; ENDDO; RETURN
  Especially useful for threads started with Leto_RPC().
+
+      leto_WUsLog( cText )
+ Write <cText> into connection specific log file: letodbf_xx.log.
+ [ "WUsLog" reads: W-rite Us-er Log ]
+
+      leto_WrLog( cText )
+ Write <cText> into global server log file: letodbf.log.
 
  Following functions same as for LetoDBf client, now also without nUserStru.
  Note: xValue will be 'NIL' in case of not found cGroupName/ cVarName.

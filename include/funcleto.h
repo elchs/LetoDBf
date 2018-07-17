@@ -46,7 +46,11 @@
 
 #if ! defined( LETO_PASSWORD )
    /* !!! wild !!! password for initial decrypt received key from server with first connect */
-   #define LETO_PASSWORD       "hE8Q,jy5+R#_~?0"
+   #if defined LETO_MYPASSWORD
+      #define LETO_PASSWORD       HB_MACRO2STRING( LETO_MYPASSWORD )
+   #else
+      #define LETO_PASSWORD       "hE8Q,jy5+R#_~?0"
+   #endif
 #endif
 
 /* !!! wild !!! password for server internally to decrypt user/password file */
