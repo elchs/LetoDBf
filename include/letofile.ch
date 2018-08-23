@@ -66,13 +66,13 @@
    #define __LETO_TRANSLATE_DIR
 
 
-#if defined( __LETO_TRANSLATE_FILE )
+#if defined(__LETO_TRANSLATE_FILE_ALL) || defined( __LETO_TRANSLATE_FILE )
    /* DbExists() / hb_DbExists() uses LetoDBf RDD methods, need no translation */
    #xtranslate FILE( <x> )                   => LETO_FILE( <x> )
    #xtranslate FILESIZE( [<x,...>] )         => LETO_FILESIZE( <x> )
 #endif
 
-#if defined( __LETO_TRANSLATE_FILE_MORE ) || defined( __LETO_TRANSLATE_FILE_LOW )
+#if defined(__LETO_TRANSLATE_FILE_ALL) || defined( __LETO_TRANSLATE_FILE_MORE ) || defined( __LETO_TRANSLATE_FILE_LOW )
    /* a.) ask client side, here possible set as result of a Leto_File*() function */
    /* #xtranslate FERROR( [<x,...>] )        => LETO_FERROR( <x> ) */
 
@@ -80,7 +80,7 @@
    #xtranslate FERROR( [<x,...>] )           => leto_Udf( "FError", <x> )
 #endif
 
-#if defined( __LETO_TRANSLATE_FILE_MORE )
+#if defined(__LETO_TRANSLATE_FILE_ALL) || defined( __LETO_TRANSLATE_FILE_MORE )
    #xtranslate COPY FILE <(src)> TO <(dst)>  => LETO_FCOPY( <(src)>, <(dst)> )
    #xtranslate __COPYFILE( [<x,...>] )       => LETO_FCOPY( <x> )
    #xtranslate DELETE FILE <(f)>             => LETO_FERASE( <f> )
@@ -88,7 +88,7 @@
    #xtranslate FRENAME( [<x,...>] )          => LETO_FRENAME( <x> )
 #endif
 
-#if defined( __LETO_TRANSLATE_FILE_LOW )
+#if defined(__LETO_TRANSLATE_FILE_ALL) || defined( __LETO_TRANSLATE_FILE_LOW )
    /* all based on UDF execute at server -- not for xHb */
    #xtranslate FOPEN( [<x,...>] )            => leto_Udf( "Leto_FOpen", <x> )
    #xtranslate FCREATE( [<x,...>] )          => leto_Udf( "Leto_FCreate", <x> )
@@ -99,12 +99,12 @@
    #xtranslate FWRITE( [<x,...>] )           => leto_Udf( "FWrite", <x> )
 #endif
 
-#if defined( __LETO_TRANSLATE_MEMO )
+#if defined(__LETO_TRANSLATE_FILE_ALL) || defined( __LETO_TRANSLATE_MEMO )
    #xtranslate MEMOREAD( [<x,...>] )         => LETO_MEMOREAD( <x> )
    #xtranslate MEMOWRITE( [<x,...>] )        => LETO_MEMOWRITE( <x> )
 #endif
 
-#if defined( __LETO_TRANSLATE_DIR )
+#if defined(__LETO_TRANSLATE_FILE_ALL) || defined( __LETO_TRANSLATE_DIR )
    // #xtranslate ADIR( cSpec, aName, aSize, aDate, aTime, aAttr )
    #xtranslate ADIR( <cSpec> )               => LEN( LETO_DIRECTORY( <cSpec> ) )
    #xtranslate ADIR( <cSpec>, <aArr> )       => AEVAL( LETO_DIRECTORY( <cSpec> ),;
@@ -117,5 +117,34 @@
    #xtranslate DIRREMOVE( [<x,...>] )        => LETO_DIRREMOVE( <x> )
 #endif
 
+#if defined(__LETO_TRANSLATE_FILE_ALL)
+   #xtranslate CurDrive( [<x,...>] )              =>  leto_Udf( "HB_CurDrive", <x> )
+   #xtranslate HB_CurDrive( [<x,...>] )           =>  leto_Udf( "HB_CurDrive", <x> )
+   #xtranslate HB_OsDriveSeparator( [<x,...>] )   =>  leto_Udf( "HB_OsDriveSeparator", <x> )
+   #xtranslate HB_OsPathSeparator( [<x,...>] )    =>  leto_Udf( "HB_OsPathSeparator", <x> )
+   #xtranslate CURDIR( [<x,...>] )                =>  leto_Udf( "CURDIR", <x> )
+   #xtranslate DiskName( [<x,...>] )              =>  leto_Udf( "DiskName", <x> )
+   #xtranslate DiskSpace( [<x,...>] )             =>  leto_Udf( "DiskSpace", <x> )
+   #xtranslate FileDate( [<x,...>] )              =>  leto_Udf( "FileDate", <x> )
+   #xtranslate FileSeek( [<x,...>] )              =>  leto_Udf( "FileSeek", <x> )
+   #xtranslate FileTime( [<x,...>] )              =>  leto_Udf( "FileTime", <x> )
+   #xtranslate IsDisk( [<x,...>] )                =>  leto_Udf( "IsDisk", <x> )
+   #xtranslate FileAttr( [<x,...>] )              =>  leto_Udf( "FileAttr", <x> )
+   #xtranslate SetFAttr( [<x,...>] )              =>  leto_Udf( "SetFAttr", <x> )
+   #xtranslate SetFDaTi( [<x,...>] )              =>  leto_Udf( "SetFDaTi", <x> )
+   #xtranslate DIRNAME( [<x,...>] )               =>  leto_Udf( "DIRNAME", <x> )
+   #xtranslate HB_IniWrite( [<x,...>] )           =>  leto_Udf( "HB_IniWrite", <x> )
+   #xtranslate HB_IniRead( [<x,...>] )            =>  leto_Udf( "HB_IniRead", <x> )
+   #xtranslate FileCopy( [<x,...>] )              =>  leto_Udf( "FileCopy", <x> )
+   #xtranslate DeleteFile( [<x,...>] )            =>  leto_Udf( "DeleteFile", <x> )
+   #xtranslate RenameFILE( [<x,...>] )            =>  leto_Udf( "RenameFILE", <x> )
+   #xtranslate HB_Fcreate( [<x,...>] )            =>  leto_Udf( "HB_Fcreate", <x> )
+   #xtranslate FileDelete( [<x,...>] )            =>  leto_Udf( "FileDelete", <x> )
+   #xtranslate HB_FSetDateTime( [<x,...>] )       =>  leto_Udf( "HB_FSetDateTime", <x> )
+   #xtranslate FLineCount( [<x,...>] )            =>  leto_Udf( "FLineCount", <x> )
+   #xtranslate CSetSafety( [<x,...>] )            =>  leto_Udf( "CSetSafety", <x> )
+   #xtranslate DisableWaitLocks( [<x,...>] )      =>  leto_Udf( "DisableWaitLocks", <x> )
+   #xtranslate OrdKeyAdd( [<x,...>] )             =>  leto_Udf( "OrdKeyAdd", <x> )
+#endif
 
 #endif /* LETOFILE_CH_ */
