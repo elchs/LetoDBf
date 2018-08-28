@@ -2,6 +2,24 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-08-28 18:08 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    * extend LETO_DBEVAL() 7th :lResultArr to possible given by reference,
+      then store returned result into
+    ! complete unfinished <USECURRENT> flag for index order creation,
+      move all dealloc of TAG into letocl.c, fix possible missing free of extra
+      info in leto_doFreeTable() -- THANKS Mauricio for note
+
+  * source/client/letocl.c
+    * use a given password ( without given user ) as replace for hardcoded
+      PW during initial connection establish
+
+  * source/common/common.prg
+    * ALL!trim (not only RTrim) also the keys in server config .ini
+
+  * source/server/letofunc.c
+    ! fix compiler warning, Thanks asimoesluz
+
 2018-07-17 22:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/funcleto.h
     + add LETO_MYPASSWORD as command line define to replace LETO_PASSWORD

@@ -7301,15 +7301,15 @@ static PHB_ITEM leto_dbEvalJoinAdd( PUSERSTRU pUStru, const char * ptr, AREAP pA
          pOne = hb_itemArrayNew( 5 );
          if( hb_strAtI( "CROSS", 5, ptr, ptr1 - ptr - 1 ) )
          {
-            hb_arraySetCL( pOne, 1, "CROSS", 5 );
+            hb_arraySetC( pOne, 1, "CROSS" );
             bNeedKey = HB_FALSE;
          }
          else if( hb_strAtI( "INNER", 5, ptr, ptr1 - ptr - 1 ) )
-            hb_arraySetCL( pOne, 1, "INNER", 5 );
+            hb_arraySetC( pOne, 1, "INNER" );
          else if( hb_strAtI( "LEFT", 4, ptr, ptr1 - ptr - 1 ) )
-            hb_arraySetCL( pOne, 1, "LEFT", 5 );
-         else if( hb_strAtI( "RIGHT", 4, ptr, ptr1 - ptr - 1 ) )
-            hb_arraySetCL( pOne, 1, "RIGHT", 5 );
+            hb_arraySetC( pOne, 1, "LEFT" );
+         else if( hb_strAtI( "RIGHT", 5, ptr, ptr1 - ptr - 1 ) )
+            hb_arraySetC( pOne, 1, "RIGHT" );
          else
          {
             if( s_iDebugMode > 0 )
@@ -7442,7 +7442,7 @@ static PHB_ITEM leto_dbEvalJoinAdd( PUSERSTRU pUStru, const char * ptr, AREAP pA
    }
    if( ! hb_arrayLen( pJoins ) || ! bValid )
    {
-      if( s_iDebugMode > ! bValid ? 0 : 20 )
+      if( ( bValid && s_iDebugMode > 20 ) || ( ! bValid && s_iDebugMode > 0 ) )
          leto_wUsLog( pUStru, -1, "%s leto_dbEvalJoinAdd() no valid JOINs for leto_dbEval", bValid ? "DEBUG" : "ERROR" );
       hb_itemRelease( pJoins );
       pJoins = NULL;
@@ -8227,7 +8227,7 @@ HB_FUNC( LETO_DBEVAL )
       else if( bValid )
          pArea->valResult = hb_itemNew( NULL );
 
-      if( s_iDebugMode > bValid ? 1 : 20 )
+      if( ( bValid && s_iDebugMode > 20 ) || ( ! bValid && s_iDebugMode > 1 ) )
       {
          HB_LONG  lNext = pNext ? hb_itemGetNL( pNext ) : -1;
          HB_ULONG lRecNo = pRec ? hb_itemGetNL( pRec ) : -1;

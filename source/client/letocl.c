@@ -749,7 +749,7 @@ void LetoExit( unsigned int uiFull )
 #endif
 
 /* Note: first answer from server is never compressed, no pConnection->zstream matters */
-static void leto_RecvFirst( LETOCONNECTION * pConnection )
+static void leto_RecvFirst( LETOCONNECTION * pConnection, const char * szPass )
 {
    HB_SOCKET hSocket = pConnection->hSocket;
    long      lRet;
@@ -815,7 +815,7 @@ static void leto_RecvFirst( LETOCONNECTION * pConnection )
             char * szPassTmp = ( char * ) hb_xgrab( ulLen );
 
             leto_hexchar2byte( ptr, ulLen, szPassTmp );
-            leto_decrypt( szPassTmp, ulLen / 2, szPassTmp, &ulLen, LETO_PASSWORD, HB_TRUE );
+            leto_decrypt( szPassTmp, ulLen / 2, szPassTmp, &ulLen, szPass ? szPass : LETO_PASSWORD, HB_TRUE );
             if( ulLen == LETO_DOPCODE_LEN )  /* we urgent need that for encryption of user password */
                memcpy( pConnection->cDopcode, szPassTmp, LETO_DOPCODE_LEN );
             else  /* LETO_PASSWORD different to server --> leto_decrypt() fail about padded bytes -> 0 */
@@ -2036,6 +2036,21 @@ static void leto_AddTransAppend( LETOCONNECTION * pConnection, LETOTABLE * pTabl
    }
 }
 
+static void LetoDbFreeTagExtra( LETOTAGINFO * pTagInfo )
+{
+   LETOTAGEXTRAINFO * pExtra = ( LETOTAGEXTRAINFO * ) pTagInfo->pExtra;
+
+   if( pExtra->pKeyItem != NULL )
+      hb_vmDestroyBlockOrMacro( pExtra->pKeyItem );
+   if( pExtra->pTopScope )
+      hb_itemRelease( pExtra->pTopScope );
+   if( pExtra->pBottomScope )
+      hb_itemRelease( pExtra->pBottomScope );
+   if( pExtra->puiFields )
+      hb_xfree( pExtra->puiFields );
+   hb_xfree( pTagInfo->pExtra );
+}
+
 void LetoDbFreeTag( LETOTAGINFO * pTagInfo )
 {
    if( pTagInfo->BagName )
@@ -2051,6 +2066,8 @@ void LetoDbFreeTag( LETOTAGINFO * pTagInfo )
    if( pTagInfo->pBottomScopeAsString )
       hb_xfree( pTagInfo->pBottomScopeAsString );
 
+   if( pTagInfo->pExtra )
+      LetoDbFreeTagExtra( pTagInfo );
    hb_xfree( pTagInfo );
 }
 
@@ -2886,7 +2903,7 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
       pConnection->fMustResync = HB_FALSE;
       pConnection->iError = 0;
 
-      leto_RecvFirst( pConnection );
+      leto_RecvFirst( pConnection, ( ! szUser && szPass && strlen( szPass ) ) ? szPass : NULL );
       if( ! pConnection->iConnectRes )
       {
          char * ptr = szData + LETO_MSGSIZE_LEN;
@@ -2936,7 +2953,7 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
          }
          *ptr++ = ';';
 
-         if( szPass && ( ulLen = strlen( szPass ) ) > 0 )
+         if( szUser && szPass && ( ulLen = strlen( szPass ) ) > 0 )
          {
             char * szKey = leto_localKey( pConnection->cDopcode, LETO_DOPCODE_LEN );
             char * szBuf = ( char * ) hb_xgrab( ( strlen( szPass ) + 9 ) * 2 );
@@ -4928,6 +4945,25 @@ HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const 
 
    if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) || *pConnection->szBuffer != '+' )
       return 1;
+
+   /* close all index order, re-register the orders reported by server after creating the new order */
+   if( pTable->pTagInfo )
+   {
+      LETOTAGINFO * pTag, * pTagNext;
+
+      pTag = pTable->pTagInfo;
+      do
+      {
+         pTagNext = pTag->pNext;
+         LetoDbFreeTag( pTag );
+         pTag = pTagNext;
+      }
+      while( pTag );
+
+      pTable->uiOrders = 0;
+      pTable->pTagInfo = NULL;
+      pTable->pTagCurrent = NULL;
+   }
 
    ptr = leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
    leto_ParseRecord( pConnection, pTable, ptr );

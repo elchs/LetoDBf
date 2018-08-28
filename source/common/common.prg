@@ -78,7 +78,7 @@ FUNCTION RDINI( fname )
                IF Empty( arr )
                   AAdd( arr, { "MAIN", {} } )
                ENDIF
-               vname  := RTrim( Left( stroka, poz1 - 1 ) )
+               vname  := AllTrim( Left( stroka, poz1 - 1 ) )
                stroka := AllTrim( SubStr( stroka, poz1 + 1 ) )
                AAdd( arr[ Len( arr ), 2 ], { Upper( vname ), stroka } )
             ENDIF
@@ -127,3 +127,4 @@ STATIC FUNCTION RDSTR( han, strbuf, poz, buflen )
    ENDIF
 
    RETURN stro
+

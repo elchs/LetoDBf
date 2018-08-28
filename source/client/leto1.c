@@ -2025,28 +2025,6 @@ static HB_ERRCODE letoRecId( LETOAREAP pArea, PHB_ITEM pRecNo )
 #define letoSetFieldExtent  NULL
 #define letoAlias           NULL
 
-static void leto_FreeTag( LETOTAGINFO * pTagInfo )
-{
-   if( pTagInfo )
-   {
-      if( pTagInfo->pExtra )
-      {
-         LETOTAGEXTRAINFO * pExtra = ( LETOTAGEXTRAINFO * ) pTagInfo->pExtra;
-
-         if( pExtra->pKeyItem != NULL )
-            hb_vmDestroyBlockOrMacro( pExtra->pKeyItem );
-         if( pExtra->pTopScope )
-            hb_itemRelease( pExtra->pTopScope );
-         if( pExtra->pBottomScope )
-            hb_itemRelease( pExtra->pBottomScope );
-         if( pExtra->puiFields )
-            hb_xfree( pExtra->puiFields );
-         hb_xfree( pTagInfo->pExtra );
-      }
-      LetoDbFreeTag( pTagInfo );
-   }
-}
-
 static HB_ERRCODE leto_doFreeTable( AREAP pArea, void * p )
 {
    if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) )
@@ -2104,13 +2082,12 @@ static HB_ERRCODE letoClose( LETOAREAP pArea )
 
    if( pTable && pTable->pTagInfo )
    {
-      LETOTAGINFO * pTagInfo = pTable->pTagInfo;
+      LETOTAGINFO * pTagNext, * pTagInfo = pTable->pTagInfo;
 
       while( pTagInfo )
       {
-         LETOTAGINFO * pTagNext = pTagInfo->pNext;
-
-         leto_FreeTag( pTagInfo );
+         pTagNext = pTagInfo->pNext;
+         LetoDbFreeTag( pTagInfo );
          pTagInfo = pTagNext;
       }
 
@@ -3392,6 +3369,8 @@ static PHB_ITEM leto_mkCodeBlock( const char * szExp, HB_ULONG ulLen )
 
    if( ulLen > 0 )
    {
+      if( strlen( szExp ) < ulLen )
+         ulLen = ( HB_ULONG ) strlen( szExp );
       if( szExp[ 0 ] == '{' && szExp[ ulLen - 1 ] == '}' )
          hb_vmPushString( szExp, ulLen );
       else
@@ -4053,7 +4032,7 @@ static HB_ERRCODE letoOrderListClear( LETOAREAP pArea )  /* OrdListClear() */
 
             if( pTable->pTagCurrent == pTag1 )
                pTable->pTagCurrent = NULL;
-            leto_FreeTag( pTag1 );
+            LetoDbFreeTag( pTag1 );
          }
          else
          {
@@ -4145,7 +4124,7 @@ static HB_ERRCODE letoOrderListDelete( LETOAREAP pArea, LPDBORDERINFO pOrderInfo
                pTable->uiOrders--;
                if( pTable->pTagCurrent == pTag1 )
                   pTable->pTagCurrent = NULL;
-               leto_FreeTag( pTag1 );
+               LetoDbFreeTag( pTag1 );
             }
             else
             {
@@ -4255,26 +4234,8 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
                  ( lpdbOrdCondInfo->fAdditive ? LETO_INDEX_ADD : 0 ) |
                  ( lpdbOrdCondInfo->fTemporary ? LETO_INDEX_TEMP : 0 ) |
                  ( lpdbOrdCondInfo->fExclusive ? LETO_INDEX_EXCL : 0 ) |
-                 ( lpdbOrdCondInfo->fUseFilter ? LETO_INDEX_FILT : 0 );
-
-   /* close all index order, re-register the orders reported by server after creating the new order */
-   if( pTable->pTagInfo )
-   {
-      LETOTAGINFO * pTag, * pTagNext;
-
-      pTag = pTable->pTagInfo;
-      do
-      {
-         pTagNext = pTag->pNext;
-         leto_FreeTag( pTag );
-         pTag = pTagNext;
-      }
-      while( pTag );
-
-      pTable->uiOrders = 0;
-      pTable->pTagInfo = NULL;
-      pTable->pTagCurrent = NULL;
-   }
+                 ( lpdbOrdCondInfo->fUseFilter ? LETO_INDEX_FILT : 0 ) |
+                 ( lpdbOrdCondInfo->fUseCurrent ? LETO_INDEX_USEI : 0 );
 
    /* sets pTable->pTagCurrent */
    if( LetoDbOrderCreate( pTable, szBagName, szTag,
@@ -4354,7 +4315,7 @@ static HB_ERRCODE letoOrderDestroy( LETOAREAP pArea, LPDBORDERINFO pOrderInfo ) 
             pTable->uiOrders--;
             if( pTable->pTagCurrent == pTagInfo )
                pTable->pTagCurrent = NULL;
-            leto_FreeTag( pTagInfo );
+            LetoDbFreeTag( pTagInfo );
             break;
          }
 
@@ -6729,7 +6690,7 @@ HB_FUNC( LETO_DBEVAL )
    HB_LONG   lNext = hb_parnldef( 4, -1 );
    HB_ULONG  ulRecNo = hb_parnldef( 5, 0 );  /* -1, if given checked later */
    HB_BOOL   fRest = hb_parldef( 6, hb_param( 3, HB_IT_BLOCK | HB_IT_STRING ) || lNext >= 0 ? HB_TRUE : HB_FALSE );
-   HB_BOOL   fResultAsArr = hb_parldef( 7, HB_FALSE );
+   HB_BOOL   fResultAsArr = hb_parldef( 7, HB_ISBYREF( 7 ) ? HB_TRUE : HB_FALSE );
    HB_BOOL   fNeedLock = hb_parldef( 8, HB_FALSE );
    HB_BOOL   fBackward = hb_parldef( 9, HB_FALSE );
    HB_BOOL   fStay = hb_parldef( 10, HB_TRUE );
@@ -6995,6 +6956,8 @@ HB_FUNC( LETO_DBEVAL )
          }
          else
          {
+            if( HB_ISBYREF( 7 ) )
+               hb_itemCopy( hb_itemUnRef( hb_stackItemFromBase( 7 ) ), pParams );
             hb_itemReturnRelease( pParams );
             leto_SetAreaFlags( pArea );
             break;
@@ -7096,7 +7059,11 @@ HB_FUNC( LETO_DBEVAL )
          if( ( hb_itemType( pRawArea->valResult ) & HB_IT_NIL ) )
             hb_retl( HB_TRUE );
          else
+         {
+            if( HB_ISBYREF( 7 ) )
+               hb_itemCopy( hb_itemUnRef( hb_stackItemFromBase( 7 ) ), pRawArea->valResult );
             hb_itemReturn( pRawArea->valResult );
+         }
       }
       else
          hb_ret();
