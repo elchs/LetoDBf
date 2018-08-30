@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-08-30 19:59 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    * use also the FOUND flag in Leto_DbLocate/Continue:
+      if 'false' after locating return recno '0' == EOF;
+      this should be helpful because there is no FOUND flag set at client
+
 2018-08-30 17:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/leto_std.ch
   * source/client/leto1.c

@@ -8345,8 +8345,12 @@ HB_FUNC( LETO_DBLOCATE )
                                                              hb_itemGetCLen( dbScopeInfo.lpstrWhile ), HB_FALSE );
       if( SELF_SETLOCATE( pArea, &dbScopeInfo ) == HB_SUCCESS )
       {
+         HB_BOOL bFound = HB_FALSE;
+
          SELF_LOCATE( pArea, HB_FALSE );
-         SELF_RECNO( pArea, &ulRecNo );
+         SELF_FOUND( pArea, &bFound );
+         if( bFound )
+            SELF_RECNO( pArea, &ulRecNo );
       }
 
       hb_xvmSeqEnd();
@@ -8357,15 +8361,20 @@ HB_FUNC( LETO_DBLOCATE )
 
 HB_FUNC( LETO_DBCONTINUE )
 {
-   AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+   AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_ULONG ulRecNo = 0;
 
    if( pArea )
    {
+      HB_BOOL bFound = HB_FALSE;
+
       SELF_LOCATE( pArea, HB_TRUE );
-      hb_retnl( ( ( DBFAREAP ) pArea )->ulRecNo );
+      SELF_FOUND( pArea, &bFound );
+      if( bFound )
+         SELF_RECNO( pArea, &ulRecNo );
    }
-   else
-      hb_retnl( 0 );
+
+   hb_retnl( ulRecNo );
 }
 
 /* leto_udf() leto_dbTotal( cFile, xKey, aFields, xFor, xWhile, nNext, nRec, lRest, cRDD, nConnection, cCodePage ) */
