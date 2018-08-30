@@ -2,6 +2,28 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-08-30 17:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/leto_std.ch
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    * extend Leto_DbEval() to use compile-time CB _or_ stringified block for
+      the FOR [ and WHILE ] expression.
+      Now these params can be given as CB, string or array: { CB, string },
+      where leto_std.ch use the array variant.
+      Pre-test the stringified block at server if valid boolean result to
+      decide if optimization is possible
+    - remove Leto_DbLocate() and RDD method letoLocate() from 2018-07-05:
+      a bad idea as Leto_DbEval() position is at first *in*valid record
+
+  * source/server/letofunc.c
+  * source/server/server.prg
+    + add Leto_DbLocate()/ Leto_DbContinue() as UDF functions at server;
+      both functions return the RecNo() after locating, afterwards
+      record must be jumped to with DbGoto() at client manually;
+      e.g.: DbGoto( Leto_Udf( "Leto_DbLocate", cFor[, cWhile, .. ] ) )
+    + requests for above two functions
+    * change defaults of lShare/ lNoSaveWA to most recommend mode
+
 2018-08-28 18:08 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     * extend LETO_DBEVAL() 7th :lResultArr to possible given by reference,

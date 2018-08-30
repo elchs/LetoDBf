@@ -8012,7 +8012,8 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
    hb_xvmSeqBegin();
 
    uiLen = HB_GET_LE_UINT32( szData );
-   pEvalInfo.itmBlock = leto_mkCodeBlock( pUStru, szData + 4, uiLen, HB_FALSE );
+   if( uiLen )
+      pEvalInfo.itmBlock = leto_mkCodeBlock( pUStru, szData + 4, uiLen, HB_FALSE );
 
    nPos = 4 + uiLen + 1;
    uiLen = HB_GET_LE_UINT32( szData + nPos );
@@ -8056,6 +8057,28 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
 
    hb_xvmSeqEnd();
 
+   if( ! pUStru->iHbError && ! pEvalInfo.itmBlock && ( pEvalInfo.dbsci.itmCobFor || pEvalInfo.dbsci.itmCobWhile ) )
+   {
+      PHB_ITEM pProces = hb_itemPutNS( NULL, 0 );
+      PHB_ITEM pEvalut = hb_itemPutNS( NULL, 0 );
+
+      if( s_iDebugMode > 20 )
+         leto_wUsLog( pUStru, -1, "DEBUG leto_DbevalTest: FOR %p WHILE %p",
+                                  pEvalInfo.dbsci.itmCobFor, pEvalInfo.dbsci.itmCobWhile );
+
+      hb_xvmSeqBegin();
+
+      if( pEvalInfo.dbsci.itmCobFor )
+         hb_vmEvalBlockV( pEvalInfo.dbsci.itmCobFor, 2, pProces, pEvalut );
+      if( pEvalInfo.dbsci.itmCobWhile )
+         hb_vmEvalBlockV( pEvalInfo.dbsci.itmCobWhile, 2, pProces, pEvalut );
+
+      hb_xvmSeqEnd();
+
+      hb_itemRelease( pProces );
+      hb_itemRelease( pEvalut );
+   }
+
    if( pUStru->iHbError || ! pEvalInfo.itmBlock )
       bValid = HB_FALSE;
    if( bValid && bNeedLock )
@@ -8076,9 +8099,7 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
       }
    }
 
-   if( ! bValid )
-      errCode = HB_FAILURE;
-   else
+   if( bValid )
    {
       if( pArea->valResult )
          hb_vmDestroyBlockOrMacro( pArea->valResult );
@@ -8101,6 +8122,7 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
 
       errCode = leto_dbEval( pUStru, pArea, &pEvalInfo, bNeedLock ? pUStru->iLockTimeOut : -1, bStay );
    }
+
    if( errCode == HB_SUCCESS )
    {
       HB_SIZE  nSize;
@@ -8119,6 +8141,8 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
    }
    else if( pUStru->iHbError )
       leto_SendError( pUStru, szErr4, 4 );
+   else if( ! pEvalInfo.itmBlock )
+      leto_SendAnswer( pUStru, szErr2, 4 );
    else
       leto_SendAnswer( pUStru, szErr3, 4 );
 
@@ -8264,6 +8288,84 @@ HB_FUNC( LETO_DBEVAL )
       hb_vmDestroyBlockOrMacro( pEvalInfo.dbsci.itmCobFor );
    if( HB_ISCHAR( 3 ) && pEvalInfo.dbsci.itmCobWhile )
       hb_vmDestroyBlockOrMacro( pEvalInfo.dbsci.itmCobWhile );
+}
+
+/* __dbLocate( cbFor, cbWhile, lNext, nRec, fRest ) */
+HB_FUNC( LETO_DBLOCATE )
+{
+   PUSERSTRU pUStru = letoGetUStru();
+   AREAP     pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_ULONG  ulRecNo = 0;
+
+   if( pArea )
+   {
+      DBSCOPEINFO dbScopeInfo;
+
+      memset( &dbScopeInfo, 0, sizeof( DBSCOPEINFO ) );
+      if( hb_parinfa( 1, 0 ) == 2 )
+      {
+         if( ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 1 ), 1 ) ) & HB_IT_BLOCK ) )
+            dbScopeInfo.itmCobFor = hb_arrayGetItemPtr( hb_stackItemFromBase( 1 ), 1 );
+         if( ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 1 ), 2 ) ) & HB_IT_STRING ) )
+            dbScopeInfo.lpstrFor  = hb_arrayGetItemPtr( hb_stackItemFromBase( 1 ), 2 );
+      }
+      else
+      {
+         dbScopeInfo.itmCobFor   = hb_param( 1, HB_IT_BLOCK );
+         dbScopeInfo.lpstrFor    = hb_param( 1, HB_IT_STRING );
+      }
+      if( hb_parinfa( 1, 0 ) == 2 )
+      {
+         if( ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 1 ) ) & HB_IT_BLOCK ) )
+            dbScopeInfo.itmCobWhile = hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 1 );
+         if( ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 2 ) ) & HB_IT_STRING ) )
+            dbScopeInfo.lpstrWhile  = hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 2 );
+      }
+      else
+      {
+         dbScopeInfo.itmCobWhile = hb_param( 2, HB_IT_BLOCK );
+         dbScopeInfo.lpstrWhile  = hb_param( 2, HB_IT_STRING );
+      }
+      dbScopeInfo.lNext       = hb_param( 3, HB_IT_NUMERIC );
+      dbScopeInfo.itmRecID    = hb_param( 4, HB_IT_NUMERIC );
+      dbScopeInfo.fRest       = hb_param( 5, HB_IT_LOGICAL );
+      if( hb_param( 2, HB_IT_BLOCK | HB_IT_STRING ) )
+         hb_itemPutL( dbScopeInfo.fRest, HB_TRUE );
+
+      dbScopeInfo.fIgnoreFilter = HB_TRUE;
+      dbScopeInfo.fIncludeDeleted = HB_TRUE;
+
+      hb_xvmSeqBegin();
+
+      if( ! dbScopeInfo.itmCobFor && dbScopeInfo.lpstrFor )
+         dbScopeInfo.itmCobFor = leto_mkCodeBlock( pUStru, hb_itemGetCPtr( dbScopeInfo.lpstrFor ),
+                                                           hb_itemGetCLen( dbScopeInfo.lpstrFor ), HB_FALSE );
+      if( ! dbScopeInfo.itmCobWhile && dbScopeInfo.lpstrWhile )
+         dbScopeInfo.itmCobWhile = leto_mkCodeBlock( pUStru, hb_itemGetCPtr( dbScopeInfo.lpstrWhile ),
+                                                             hb_itemGetCLen( dbScopeInfo.lpstrWhile ), HB_FALSE );
+      if( SELF_SETLOCATE( pArea, &dbScopeInfo ) == HB_SUCCESS )
+      {
+         SELF_LOCATE( pArea, HB_FALSE );
+         SELF_RECNO( pArea, &ulRecNo );
+      }
+
+      hb_xvmSeqEnd();
+   }
+
+   hb_retnl( ulRecNo );
+}
+
+HB_FUNC( LETO_DBCONTINUE )
+{
+   AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+
+   if( pArea )
+   {
+      SELF_LOCATE( pArea, HB_TRUE );
+      hb_retnl( ( ( DBFAREAP ) pArea )->ulRecNo );
+   }
+   else
+      hb_retnl( 0 );
 }
 
 /* leto_udf() leto_dbTotal( cFile, xKey, aFields, xFor, xWhile, nNext, nRec, lRest, cRDD, nConnection, cCodePage ) */

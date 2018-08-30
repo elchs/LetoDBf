@@ -5187,107 +5187,7 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
 #define letoSetLocate  NULL
 #define letoSetScope   NULL
 #define letoSkipScope  NULL
-
-static HB_BOOL leto_RelOptimized( LETOAREAP pArea )
-{
-   LPDBRELINFO lpDbRel = ( ( AREAP ) pArea )->lpdbRelations;
-   HB_BOOL     fOptimized = HB_TRUE;
-
-   if( ! ( ! pArea->area.dbfi.fFilter || pArea->area.dbfi.fOptimized ) )
-      fOptimized = HB_FALSE;
-   while( lpDbRel && fOptimized )
-   {
-      if( ! lpDbRel->isOptimized )
-         fOptimized = HB_FALSE;
-      else
-         fOptimized = leto_RelOptimized( ( LETOAREAP ) lpDbRel->lpaChild );
-      lpDbRel = lpDbRel->lpdbriNext;
-   }
-
-   return fOptimized;
-}
-
-static HB_ERRCODE letoLocate( LETOAREAP pArea, HB_BOOL fContinue )
-{
-   const char * szFor = pArea->area.dbsi.lpstrFor ? hb_itemGetCPtr( pArea->area.dbsi.lpstrFor ) : NULL;
-   const char * szWhile = pArea->area.dbsi.lpstrWhile ? hb_itemGetCPtr( pArea->area.dbsi.lpstrWhile ) : NULL;
-   HB_BOOL      fOptimized = HB_FALSE;
-   HB_ERRCODE   errCode = HB_FAILURE;
-
-   HB_TRACE( HB_TR_DEBUG, ( "letoLocate(%p, %d)", pArea, ( int ) fContinue ) );
-
-   if( pArea->pTable && pArea->pTable->uiUpdated )
-      leto_PutRec( pArea );
-
-#ifndef __XHARBOUR__
-   if( szFor && ( ! pArea->area.dbsi.itmCobWhile || szWhile )  )
-   {
-      /* none or optimized filter, none or all optimzed relations */
-      if( ! ( ! pArea->area.dbfi.fFilter || pArea->area.dbfi.fOptimized ) )
-         fOptimized = HB_FALSE;
-      else if( ( ( AREAP ) pArea )->lpdbRelations )
-         fOptimized = leto_RelOptimized( pArea );
-      else
-         fOptimized = HB_TRUE;
-   }
-#endif
-
-   if( fOptimized )
-   {
-      PHB_ITEM pParams = NULL;
-      HB_LONG  lNext, lRecNo;
-      int      iRest;
-
-      if( pArea->pTable && pArea->pTable->uiUpdated )
-         leto_PutRec( pArea );
-
-      if( pArea->area.dbsi.lNext )
-         lNext = hb_itemGetNL( pArea->area.dbsi.lNext );
-      else
-         lNext = 1;
-      if( pArea->area.dbsi.itmRecID )
-         lRecNo = hb_itemGetNL( pArea->area.dbsi.itmRecID );
-      else
-         lRecNo = -1;
-      if( pArea->area.dbsi.fRest )
-         iRest = hb_itemGetL( pArea->area.dbsi.fRest ) ? 1 : 0;
-      else
-         iRest = fContinue ? 1 : 0;
-
-      /* erCode == HB_SUCCESS in case of failed LetoDbEval */
-      if( ! LetoDbEval( pArea->pTable, "{|| 1 }", szFor, szWhile,
-                        lNext, lRecNo, iRest, HB_FALSE, HB_FALSE, HB_FALSE, HB_TRUE, &pParams, NULL ) )
-      {
-         leto_SetAreaFlags( pArea );
-         if( ! pArea->area.fEof )
-         {
-            pArea->area.fFound = pArea->pTable->fFound = HB_TRUE;
-            errCode = HB_SUCCESS;
-         }
-         else
-         {
-            hb_itemRelease( pParams );
-            return HB_FAILURE;
-         }
-      }
-      hb_itemRelease( pParams );
-   }
-
-   /* failed at server or ! fOptimized */
-   if( errCode != HB_SUCCESS )
-   {
-      if( ! pArea->area.dbsi.itmCobFor && szFor )
-         pArea->area.dbsi.itmCobFor = leto_mkCodeBlock( szFor, strlen( szFor ) );
-      if( ! pArea->area.dbsi.itmCobWhile && szWhile )
-         pArea->area.dbsi.itmCobWhile = leto_mkCodeBlock( szWhile, strlen( szWhile ) );
-
-      errCode = SUPER_LOCATE( ( AREAP ) pArea, fContinue );
-      leto_SetAreaFlags( pArea );
-   }
-
-   return errCode;
-}
-
+#define letoLocate     NULL
 #define letoCompile    NULL
 #define letoError      NULL
 #define letoEvalBlock  NULL
@@ -6681,6 +6581,45 @@ static HB_BOOL leto_LockValidate( LETOAREAP pArea, char * szBlock, HB_SIZE nLen 
    return ! nCount ? HB_TRUE : HB_FALSE;
 }
 
+static HB_BOOL leto_RelOptimized( LETOAREAP pArea )
+{
+   LPDBRELINFO lpDbRel = ( ( AREAP ) pArea )->lpdbRelations;
+   HB_BOOL     fOptimized = HB_TRUE;
+
+   if( ! ( ! pArea->area.dbfi.fFilter || pArea->area.dbfi.fOptimized ) )
+      fOptimized = HB_FALSE;
+   while( lpDbRel && fOptimized )
+   {
+      if( ! lpDbRel->isOptimized )
+         fOptimized = HB_FALSE;
+      else
+         fOptimized = leto_RelOptimized( ( LETOAREAP ) lpDbRel->lpaChild );
+      lpDbRel = lpDbRel->lpdbriNext;
+   }
+
+   return fOptimized;
+}
+
+HB_FUNC( LETO_DBEVALTEST )
+{
+   LETOCONNECTION * pConnection = NULL;
+   LETOAREAP        pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_BOOL          fOptimized = HB_FALSE;
+
+   if( pArea && leto_CheckArea( pArea ) && pArea->pTable )
+      pConnection = letoGetConnPool( pArea->pTable->uiConnection );
+
+   if( pConnection )
+   {
+      LetoDbEval( pArea->pTable, NULL, hb_parc( 1 ), hb_parc( 2 ),
+                  -1, -1, 0, HB_FALSE, HB_FALSE, HB_FALSE, HB_TRUE, NULL, NULL );
+      if( strncmp( pConnection->szBuffer, "-004", 4 ) )
+         fOptimized = HB_TRUE;
+   }
+
+   hb_retl( fOptimized );
+}
+
 /* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward, lStay ] ) */
 HB_FUNC( LETO_DBEVAL )
 {
@@ -6694,10 +6633,12 @@ HB_FUNC( LETO_DBEVAL )
    HB_BOOL   fNeedLock = hb_parldef( 8, HB_FALSE );
    HB_BOOL   fBackward = hb_parldef( 9, HB_FALSE );
    HB_BOOL   fStay = hb_parldef( 10, HB_TRUE );
-   HB_BOOL   fValid = pArea && ( hb_parclen( 1 ) || HB_ISBLOCK( 1 ) ) ? HB_TRUE : HB_FALSE;
+   HB_BOOL   fValid = pArea ? HB_TRUE : HB_FALSE;
    PHB_ITEM  pRefresh = NULL;
    HB_ULONG  ulLastRecNo = 0;
    char *    szBlock = NULL;
+   HB_SIZE   nFor = HB_MAX( hb_parclen( 2 ), hb_arrayGetCLen( hb_stackItemFromBase( 2 ), 2 ) );
+   HB_SIZE   nWhile = HB_MAX( hb_parclen( 3 ), hb_arrayGetCLen( hb_stackItemFromBase( 3 ), 2 ) );
 
    HB_TRACE( HB_TR_DEBUG, ( "LETO_DBEVAL(%s, %s, %s, %ld, %ld, %d, %d, %d)",  hb_parc( 1 ), hb_parc( 2 ), hb_parc( 3 ),
                             lNext, HB_ISNUM( 5 ) ? ( HB_LONG ) ulRecNo : -1, ( int ) fRest, ( int ) fResultAsArr, ( int ) fNeedLock ) );
@@ -6705,9 +6646,7 @@ HB_FUNC( LETO_DBEVAL )
    if( fValid && leto_CheckArea( pArea ) && pArea->pTable )
       pConnection = letoGetConnPool( pArea->pTable->uiConnection );
 
-   if( fValid && ( hb_parclen( 1 ) ) &&
-       ( hb_parclen( 2 ) || ! HB_ISBLOCK( 2 ) ) &&
-       ( hb_parclen( 3 ) || ! HB_ISBLOCK( 3 ) ) &&
+   if( fValid && hb_parclen( 1 ) && ( nFor || ! HB_ISBLOCK( 2 ) ) && ( nWhile || ! HB_ISBLOCK( 3 ) ) &&
        leto_CheckArea( pArea ) )
    {
       /* none or optimized filter, none or all optimzed relations */
@@ -6717,7 +6656,20 @@ HB_FUNC( LETO_DBEVAL )
          fOptimized = leto_RelOptimized( pArea );
       else
          fOptimized = HB_TRUE;
+
+      if( fOptimized && ( nFor || nWhile ) )
+      {
+         /* pre-test without block for FOR and WHILE */
+         LetoDbEval( pArea->pTable, NULL,
+                     ! HB_ISARRAY( 2 ) ? hb_parc( 2 ) : hb_arrayGetCPtr( hb_stackItemFromBase( 2 ), 2 ),
+                     ! HB_ISARRAY( 3 ) ? hb_parc( 3 ) : hb_arrayGetCPtr( hb_stackItemFromBase( 3 ), 2 ),
+                     lNext, -1, -1, fResultAsArr, fNeedLock, fBackward, fStay, NULL, NULL );
+         if( ! strncmp( pConnection->szBuffer, "-004", 4 ) )  /* error in for or while expression */
+            fOptimized = HB_FALSE;
+      }
    }
+   if( fValid && ! ( hb_parclen( 1 ) || HB_ISBLOCK( 1 ) ) )
+      fValid = HB_FALSE;
 
    if( fValid )  /* WA & first param */
    {
@@ -6932,7 +6884,9 @@ HB_FUNC( LETO_DBEVAL )
 
       do
       {
-         if( LetoDbEval( pArea->pTable, szBlock, hb_parclen( 2 ) ? hb_parc( 2 ) : "", hb_parclen( 3 ) ? hb_parc( 3 ) : "",
+         if( LetoDbEval( pArea->pTable, szBlock,
+                         ! HB_ISARRAY( 2 ) ? hb_parc( 2 ) : hb_arrayGetCPtr( hb_stackItemFromBase( 2 ), 2 ),
+                         ! HB_ISARRAY( 3 ) ? hb_parc( 3 ) : hb_arrayGetCPtr( hb_stackItemFromBase( 3 ), 2 ),
                          lNext, lRecNo, iRest, fResultAsArr, fNeedLock, fBackward, fStay, &pParams, hb_parc( 11 ) ) )
          {
             hb_itemRelease( pParams );
@@ -6995,14 +6949,32 @@ HB_FUNC( LETO_DBEVAL )
          pEvalInfo.itmBlock = pBlock = leto_mkCodeBlock( szBlock, strlen( szBlock ) );
       else
          pEvalInfo.itmBlock = hb_param( 1, HB_IT_BLOCK );
-      if( hb_parclen( 2 ) )
-         pEvalInfo.dbsci.itmCobFor = pFor = leto_mkCodeBlock( hb_parc( 2 ), hb_parclen( 2 ) );
-      else if( HB_ISBLOCK( 2 ) )
+      if( HB_ISBLOCK( 2 ) )
          pEvalInfo.dbsci.itmCobFor = hb_param( 2, HB_IT_BLOCK );
-      if( hb_parclen( 3 ) )
-         pEvalInfo.dbsci.itmCobWhile = pWhile = leto_mkCodeBlock( hb_parc( 3 ), hb_parclen( 3 ) );
-      else if( HB_ISBLOCK( 3 ) )
+      else if( HB_ISARRAY( 2 ) && ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 1 ) ) & HB_IT_BLOCK ) )
+         pEvalInfo.dbsci.itmCobFor = hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 1 );
+      else if( nFor )
+      {
+         if( ! HB_ISARRAY( 2 ) )
+            pFor = leto_mkCodeBlock( hb_parc( 2 ), hb_parclen( 2 ) );
+         else
+            pFor = leto_mkCodeBlock( hb_arrayGetCPtr( hb_stackItemFromBase( 2 ), 2 ),
+                                     hb_arrayGetCLen( hb_stackItemFromBase( 2 ), 2 ) );
+         pEvalInfo.dbsci.itmCobFor = pFor;
+      }
+      if( HB_ISBLOCK( 3 ) )
          pEvalInfo.dbsci.itmCobWhile = hb_param( 3, HB_IT_BLOCK );
+      else if( HB_ISARRAY( 3 ) && ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 3 ), 1 ) ) & HB_IT_BLOCK ) )
+         pEvalInfo.dbsci.itmCobWhile = hb_arrayGetItemPtr( hb_stackItemFromBase( 3 ), 1 );
+      else if( nWhile )
+      {
+         if( ! HB_ISARRAY( 3 ) )
+            pWhile = leto_mkCodeBlock( hb_parc( 3 ), hb_parclen( 3 ) );
+         else
+            pWhile = leto_mkCodeBlock( hb_arrayGetCPtr( hb_stackItemFromBase( 3 ), 2 ),
+                                       hb_arrayGetCLen( hb_stackItemFromBase( 3 ), 2 ) );
+         pEvalInfo.dbsci.itmCobWhile = pWhile;
+      }
 
       if( HB_ISNUM( 4 ) )
          pNext = hb_itemPutNL( pNext, lNext );
@@ -7090,44 +7062,6 @@ HB_FUNC( LETO_DBEVAL )
    if( szBlock )
       hb_xfree( szBlock );
    hb_itemRelease( pRefresh );
-}
-
-/* __dbLocate( cbFor, cbWhile, lNext, nRec, fRest ) */
-HB_FUNC( LETO_DBLOCATE )
-{
-   LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-
-   HB_TRACE( HB_TR_DEBUG, ( "LETO_DBLOCATE(%s, %s, %s, %ld, %ld, %d)",  hb_parc( 1 ), hb_parc( 2 ), hb_parc( 3 ),
-                            hb_parnldef( 3, -1 ), hb_parnldef( 4, -1 ), HB_ISLOG( 5 ) ? ( int ) hb_parl( 5 ) : -1 ) );
-   if( pArea )
-   {
-      DBSCOPEINFO dbScopeInfo;
-
-      memset( &dbScopeInfo, 0, sizeof( DBSCOPEINFO ) );
-      dbScopeInfo.itmCobFor   = hb_param( 1, HB_IT_BLOCK );
-      dbScopeInfo.lpstrFor    = hb_param( 1, HB_IT_STRING );
-      dbScopeInfo.itmCobWhile = hb_param( 2, HB_IT_BLOCK );
-      dbScopeInfo.lpstrWhile  = hb_param( 2, HB_IT_STRING );
-      dbScopeInfo.lNext       = hb_param( 3, HB_IT_NUMERIC );
-      dbScopeInfo.itmRecID    = hb_param( 4, HB_IT_NUMERIC );
-      dbScopeInfo.fRest       = hb_param( 5, HB_IT_LOGICAL );
-      if( hb_param( 2, HB_IT_BLOCK | HB_IT_STRING ) )
-         hb_itemPutL( dbScopeInfo.fRest, HB_TRUE );
-
-      dbScopeInfo.fIgnoreFilter = HB_TRUE;
-      dbScopeInfo.fIncludeDeleted = HB_TRUE;
-
-      if( dbScopeInfo.lpstrFor )
-         dbScopeInfo.itmCobFor = leto_mkCodeBlock( hb_itemGetCPtr( dbScopeInfo.lpstrFor ),
-                                                   hb_itemGetCLen( dbScopeInfo.lpstrFor ) );
-      if( dbScopeInfo.lpstrWhile )
-         dbScopeInfo.itmCobWhile = leto_mkCodeBlock( hb_itemGetCPtr( dbScopeInfo.lpstrWhile ),
-                                                     hb_itemGetCLen( dbScopeInfo.lpstrWhile ) );
-      if( SELF_SETLOCATE( ( AREAP ) pArea, &dbScopeInfo ) == HB_SUCCESS )
-         SELF_LOCATE( ( AREAP ) pArea, HB_FALSE );
-   }
-   else
-      commonError( pArea, EG_NOTABLE, EG_NOTABLE, 0, NULL, 0, "LETO_DBLOCATE" );
 }
 
 HB_FUNC( LETO_GROUPBY )

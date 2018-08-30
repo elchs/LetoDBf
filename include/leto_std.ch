@@ -122,27 +122,27 @@
                  [FOR <for>] [WHILE <while>] [NEXT <next>] ;
                  [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] => ;
          leto_dbEval( "{|| FIELDPUT('"+<"f1">+"',"+<"x1">+")"[+", FIELDPUT('"+<"fN">+"',"+<"xN">+")"]+" }", ;
-                      <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.>, .F. )
+                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>,, .T., <.descend.>, .F. )
 #command REPLACE <f1> WITH <v1>[, <fN> WITH <vN>] => ;
          _FIELD-><f1> := <v1> [; _FIELD-><fN> := <vN>]
 
 #command DELETE [FOR <for>] [WHILE <while>] [NEXT <next>] ;
                 [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] [INTO <v>] => ;
          [ <v> := ];
-         leto_dbEval( "{|n| dbDelete(), n }", <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.>, .F. )
+         leto_dbEval( "{|n| dbDelete(), n }", { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>,, .T., <.descend.>, .F. )
 #command DELETE =>  dbDelete()
 
 #command RECALL [FOR <for>] [WHILE <while>] [NEXT <next>] ;
                 [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] [INTO <v>] => ;
          [ <v> := ];
-         leto_dbEval( "{|n| dbRecall(), n }", <"for">, <"while">, <next>, <rec>, <.rest.>,, .T., <.descend.>, .T. )
+         leto_dbEval( "{|n| dbRecall(), n }", { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>,, .T., <.descend.>, .T. )
 #command RECALL =>  dbRecall()
 
 #command COUNT [[INTO][TO] <v>] ;
                [FOR <for>] [WHILE <while>] [NEXT <next>] ;
                [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] => ;
          [ <v> := ];
-         leto_dbEval( "{|n| n }", <"for">, <"while">, <next>, <rec>, <.rest.>,, .F., <.descend.> )
+         leto_dbEval( "{|n| n }", { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>,, .F., <.descend.> )
 
 
 /* using leto_VarIncr() as private auto-create-delete '3' ( LETO_VCREAT | LETO_VOWN )
@@ -153,7 +153,7 @@
              [INTO <cVar>] => ;
          [ <cVar> := ];
          Leto_dbEval( "{|| Leto_VarIncr( 'MySUM', '"+#<v1>+"', 3, "+<"x1">+" )"[+", Leto_VarIncr( 'MySUM', '"+#<vN>+"', 3, "+<"xN">+" )"][+", "+<"result">]+" }",;
-                      <"for">, <"while">, <next>, <rec>, <.rest.>, <.cVar.>, .F., <.descend.> );;
+                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <.cVar.>, .F., <.descend.> );;
          <v1> := IIF( EMPTY( Leto_VarGet( "MySUM", #<v1> ) ), 0, Leto_VarGet( "MySUM", #<v1> ) );;
          [ <vN> := IIF( EMPTY( Leto_VarGet( "MySUM", #<vN> ) ), 0, Leto_VarGet( "MySUM", #<vN> ) ) ; ];
          Leto_VarDel( "MySUM", #<v1> );;
@@ -165,7 +165,7 @@
                  [INTO <cVar>]  => ;
          [ <cVar> := ];
          Leto_dbEval( "{|nRec| Leto_VarSet( 'MyAVG','__AVG', nRec, 3 ), Leto_VarIncr( 'MyAVG', '"+#<v1>+"', 3, "+<"x1">+" )"[+", Leto_VarIncr( 'MyAVG', '"+#<vN>+"', 3, "+<"xN">+" )"][+", "+<"result">]+" }", ;
-                      <"for">, <"while">, <next>, <rec>, <.rest.>, <.cVar.>, .F., <.descend.> );;
+                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <.cVar.>, .F., <.descend.> );;
          <v1> := IIF( EMPTY( Leto_VarGet( "MyAVG","__AVG" ) ), 0, Leto_VarGet( "MyAVG",#<v1> ) / Leto_VarGet( "MyAVG", "__AVG" ) );;
          [ <vN> := IIF( EMPTY( Leto_VarGet( "MyAVG","__AVG" ) ), 0, Leto_VarGet( "MyAVG",#<vN> ) / Leto_VarGet( "MyAVG", "__AVG" ) ) ; ];
          Leto_VarDel( "MyAVG", #<v1> );;
