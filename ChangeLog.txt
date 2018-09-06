@@ -2,6 +2,17 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-09-06 13:53 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * include/rddleto.ch
+  * include/srvleto.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    + add RDDI_DBEVALCOMPAT for RddInfo ( boolean, default: TRUE ) to toggle
+      behaviour of DbEval(): given WHILE or NEXT starts with current record;
+      with setting FALSE only the REST param determines if to start at top
+
 2018-08-30 19:59 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     * use also the FOUND flag in Leto_DbLocate/Continue:

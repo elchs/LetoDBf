@@ -2888,6 +2888,7 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
       memcpy( pConnection->pAddr, szAddr, uiAddrLen );
       pConnection->pAddr[ uiAddrLen ] = '\0';
       pConnection->iZipRecord = -1;
+      pConnection->fDbEvalCompat = HB_TRUE;
       pConnection->fRefreshCount = HB_TRUE;
       pConnection->iBufRefreshTime = 100;
       memset( pConnection->cDopcode, 0, LETO_DOPCODE_LEN + 1 );

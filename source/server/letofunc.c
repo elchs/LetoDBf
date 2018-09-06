@@ -3610,6 +3610,7 @@ PUSERSTRU leto_InitUS( HB_SOCKET hSocket )
    pUStru->szAccess[ 0 ] = 0xFF;
    pUStru->szAccess[ 1 ] = 0xFF;
    pUStru->iZipRecord = -1;
+   pUStru->bDbEvalCompat = HB_TRUE;
 
    return pUStru;
 }
@@ -4226,6 +4227,12 @@ static void leto_RddInfo( PUSERSTRU pUStru, char * szData )
 
                SELF_RDDINFO( pRDDNode, uiIndex, 0, pItem );
                hb_itemRelease( pItem );
+               break;
+
+            case RDDI_DBEVALCOMPAT:
+               sprintf( szInfo, "+%c;", pUStru->bDbEvalCompat ? 'T' : 'F' );
+               if( pp3 && strlen( pp3 ) == 1 )
+                  pUStru->bDbEvalCompat = ( *pp3 == 'T' );
                break;
 
             case RDDI_TRIGGER:
@@ -7701,7 +7708,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
          lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
 
       bGoTop = ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) );
-      if( ( pEvalInfo->dbsci.itmCobWhile || lNext >= 0 ) && bGoTop && ! pEvalInfo->dbsci.fRest )
+      if( pUStru->bDbEvalCompat && ( pEvalInfo->dbsci.itmCobWhile || lNext >= 0 ) )
          bGoTop = HB_FALSE;
 
       if( pEvalInfo->dbsci.itmRecID )

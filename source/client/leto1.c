@@ -3099,7 +3099,7 @@ static HB_ERRCODE letoEval( LETOAREAP pArea, LPDBEVALINFO pEvalInfo )
          lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
 
       fGoTop = ( ! pEvalInfo->dbsci.fRest || ! hb_itemGetL( pEvalInfo->dbsci.fRest ) );
-      if( ( pEvalInfo->dbsci.itmCobWhile || lNext >= 0 ) && fGoTop && ! pEvalInfo->dbsci.fRest )
+      if( pConnection->fDbEvalCompat && ( pEvalInfo->dbsci.itmCobWhile || lNext >= 0 ) )
          fGoTop = HB_FALSE;
 
       if( pEvalInfo->dbsci.itmRecID )
@@ -5768,6 +5768,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
       case RDDI_AUTOOPEN:
       case RDDI_AUTOLOCK:
       case RDDI_STRUCTORD:
+      case RDDI_DBEVALCOMPAT:
       {
          int iRes = 1;
 
@@ -5806,6 +5807,10 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
                               pConnection->uSrvLock |= 0x01;
                            else
                               pConnection->uSrvLock &= ~( 0x01 );
+                           break;
+
+                        case RDDI_DBEVALCOMPAT:
+                           pConnection->fDbEvalCompat = hb_itemGetL( pItem ); 
                            break;
                      }
                   }

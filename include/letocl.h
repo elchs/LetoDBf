@@ -251,6 +251,7 @@ typedef struct _LETOCONNECTION_
    HB_ULONG          ulBufCryptLen;
    int               iZipRecord;
    HB_BOOL           fZipCrypt;
+   HB_BOOL           fDbEvalCompat;        /* enable scope to REST if WHILE/NEXT given */
    int               iBufRefreshTime;      /* in 0.01 sec, afterwards SKIP buffer refresh */
    HB_USHORT         uiDriver;             /* default driver 0 = NTX, 1 = CDX */
    char              szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];       /* DBF driver NAME */

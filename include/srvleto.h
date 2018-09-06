@@ -262,8 +262,9 @@ typedef struct
    char *            szHbError;               /* ":genCode-subCode-osCode-flags['\t'filename]" */
    HB_BYTE *         pBufCrypt;
    int               iZipRecord;              /* zlib compress level default -1 = off, 0 - 9 */
-   HB_BOOL           bZipCrypt;               /* encryption ON for LZ4 network traffic */
    HB_ULONG          ulBufCryptLen;
+   HB_BOOL           bZipCrypt;               /* encryption ON for LZ4 network traffic */
+   HB_BOOL           bDbEvalCompat;           /* enable scope to REST if WHILE/NEXT given */
    HB_BOOL           bBufKeyNo;
    HB_BOOL           bBufKeyCount;
    int               iPort;
