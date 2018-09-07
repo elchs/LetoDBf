@@ -2,6 +2,21 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-09-07 19:37 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    * simplifying PRG param usage in LETO_DBEVAL, and make them replace-able
+      by optimized FOR/WHILE expression with MEMVARs ( if FORCEOPT true )
+
+  * source/client/letomgmn.c
+    * check in Leto_MgID() for "iConnectSrv < 0" [ not "<=" ],
+      so its done only one initial time also for first connection == '0'.
+
+  * source/server/letofunc.c
+    ! fix server-side LETO_VAR[INC|DEC] in leto_var_incdec() and 
+      client-side in leto_Variables():
+      assign '1' only in case if not given [de-]increment value,
+      plus remove an overlooked old limitation to integer values
+
 2018-09-06 13:53 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * include/rddleto.ch

@@ -813,7 +813,7 @@ static int Leto_MgID( LETOCONNECTION * pConnection, HB_BOOL fRefresh )
 {
    int iRet = pConnection->iConnectSrv;
 
-   if( iRet <= 0 || fRefresh )
+   if( iRet < 0 || fRefresh )
    {
       char szData[ 6 ];
 
@@ -2036,8 +2036,10 @@ HB_FUNC( LETO_VARINCR )
 
             if( pIncrement && ( HB_IS_INTEGER( pIncrement ) || HB_IS_LONG( pIncrement ) ) )
                ultostr( hb_parni( 4 ), szIncrement );
-            else
+            else if( HB_ISNUM( 4 ) )
                sprintf( szIncrement, "%f", hb_parnd( 4 ) );
+            else
+               sprintf( szIncrement, "%c", '1' );
             lValue = LetoVarIncr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag, szIncrement );
             if( ! pCurrentConn->iError )
             {

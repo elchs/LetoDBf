@@ -560,7 +560,7 @@ void leto_Variables( PUSERSTRU pUStru, char * szData )
          HB_BOOL fInc = ( *szData == LETOSUB_inc );
          char    cFlag1 = *( pp3 + 1 );
          char    cFlag2 = *( pp3 + 2 );
-         double  dIncrement = atof( pp3 + 4 );
+         double  dIncrement = *( pp3 + 4 ) ? atof( pp3 + 4 ) : 1.0;
 
          if( nParam < 4 || ! *pVarGroup || ! *pVar || *pp3 != '2' || cFlag1 < ' ' )
             leto_SendAnswer( pUStru, szErr2, 4 );
@@ -603,8 +603,6 @@ void leto_Variables( PUSERSTRU pUStru, char * szData )
                      leto_SendAnswer( pUStru, szErr1, 4 );
                }
 
-               if( dIncrement == 0.0 )
-                  dIncrement = 1.0;
                if( ! pItem->item.asDouble.length )
                {
                   if( fInc )
@@ -1018,6 +1016,9 @@ static void leto_var_incdec( HB_BOOL fInc )
       char             cFlag1 = HB_ISNUM( 3 ) ? ( char ) hb_parni( 3 ) : 0;
       double           dIncrement = hb_parnd( 4 );
 
+      if( ! HB_ISNUM( 4 ) )
+         dIncrement = 1.0;
+
       HB_GC_LOCKV();
 
       pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem );
@@ -1039,12 +1040,8 @@ static void leto_var_incdec( HB_BOOL fInc )
             hb_itemReturnRelease( leto_var_ret( pItem ) );
          }
       }
-      else if( pItem && pItem->type == LETOVAR_NUM && ! pItem->item.asDouble.length &&
-          ! leto_var_accessdeny( pUStru, pItem, LETO_VDENYWR ) )
+      else if( pItem && pItem->type == LETOVAR_NUM && ! leto_var_accessdeny( pUStru, pItem, LETO_VDENYWR ) )
       {
-         if( dIncrement == 0.0 )
-            dIncrement = 1.0;
-
          if( ! pItem->item.asDouble.length )
          {
             if( fInc )
