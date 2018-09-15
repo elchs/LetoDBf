@@ -393,6 +393,9 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
    extern HB_EXPORT void leto_clientlog( const char * sFile, int n, const char * s, ... );
 #endif
 
+#if ! defined( __LETO_C_API__ )
+   HB_BOOL Leto_VarExprTest( const char * szSrc, HB_BOOL fMemvarAllowed );
+#endif
 #if ! defined( __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
    HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr );
    HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync );

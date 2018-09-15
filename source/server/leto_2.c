@@ -2131,7 +2131,10 @@ HB_FUNC( LETO_SERVER )
       if( pSockAddr )
       {
          szAddr = hb_socketAddrGetName( pSockAddr, uiLen );
-         bExtraWait = ( ! strncmp( szAddr, "127.0.0.1", 9 ) );
+         if( szServerAddr )
+            bExtraWait = ! strncmp( szAddr, szServerAddr, strlen( szServerAddr ) );
+         else
+            bExtraWait = ! strncmp( szAddr, "127.0.0.1", 9 );
 
          if( ! bExtraWait && *s_szAddrSpace )
          {

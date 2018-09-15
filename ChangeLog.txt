@@ -2,6 +2,47 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-09-15 22:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * include/leto_std.ch
+  * source/client/leto1.c
+  * source/client/letomgmn.c
+    * change/ extend optimizing logics: new Leto_VarExprTest() to test for
+      optimize-able [ if FORCEOPT true ] MEMVAR and non-optimize-able LOCAL,
+      done at client side before finally testing the CB at server
+    * use in leto_std.ch arrays with compile-time block and string expression
+      for various commands, whereas the block is used if not optimized
+    * add in leto_PutTransInfo() logics for automatic optimization,
+      return by ref the array with used Leto_Var() for MEMVARs
+    * new leto_ChkTransInfo(): try create block from string if not given,
+      dealloc these in new leto_CleanTransInfo()
+    + add PRG Leto_VarGetSave() with third param as default value,
+      used if variable does not exist and else a NIL would be returned
+    + new help functions to handle block, string or array {block, string};
+      leto_param() for PRG stack, leto_paramtype() for C-level params,
+      and return appropiate item type or NULL [ likely hb_param() ]
+    ! fix length of buffer in LETO_USER[ADD|PASSWD]
+
+  * source/server/letofunc.c
+  * source/server/letovars.c
+    ! fix LETO_VOWN variable type to be really connection wide private [own],
+      formerly only write access was rejected -- now each connection will
+      use an 'own' variable even when group/name is used by another client;
+      [ done by adding pUStru-ID to leto_var_find() ]
+
+  * include/srvleto.h
+  * source/server/leto_2.c
+  * source/server/letoacc.c
+    ! some fixes in some leto_acc_*() functions, incl. buffer sizes
+    * use server IP-address ( not given: 127.0.0.1 ) to determine if client
+      application is local to server; such can log into even a locked server
+      for example to shutdown
+
+  * utils/manager/console.prg
+    ! missing RTIM() of password in GetUser(), shorten it to max 32 char,
+      improve rights input and verification
+    * exec in Administrate() after each change a leto_userflush()
+
 2018-09-07 19:37 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     * simplifying PRG param usage in LETO_DBEVAL, and make them replace-able
@@ -12,7 +53,7 @@
       so its done only one initial time also for first connection == '0'.
 
   * source/server/letofunc.c
-    ! fix server-side LETO_VAR[INC|DEC] in leto_var_incdec() and 
+    ! fix server-side LETO_VAR[INC|DEC] in leto_var_incdec() and
       client-side in leto_Variables():
       assign '1' only in case if not given [de-]increment value,
       plus remove an overlooked old limitation to integer values

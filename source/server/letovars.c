@@ -374,7 +374,7 @@ static void leto_var_delgroup( PUSERSTRU pUStru, LETO_VARGROUPS * pGroup )
 }
 
 /* need HB_GC_LOCKV() */
-static LETO_VAR * leto_var_find( const char * pVarGroup, const char * pVar, LETO_VARGROUPS ** ppGroup, HB_USHORT * puiItem )
+static LETO_VAR * leto_var_find( const char * pVarGroup, const char * pVar, LETO_VARGROUPS ** ppGroup, HB_USHORT * puiItem, int iUser )
 {
    LETO_VARGROUPS * pGroup;
    LETO_VAR *       pItem = NULL, * pItemTmp;
@@ -393,7 +393,7 @@ static LETO_VAR * leto_var_find( const char * pVarGroup, const char * pVar, LETO
                for( uiItem = 0, ui = 0; uiItem < pGroup->uiAlloc; uiItem++ )
                {
                   pItemTmp = pGroup->pItems + uiItem;
-                  if( pItemTmp->szName )
+                  if( pItemTmp->szName && ( ! pItemTmp->uiUser || pItemTmp->uiUser == ( HB_USHORT ) iUser ) )
                   {
                      if( ! leto_stricmp( pVar, pItemTmp->szName ) )
                      {
@@ -460,7 +460,7 @@ void leto_Variables( PUSERSTRU pUStru, char * szData )
       HB_GC_LOCKV();
 
       if( *pVarGroup )
-         pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem );
+         pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem, pUStru->iUserStru );
       else
       {
          pItem = NULL;
@@ -911,7 +911,7 @@ HB_FUNC( LETO_VARGET )
       LETO_VARGROUPS * pGroup = NULL;
       HB_USHORT        uiItem = 0;
 
-      pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem );
+      pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem, pUStru->iUserStru );
       HB_SYMBOL_UNUSED( pGroup );
    }
    else
@@ -919,6 +919,37 @@ HB_FUNC( LETO_VARGET )
 
    if( pItem && ! leto_var_accessdeny( pUStru, pItem, LETO_VDENYRD ) )
       hb_itemReturnRelease( leto_var_ret( pItem ) );
+   else
+      hb_ret();
+
+   HB_GC_UNLOCKV();
+}
+
+/* leto_udf() */
+HB_FUNC( LETO_VARGETSAVE )
+{
+   PUSERSTRU    pUStru = letoGetsUStru();
+   const char * pVarGroup = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
+   const char * pVar = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
+   LETO_VAR *   pItem;
+
+   HB_GC_LOCKV();
+
+   if( pVarGroup && pVar )
+   {
+      LETO_VARGROUPS * pGroup = NULL;
+      HB_USHORT        uiItem = 0;
+
+      pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem, pUStru->iUserStru );
+      HB_SYMBOL_UNUSED( pGroup );
+   }
+   else
+      pItem = NULL;
+
+   if( pItem && ! leto_var_accessdeny( pUStru, pItem, LETO_VDENYRD ) )
+      hb_itemReturnRelease( leto_var_ret( pItem ) );
+   else if( hb_param( 3, HB_IT_ANY ) )
+      hb_itemMove( hb_stackReturnItem(), hb_param( 3, HB_IT_ANY ) );
    else
       hb_ret();
 
@@ -941,7 +972,7 @@ HB_FUNC( LETO_VARSET )
 
       HB_GC_LOCKV();
 
-      pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem );
+      pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem, pUStru->iUserStru );
       if( ! pItem )
          pItem = leto_var_create( pUStru, pGroup, pVarGroup, pVar, cFlag1 );
       if( pItem && ! leto_var_accessdeny( pUStru, pItem, LETO_VDENYWR + LETO_VCREAT ) )
@@ -1021,7 +1052,7 @@ static void leto_var_incdec( HB_BOOL fInc )
 
       HB_GC_LOCKV();
 
-      pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem );
+      pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem, pUStru->iUserStru );
       if( ! pItem && ( cFlag1 & LETO_VCREAT ) )
       {
          pItem = leto_var_create( pUStru, pGroup, pVarGroup, pVar, cFlag1 );
@@ -1098,7 +1129,7 @@ HB_FUNC( LETO_VARDEL )
       HB_GC_LOCKV();
 
       if( pVar )
-         pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem );
+         pItem = leto_var_find( pVarGroup, pVar, &pGroup, &uiItem, pUStru->iUserStru );
       if( pItem )
       {
          leto_var_del( pUStru, pGroup, uiItem );
@@ -1134,7 +1165,7 @@ HB_FUNC( LETO_VARGETLIST )
 
       HB_GC_LOCKV();
 
-      leto_var_find( pVarGroup, "", &pGroup, &uiItem );
+      leto_var_find( pVarGroup, "", &pGroup, &uiItem, pUStru->iUserStru );
       if( pGroup )
       {
          LETO_VAR * pItem;

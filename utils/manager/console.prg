@@ -1356,6 +1356,7 @@ STATIC FUNCTION Administrate( nConnection )
          CASE nMenu == 1
             IF ( arr := GetUser( .T., .T. ) ) != Nil
                IF leto_useradd( arr[1], arr[2], arr[3] )
+                  leto_userflush()
                   TimedAlert( "User is added", 2, "GR+/N" )
                ELSE
                   TimedAlert( "User is NOT added", 2, "R+/N" )
@@ -1367,6 +1368,7 @@ STATIC FUNCTION Administrate( nConnection )
          CASE nMenu == 2
             IF ( arr := GetUser( .F., .F. ) ) != Nil
                IF leto_userdelete( arr[1], arr[2], arr[3] )
+                  leto_userflush()
                   TimedAlert( "User is deleted", 2, "GR+/N" )
                ELSE
                   TimedAlert( "User is NOT deleted", 2, "R+/N" )
@@ -1378,7 +1380,12 @@ STATIC FUNCTION Administrate( nConnection )
          CASE nMenu == 3
             IF ( arr := GetUser( .T.,.F. ) ) != Nil
                IF leto_userpasswd( arr[1], arr[2] )
-                  TimedAlert( "Password is changed", 2, "GR+/N" )
+                  leto_userflush()
+                  IF EMPTY( arr[2] )
+                     TimedAlert( "Password is cleared", 2, "GR+/N" )
+                  ELSE
+                     TimedAlert( "Password is changed", 2, "GR+/N" )
+                  ENDIF
                ELSE
                   TimedAlert( "Password is NOT changed", 2, "R+/N" )
                ENDIF
@@ -1389,6 +1396,7 @@ STATIC FUNCTION Administrate( nConnection )
          CASE nMenu == 4
             IF ( arr := GetUser( .F., .T. ) ) != Nil
                IF leto_userrights( arr[1], arr[3] )
+                  leto_userflush()
                   TimedAlert( "Rights are changed", 2, "GR+/N" )
                ELSE
                   TimedAlert( "Rights are NOT changed", 2, "R+/N" )
@@ -1544,7 +1552,7 @@ STATIC FUNCTION HelpText
 RETURN lResize
 
 STATIC FUNCTION GetUser( lPass, lRights )
- LOCAL cUser := SPACE( 21 )
+ LOCAL cUser := SPACE( 16 )
  LOCAL cPass, cCheck, cRights
  LOCAL cSave := SAVESCREEN( 2, 1, 6, MAXCOL() - 1 )
  LOCAL oldcolor := SETCOLOR( "W+/B,W+/G,,,W/N" )
@@ -1559,20 +1567,20 @@ STATIC FUNCTION GetUser( lPass, lRights )
    cUser := ALLTRIM( cUser )
    IF LASTKEY() == K_ESC  .OR. EMPTY( cUser )
       lOk := .F.
-   ELSEIF Len( cUser ) > 21
+   ELSEIF Len( cUser ) > 16
       TimedAlert( "Username too long", 2, "R+/N" )
       lOk := .F.
    ENDIF
 
    IF lOk .AND. lPass
-      cPass := GETSECRET( SPACE( 42 ), 3, 2, .F., "Password  :" )
+      cPass := RTRIM( GETSECRET( SPACE( 32 ), 3, 2, .F., "Password  :" ) )
       IF LASTKEY() == K_ESC
          lOk := .F.
-      ELSEIF ! EMPTY( cPass ) .AND. Len( cPass ) > 42
+      ELSEIF Len( cPass ) > 32
          TimedAlert( "Password too long", 2, "R+/N" )
          lOk := .F.
       ELSE
-         cCheck := GETSECRET( SPACE( 42 ), 4, 2, .F., "Re-type   :" )
+         cCheck := RTRIM( GETSECRET( SPACE( 32 ), 4, 2, .F., "Re-type   :" ) )
          IF LASTKEY() == K_ESC
             lOk := .F.
          ELSEIF cPass != cCheck
@@ -1583,8 +1591,8 @@ STATIC FUNCTION GetUser( lPass, lRights )
    ENDIF
 
    IF lOk .AND. lRights
-      cRights := SPACE( 3 )
-      @ 5,2 SAY "Access rights - Admin,Manage,Write (default - NNN) :" GET cRights
+      cRights := "NNN"
+      @ 5,2 SAY "Access rights - Admin,Manage,Write (default - NNN) :" GET cRights PICTURE "@!"
       READ
       IF LASTKEY() == K_ESC
          lOk := .F.
@@ -1597,6 +1605,7 @@ STATIC FUNCTION GetUser( lPass, lRights )
             IF !( Substr(cRights,i,1) $ "NY" )
                TimedAlert( "Only 'N' and 'Y' chars are permitted", 2, "R+/N" )
                lOk := .F.
+               EXIT
             ENDIF
          NEXT
       ENDIF

@@ -58,38 +58,38 @@
               [FOR <for>] [WHILE <while>] [NEXT <next>] ;
               [RECORD <rec>] [<rest:REST>] [ALL] [VIA <rdd>] [CODEPAGE <cp>] => ;
          Leto_dbCopy( <(f)>, { <(fields)> }, ;
-                      <"for">, <"while">, <next>, <rec>, <.rest.>, <rdd>,, <cp> )
+                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <rdd>,, <cp> )
 
 #command APPEND [FROM <(f)>] [FIELDS <fields,...>] ;
                 [FOR <for>] [WHILE <while>] [NEXT <next>] ;
                 [RECORD <rec>] [<rest:REST>] [ALL] [VIA <rdd>] ;
                 [CODEPAGE <cp>] => ;
          Leto_dbApp( <(f)>, { <(fields)> }, ;
-                     <"for">, <"while">, <next>, <rec>, <.rest.>, <rdd>,, <cp> )
+                     { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <rdd>,, <cp> )
 
 #command SORT [TO <(f)>] [ON <fields,...>] ;
               [FOR <for>] [WHILE <while>] [NEXT <next>] ;
               [RECORD <rec>] [<rest:REST>] [ALL] [VIA <rdd>] ;
               [CODEPAGE <cp>] => ;
          Leto_dbSort( <(f)>, { <(fields)> }, ;
-                      <"for">, <"while">, <next>, <rec>, <.rest.>, <rdd>,, <cp> )
+                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <rdd>,, <cp> )
 
 #command JOIN [WITH <alias>] [TO <f>] [FIELDS <fields,...>] [FOR <for>] ;
               [VIA <rdd>] [CODEPAGE <cp>]  [<tmp: TEMPORARY>] => ;
          Leto_dbJoin( <(alias)>, <(f)>, { <(fields)> }, ;
-                      <"for">, [<rdd>],, [<cp>], [<.tmp.>] )
+                      { <{for}>, <"for"> }, [<rdd>],, [<cp>], [<.tmp.>] )
 
 #command TOTAL [TO <(f)>] [ON <key>] [FIELDS <fields,...>] ;
                [FOR <for>] [WHILE <while>] [NEXT <next>] ;
                [RECORD <rec>] [<rest:REST>] [ALL] [VIA <rdd>] ;
                [CODEPAGE <cp>] => ;
-         Leto_dbTotal( <(f)>, <"key">, { <(fields)> }, ;
-                       <"for">, <"while">, <next>, <rec>, <.rest.>, <rdd>,, <cp> )
+         Leto_dbTotal( <(f)>, { <{key}>, <"key"> }, { <(fields)> }, ;
+                       { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <rdd>,, <cp> )
 
 /* need flocked or exclusive WA */
 #command UPDATE FROM <(alias)> [ON <key>] [<rand:RANDOM>] ;
                 [REPLACE <f1> WITH <x1> [, <fN> WITH <xN>]] => ;
-         Leto_dbUpdate( <alias>, <"key">, <.rand.>, ;
+         Leto_dbUpdate( <alias>, { <{key}>, <"key"> }, <.rand.>, ;
                         { #<x1> [, #<xN> ] }, { <"f1"> [, <"fN"> ] } )
 
 /* note: also called from __dbTotal() */
@@ -154,8 +154,8 @@
          [ <cVar> := ];
          Leto_dbEval( "{|| Leto_VarIncr( 'MySUM', '"+#<v1>+"', 3, "+<"x1">+" )"[+", Leto_VarIncr( 'MySUM', '"+#<vN>+"', 3, "+<"xN">+" )"][+", "+<"result">]+" }",;
                       { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <.cVar.>, .F., <.descend.> );;
-         <v1> := IIF( EMPTY( Leto_VarGet( "MySUM", #<v1> ) ), 0, Leto_VarGet( "MySUM", #<v1> ) );;
-         [ <vN> := IIF( EMPTY( Leto_VarGet( "MySUM", #<vN> ) ), 0, Leto_VarGet( "MySUM", #<vN> ) ) ; ];
+         <v1> := Leto_VarGetSave( "MySUM", #<v1> , 0 );;
+         [ <vN> := Leto_VarGetSave( "MySUM", #<vN>, 0 ) ; ];
          Leto_VarDel( "MySUM", #<v1> );;
          [ Leto_VarDel( "MySUM", #<vN> ) ]
 
@@ -166,8 +166,8 @@
          [ <cVar> := ];
          Leto_dbEval( "{|nRec| Leto_VarSet( 'MyAVG','__AVG', nRec, 3 ), Leto_VarIncr( 'MyAVG', '"+#<v1>+"', 3, "+<"x1">+" )"[+", Leto_VarIncr( 'MyAVG', '"+#<vN>+"', 3, "+<"xN">+" )"][+", "+<"result">]+" }", ;
                       { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <.cVar.>, .F., <.descend.> );;
-         <v1> := IIF( EMPTY( Leto_VarGet( "MyAVG","__AVG" ) ), 0, Leto_VarGet( "MyAVG",#<v1> ) / Leto_VarGet( "MyAVG", "__AVG" ) );;
-         [ <vN> := IIF( EMPTY( Leto_VarGet( "MyAVG","__AVG" ) ), 0, Leto_VarGet( "MyAVG",#<vN> ) / Leto_VarGet( "MyAVG", "__AVG" ) ) ; ];
+         <v1> := Leto_VarGetSave( "MyAVG",#<v1>, 0 ) / Leto_VarGetSave( "MyAVG", "__AVG", 1 );;
+         [ <vN> := Leto_VarGetSave( "MyAVG",#<vN>, 0 ) / Leto_VarGetSave( "MyAVG", "__AVG", 1 ) ; ];
          Leto_VarDel( "MyAVG", #<v1> );;
          [ Leto_VarDel( "MyAVG", #<vN> ) ; ];
          Leto_VarDel( "MySUM", '__AVG' )

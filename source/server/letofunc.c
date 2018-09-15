@@ -181,7 +181,7 @@ extern HB_BOOL leto_filewrite( const char * szFilename, const char * pBuffer, co
 extern HB_BOOL leto_memowrite( const char * szFilename, const char * pBuffer, HB_ULONG ulLen );
 
 extern void leto_acc_release( void );
-extern HB_BOOL leto_acc_find( const char * szUser, const char * szPass, char ** pAcc );
+extern HB_BOOL leto_acc_find( PUSERSTRU pUStru, const char * szPass );
 extern void leto_acc_setPath( const char * szPath );
 extern void leto_ToggleZip( PUSERSTRU pUStru, char * szData );
 
@@ -10807,7 +10807,7 @@ static void leto_Intro( PUSERSTRU pUStru, char * szData )
             else
                szPass[ 0 ] = '\0';
 
-            fAccepted = leto_acc_find( ( const char * ) pUStru->szUsername, szPass, ( char ** ) &pUStru->szAccess );
+            fAccepted = leto_acc_find( pUStru, szPass );
             hb_xfree( szPass );
          }
          if( ! fAccepted )
@@ -11019,8 +11019,9 @@ static void leto_Intro( PUSERSTRU pUStru, char * szData )
                       s_bLowerPath ? '1' : '0' );
          hb_xfree( szVersion );
          pData = pBuf;
+         letoSetUStru( pUStru );
 
-         if( pUStru->hSocketErr == HB_NO_SOCKET && iDebugMode() > 0 )  /* second socket comes also here */
+         if( pUStru->hSocketErr == HB_NO_SOCKET && s_iDebugMode > 0 )  /* second socket comes also here */
             leto_writelog( NULL, -1, "INFO: connected  %s:%d %s CP: %s  DF: %s  conn-ID %d",
                                      pUStru->szAddr, pUStru->iPort,
                                      ( *( pUStru->szExename ) ? ( char * ) pUStru->szExename : "?exe?" ),
@@ -12887,7 +12888,7 @@ static HB_THREAD_STARTFUNC( threadX )
          hb_vmRequestRestore();
       }
       hb_xvmSeqEnd();
-      if( ! pUStru->iHbError && iDebugMode() > 1 )
+      if( ! pUStru->iHbError && s_iDebugMode > 1 )
          leto_writelog( NULL, -1, "INFO: task %s() SUCCESSFUL", ( const char * ) pUStru->szLastRequest );
       else if( pUStru->iHbError )
          leto_writelog( NULL, -1, "ERROR task %s() ended with ERROR: ", ( const char * ) pUStru->szLastRequest,

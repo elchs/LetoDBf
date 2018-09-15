@@ -1450,16 +1450,16 @@ HB_FUNC( LETO_PING )
 HB_FUNC( LETO_USERADD )
 {
    LETOCONNECTION * pConnection = letoGetCurrConn();
-   char             szData[ 96 ];
-   char             szPass[ 54 ];
+   char             szData[ 128 ];
+   char             szPass[ 96 ];
    const char *     szAccess = ( HB_ISCHAR( 3 ) ) ? hb_parc( 3 ) : "";
-   HB_ULONG         ulLen;
+   HB_ULONG         ulLen = hb_parclen( 2 );
 
    if( pConnection )
    {
-      if( hb_parclen( 1 ) && HB_ISCHAR( 2 ) )
+      if( hb_parclen( 1 ) && hb_parclen( 1 ) <= 16 && HB_ISCHAR( 2 ) && ulLen <= 32 && strlen( szAccess ) <= 3 )
       {
-         if( ( ulLen = hb_parclen( 2 ) ) > 0 )
+         if( ulLen )
          {
             char * szKey = leto_localKey( pConnection->cDopcode, LETO_DOPCODE_LEN );
 
@@ -1477,7 +1477,7 @@ HB_FUNC( LETO_USERADD )
          /* removed upper conversion -- as only for adding ? */
          /* hb_strUpper( ( char * ) szAccess, strlen( szAccess ) ); */
 
-         hb_snprintf( szData, 96, "%c;uadd;%s;%s;%s;", LETOCMD_admin, hb_parc( 1 ), szPass, szAccess );
+         hb_snprintf( szData, 128, "%c;uadd;%s;%s;%s;", LETOCMD_admin, hb_parc( 1 ), szPass, szAccess );
          if( leto_DataSendRecv( pConnection, szData, 0 ) )
          {
             hb_retl( *( leto_firstchar( pConnection ) ) == '+' );
@@ -1496,7 +1496,7 @@ HB_FUNC( LETO_USERDELETE )
 
    if( pConnection )
    {
-      if( hb_parclen( 1 ) )
+      if( hb_parclen( 1 ) && hb_parclen( 1 ) <= 16 )
       {
          hb_snprintf( szData, 96, "%c;udel;%s;", LETOCMD_admin, hb_parc( 1 ) );
          if( leto_DataSendRecv( pConnection, szData, 0 ) )
@@ -1513,15 +1513,15 @@ HB_FUNC( LETO_USERDELETE )
 HB_FUNC( LETO_USERPASSWD )
 {
    LETOCONNECTION * pConnection = letoGetCurrConn();
-   char     szData[ 96 ];
-   char     szPass[ 54 ];
-   HB_ULONG ulLen;
+   char     szData[ 128 ];
+   char     szPass[ 96 ];
+   HB_ULONG ulLen = hb_parclen( 2 );
 
    if( pConnection )
    {
-      if( hb_parclen( 1 ) && HB_ISCHAR( 2 ) )
+      if( hb_parclen( 1 ) && hb_parclen( 1 ) <= 16 && HB_ISCHAR( 2 ) && ulLen <= 32 )
       {
-         if( ( ulLen = hb_parclen( 2 ) ) > 0 )
+         if( ulLen )
          {
             char * szKey = leto_localKey( pConnection->cDopcode, LETO_DOPCODE_LEN );
 
@@ -1536,7 +1536,7 @@ HB_FUNC( LETO_USERPASSWD )
          else
             szPass[ 0 ] = '\0';
 
-         hb_snprintf( szData, 96, "%c;upsw;%s;%s;", LETOCMD_admin, hb_parc( 1 ), szPass );
+         hb_snprintf( szData, 128, "%c;upsw;%s;%s;", LETOCMD_admin, hb_parc( 1 ), szPass );
          if( leto_DataSendRecv( pConnection, szData, 0 ) )
          {
             hb_retl( *( leto_firstchar( pConnection ) ) == '+' );
@@ -1555,7 +1555,7 @@ HB_FUNC( LETO_USERRIGHTS )
 
    if( pConnection )
    {
-      if( hb_parclen( 1 ) && HB_ISCHAR( 2 ) )
+      if( hb_parclen( 1 ) && hb_parclen( 1 ) <= 16 && HB_ISCHAR( 2 ) && hb_parclen( 2 ) <= 3 )
       {
          hb_snprintf( szData, 96, "%c;uacc;%s;%s;", LETOCMD_admin, hb_parc( 1 ), hb_parc( 2 ) );
          if( leto_DataSendRecv( pConnection, szData, 0 ) )
@@ -2016,6 +2016,28 @@ HB_FUNC( LETO_VARGETCACHED )
 
 #endif
 
+HB_FUNC( LETO_VARGETSAVE )
+{
+   LETOCONNECTION * pCurrentConn = letoGetCurrConn();
+   PHB_ITEM pValue = NULL;
+
+   if( pCurrentConn )
+   {
+      if( hb_parclen( 1 ) && hb_parclen( 2 )  )
+      {
+         if( ! strchr( hb_parc( 1 ), ';' ) && ! strchr( hb_parc( 2 ), ';' ) )  /* illegal char in name */
+            pValue = Leto_VarGet( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ) );
+      }
+   }
+
+   if( pValue )
+      hb_itemReturnRelease( pValue );
+   else if( hb_param( 3, HB_IT_ANY ) )
+      hb_itemMove( hb_stackReturnItem(), hb_param( 3, HB_IT_ANY ) );
+   else
+      hb_ret();
+}
+
 /*
  * LETO_VARINCR( cGroupName, cVarName[, nFlags ) --> nValue
  */
@@ -2352,6 +2374,29 @@ static HB_BOOL leto_IsLetoArea( LETOAREAP pArea )
    return HB_FALSE;
 }
 
+static HB_BOOL leto_IsLetoAlias( const char * szRawAlias, HB_SIZE nLen )
+{
+   HB_BOOL fValid = HB_FALSE;
+
+   if( szRawAlias && nLen && nLen <= HB_RDD_MAX_ALIAS_LEN )
+   {
+      char szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
+      int iArea = 0;
+
+      memcpy( szAlias, szRawAlias, nLen );
+      szAlias[ nLen ] = '\0';
+      hb_rddGetAliasNumber( szAlias, &iArea );
+      if( iArea )
+      {
+         LETOAREAP pArea = ( LETOAREAP ) hb_rddGetWorkAreaPointer( ( HB_AREANO ) iArea );
+
+         fValid = leto_IsLetoArea( pArea );
+      }
+   }
+
+   return fValid;
+}
+
 void leto_udp( HB_BOOL fInThread, PHB_ITEM pArray )
 {
    LETOCONNECTION * pConnection;
@@ -2508,8 +2553,6 @@ HB_FUNC( LETO_FTS )
       hb_retl( nPos != 0 );
 }
 
-#if ! defined( __XHARBOUR__ )
-
 static HB_BOOL leto_isFieldVar( const char * szVar )
 {
    LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
@@ -2534,6 +2577,142 @@ static HB_BOOL leto_isFieldVar( const char * szVar )
 
    return fIsField;
 }
+
+/* check for allowed ? MEMVAR and not allowed LOCAL in expression */
+HB_BOOL Leto_VarExprTest( const char * szSrc, HB_BOOL fMemvarAllowed )
+{
+   HB_SIZE  nSrcLen = szSrc ? strlen( szSrc ) : 0;
+   HB_SIZE  nStart = 0;
+   HB_SIZE  nTmp, nTmpLen;
+   HB_BOOL  fField, fAliased, fValid = HB_TRUE;
+   PHB_DYNS pDyns;
+   char     szVar[ HB_SYMBOL_NAME_LEN + 1 ];
+   char     cTmp;
+
+   while( nStart < nSrcLen )
+   {
+      if( szSrc[ nStart ] == ' ' )
+      {
+         nTmp = nStart + 1;
+         while( nTmp < nSrcLen && szSrc[ nTmp ] == ' ' )
+         {
+            nTmp++;
+         }
+         nStart = nTmp;
+         continue;
+      }
+      else if( szSrc[ nStart ] == '"' || szSrc[ nStart ] == '\'' )
+      {
+         cTmp = szSrc[ nStart ];
+         nTmp = nStart + 1;
+         while( nTmp < nSrcLen && szSrc[ nTmp++ ] != cTmp )
+            ;
+         nStart = nTmp;
+         continue;
+      }
+      else if( szSrc[ nStart ] == '.' && nStart + 4 < nSrcLen && HB_ISALPHA( szSrc[ nStart + 1 ] ) )
+      {
+         nStart++;
+         if( HB_TOUPPER( szSrc[ nStart ] ) == 'O' && HB_TOUPPER( szSrc[ nStart + 1 ] ) == 'R' && szSrc[ nStart + 2 ] == '.' )
+            nStart += 3;
+         else if( szSrc[ nStart + 3 ] == '.' )
+         {
+            if( ( HB_TOUPPER( szSrc[ nStart ] ) == 'A' &&
+                  HB_TOUPPER( szSrc[ nStart + 1 ] ) == 'N' &&
+                  HB_TOUPPER( szSrc[ nStart + 2 ] ) == 'D' ) ||
+                ( HB_TOUPPER( szSrc[ nStart ] ) == 'N' &&
+                  HB_TOUPPER( szSrc[ nStart + 1 ] ) == 'O' &&
+                  HB_TOUPPER( szSrc[ nStart + 2 ] ) == 'T' ) )
+               nStart += 4;
+         }
+         continue;
+      }
+      else if( HB_ISFIRSTIDCHAR( szSrc[ nStart ] ) )
+      {
+         nTmp = nStart + 1;
+         while( nTmp < nSrcLen && HB_ISNEXTIDCHAR( szSrc[ nTmp ] ) )
+         {
+            nTmp++;
+         }
+
+         if( szSrc[ nTmp ] == '-' && nTmp < nSrcLen - 1 && szSrc[ nTmp + 1 ] == '>' )
+         {
+            fAliased = HB_TRUE;
+            if( nTmp - nStart == 1 || nTmp - nStart == 6 )  /* M-> or MEMVAR-> */
+            {
+               fField = hb_strnicmp( szSrc + nStart, "MEMVAR",  nTmp - nStart ) == 0 ? HB_FALSE : HB_TRUE;
+               if( ! fField )  /* remove memvar prefix */
+               {
+                  fAliased = HB_FALSE;
+                  nStart = nTmp + 2;
+               }
+            }
+            else
+               fField = HB_TRUE;
+            if( fField && fAliased )
+            {
+               if( ! leto_IsLetoAlias( szSrc + nStart, nTmp - nStart ) )
+               {
+                  fValid = HB_FALSE;
+                  break;
+               }
+            }
+            nTmp += 2;
+            while( nTmp <= nSrcLen && HB_ISNEXTIDCHAR( szSrc[ nTmp ] ) )
+            {
+               nTmp++;
+            }
+         }
+         else
+            fAliased = fField = HB_FALSE;
+
+         nTmpLen = nTmp - nStart;
+         if( szSrc[ nTmp ] != '(' && ! fField && nTmpLen <= HB_SYMBOL_NAME_LEN )
+         {
+            memcpy( szVar, szSrc + nStart, nTmpLen );
+            szVar[ nTmpLen ] = '\0';
+            if( ! fAliased && ! leto_isFieldVar( szVar ) )
+            {
+               // memvar or local
+               if( ! fMemvarAllowed )
+               {
+                  fValid = HB_FALSE;
+                  break;
+               }
+               pDyns = hb_dynsymFindName( szVar );  /* converts to upper */
+               if( ! ( pDyns && hb_dynsymIsMemvar( pDyns ) ) )
+               {
+                  fValid = HB_FALSE;
+                  break;
+               }
+            }
+         }
+         nStart = nTmp;
+      }
+      else
+         nStart++;
+   }
+
+   return fValid;
+}
+
+HB_FUNC( LETO_VAREXPRTEST )
+{
+   const char * szSrc = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
+   HB_BOOL      fMemvarAllowed = HB_ISLOG( 2 ) ? hb_parl( 2 ) : HB_TRUE;
+
+   if( szSrc )
+   {
+      if( ! Leto_VarExprTest( szSrc, fMemvarAllowed ) )
+         hb_retl( HB_FALSE );  /* contains LOCAL or not allowed MEMVAR */
+      else
+         hb_retl( HB_TRUE );  /* expression optimized */
+   }
+   else
+      hb_retl( HB_FALSE );
+}
+
+#if ! defined( __XHARBOUR__ )
 
 /* with szDst == NULL test only and break with first valid memvar -- else collect also into optional 3-dim pArr */
 HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr )
@@ -2578,6 +2757,29 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
          nStart = nTmp;
          continue;
       }
+      else if( szSrc[ nStart ] == '.' && nStart + 4 < nSrcLen && HB_ISALPHA( szSrc[ nStart + 1 ] ) )
+      {
+         nTmp = 1;
+         if( HB_TOUPPER( szSrc[ nStart + 1 ] ) == 'O' && HB_TOUPPER( szSrc[ nStart + 2 ] ) == 'R' && szSrc[ nStart + 3 ] == '.' )
+            nTmp = 4;
+         else if( szSrc[ nStart + 4 ] == '.' )
+         {
+            if( ( HB_TOUPPER( szSrc[ nStart + 1 ] ) == 'A' &&
+                  HB_TOUPPER( szSrc[ nStart + 2 ] ) == 'N' &&
+                  HB_TOUPPER( szSrc[ nStart + 3 ] ) == 'D' ) ||
+                ( HB_TOUPPER( szSrc[ nStart + 1 ] ) == 'N' &&
+                  HB_TOUPPER( szSrc[ nStart + 2 ] ) == 'O' &&
+                  HB_TOUPPER( szSrc[ nStart + 3 ] ) == 'T' ) )
+               nTmp = 5;
+         }
+         if( szDst )
+         {
+            memcpy( *szDst + nDst, szSrc + nStart, nTmp );
+            nDst += nTmp;
+         }
+         nStart += nTmp + 1;
+         continue;
+      }
       else if( HB_ISFIRSTIDCHAR( szSrc[ nStart ] ) )
       {
          nTmp = nStart + 1;
@@ -2593,7 +2795,10 @@ HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, co
             {
                fField = hb_strnicmp( szSrc + nStart, "MEMVAR",  nTmp - nStart ) == 0 ? HB_FALSE : HB_TRUE;
                if( ! fField )  /* remove memvar prefix */
+               {
+                  fAliased = HB_FALSE;
                   nStart = nTmp + 2;
+               }
             }
             else
                fField = HB_TRUE;
@@ -2959,16 +3164,6 @@ HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr )
    }
 
    return errCode;
-}
-
-HB_FUNC( LETO_VAREXPRTEST )
-{
-   const char * szSrc = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
-
-   if( szSrc )
-      hb_retl( Leto_VarExprCreate( NULL, szSrc, hb_parclen( 1 ), NULL, NULL ) );
-   else
-      hb_retl( HB_FALSE );
 }
 
 /* search for PRIVATE/ PUBLIC var in expression; unique replace them with Leto_VarGet();

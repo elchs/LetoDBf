@@ -72,6 +72,7 @@ static HB_BOOL   s_fLockConnect = HB_FALSE;
    #define HB_GC_UNLOCKA()  hb_threadLeaveCriticalSection( &s_accMtx )
 #endif
 
+extern int iDebugMode( void );
 extern int leto_GetParam( char * szData, ... );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
 extern HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs );
@@ -262,8 +263,7 @@ HB_BOOL leto_filesize( const char * szFilename, HB_ULONG * pulLen )
                bRes = HB_TRUE;
             }
          }
-         if( pEntry )
-            hb_itemRelease( pEntry );
+         hb_itemRelease( pEntry );
       }
       if( pDir )
          hb_itemRelease( pDir );
@@ -385,17 +385,19 @@ static void leto_acc_read( const char * szFilename )
       hb_xfree( pBuffer );
 }
 
-HB_BOOL leto_acc_find( const char * szUser, const char * szPass, char ** pAcc )
+HB_BOOL leto_acc_find( PUSERSTRU pUStru, const char * szPass )
 {
+   const char * szUser = ( char * ) pUStru->szUsername;
+   const char * szRet = NULL;
    HB_USHORT    uiLen = ( HB_USHORT ) strlen( szUser );
    PACCSTRU     pacc;
-   const char * szRet = NULL;
 
-   HB_GC_LOCKA();
-   if( s_acc )
+   if( s_acc && uiLen )
    {
       HB_BOOL fRes = HB_FALSE;
       int     i;
+
+      HB_GC_LOCKA();
 
       for( i = 0, pacc = s_acc; i < s_uiAccCurr; i++, pacc++ )
       {
@@ -404,36 +406,37 @@ HB_BOOL leto_acc_find( const char * szUser, const char * szPass, char ** pAcc )
             fRes = HB_TRUE;
             if( pacc->uiPasslen )
             {
-               char *   pBuf = ( char * ) hb_xgrab( pacc->uiPasslen / 2 );
-               HB_ULONG ulLen;
+               char *   pBuf = ( char * ) hb_xgrab( ( pacc->uiPasslen / 2 ) + 1 );
+               HB_ULONG ulLen = 0;
 
                leto_hexchar2byte( pacc->szPass, pacc->uiPasslen, pBuf );
                leto_cryptReset( HB_TRUE );
                leto_decrypt( pBuf, pacc->uiPasslen / 2, pBuf, &ulLen, __RANDOM_STRING__, HB_TRUE );
                leto_cryptReset( HB_TRUE );
 
-               if( ( uiLen = ( HB_USHORT ) strlen( szPass ) ) == ( HB_USHORT ) ulLen &&
-                   pacc->uiPasslen && ! strncmp( szPass, pBuf, ulLen ) )
-               {
+               if( ulLen && ! strncmp( szPass, pBuf, ulLen ) )
                   szRet = pacc->szAccess;
-               }
-               else
-                  leto_writelog( NULL, -1, "INFO: user %s : wrong password, access denied", szUser );
+
                memset( pBuf, 0, pacc->uiPasslen / 2 );  /* bye bye */
                hb_xfree( pBuf );
             }
+            else
+               szRet = pacc->szAccess;
+            break;
          }
       }
 
-      if( ! fRes )
+      HB_GC_UNLOCKA();
+
+      if( ! fRes && iDebugMode() > 0 )
          leto_writelog( NULL, -1, "INFO: unknown user %s access denied", szUser );
+      else if( ! szRet && iDebugMode() > 0 )
+         leto_writelog( NULL, -1, "INFO: user %s : wrong password, access denied", szUser );
    }
-   HB_GC_UNLOCKA();
 
    if( szRet )
    {
-      **pAcc++ = *szRet++;
-      **pAcc = *szRet;
+      memcpy( pUStru->szAccess, szRet, 2 );
       return HB_TRUE;
    }
 
@@ -480,7 +483,7 @@ static HB_BOOL leto_acc_add( const char * szUser, const char * szPass, const cha
       strcpy( szUsername, szUser );
       pacc->szUser = szUsername;
 
-      uiLen = ( HB_USHORT ) strlen( szPass );
+      uiLen = szPass ? ( HB_USHORT ) strlen( szPass ) : 0;
       if( uiLen > 0 )
       {
          char *   pBuf = ( char * ) hb_xgrab( uiLen + 8 );
@@ -498,11 +501,13 @@ static HB_BOOL leto_acc_add( const char * szUser, const char * szPass, const cha
 
          hb_xfree( pBuf );
       }
+#if 0
       else
       {
          pacc->szPass = NULL;
          pacc->szPass[ uiLen ] = '\0';
       }
+#endif
 
       pacc->szAccess[ 0 ] = pacc->szAccess[ 1 ] = '\0';
       if( szAccess && *szAccess )
@@ -595,7 +600,10 @@ static HB_BOOL leto_acc_setpass( const char * szUser, const char * szPass )
       {
          if( uiLen == pacc->uiUslen && ! strncmp( szUser, pacc->szUser, uiLen ) )
          {
-            if( ( uiLen = ( HB_USHORT ) strlen( szPass ) ) > 0 )
+            if( pacc->szPass )
+               hb_xfree( pacc->szPass );
+            uiLen = szPass ? ( HB_USHORT ) strlen( szPass ) : 0;
+            if( uiLen )
             {
                char *   pBuf = ( char * ) hb_xgrab( uiLen + 8 );
                char *   szPassword;
@@ -611,8 +619,13 @@ static HB_BOOL leto_acc_setpass( const char * szUser, const char * szPass )
                pacc->szPass = szPassword;
                hb_xfree( pBuf );
                s_fAccUpdated = HB_TRUE;
-               fRes = HB_TRUE;
             }
+            else
+            {
+               pacc->szPass = NULL;
+               pacc->uiPasslen = 0;
+            }
+            fRes = HB_TRUE;
             break;
          }
       }
@@ -777,19 +790,25 @@ void leto_Admin( PUSERSTRU pUStru, char * szData )
       {
          if( ! strncmp( szData, "uadd", 4 ) || ! strncmp( szData, "upsw", 4 ) )
          {
-            if( nParam < 3 )
+            if( ( *( szData + 1 ) == 'a' && nParam < 3 ) || nParam < 2 )
                pData = szErr4;
             else
             {
-               if( ( ulLen = ( pp3 - pp2 - 1 ) ) <= 48 )
+               ulLen = strlen( pp2 );
+               if( ulLen <= 80 )
                {
-                  char * szKey = leto_localKey( pUStru->cDopcode, LETO_DOPCODE_LEN );
-                  char * szPass = ( char * ) hb_xgrab( ( ulLen / 2 ) + 1 );
+                  char * szPass = NULL;
 
-                  leto_hexchar2byte( pp2, ulLen, szPass );
-                  leto_decrypt( szPass, ulLen / 2, szPass, &ulLen, szKey, HB_FALSE );
-                  if( szKey )
-                     hb_xfree( szKey );
+                  if( ulLen )
+                  {
+                     char * szKey = leto_localKey( pUStru->cDopcode, LETO_DOPCODE_LEN );
+
+                     szPass = ( char * ) hb_xgrab( ( ulLen / 2 ) + 1 );
+                     leto_hexchar2byte( pp2, ulLen, szPass );
+                     leto_decrypt( szPass, ulLen / 2, szPass, &ulLen, szKey, HB_FALSE );
+                     if( szKey )
+                        hb_xfree( szKey );
+                  }
                   if( *( szData + 1 ) == 'a' )
                   {
                      if( leto_acc_add( pp1, szPass, pp3 ) )
@@ -804,7 +823,8 @@ void leto_Admin( PUSERSTRU pUStru, char * szData )
                      else
                         pData = szErr4;
                   }
-                  hb_xfree( szPass );
+                  if( szPass )
+                     hb_xfree( szPass );
                }
                else
                   pData = szErr4;
