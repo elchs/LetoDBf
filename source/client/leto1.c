@@ -3507,9 +3507,9 @@ static HB_ERRCODE letoSort( LETOAREAP pArea, LPDBSORTINFO pSortInfo )
    if( pTransInfo->dbsci.fOptimized )
    {
       if( pTransInfo->dbsci.lpstrFor )
-         pTransInfo->dbsci.fOptimized = Leto_VarExprTest( pTransInfo->dbsci.lpstrFor, fMemvarAllowed );
+         pTransInfo->dbsci.fOptimized = Leto_VarExprTest( hb_itemGetCPtr( pTransInfo->dbsci.lpstrFor ), fMemvarAllowed );
       if( pTransInfo->dbsci.fOptimized && pTransInfo->dbsci.lpstrWhile )
-         pTransInfo->dbsci.fOptimized = Leto_VarExprTest( pTransInfo->dbsci.lpstrWhile, fMemvarAllowed );
+         pTransInfo->dbsci.fOptimized = Leto_VarExprTest( hb_itemGetCPtr( pTransInfo->dbsci.lpstrWhile ), fMemvarAllowed );
    }
    if( ! fLetoAreaDst || ! pTransInfo->dbsci.fOptimized ||
        ( pArea->pTable->uiConnection != pAreaDst->pTable->uiConnection ) )
@@ -3624,9 +3624,9 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
    if( pTransInfo->dbsci.fOptimized )
    {
       if( pTransInfo->dbsci.lpstrFor )
-         pTransInfo->dbsci.fOptimized = Leto_VarExprTest( pTransInfo->dbsci.lpstrFor, fMemvarAllowed );
+         pTransInfo->dbsci.fOptimized = Leto_VarExprTest( hb_itemGetCPtr( pTransInfo->dbsci.lpstrFor ), fMemvarAllowed );
       if( pTransInfo->dbsci.fOptimized && pTransInfo->dbsci.lpstrWhile )
-         pTransInfo->dbsci.fOptimized = Leto_VarExprTest( pTransInfo->dbsci.lpstrWhile, fMemvarAllowed );
+         pTransInfo->dbsci.fOptimized = Leto_VarExprTest( hb_itemGetCPtr( pTransInfo->dbsci.lpstrWhile ), fMemvarAllowed );
    }
    if( ! fLetoAreaDst || ! pTransInfo->dbsci.fOptimized ||
        ( pArea->pTable->uiConnection != pAreaDst->pTable->uiConnection ) )
@@ -3926,11 +3926,7 @@ static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
          if( errCode == HB_SUCCESS )
          {
             if( leto_SendRecv( pConnection, pArea, szData, ulLen, 0 ) )
-            {
                pRelInf->isOptimized = ! leto_CheckError( pArea, pConnection );
-               if( hb_setGetForceOpt() && ! pRelInf->isOptimized )
-                  errCode = HB_FAILURE;
-            }
             else
                errCode = HB_FAILURE;
          }
@@ -5204,6 +5200,16 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
          }
 #endif
 
+         if( fCanOptimize && ! fMemvarAllowed )
+         {
+            PHB_ITEM pBlock = leto_mkCodeBlock( hb_itemGetCPtr( pFilterInfo->abFilterText ),
+                                                hb_itemGetCLen( pFilterInfo->abFilterText ) );
+
+            if( ! pBlock || ! HB_IS_LOGICAL( hb_vmEvalBlockOrMacro( pBlock ) ) )
+               fCanOptimize = HB_FALSE;  /* don't try at server */
+            hb_itemRelease( pBlock );
+         }
+
          if( fCanOptimize && ! LetoDbSetFilter( pTable, hb_itemGetCPtr( pFilterInfo->abFilterText ), hb_setGetForceOpt() ) )
          {
             /* server can evaluate expression -> optimized */
@@ -5215,42 +5221,39 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
          {
             LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
 
-            if( pConnection->iError )
-            {
-               commonError( pArea, EG_SYNTAX, pConnection->iError, 0, NULL, 0, NULL );
-               return HB_FAILURE;
-            }
-
             if( pFilter )  /* reset to unmodified expression */
+            {
                pFilterInfo->abFilterText = hb_itemPutC( pFilterInfo->abFilterText, hb_itemGetCPtr( pFilter ) );
+               hb_itemRelease( pFilter );
+            }
             if( pTable->pFilterVar )
             {
                hb_itemRelease( pTable->pFilterVar );
                pTable->pFilterVar = NULL;
             }
             pFilterInfo->fOptimized = HB_FALSE;
-#if 0  /* throw ? error of server - or ignore it ? */
-            if( hb_setGetForceOpt() )
+            if( pConnection->iError )
             {
-               const char * ptr = leto_firstchar( pConnection );
-
-               if( strlen( ptr ) >= 3 && if( ptr[ 3 ] == ':' ) )
-                  leto_CheckError( pArea, pConnection );
+               commonError( pArea, EG_SYNTAX, pConnection->iError, 0, NULL, 0, hb_itemGetCPtr( pFilterInfo->abFilterText ) );
+               return HB_FAILURE;
             }
-#endif
          }
-         if( pFilter )
-            hb_itemRelease( pFilter );
       }
 
-      if( pFilterInfo->itmCobExpr )
+      if( ! pFilterInfo->fOptimized )
       {
-         if( ! HB_IS_LOGICAL( hb_vmEvalBlockOrMacro( pFilterInfo->itmCobExpr ) ) )
+         /* prefere at client-side a given CB, else try to create */
+         if( ! pFilterInfo->itmCobExpr && hb_itemGetCLen( pFilterInfo->abFilterText ) )
+            pFilterInfo->itmCobExpr = leto_mkCodeBlock( hb_itemGetCPtr( pFilterInfo->abFilterText ), hb_itemGetCLen( pFilterInfo->abFilterText ) );
+         if( ! pFilterInfo->itmCobExpr || ! HB_IS_LOGICAL( hb_vmEvalBlockOrMacro( pFilterInfo->itmCobExpr ) ) )
+         {
+            commonError( pArea, EG_SYNTAX, 1026, 0, NULL, 0,
+                         pFilterInfo->abFilterText ? hb_itemGetCPtr( pFilterInfo->abFilterText ) : NULL );
             return HB_FAILURE;
+         }
+
          ( ( AREAP ) pArea )->dbfi.itmCobExpr = hb_itemNew( pFilterInfo->itmCobExpr );
       }
-      else if( ! pFilterInfo->fOptimized )
-         return HB_FAILURE;
 
       if( pFilterInfo->abFilterText )
          ( ( AREAP ) pArea )->dbfi.abFilterText = hb_itemNew( pFilterInfo->abFilterText );

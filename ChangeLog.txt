@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-09-20 11:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/leto1.c
+    ! fix in letoSort()/ letoTrans(): .lpstr[For|While] is a PHB_ITEM!
+    ! not removing in letoSetRel() the relation if not optimized;
+    ! fix in letoSetFilter() optimizing logic ( set CB only if ! optimized );
+      pre-test at client optimize-able expression if _SET_FORCEOPT is false.
+
 2018-09-15 22:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * include/leto_std.ch
