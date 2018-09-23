@@ -57,7 +57,7 @@ static const char * szErrAcc = "-ACC";
 static PACCSTRU  s_acc = NULL;
 static HB_USHORT s_uiAccAlloc = 0;          // Number of allocated account structures
 static HB_USHORT s_uiAccCurr = 0;           // Current number of accounts
-static HB_BOOL   s_fAccUpdated = 0;
+static HB_BOOL   s_fAccUpdated = HB_FALSE;
 static char *    s_pAccPath = NULL;
 
 static HB_BOOL   s_fLockConnect = HB_FALSE;
@@ -446,12 +446,15 @@ HB_BOOL leto_acc_find( PUSERSTRU pUStru, const char * szPass )
 static HB_BOOL leto_acc_add( const char * szUser, const char * szPass, const char * szAccess )
 {
    int       i;
-   HB_USHORT uiLen = ( HB_USHORT ) strlen( szUser );
+   HB_USHORT uiLen = szUser ? ( HB_USHORT ) strlen( szUser ) : 0;
    PACCSTRU  pacc;
    HB_BOOL   fRes = HB_TRUE;
 
+   if( ! uiLen )
+      return HB_FALSE;
+
    HB_GC_LOCKA();
-   if( uiLen > 0 && s_acc )
+   if( s_acc )
    {
       for( i = 0, pacc = s_acc; i < s_uiAccCurr; i++, pacc++ )
       {
@@ -463,7 +466,7 @@ static HB_BOOL leto_acc_add( const char * szUser, const char * szPass, const cha
       }
    }
 
-   if( fRes && uiLen > 0 )
+   if( fRes )
    {
       char * szUsername = ( char * ) hb_xgrab( uiLen + 1 );
 
@@ -687,6 +690,23 @@ void leto_acc_setPath( const char * szPath )
    }
 }
 
+static void leto_acc_clear( void )
+{
+   PACCSTRU pacc;
+   int      i;
+
+   for( i = 0, pacc = s_acc; i < s_uiAccCurr; i++, pacc++ )
+   {
+      hb_xfree( pacc->szUser );
+      if( pacc->szPass )
+         hb_xfree( pacc->szPass );
+   }
+
+   hb_xfree( s_acc );
+   s_acc = NULL;
+   s_uiAccAlloc = 0;
+}
+
 static HB_BOOL leto_acc_flush( void )
 {
    PACCSTRU   pacc;
@@ -745,7 +765,15 @@ static HB_BOOL leto_acc_flush( void )
          fRes = leto_filewrite( s_pAccPath, pData, 0, ulLenLen, HB_TRUE );
          hb_xfree( pData );
       }
-
+      else
+      {
+         leto_filesize( s_pAccPath, &ulLen );
+         fRes = ulLen ? hb_fileDelete( s_pAccPath ) : HB_TRUE;
+         if( fRes )
+            leto_acc_clear();
+      }
+      if( fRes )
+         s_fAccUpdated = HB_FALSE;
    }
    HB_GC_UNLOCKA();
 
@@ -758,19 +786,7 @@ void leto_acc_release( void )
    leto_acc_flush();
 
    if( s_acc )
-   {
-      PACCSTRU pacc;
-      int      i;
-
-      for( i = 0, pacc = s_acc; i < s_uiAccCurr; i++, pacc++ )
-      {
-         hb_xfree( pacc->szUser );
-         if( pacc->szPass )
-            hb_xfree( pacc->szPass );
-      }
-
-      hb_xfree( s_acc );
-   }
+      leto_acc_clear();
    if( s_pAccPath )
       hb_xfree( s_pAccPath );
 }

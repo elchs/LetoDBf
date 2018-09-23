@@ -58,9 +58,13 @@
    #ifdef __RANDOM_STRING__
       #undef __RANDOM_STRING__
    #endif
-   #define __RANDOM_STRING__   "e.L!#-pcC@ZTa0&H"
-#elif ! defined( __RANDOM_STRING__ )
-   #define __RANDOM_STRING__   "e.L!#-pcC@ZTa0&H"
+#endif
+#if ! defined( __RANDOM_STRING__ )
+   #if defined( LETO_USERPASS )
+      #define __RANDOM_STRING__   HB_MACRO2STRING( LETO_USERPASS )
+   #else
+      #define __RANDOM_STRING__   "e.L!#-pcC@ZTa0&H"
+   #endif
 #endif
 
 #if defined( HB_OS_UNIX )

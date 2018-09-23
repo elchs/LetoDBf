@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-09-20 16:58 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/funcleto.h
+    + option to define __RANDOM_STRING__ at command-line with LETO_USERPASS
+      without source changes, used for encrypting user credentials, e.g.;
+         hbmk2 letodb -cflag=-DLETO_USERPASS=AbsoluteSureNobodyKnowMe
+
+  * source/server/letoacc.c
+    ! delete the users file if the last user is deleted
+
+  * Readme.txt
+    * revoke suggest to disable the second thread [6th param Leto_Connect()];
+      add note about config option 'Pass_File'
+
 2018-09-20 11:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/leto1.c
     ! fix in letoSort()/ letoTrans(): .lpstr[For|While] is a PHB_ITEM!

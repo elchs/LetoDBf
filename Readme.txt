@@ -418,6 +418,8 @@ A. Internals
       Pass_for_Manage = 0      -    if 1, user authentication is necessary to use management functions,
                                     e.g. run the monitor console [ Leto_mggetinfo() ]
       Pass_for_Data = 0        -    if 1, user authentication is necessary to have write access to the data;
+      Pass_File = leto_users   -    [ path + ] filename of the user database for authentication.
+                                    If no path is given, it will appear in directory of server executable
       Server_User =                 The Unix/ Linux username from whom UID and GUI are fetched for __LINUX_DAEMON__.
                                     Have precedence over following two options, if username is given and exists.
       Server_UID = 0                The User-ID and Group-ID for the Linux server to run as daemon.
@@ -608,10 +610,18 @@ A. Internals
  which grants rights to; 'admin' 'manage' 'write access'.
 
  You can also use the console program in utils/manager/console.prg to add/ delete users.
- Look for section 8.1
 
- To connect to a server with an authentication active with username and password, you must use
- the LETO_CONNECT() function.
+ To connect to a server with username and password when authentication is activated,
+ you must use the LETO_CONNECT() function.
+ Then also the console monitor needs to login with username/ password - see section 8.1 for params.
+
+ The user credentials are read during server start, its content is kept in memory,
+ aka deleting this file needs a server restart to reset ( plus revoking authentication required ).
+ Default place in server directory can be adapted with config option: 'Pass_file' with an [absolute] path.
+ User credentials are encrypted with a default password burned in the executable,
+ which can be personalized for your environment, e.g.:
+     hbmk2 letodb -cflag=-DLETO_USERPASS=AbsoluteSureNobodyKnowMe
+ A new executable with a different password makes the old user credentials invalid, needs to start from scatch.
 
 
       4.4 Samba file service
@@ -995,10 +1005,9 @@ A. Internals
  the records skipbuffer will be refreshed, 100 by default ( 100/100 == 1 sec ).
  Value zero (0) means infinite! caching, -1 will disable using the skip buffer. These both extreme
  values should be applied only at very special! occasion and need.
- lZombieCheck = .F. disable check for dead connection and also the second socket
- for faster communication with the server. Default is .T.
- If you use in letodb.ini configuration point: Pass_for_Data = 1, it is advised to
- disable lZombieCheck, aka to set it explicitely to .F.
+ <lZombieCheck> = .F. disable usage of a second socket for faster communication with the server,
+ and as the check for dead connection needs it, this will also disable it for this connection.
+ Default for Harbour is .T., for xHarbour in any case .F. -- this should commonly not be changed.
 
 
       LETO_CONNECT_ERR( [ lAsText ] )                          ==> nError [ cError ]
@@ -1184,7 +1193,7 @@ A. Internals
 
 
       LETO_DBEVAL( <cbBlock> , [ <cbFor> ], [ <cbWhile> ], [ nNext ], [ nRecord ], [ lRest ],;
-                   [ <lResultArr> ], [ <lNeedLock> ], [ <lDescend> ], <lStay> )
+                   [ [@]<lResultArr> ], [ <lNeedLock> ], [ <lDescend> ], <lStay> )
                                                                ==> lSuccess | aResults | xValue
  This function is a 'drop-in' replace for DBEval(), and "leto_std.ch" pre-process all DBEval() calls to
  use this function.
@@ -1217,6 +1226,7 @@ A. Internals
  <lResultArr> set to TRUE ( .T. ) return a <aResults> array of the results of <cbBlock>
    for each processed record. ( to be precise: return value of last function inside <cbBlock> )
    With default <lResultArr> == FALSE ( .F. ), result is return value of *last* executed <cbBock>.
+   Value <lResultArr> can be given in a variable by (@) reference to store afterwards the result into.
 
  <lNeedLock> set TRUE ( .T. ) informs Leto_DbEvil(), that records must be locked for executing <cbBlock>.
    If the table is *not* opened as <exclusive> or <shared with set Flock()>, RDDI_AUTOLOCK needs activated.
