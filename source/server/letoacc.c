@@ -414,7 +414,7 @@ HB_BOOL leto_acc_find( PUSERSTRU pUStru, const char * szPass )
                leto_decrypt( pBuf, pacc->uiPasslen / 2, pBuf, &ulLen, __RANDOM_STRING__, HB_TRUE );
                leto_cryptReset( HB_TRUE );
 
-               if( ulLen && ! strncmp( szPass, pBuf, ulLen ) )
+               if( ulLen && ! strncmp( szPass, pBuf, ulLen ) && ulLen == strlen( szPass ) )
                   szRet = pacc->szAccess;
 
                memset( pBuf, 0, pacc->uiPasslen / 2 );  /* bye bye */

@@ -80,6 +80,9 @@ FUNCTION RDINI( fname )
                ENDIF
                vname  := AllTrim( Left( stroka, poz1 - 1 ) )
                stroka := AllTrim( SubStr( stroka, poz1 + 1 ) )
+               IF Left( stroka, 1 ) == '"' .AND. Right( stroka, 1 ) == '"'
+                  stroka := SubStr( stroka, 2, Len( stroka ) - 2 )
+               ENDIF
                AAdd( arr[ Len( arr ), 2 ], { Upper( vname ), stroka } )
             ENDIF
          ENDIF

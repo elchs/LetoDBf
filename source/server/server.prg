@@ -298,6 +298,11 @@ PROCEDURE StartServer()
          RETURN
       ENDIF
    ENDIF
+   IF ( oApp:lPass4L .OR. oApp:lPass4M .OR. oApp:lPass4D ) .AND. ! hb_FileExists( oApp:cPassFile )
+      WrLog( "LetoDBf Server: user credentials '" + oApp:cPassFile + "' does not exists .." )
+      ErrorLevel( 2 )
+      RETURN
+   ENDIF
 
    leto_SetAppOptions( oApp:DataPath, oApp:nDriver, oApp:lFileFunc, oApp:lAnyExt,;
          oApp:lPass4L, oApp:lPass4M, oApp:lPass4D, oApp:cPassFile, oApp:lCryptTraffic,;

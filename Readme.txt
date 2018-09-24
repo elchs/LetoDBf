@@ -425,7 +425,6 @@ A. Internals
       Server_UID = 0                The User-ID and Group-ID for the Linux server to run as daemon.
       Server_GID = 0                Your DBF tables will get this IDs, important for choosing the correct access rights.
                                     Default is empty, then this will be the U-ID and G-ID who started the server.
-      Pass_File = "leto_users" -    the path and name of users info file;
       Max_Vars_Number = 1000   -    Maximum number of shared variables
       Max_Var_Size = 67108864  -    Maximim size in sum of all text/ array variables, default 64 MB.
                                     A single text/ array variable is allowed to be a quarter of that ( 16 MB )
