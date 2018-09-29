@@ -591,9 +591,11 @@ static HB_SOCKET leto_ipConnect( const char * szHost, int iPort, int iTimeOut, L
    pszIpAddres = hb_socketResolveAddr( szHost, HB_SOCKET_AF_INET );
    if( pszIpAddres == NULL )
       return HB_NO_SOCKET;
+
    sd = hb_socketOpen( HB_SOCKET_PF_INET, HB_SOCKET_PT_STREAM, 0 );
    if( sd != HB_NO_SOCKET )
    {
+      HB_BOOL  fOk = HB_FALSE;
       void *   pSockAddr;
       unsigned uiLen;
 
@@ -611,16 +613,15 @@ static HB_SOCKET leto_ipConnect( const char * szHost, int iPort, int iTimeOut, L
             hb_socketSetSndBufSize( sd, 0xFFFF );
 
          if( hb_socketConnect( sd, pSockAddr, uiLen, iTimeOut ) == 0 )
-            hb_socketSetNoDelay( sd, HB_TRUE );
-         else
          {
-            iErrorCode = hb_socketGetError();
-            hb_socketShutdown( sd, HB_SOCKET_SHUT_RDWR  );
-            hb_socketClose( sd );
-            sd = HB_NO_SOCKET;
+            fOk = HB_TRUE;
+            hb_socketSetNoDelay( sd, HB_TRUE );
+            if( pConnection && strcmp( pszIpAddres, szHost ) )
+               pConnection->pAddrDNS = hb_strdup( szHost );
          }
       }
-      else
+
+      if( ! fOk )
       {
          iErrorCode = hb_socketGetError();
          hb_socketShutdown( sd, HB_SOCKET_SHUT_RDWR  );
@@ -1432,12 +1433,16 @@ LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort )
 
    for( ui = 0; ui < pLetoPool->uiConnCount; ui++ )
    {
-      if( pLetoPool->letoConnPool[ ui ].pAddr &&
-          ! strcmp( pLetoPool->letoConnPool[ ui ].pAddr, szAddr ) &&
-          pLetoPool->letoConnPool[ ui ].iPort == iPort )
+      if( pLetoPool->letoConnPool[ ui ].iPort == iPort )
       {
-         pLetoPool->pCurrentConn = pLetoPool->letoConnPool + ui;
-         return pLetoPool->pCurrentConn;
+         if( ( pLetoPool->letoConnPool[ ui ].pAddr &&
+               ! strcmp( pLetoPool->letoConnPool[ ui ].pAddr, szAddr ) ) ||
+             ( pLetoPool->letoConnPool[ ui ].pAddrDNS &&
+               ! strcmp( pLetoPool->letoConnPool[ ui ].pAddrDNS, szAddr ) ) )
+         {
+            pLetoPool->pCurrentConn = pLetoPool->letoConnPool + ui;
+            return pLetoPool->pCurrentConn;
+         }
       }
    }
    return NULL;
@@ -1451,12 +1456,16 @@ LETOCONNECTION * leto_ConnectionFind( const char * szAddr, int iPort )
 
    for( i = 0; i < s_uiConnCount; i++ )
    {
-      if( s_letoConnPool[ i ].pAddr &&
-          ! strcmp( s_letoConnPool[ i ].pAddr, szAddr ) &&
-          s_letoConnPool[ i ].iPort == iPort )
+      if( s_letoConnPool[ i ].iPort == iPort )
       {
-         s_pCurrentConn = s_letoConnPool + i;
-         return s_pCurrentConn;
+         if( ( s_letoConnPool[ i ].pAddr &&
+               ! strcmp( s_letoConnPool[ i ].pAddr, szAddr ) ) ||
+             ( s_letoConnPool[ i ].pAddrDNS &&
+               ! strcmp( s_letoConnPool[ i ].pAddrDNS, szAddr ) ) )
+         {
+            s_pCurrentConn = s_letoConnPool + i;
+            return s_pCurrentConn;
+         }
       }
    }
    return NULL;
@@ -1583,7 +1592,13 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
       szAddr[ ptrPort - ptr ] = '\0';
       if( atoi( szAddr ) == 0 )  /* instead a valid hostname ? */
       {
-         char * szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
+         LETOCONNECTION * pFoundConn = leto_ConnectionFind( szAddr, fWithPort && *piPort ? *piPort : LETO_DEFAULT_PORT );
+         char * szIP;
+
+         if( pFoundConn )
+            szIP = hb_strdup( pFoundConn->pAddr );
+         else
+            szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
 
          if( szIP )
          {
@@ -3212,6 +3227,11 @@ void LetoConnectionClose( LETOCONNECTION * pConnection )
    {
       hb_xfree( pConnection->pAddr );
       pConnection->pAddr = NULL;
+   }
+   if( pConnection->pAddrDNS )
+   {
+      hb_xfree( pConnection->pAddrDNS );
+      pConnection->pAddrDNS = NULL;
    }
    if( pConnection->szVerHarbour )
    {

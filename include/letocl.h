@@ -214,6 +214,7 @@ typedef struct _LETOCONNECTION_
    HB_SOCKET         hSocket;
    HB_SOCKET         hSocketErr;
    PHB_ZNETSTREAM    zstream;
+   char *            pAddrDNS;             /* server DNS name */
    char *            pAddr;                /* server IP address */
    int               iPort;                /* port at client side */
    int               iServerPort;          /* port at server side */

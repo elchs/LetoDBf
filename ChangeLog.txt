@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-09-29 05:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/letocl.c
+    * on special request from Itamar: caching DNS names to avoid REAL
+      DNS name requests;
+      maybe better using Leto_Connect() instead DNS names in paths ..
+
 2018-09-24 19:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * Readme.txt
   * bin/letodb.ini
