@@ -616,7 +616,7 @@ static HB_SOCKET leto_ipConnect( const char * szHost, int iPort, int iTimeOut, L
          {
             fOk = HB_TRUE;
             hb_socketSetNoDelay( sd, HB_TRUE );
-            if( pConnection && strcmp( pszIpAddres, szHost ) )
+            if( pConnection && ! pConnection->pAddrDNS && strcmp( pszIpAddres, szHost ) )
                pConnection->pAddrDNS = hb_strdup( szHost );
          }
       }
@@ -1596,9 +1596,25 @@ HB_BOOL leto_getIpFromPath( const char * szSource, char * szAddr, int * piPort, 
          char * szIP;
 
          if( pFoundConn )
+         {
             szIP = hb_strdup( pFoundConn->pAddr );
+#ifdef LETO_CLIENTLOG
+            leto_clientlog( NULL, 0, "DEBUG leto_getIpFromPath(%s) found IP:%s", szAddr, szIP );
+#endif
+         }
          else
+         {
             szIP = hb_socketResolveAddr( szAddr, HB_SOCKET_AF_INET );
+            if( szIP && strcmp( szIP, szAddr ) )
+               pFoundConn = leto_ConnectionFind( szIP, fWithPort && *piPort ? *piPort : LETO_DEFAULT_PORT );
+            if( pFoundConn && ! pFoundConn->pAddrDNS )
+            {
+               pFoundConn->pAddrDNS = hb_strdup( szAddr );
+#ifdef LETO_CLIENTLOG
+               leto_clientlog( NULL, 0, "DEBUG leto_getIpFromPath(%s) set IP:%s", szAddr, szIP );
+#endif
+            }
+         }
 
          if( szIP )
          {

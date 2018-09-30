@@ -2,6 +2,10 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-09-30 17:07 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+    ! fix still not working DNS caching from last upload
+
 2018-09-29 05:55 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/letocl.c
