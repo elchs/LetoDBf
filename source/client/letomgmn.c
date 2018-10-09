@@ -879,7 +879,7 @@ HB_FUNC( LETO_CONNECT )
          pConnection->iTimeOut = iTimeOut;
       }
       if( HB_ISNUM( 5 ) )
-         pConnection->iBufRefreshTime = HB_MAX( hb_parni( 5 ), -1 );
+         pConnection->iBufRefreshTime = HB_MAX( hb_parni( 5 ) * 10, -1 );
       hb_rddDefaultDrv( "LETO" );
       iRet = pConnection->iConnection;
    }
@@ -1008,7 +1008,7 @@ HB_FUNC( LETO_CPULOAD )
 
 HB_FUNC( LETO_MILLISEC )
 {
-   hb_retnll( hb_dateMilliSeconds() );
+   hb_retnll( leto_MilliSec() );
 }
 
 HB_FUNC( LETO_MGGETINFO )

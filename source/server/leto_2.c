@@ -45,9 +45,15 @@
  *
  */
 
-#if defined( HB_OS_WIN_32 ) || defined( HB_OS_WIN )
+#include "hbsetup.h"
+
+#if defined( HB_OS_WIN )
    #include <winsock2.h>
+   #include <ws2tcpip.h>
    #include <windows.h>
+   #if ! defined( SIO_KEEPALIVE_VALS )
+      #define SIO_KEEPALIVE_VALS    2550136836
+   #endif
 #endif
 
 #include "srvleto.h"
@@ -74,9 +80,21 @@
    #define HB_GC_UNLOCKX()     hb_threadLeaveCriticalSection( &s_SocksMtx )
 #endif
 
-#define LETO_CPU_STATISTIC
+#if defined( HB_OS_UNIX ) && ( defined( CLOCK_MONOTONIC ) || defined( CLOCK_MONOTONIC_RAW ) )
+   #define LETO_CPU_STATISTIC
+#endif
 #define LETO_UDP_TIMEOUT    60000
 #define USMAX_AT_ONCE        100
+
+
+#if defined( SIO_KEEPALIVE_VALS )
+   typedef struct
+   {
+      HB_ULONG onoff;
+      HB_ULONG keepalivetime;
+      HB_ULONG keepaliveinterval;
+   } LETO_KEEPALIVE;
+#endif
 
 static const char * szOk = "++++";
 static const char * szErr1 = "-001";
@@ -596,19 +614,14 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
          char     szOperation[ 256 ];
          char     szCommand[ 128 ];
          char     szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
-         HB_ULONG ulElapse = 0;
+         HB_ULONG ulElapse = ( HB_ULONG ) leto_MilliDiff( pUStru->llLastAct );
          char *   ptr2;
          HB_ULONG ulBufLen = 127;
-         HB_I64   llTmp = leto_MilliSec();
 
          if( iError < 0 )
             iError *= -1;
          if( iError > 9999 )
             iError %= 10000;
-
-         /* how much *whole seconds* old is the failure event ? */
-         if( ( llTmp < 0 ) == ( pUStru->llLastAct < 0 ) )  /* same signed */
-            ulElapse = ( HB_ULONG ) ( ( llTmp / 1000 ) - pUStru->llLastAct );
 
          /* was there an alias available ? */
          if( pUStru->pCurAStru && *( pUStru->pCurAStru->szAlias ) )
@@ -633,7 +646,7 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
          /* prepare a human readable description for the operation */
          szOperation[ 0 ] = '\0';
          if( ulElapse )  /* older command */
-            sprintf( szOperation, " TIME <%lu>, ", ulElapse );
+            sprintf( szOperation, " TIME <%lu> ms, ", ulElapse );
          if( *szAlias )
             sprintf( szOperation + strlen( szOperation ), "ALIAS (%s), ", szAlias );
          if( ulBufLen )
@@ -1393,12 +1406,13 @@ static HB_THREAD_STARTFUNC( thread3 )
 
 static HB_BOOL leto_idleSleep( double dSeconds )
 {
-   HB_I64  llLastCheck = leto_MilliSec();
+   HB_U64  llLastCheck = leto_MilliSec();
    HB_BOOL fNoQuit = HB_TRUE;
 
    if( dSeconds > 0 )
    {
-      while( leto_MilliSec() - llLastCheck < ( dSeconds * 1000 ) )
+      dSeconds *= 1000;
+      while( leto_MilliDiff( llLastCheck ) < dSeconds )
       {
          hb_releaseCPU();
          if( leto_ExitGlobal( HB_FALSE ) || hb_vmRequestQuery() != 0 )
@@ -1457,7 +1471,7 @@ static HB_THREAD_STARTFUNC( thread2 )
    PUSERSTRU pUStru = ( PUSERSTRU ) Cargo;
    HB_ULONG  ulTmp, ulRecvLen = 0;
 #ifdef LETO_CPU_STATISTIC
-   HB_I64    llTimePoint;
+   HB_U64    llTimePoint;
    HB_U64    ullTimeElapse;
 #endif
    int       iChange;
@@ -1572,14 +1586,11 @@ static HB_THREAD_STARTFUNC( thread2 )
          iChange = select( nfds + 1, &readfds, NULL, NULL /* &exceptfds*/, NULL /*&MicroWait*/ );
          if( iChange <= 0 )
          {
+            hb_vmLock();
             if( LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
-            {
-               hb_vmLock();
                continue;
-            }
             else
             {
-               hb_vmLock();
                leto_writelog( NULL, -1, "DEBUG thread2() in select(%d) for socket: %d [pipe: %d] with error: %d",
                               nfds + 1, ( int ) pUStru->hSocket,
                               pUStru->hSockPipe[ 0 ] != FS_ERROR ? pUStru->hSockPipe[ 0 ] : -1,
@@ -1589,8 +1600,7 @@ static HB_THREAD_STARTFUNC( thread2 )
          }
          else
          {
-
-            if( ! FD_ISSET( ( int ) pUStru->hSocket, &readfds ) )  // no socket read event
+            if( ! FD_ISSET( ( int ) pUStru->hSocket, &readfds ) )  /* no socket read event */
             {
                hb_vmLock();
    #if ! defined( HB_OS_WIN )
@@ -1602,8 +1612,11 @@ static HB_THREAD_STARTFUNC( thread2 )
                   hb_fsPipeRead( pUStru->hSockPipe[ 0 ], &c, 1, 0 );
                   break;
                }
+               else
+                  continue;
+   #else
+               /* run further to break soon below with an invalid read */
    #endif
-               continue;
             }
          }
 #endif  /* poll() / select() */
@@ -1667,6 +1680,12 @@ static HB_THREAD_STARTFUNC( thread2 )
             else if( iErr && iErr != 2 )
                leto_writelog( NULL, -1, "ERROR thread2() Socket error: %s [%s:%s (%d)]",
                               hb_socketErrorStr( iErr ), pUStru->szAddr, pUStru->szExename, iErr );
+            else if( iDebugMode() > 0 && pUStru->bCloseConnection )
+               leto_writelog( NULL, -1, "DEBUG thread2() %s:%d (%s) terminated by management",
+                              pUStru->szAddr, pUStru->iPort, pUStru->szExename );
+            else if( iDebugMode() > 10 && s_iTimeOut > 0 )
+               leto_writelog( NULL, -1, "DEBUG thread2() %s:%d (%s) probably lost network connection",
+                              pUStru->szAddr, pUStru->iPort, pUStru->szExename );
          }
          else if( iDebugMode() > 0 && ulRecvLen )
             leto_writelog( NULL, -1, "DEBUG thread2() no LetoDBf client at %s:%d ! leto_SockRec(%lu) != LETO_MSGSIZE_LEN",
@@ -1800,11 +1819,7 @@ static HB_THREAD_STARTFUNC( thread2 )
       /* Note: LetoDB monitor <read> these two values, maybe in a race condition with wrong content,
        *       but leto_Mgmt() ever ensures a zero terminated copy of this buffer;
        *       further these values are just used for 'fancy info' */
-#ifdef LETO_CPU_STATISTIC
-      pUStru->llLastAct = llTimePoint / 1000000;
-#else
-      pUStru->llLastAct = leto_MilliSec() / 1000;
-#endif
+      pUStru->llLastAct = leto_MilliSec();
       memcpy( pUStru->szLastRequest, pUStru->pBuffer, ulRecvLen > 63 ? 63 : ulRecvLen );
       pUStru->szLastRequest[ ulRecvLen > 63 ? 63 : ulRecvLen ] = '\0';
       pUStru->iHbError = 0;  /* leave the pUStru->szHbError description for e.g. console monitor */
@@ -1876,11 +1891,13 @@ HB_FUNC( LETO_SERVER )
       s_iTimeOut = hb_parni( 3 );
       if( s_iTimeOut > 0 )
          s_iTimeOut *= 1000;
+#if 0  /* temporary commented out */
       if( s_iTimeOut > 10000 )
          leto_setTimeout( ( HB_ULONG ) s_iTimeOut );
+#endif
    }
    if( HB_ISNUM( 4 ) )
-      s_iZombieCheck = hb_parni( 4 );
+      s_iZombieCheck = HB_MAX( hb_parni( 4 ), 0 );
 
    hb_socketInit();
    if( ( hSocketMain = hb_socketOpen( HB_SOCKET_AF_INET, HB_SOCKET_PT_STREAM, 0 ) ) != HB_NO_SOCKET )
@@ -2190,7 +2207,34 @@ HB_FUNC( LETO_SERVER )
       {
          PUSERSTRU pUStru;
 
+
+#if 1 && defined( SIO_KEEPALIVE_VALS )
+         if( ! bSocketErr && s_iTimeOut > 0 )
+         {
+            DWORD            dwBuffer = sizeof( LETO_KEEPALIVE );
+            LETO_KEEPALIVE * keep_alive = ( LETO_KEEPALIVE * ) hb_xgrab( dwBuffer );
+
+            /* connection closing after: KEEPALIVE_TIME + ( KEEPALIVE_INTERVAL * ( KEEPALIVE_PROBES + 1 ) )
+             * defaults: KEEPALIVE_TIME = 2hour!, KEEPALIVE_INTERVAL = 1000, KEEPALIVE_PROBES = 5 */
+            ( *keep_alive ).onoff = 1;
+            ( *keep_alive ).keepalivetime = ( HB_ULONG ) ( s_iTimeOut / 2 );
+            ( *keep_alive ).keepaliveinterval = ( HB_ULONG ) ( s_iTimeOut / 12 );
+            if( WSAIoctl( incoming, SIO_KEEPALIVE_VALS, ( LPVOID ) keep_alive, dwBuffer, NULL, 0, &dwBuffer, NULL, NULL ) != SOCKET_ERROR )
+            {
+               if( iDebugMode() > 10 )
+                  leto_writelog( NULL, -1, "DEBUG socket set %lu ms keep-alive timeout", s_iTimeOut );
+            }
+            else
+            {
+               hb_socketSetKeepAlive( incoming, HB_TRUE );
+               leto_writelog( NULL, 0, "ERROR could not set socket specific keep-alive timeout ..."  );
+            }
+            hb_xfree( keep_alive );
+         }
+         else
+#else
          hb_socketSetKeepAlive( incoming, HB_TRUE );
+#endif
          hb_socketSetNoDelay( incoming, HB_TRUE );
          // hb_socketSetBlockingIO( incoming, HB_TRUE );
          /* set 64KB send and receive buffer */
@@ -2325,6 +2369,9 @@ HB_FUNC( LETO_SERVER )
          AREAP        pArea;
          HB_BOOL      bFine = HB_TRUE;
 
+         if( iDebugMode() > 0 )
+            leto_writelog( NULL, -1, "DEBUG %d WAs still open by other connections ...", iLen );
+
          for( i = iLen; i > 0; --i )
          {
             szAlias = hb_arrayGetCPtr( pDetached, i );
@@ -2342,8 +2389,8 @@ HB_FUNC( LETO_SERVER )
          else
             leto_writelog( NULL, 0, "ERROR check you taskmanager for final killing LetoDB" );
 #else
-      /* hb_rddCloseDetachedAreas(); is in below */
-      hb_rddShutDown();
+         /* hb_rddCloseDetachedAreas(); is in below */
+         hb_rddShutDown();
 #endif
       }
       if( pDetached )

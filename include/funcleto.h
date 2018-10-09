@@ -173,7 +173,8 @@
 #define LETO_FLAG_UPD_FLUSH    0x10
 #define LETO_FLAG_UPD_ALL      0x20
 
-extern HB_I64 leto_MilliSec( void );
+extern HB_U64 leto_MilliSec( void );
+extern HB_U64 leto_MilliDiff( HB_U64 oldstamp );
 extern HB_U64 leto_MicroSec( void );
 extern int leto_CPUCores( void );
 extern HB_UINT leto_CPULoad( void );

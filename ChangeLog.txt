@@ -2,6 +2,42 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-10-09 11:25 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/funcleto.h
+  * include/letocl.h
+  * include/srvleto.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+  * source/common/common_c.c
+  * source/server/leto_2.c
+    * switch struct members llCentiSec and llLastAct, and function
+      leto_MilliSec() using un!signed values
+    * remove macro LETO_CENTISEC, use internal also millis for llCentiSec
+      and struct item iBufRefreshTime; fetch PRG params *= 10
+    * switch problematic QueryPerformanceCounter() to poor GetTickCount(),
+      precise enough for leto_MilliSec();
+      take care for overrun with new leto_MilliDiff();
+    * PRG func LETO_MILLISEC() to use leto_MilliSec()
+
+  * source/client/letocl.c
+    % don't request for exclusive! WA the server for RecCount(),
+      value is available at client and can't change by other user
+
+  * source/server/leto_2.c
+    * do not use leto_MicroSec() for server CPU statistics in WIN builds;
+    + implement a different way using WSAIoctl() to set keep-alive timeout in
+      Windows builds;
+      server config option: TimeOut is used for this, the former meaning of
+      this option is now outcomented
+
+  * source/server/letofunc.c
+    ! close the socket ( after a socket shutdown ) for Windows, to wake up
+      select(), used in leto_PingForZombies() and MgMt connection shutdown;
+      the following invalid socket read closes connection, leaving a note
+    - remove in leto_Flush() usage of method SELF_GOCOLD(), it may have
+      a bad effect for server mode No_Save_WA = 0
+
 2018-09-30 17:07 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     ! fix still not working DNS caching from last upload

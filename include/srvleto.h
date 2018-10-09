@@ -245,7 +245,7 @@ typedef struct
    char              szAccess[ 2 ];
    char              cDopcode[ LETO_DOPCODE_LEN + 1 ];   /* random bytes > 0 flexible mixed into LETO_PASSWORD */
    HB_BOOL           bLastAct;                /* temporary value, internal used as replace for void return value */
-   HB_I64            llLastAct;               /* seconds ago of last activity */
+   HB_U64            llLastAct;               /* seconds ago of last activity */
    HB_U64            ullCPULoad;              /* milliseconds sum of server CPU load for requests except network time */
    LETO_LIST         AreasList;
    HB_USHORT         uiAreasCount;

@@ -1050,7 +1050,7 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
    /* automatic refresh data if record is accessible to other; 0 == infinite cache */
    if( pTable->fAutoRefresh && pTable->fShared && ! pTable->fFLocked && ! pTable->fRecLocked && ! pTable->fReadonly )
    {
-      if( pTable->iBufRefreshTime && LETO_CENTISEC() - pTable->llCentiSec >= pTable->iBufRefreshTime )
+      if( pTable->iBufRefreshTime && ( int ) leto_MilliDiff( pTable->llCentiSec ) >= pTable->iBufRefreshTime )
          LetoDbSkip( pTable, 0 );
    }
 
@@ -2883,7 +2883,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
             if( hb_itemGetNI( pItem ) < -1 )
                pTable->iBufRefreshTime = pConnection->iBufRefreshTime;
             else
-               pTable->iBufRefreshTime = hb_itemGetNI( pItem );
+               pTable->iBufRefreshTime = HB_MAX( hb_itemGetNI( pItem ) * 10, -1 );
             pTable->llCentiSec = 0;
          }
 
@@ -3673,7 +3673,7 @@ static HB_ERRCODE letoTrans( LETOAREAP pArea, LPDBTRANSINFO pTransInfo )
             leto_ParseRecord( pConnection, pAreaDst->pTable, ptr + 4 );
             leto_SetAreaFlags( pAreaDst );
             if( pTable->fAutoRefresh )
-               pTable->llCentiSec = LETO_CENTISEC();
+               pTable->llCentiSec = leto_MilliSec();
          }
       }
       SELF_GOTO( ( AREAP ) pArea, ulRecNo );
@@ -4036,7 +4036,7 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
       leto_ParseRecord( pConnection, pArea->pTable, ptr );
       leto_SetAreaFlags( pArea );
       if( pTable->fAutoRefresh )
-         pTable->llCentiSec = LETO_CENTISEC();
+         pTable->llCentiSec = leto_MilliSec();
    }
    pTable->ptrBuf = NULL;
 
@@ -4758,7 +4758,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
             leto_SetAreaFlags( pArea );
             pTable->ptrBuf = NULL;
             if( pTable->fAutoRefresh )
-               pTable->llCentiSec = LETO_CENTISEC();
+               pTable->llCentiSec = leto_MilliSec();
 
             if( pArea->area.lpdbRelations )
                return SELF_SYNCCHILDREN( ( AREAP ) pArea );
@@ -4813,7 +4813,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
          leto_SetAreaFlags( pArea );
          pTable->ptrBuf = NULL;
          if( pTable->fAutoRefresh )
-            pTable->llCentiSec = LETO_CENTISEC();
+            pTable->llCentiSec = leto_MilliSec();
 
          if( pArea->area.lpdbRelations )
             return SELF_SYNCCHILDREN( ( AREAP ) pArea );
@@ -4856,7 +4856,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
             leto_SetAreaFlags( pArea );
             pTable->ptrBuf = NULL;
             if( pTable->fAutoRefresh )
-               pTable->llCentiSec = LETO_CENTISEC();
+               pTable->llCentiSec = leto_MilliSec();
 
             if( pArea->area.lpdbRelations )
                SELF_SYNCCHILDREN( ( AREAP ) pArea );
@@ -9608,7 +9608,7 @@ HB_FUNC( LETO_RECONNECT )
       if( hb_parni( 4 ) )
          pConnection->iTimeOut = hb_parni( 4 );
       if( hb_parni( 5 ) )
-         pConnection->iBufRefreshTime = hb_parni( 5 );
+         pConnection->iBufRefreshTime = HB_MAX( hb_parni( 5 ) * 10, -1 );
       /* given new address as first param */
       if( ! ( hb_parclen( 1 ) && leto_getIpFromPath( hb_parc( 1 ), szAddr, &iPort, NULL ) ) )
          strcpy( szAddr, pConnection->pAddr );

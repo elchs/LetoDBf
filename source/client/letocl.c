@@ -866,7 +866,7 @@ static HB_BOOL leto_RecvSecond( LETOCONNECTION * pConnection )
 static int leto_socketSelectRead( HB_SOCKET hSocket, HB_MAXINT lTimeOut )
 {
    int    iChange;
-   HB_I64 llMilliSec;
+   HB_U64 llMilliSec;
 
 #if 1 && defined( HB_HAS_POLL )
    struct pollfd pPoll[ 1 ];
@@ -902,14 +902,12 @@ static int leto_socketSelectRead( HB_SOCKET hSocket, HB_MAXINT lTimeOut )
          {
             if( llMilliSec != 0 )
             {
-               HB_I64 llTmp = leto_MilliSec();
-
-               lTimeOut -= llTmp - llMilliSec;
+               lTimeOut -= leto_MilliDiff( llMilliSec );
                if( lTimeOut <= 0 )
                   break;
                else
                {
-                  llMilliSec = llTmp;
+                  llMilliSec = leto_MilliSec();
                   continue;
                }
             }
@@ -965,14 +963,12 @@ static int leto_socketSelectRead( HB_SOCKET hSocket, HB_MAXINT lTimeOut )
          {
             if( llMilliSec != 0 )
             {
-               HB_I64 llTmp = leto_MilliSec();
-
-               lTimeOut -= llTmp - llMilliSec;
+               lTimeOut -= leto_MilliDiff( llMilliSec );
                if( lTimeOut <= 0 )
                   break;
                else
                {
-                  llMilliSec = llTmp;
+                  llMilliSec = leto_MilliSec();
                   continue;
                }
             }
@@ -1004,7 +1000,7 @@ static long leto_Recv( LETOCONNECTION * pConnection )
    HB_BOOL  fCompressed = HB_FALSE;
 #endif
 #ifdef __SOCKET_EAGAIN__
-   HB_I64   llMilliSec;
+   HB_U64   llMilliSec;
 
    if( pConnection->iTimeOut > 0 )
       llMilliSec = leto_MilliSec();
@@ -1043,7 +1039,7 @@ static long leto_Recv( LETOCONNECTION * pConnection )
 #else
       else if( ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) && ! LETO_SOCK_IS_EAGAIN( LETO_SOCK_GETERROR() ) )
          break;
-      else if( llMilliSec != 0 && leto_MilliSec() - llMilliSec > pConnection->iTimeOut )
+      else if( llMilliSec != 0 && leto_MilliDiff( llMilliSec ) > pConnection->iTimeOut )
          break;
 #endif
    }
@@ -1104,7 +1100,7 @@ static long leto_Recv( LETOCONNECTION * pConnection )
 #else
       else if( ! LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) && ! LETO_SOCK_IS_EAGAIN( LETO_SOCK_GETERROR() ) )
          break;
-      else if( llMilliSec != 0 && leto_MilliSec() - llMilliSec > pConnection->iTimeOut )
+      else if( llMilliSec != 0 && leto_MilliDiff( llMilliSec ) > pConnection->iTimeOut )
          break;
 #endif
       else
@@ -1852,7 +1848,7 @@ static void leto_SetBlankRecord( LETOTABLE * pTable )
 /* optimized: hb_setGetDeleted() change checked with LETO_SET() */
 static _HB_INLINE_ HB_BOOL leto_HotBuffer( LETOTABLE * pTable )
 {
-   return ( LETO_CENTISEC() - pTable->llCentiSec < pTable->iBufRefreshTime || pTable->iBufRefreshTime == 0 );
+   return ( ( int ) leto_MilliDiff( pTable->llCentiSec ) < pTable->iBufRefreshTime || pTable->iBufRefreshTime == 0 );
 }
 
 static _HB_INLINE_ HB_BOOL leto_OutBuffer( LETOBUFFER * pLetoBuf, char * ptr )
@@ -1877,7 +1873,7 @@ static _HB_INLINE_ void leto_setSkipBuf( LETOTABLE * pTable, const char * ptr, u
    memcpy( ( char * ) pTable->Buffer.pBuffer, ptr, ulDataLen );
    pTable->ptrBuf = pTable->Buffer.pBuffer;
    pTable->uiRecInBuf = 0;
-   pTable->llCentiSec = LETO_CENTISEC();
+   pTable->llCentiSec = leto_MilliSec();
 }
 
 /* pTable->ptrBuf must be pre-checked to be not NULL */
@@ -2921,7 +2917,7 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
       pConnection->iZipRecord = -1;
       pConnection->fDbEvalCompat = HB_TRUE;
       pConnection->fRefreshCount = HB_TRUE;
-      pConnection->iBufRefreshTime = 100;
+      pConnection->iBufRefreshTime = 1000;
       memset( pConnection->cDopcode, 0, LETO_DOPCODE_LEN + 1 );
       pConnection->hSockPipe[ 0 ] = FS_ERROR;
       pConnection->hSockPipe[ 1 ] = FS_ERROR;
@@ -4260,7 +4256,7 @@ HB_ERRCODE LetoDbRecCount( LETOTABLE * pTable, unsigned long * ulCount )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
 
-   if( pConnection->fRefreshCount || ! pTable->ulRecCount )
+   if( ( pConnection->fRefreshCount && pTable->fShared ) || ! pTable->ulRecCount )
    {
       char          szData[ 32 ];
       unsigned long ulLen;
@@ -4378,7 +4374,7 @@ HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
       leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
       pTable->ptrBuf = NULL;
       if( pTable->fAutoRefresh )
-         pTable->llCentiSec = LETO_CENTISEC();
+         pTable->llCentiSec = leto_MilliSec();
    }
 
    return 0;
@@ -4400,7 +4396,7 @@ HB_ERRCODE LetoDbGoBottom( LETOTABLE * pTable )
    leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
    pTable->ptrBuf = NULL;
    if( pTable->fAutoRefresh )
-      pTable->llCentiSec = LETO_CENTISEC();
+      pTable->llCentiSec = leto_MilliSec();
 
    return 0;
 }
@@ -4421,7 +4417,7 @@ HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable )
    leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
    pTable->ptrBuf = NULL;
    if( pTable->fAutoRefresh )
-      pTable->llCentiSec = LETO_CENTISEC();
+      pTable->llCentiSec = leto_MilliSec();
 
    return 0;
 }
@@ -4511,7 +4507,7 @@ HB_ERRCODE LetoDbSkip( LETOTABLE * pTable, long lToSkip )
    {
       pTable->ptrBuf = NULL;
       if( pTable->fAutoRefresh )
-         pTable->llCentiSec = LETO_CENTISEC();
+         pTable->llCentiSec = leto_MilliSec();
    }
 
    return 0;
@@ -4538,7 +4534,7 @@ HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHORT uiKeyLe
       leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
       pTable->ptrBuf = NULL;
       if( pTable->fAutoRefresh )
-         pTable->llCentiSec = LETO_CENTISEC();
+         pTable->llCentiSec = leto_MilliSec();
    }
 
    return 0;
@@ -4880,7 +4876,7 @@ HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
       if( ! pTable->fFLocked && pTable->fShared && ! pTable->fReadonly )
          pTable->fRecLocked = HB_TRUE;
       if( pTable->fAutoRefresh )
-         pTable->llCentiSec = LETO_CENTISEC();
+         pTable->llCentiSec = leto_MilliSec();
       return HB_SUCCESS;
    }
 
@@ -4928,7 +4924,7 @@ HB_ERRCODE LetoDbEval( LETOTABLE * pTable, const char * szBlock, const char * sz
    if( pTable->ptrBuf && ( ulRecNo != pTable->ulRecNo || fNeedLock ) )
       pTable->ptrBuf = NULL;
    if( pTable->fAutoRefresh )
-      pTable->llCentiSec = LETO_CENTISEC();
+      pTable->llCentiSec = leto_MilliSec();
 
    if( ulRecLen && pParams )
    {
@@ -5006,7 +5002,7 @@ HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const 
    leto_ParseRecord( pConnection, pTable, ptr );
    pTable->ptrBuf = NULL;
    if( pTable->fAutoRefresh )
-      pTable->llCentiSec = LETO_CENTISEC();
+      pTable->llCentiSec = leto_MilliSec();
 
    return 0;
 }
@@ -5058,7 +5054,7 @@ HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagName, unsigne
    leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
    pTable->ptrBuf = NULL;
    if( pTable->fAutoRefresh )
-      pTable->llCentiSec = LETO_CENTISEC();
+      pTable->llCentiSec = leto_MilliSec();
 
    return 0;
 }
@@ -5115,7 +5111,7 @@ HB_ERRCODE LetoDbRecLock( LETOTABLE * pTable, unsigned long ulRecNo )
       if( pTable->ptrBuf )
          leto_refrSkipBuf( pTable );
       else if( pTable->fAutoRefresh )
-         pTable->llCentiSec = LETO_CENTISEC();
+         pTable->llCentiSec = leto_MilliSec();
    }
    else if( leto_replSkipBuf( pTable, ulRecNo, leto_firstchar( pConnection ) ) )
       pTable->ptrBuf = NULL;      /* locked rec in buffer failed ? to refresh */
@@ -5175,7 +5171,7 @@ HB_ERRCODE LetoDbFileLock( LETOTABLE * pTable )
       if( pTable->ptrBuf )
          leto_refrSkipBuf( pTable );
       else if( pTable->fAutoRefresh )
-         pTable->llCentiSec = LETO_CENTISEC();
+         pTable->llCentiSec = leto_MilliSec();
    }
    pTable->fFLocked = HB_TRUE;
 

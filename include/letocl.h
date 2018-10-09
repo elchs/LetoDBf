@@ -81,7 +81,6 @@
 #define LETO_INDEX_EXCL   0x0200
 
 #define leto_firstchar( pConnection )  pConnection->szBuffer + 1
-#define LETO_CENTISEC()                ( leto_MilliSec() / 10 )
 #define LETO_DEFAULT_TIMEOUT           120000  /* two minutes */
 #define LETO_INITIAL_TIMEOUT             6000
 
@@ -180,7 +179,7 @@ typedef struct _LETOTABLE
    unsigned int      uiRecInBuf;
    signed char       BufDirection;
    unsigned long     lLastUpdate;       /* from dbf header: last update */
-   int               iBufRefreshTime;   /* cache refresh time in 1/100 sec */
+   int               iBufRefreshTime;   /* cache refresh time in 1/1000 sec */
    HB_BOOL           fMemIO;            /* 'mem:' in filename */
    HB_BOOL           fAutoRefresh;      /* if true fetch autorefresh data from server if hotbuffer elapsed */
    LETOTAGINFO *     pTagInfo;
@@ -189,7 +188,7 @@ typedef struct _LETOTABLE
    unsigned long     ulLocksMax;        /* Number of records locked */
    unsigned long     ulLocksAlloc;      /* Number of records locked (allocated) */
    HB_USHORT         uiLockScheme;      /* elch new */
-   HB_I64            llCentiSec;        /* timepoint last access record[-buffer] data in 1/ 100 s */
+   HB_U64            llCentiSec;        /* timepoint last access record[-buffer] data in 1/ 1000 s */
    PHB_ITEM          pFilterVar;        /* PHB_ITEM array with LETO_VAR in filter expression to sync */
 } LETOTABLE;                            /* 344 */
 
@@ -253,7 +252,7 @@ typedef struct _LETOCONNECTION_
    int               iZipRecord;
    HB_BOOL           fZipCrypt;
    HB_BOOL           fDbEvalCompat;        /* enable scope to REST if WHILE/NEXT given */
-   int               iBufRefreshTime;      /* in 0.01 sec, afterwards SKIP buffer refresh */
+   int               iBufRefreshTime;      /* in 0.001 sec, afterwards SKIP buffer refresh */
    HB_USHORT         uiDriver;             /* default driver 0 = NTX, 1 = CDX */
    char              szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];       /* DBF driver NAME */
    HB_USHORT         uiLockSchemeExtend;   /* use default or extended lockscheme !! only info, set by server */

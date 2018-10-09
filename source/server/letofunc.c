@@ -3620,13 +3620,11 @@ PUSERSTRU leto_InitUS( HB_SOCKET hSocket )
 int leto_PingForZombies( long lTimeInactive )
 {
    PUSERSTRU pUStru;
-   HB_I64    llTimePoint = leto_MilliSec() / 1000;
    int       iZombies = 0;
    HB_USHORT uiError = 0;
    HB_USHORT uiChecked = 0;
    HB_USHORT * pPingUsers = NULL;
    HB_USHORT uiPingUsers = 0, uiLoop = 0;
-
 
    HB_GC_LOCKU();
    if( s_uiUsersCurr > 0 )
@@ -3639,7 +3637,7 @@ int leto_PingForZombies( long lTimeInactive )
          if( pUStru->iUserStru )
          {
             if( pUStru->hSocketErr != HB_NO_SOCKET &&
-                ( long ) ( llTimePoint - pUStru->llLastAct ) > lTimeInactive )
+                ( long ) ( leto_MilliDiff( pUStru->llLastAct ) / 1000 ) > lTimeInactive )
             {
                pPingUsers[ uiPingUsers++ ] = ( HB_USHORT ) pUStru->iUserStru;
             }
@@ -3660,8 +3658,7 @@ int leto_PingForZombies( long lTimeInactive )
       /* to prevent this client log out during Zombie check */
       hb_threadEnterCriticalSection( &pUStru->pMutex );
 
-      if( pUStru->iUserStru && pUStru->hSocketErr != HB_NO_SOCKET &&
-          ( long ) ( llTimePoint - pUStru->llLastAct ) > lTimeInactive )
+      if( pUStru->iUserStru && pUStru->hSocketErr != HB_NO_SOCKET )
       {
          if( ! leto_AskAnswer( pUStru->hSocketErr ) )
          {
@@ -3676,6 +3673,13 @@ int leto_PingForZombies( long lTimeInactive )
 
                   hb_fsPipeWrite( pUStru->hSockPipe[ 1 ], cToPipe, 1, 0 );
                }
+#if defined( HB_OS_WIN )
+               else
+               {
+                  hb_socketClose( pUStru->hSocket );
+                  pUStru->bCloseConnection = HB_TRUE;
+               }
+#endif
                iZombies++;
             }
          }
@@ -6628,12 +6632,7 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
 static void leto_Flush( PUSERSTRU pUStru, char * szData )
 {
    AREAP   pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   HB_BOOL bOk;
-
-   bOk = SELF_FLUSH( pArea ) == HB_SUCCESS;
-   if( bOk )
-      SELF_GOCOLD( pArea );
-   pUStru->pCurAStru->bUseSkipBuffer = HB_FALSE;
+   HB_BOOL bOk = SELF_FLUSH( pArea ) == HB_SUCCESS;
 
    if( szData )  /* else a flush done after append/ update */
       leto_SendAnswer2( pUStru, szOk, 4, bOk, 1000 );
@@ -6660,6 +6659,9 @@ static void leto_UpdateRecUpdflush( PUSERSTRU pUStru, char * szData )
    leto_UpdateRec( pUStru, szData, HB_FALSE );
    if( *szData == ' ' || *szData == '0' )
    {
+      if( s_iDebugMode > 10 )
+         leto_wUsLog( pUStru, -1, "DEBUG leto_UpdateRecUpdflush() unlock after record update" );
+
       if( *szData == '0' )
          *szData = 'f';
       else
@@ -8170,8 +8172,7 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
    hb_itemRelease( pRest );
    if( pEvalInfo.dbsci.lpstrFor )  /* pJoins */
    {
-      HB_SIZE nPos = 0;
-
+      nPos = 0;
       while( ++nPos <= hb_arrayLen( pEvalInfo.dbsci.lpstrFor ) )
       {
          if( hb_arrayGetType( pEvalInfo.dbsci.lpstrFor, 3 ) & HB_IT_BLOCK )
@@ -9800,7 +9801,6 @@ static void leto_Mgmt( PUSERSTRU pUStru, char * szData )
             PUSERSTRU  pUStru1;
             int        iTable = -1;
             HB_USHORT  ui, uiUsers;
-            HB_I64     llTimePoint = leto_MilliSec() / 1000;
             char       szRequest[ 64 ];
             HB_ULONG   ulMemSize;
             PGLOBESTRU pGlobe = NULL;
@@ -9874,6 +9874,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, char * szData )
                      if( uiUsers >= iListStart )
                      {
                         const char * szNull = "(null)";
+                        long int lSeconds = ( long int ) ( leto_MilliDiff( pUStru1->llLastAct ) / 1000 );
 
                         if( *( pUStru1->szLastRequest ) )
                            memcpy( szRequest, pUStru1->szLastRequest, 63 );
@@ -9893,7 +9894,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, char * szData )
                                         pUStru1->szAddr    ? ( char * ) pUStru1->szAddr    : szNull,
                                         pUStru1->szNetname ? ( char * ) pUStru1->szNetname : szNull,
                                         *( pUStru1->szExename ) ? ( char * ) pUStru1->szExename : szNull,
-                                        ( long int ) ( llTimePoint - pUStru1->llLastAct ),
+                                        lSeconds,
                                         szRequest,
                                         leto_DriverID( pUStru1 ),
                                         pUStru1->szUsername ? ( char * ) pUStru1->szUsername : szNull,
@@ -10565,6 +10566,13 @@ static void leto_Mgmt( PUSERSTRU pUStru, char * szData )
 
                                  hb_fsPipeWrite( pUStru1->hSockPipe[ 1 ], cToPipe, 1, 0 );
                               }
+#if defined( HB_OS_WIN )
+                              else
+                              {
+                                 hb_socketClose( pUStru1->hSocket );
+                                 pUStru1->bCloseConnection = HB_TRUE;
+                              }
+#endif
                               iKilled = pUStru1->iUserStru;
                            }
                            else  /* the hard way, kill socket and close areas */
@@ -10633,6 +10641,13 @@ static void leto_Mgmt( PUSERSTRU pUStru, char * szData )
 
                               hb_fsPipeWrite( pUStru1->hSockPipe[ 1 ], cToPipe, 1, 0 );
                            }
+#if defined( HB_OS_WIN )
+                              else
+                              {
+                                 hb_socketClose( pUStru1->hSocket );
+                                 pUStru1->bCloseConnection = HB_TRUE;
+                              }
+#endif
                            iKilled = pUStru1->iUserStru;
                         }
                         else  /* above wakes up thread with 'bad' socket to let it close All4Us */
@@ -12848,7 +12863,7 @@ static HB_THREAD_STARTFUNC( threadX )
    hb_vmThreadInit( NULL );
    leto_initSet();
 
-   pUStru->llLastAct = leto_MilliSec() / 1000;
+   pUStru->llLastAct = leto_MilliSec();
    pUStru->bRpcMode = HB_TRUE;
 
    hb_threadEnterCriticalSection( &s_ThxMtx );

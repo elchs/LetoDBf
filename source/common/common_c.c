@@ -283,21 +283,7 @@ HB_UINT leto_CPULoad( void )
 
 HB_U64 leto_MicroSec( void )
 {
-#if defined( HB_OS_WIN )
-   LARGE_INTEGER liFrequency;
-
-   if( QueryPerformanceFrequency( &liFrequency ) )
-   {
-      LARGE_INTEGER liCounter;
-
-      QueryPerformanceCounter( &liCounter );
-      return ( HB_I64 ) ( liCounter.QuadPart / ( double ) ( liFrequency.QuadPart / 1000000 ) );
-   }
-   else
-   {
-      return 0;
-   }
-#elif defined( HB_OS_UNIX ) && ( defined( CLOCK_MONOTONIC ) || defined( CLOCK_MONOTONIC_RAW ) )
+#if defined( HB_OS_UNIX ) && ( defined( CLOCK_MONOTONIC ) || defined( CLOCK_MONOTONIC_RAW ) )
    struct timespec ts;
 
    #if defined( CLOCK_MONOTONIC )         /* only forwarding clock */
@@ -306,29 +292,16 @@ HB_U64 leto_MicroSec( void )
       clock_gettime( CLOCK_MONOTONIC_RAW, &ts );
    #endif
 
-   return ( HB_I64 ) ( ts.tv_sec * 1000000 ) + ( ts.tv_nsec / 1000 );
+   return ( HB_U64 ) ( ts.tv_sec * 1000000 ) + ( ts.tv_nsec / 1000 );
 #else
    return 0;
 #endif
 }
 
-/* use of signed to be able to handle overflows */
-HB_I64 leto_MilliSec( void )
+HB_U64 leto_MilliSec( void )
 {
 #if defined( HB_OS_WIN )
-   LARGE_INTEGER liFrequency;
-
-   if( QueryPerformanceFrequency( &liFrequency ) )
-   {
-      LARGE_INTEGER liCounter;
-
-      QueryPerformanceCounter( &liCounter );
-      return ( HB_I64 ) ( liCounter.QuadPart / ( double ) ( liFrequency.QuadPart / 1000 ) );
-   }
-   else  /* not nice fallback in case of system/ OS have not above */
-   {
-      return ( HB_I64 ) timeGetTime() / 10;  /* 32bit => overflow after 49.7 days */
-   }
+   return ( HB_U64 ) GetTickCount();  /* 32bit => overflow after 49.7 days */
 #elif defined( HB_OS_UNIX ) && \
       ( defined( CLOCK_MONOTONIC_COARSE ) || defined( CLOCK_MONOTONIC_RAW ) || defined( CLOCK_MONOTONIC ) )
    struct timespec ts;
@@ -341,9 +314,29 @@ HB_I64 leto_MilliSec( void )
       clock_gettime( CLOCK_MONOTONIC, &ts );
    #endif
 
-   return ( HB_I64 ) ( ts.tv_sec * 1000 ) + ( ts.tv_nsec / 1000000 );
+   return ( HB_U64 ) ( ts.tv_sec * 1000 ) + ( ts.tv_nsec / 1000000 );
 #else
-   return ( HB_I64 ) hb_dateMilliSeconds();
+   return ( HB_U64 ) hb_dateMilliSeconds();  /* may go back and forth */
+#endif
+}
+
+
+HB_U64 leto_MilliDiff( HB_U64 oldstamp )
+{
+#if defined( HB_OS_UNIX ) && \
+      ( defined( CLOCK_MONOTONIC_COARSE ) || defined( CLOCK_MONOTONIC_RAW ) || defined( CLOCK_MONOTONIC ) )
+   return leto_MilliSec() - oldstamp;
+#else
+   HB_U64 newstamp = leto_MilliSec();
+
+   if( newstamp < oldstamp )
+   #if defined( HB_OS_WIN )
+      return ( 0xffffffff - ( HB_U32 ) oldstamp ) + ( HB_U32 ) newstamp;
+   #else
+      return 0;
+   #endif
+   else
+      return newstamp - oldstamp;
 #endif
 }
 
