@@ -6070,6 +6070,8 @@ static void leto_Unlock( PUSERSTRU pUStru, char * szData )
 
    if( *szData == 'r' && ( ulRecNo = strtoul( szData + ( *( szData + 1 ) == ';' ? 2 : 1 ), NULL, 10 ) ) == 0 )
       leto_SendAnswer2( pUStru, szErr2, 4, HB_FALSE, 1000 );
+   else if( ! pUStru->pCurAStru )
+      leto_SendAnswer2( pUStru, szErr2, 4, HB_FALSE, 1000 );
    else
    {
       int iRes = 0;
@@ -6632,7 +6634,12 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
 static void leto_Flush( PUSERSTRU pUStru, char * szData )
 {
    AREAP   pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-   HB_BOOL bOk = SELF_FLUSH( pArea ) == HB_SUCCESS;
+   HB_BOOL bOk = ( pArea && pUStru->pCurAStru );
+
+   if( bOk )
+      bOk = SELF_FLUSH( pArea ) == HB_SUCCESS;
+   else
+      leto_wUsLog( pUStru, -1, "ERROR leto_Flush() %s missing", pArea ? "pAStru" : "WA" );
 
    if( szData )  /* else a flush done after append/ update */
       leto_SendAnswer2( pUStru, szOk, 4, bOk, 1000 );
@@ -6645,7 +6652,11 @@ static void leto_UpdateRecAdd( PUSERSTRU pUStru, char * szData )
 
 static void leto_UpdateRecAddflush( PUSERSTRU pUStru, char * szData )
 {
+   pUStru->bBeQuiet = HB_TRUE;  /* prevent detaching the WA */
    leto_UpdateRec( pUStru, szData, HB_TRUE );
+   pUStru->bBeQuiet = HB_FALSE;
+   if( s_iDebugMode > 10 )
+      leto_wUsLog( pUStru, -1, "DEBUG leto_UpdateRecAddflush(%p) flush() after record update", pUStru->pCurAStru );
    leto_Flush( pUStru, NULL );
 }
 
@@ -6656,12 +6667,13 @@ static void leto_UpdateRecUpd( PUSERSTRU pUStru, char * szData )
 
 static void leto_UpdateRecUpdflush( PUSERSTRU pUStru, char * szData )
 {
+   pUStru->bBeQuiet = HB_TRUE;  /* prevent detaching the WA */
    leto_UpdateRec( pUStru, szData, HB_FALSE );
+   pUStru->bBeQuiet = HB_FALSE;
    if( *szData == ' ' || *szData == '0' )
    {
       if( s_iDebugMode > 10 )
-         leto_wUsLog( pUStru, -1, "DEBUG leto_UpdateRecUpdflush() unlock after record update" );
-
+         leto_wUsLog( pUStru, -1, "DEBUG leto_UpdateRecUpdflush(%p) unlock() after record update", pUStru->pCurAStru );
       if( *szData == '0' )
          *szData = 'f';
       else

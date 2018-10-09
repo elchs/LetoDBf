@@ -47,11 +47,6 @@
  *
  */
 
-#if defined( HB_OS_WIN_32 ) || defined( HB_OS_WIN )
-   #include <winsock2.h>
-   #include <windows.h>
-#endif
-
 #include "rddleto.h"
 
 #if defined( HB_OS_UNIX )
@@ -68,15 +63,9 @@
       #endif
    #endif
    #include <errno.h>
-   #include <netinet/in.h>
-   #include <arpa/inet.h>
-   #include <pwd.h>
-   #include <sys/types.h>
 #endif
 
-#if defined ( _MSC_VER )
-   #define _WINSOCKAPI_
-#endif
+#define LETO_EXCL_HOTBUFFER  1  /* no timeout data from server for exclusive workarea */
 
 #ifndef LETO_NO_THREAD
    static PHB_ITEM s_pError = NULL;   /* elch's prepared GLOBAL error object from second thread */
@@ -1848,7 +1837,12 @@ static void leto_SetBlankRecord( LETOTABLE * pTable )
 /* optimized: hb_setGetDeleted() change checked with LETO_SET() */
 static _HB_INLINE_ HB_BOOL leto_HotBuffer( LETOTABLE * pTable )
 {
+#ifdef LETO_EXCL_HOTBUFFER
+   return ( ! pTable->iBufRefreshTime || ! pTable->fShared ||
+            ( int ) leto_MilliDiff( pTable->llCentiSec ) < pTable->iBufRefreshTime );
+#else
    return ( ( int ) leto_MilliDiff( pTable->llCentiSec ) < pTable->iBufRefreshTime || pTable->iBufRefreshTime == 0 );
+#endif
 }
 
 static _HB_INLINE_ HB_BOOL leto_OutBuffer( LETOBUFFER * pLetoBuf, char * ptr )

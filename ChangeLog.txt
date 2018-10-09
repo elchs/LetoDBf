@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-10-09 19:38 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letocl.c
+    - remove unused headers
+    % activate infinite caching for *exclusive WA* ( LETO_EXCL_HOTBUFFER ),
+      means once send data is not timeout refreshed from server for SKIP/ GOTO
+
+  * source/server/letofunc.c
+    ! leto_UpdateRecAddflush() / leto_UpdateRecUpdflush():
+      set bBeQuiet flag to prevent an (too) early de-select of the WA,
+      possible done in leto_SendAnswer() for leto_UpdateRec();
+      WA is needed afterwards for the leto_Unlock() / leto_Flush()
+
 2018-10-09 11:25 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/funcleto.h
   * include/letocl.h
