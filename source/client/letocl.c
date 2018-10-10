@@ -2434,6 +2434,10 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
 
    pTable->ulRecCount = HB_GET_LE_UINT32( ( const HB_BYTE * ) ptr + 1 );  /* after a ';' */
 
+#ifdef LETO_CLIENTLOG
+   leto_clientlog( NULL, 0, "leto_ParseRecord() processed record %lu of %lu", pTable->ulRecNo, pTable->ulRecCount );
+#endif
+
    if( pTable->pTagCurrent )
    {
       ptr += 5;  /* see above: behind ulRecCount */
