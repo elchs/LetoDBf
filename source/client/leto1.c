@@ -955,7 +955,7 @@ static HB_ERRCODE letoFlush( LETOAREAP pArea )
 {
    LETOTABLE * pTable = pArea->pTable;
 
-   HB_TRACE( HB_TR_DEBUG, ( "letoFlush(%p)", pArea ) );
+   HB_TRACE( HB_TR_DEBUG, ( "letoFlush(%p, %d)", pArea, pTable->uiUpdated ) );
 
    if( ! pTable )
       return HB_FAILURE;
@@ -1298,7 +1298,6 @@ static HB_ERRCODE letoGetValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
 }
 
 #define letoGetVarLen  NULL
-#define letoGoCold     NULL
 #define letoGoCold     NULL
 #define letoGoHot      NULL
 
@@ -5276,13 +5275,19 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
 
 static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulRecNo )
 {
-   LETOCONNECTION * pConnection;
+   LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    LETOTABLE * pTable = pArea->pTable;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoRawLock(%p, %hu, %lu)", pArea, uiAction, ulRecNo ) );
 
-   if( pTable->fReadonly )
-      return HB_SUCCESS;  /* Harbour conform, better would be HB_FAILURE */
+   if( pArea->lpdbPendingRel )
+   {
+      if( SELF_FORCEREL( ( AREAP ) pArea ) != HB_SUCCESS )
+         return HB_FAILURE;
+   }
+
+   if( pTable->fReadonly || ! pTable->fShared )
+      return HB_SUCCESS;
 
    if( pTable->uiUpdated )
    {
@@ -5290,8 +5295,7 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
 
       if( ! ( pTable->uiUpdated & LETO_FLAG_UPD_APPEND ) && ( uiAction == REC_UNLOCK || uiAction == FILE_UNLOCK ) )
       {
-         pConnection = letoGetConnPool( pTable->uiConnection );
-         if( ! pConnection->fTransActive )
+         if( ! ( pConnection->fTransActive || pTable->fModStamp ) )  /* fModStamp: fresh data with LetoDbRecUnLock() */
          {
             fInstant = HB_TRUE;
             pTable->uiUpdated |= LETO_FLAG_UPD_FLUSH;
@@ -5310,7 +5314,7 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
                pTable->fRecLocked = HB_FALSE;
             return HB_SUCCESS;
          }
-         else if( uiAction == FILE_UNLOCK )
+         else /* FILE_UNLOCK */
          {
             pTable->fFLocked = pTable->fRecLocked = HB_FALSE;
             pTable->ulLocksMax = 0;
@@ -5319,18 +5323,11 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
       }
    }
 
-   if( pArea->lpdbPendingRel )
-   {
-      if( SELF_FORCEREL( ( AREAP ) pArea ) != HB_SUCCESS )
-         return HB_FAILURE;
-   }
-
    switch( uiAction )
    {
       case REC_LOCK:
          if( LetoDbRecLock( pTable, ulRecNo ) )
          {
-            pConnection = letoGetConnPool( pTable->uiConnection );
             if( pConnection->iError )
                commonError( pArea, pConnection->iError == 1038 ? EG_DATATYPE : EG_SYNTAX, pConnection->iError, 0,
                             pConnection->iError == 1038 ? pConnection->szBuffer : NULL, 0, NULL );
@@ -5339,7 +5336,6 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
          break;
 
       case REC_UNLOCK:
-         pConnection = letoGetConnPool( pTable->uiConnection );
          if( ! pConnection->fTransForce && LetoDbRecUnLock( pTable, ulRecNo ) )
          {
             if( pConnection->iError )
@@ -5353,7 +5349,6 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
       case HEADER_LOCK:
          if( LetoDbFileLock( pTable ) )
          {
-            pConnection = letoGetConnPool( pTable->uiConnection );
             if( pConnection->iError )
                commonError( pArea, pConnection->iError == 1038 ? EG_DATATYPE : EG_SYNTAX, pConnection->iError, 0,
                             pConnection->iError == 1038 ? pConnection->szBuffer : NULL, 0, NULL );
@@ -5363,7 +5358,6 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
 
       case FILE_UNLOCK:
       case HEADER_UNLOCK:
-         pConnection = letoGetConnPool( pTable->uiConnection );
          if( ! pConnection->fTransForce &&
             ( pTable->fFLocked || pTable->fRecLocked || pTable->ulLocksMax ) && LetoDbFileUnLock( pTable ) )
          {
@@ -5384,10 +5378,15 @@ static HB_ERRCODE letoLock( LETOAREAP pArea, LPDBLOCKINFO pLockInfo )
    HB_ULONG    ulRecNo = ( HB_ULONG ) hb_itemGetNL( pLockInfo->itmRecID );
    HB_USHORT   uiAction;
 
-   HB_TRACE( HB_TR_DEBUG, ( "letoLock(%p, %p)", pArea, pLockInfo ) );
+   HB_TRACE( HB_TR_DEBUG, ( "letoLock(%p, %d, %lu)", pArea, pLockInfo->uiMethod, ulRecNo ) );
 
-   if( ! ulRecNo && pArea->lpdbPendingRel )
+   if( pArea->lpdbPendingRel )
       SELF_FORCEREL( ( AREAP ) pArea );
+   if( pTable->fReadonly || ! pTable->fShared || ( pConnection->fTransActive && pTable->fFLocked ) )
+   {
+      pLockInfo->fResult = HB_TRUE;
+      return HB_SUCCESS;
+   }
 
    switch( pLockInfo->uiMethod )
    {
@@ -5430,10 +5429,14 @@ static HB_ERRCODE letoUnLock( LETOAREAP pArea, PHB_ITEM pRecNo )
    HB_ULONG    ulRecNo = hb_itemGetNL( pRecNo );
    HB_ERRCODE  errCode;
 
-   HB_TRACE( HB_TR_DEBUG, ( "letoUnLock(%p, %p)", pArea, pRecNo ) );
+   HB_TRACE( HB_TR_DEBUG, ( "letoUnLock(%p, %lu)", pArea, ulRecNo ) );
 
+   if( pArea->lpdbPendingRel )
+      SELF_FORCEREL( ( AREAP ) pArea );
    if( pConnection->fTransForce )
       return HB_SUCCESS;  /* keep the lock */
+   else if( pTable->fReadonly || ! pTable->fShared )
+      return HB_SUCCESS;
 
    errCode = SELF_RAWLOCK( ( AREAP ) pArea, ( ulRecNo ) ? REC_UNLOCK : FILE_UNLOCK, ulRecNo );
    if( errCode == HB_SUCCESS && ulRecNo && pTable->pLocksPos )
@@ -6183,7 +6186,7 @@ static HB_ERRCODE leto_UnLockRec( AREAP pArea, void * p )
    if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) )
    {
       ( ( LETOAREAP ) pArea )->pTable->ptrBuf = NULL;
-      SELF_RAWLOCK( pArea, FILE_UNLOCK, 0 );
+      SELF_UNLOCK( pArea, NULL );
    }
    return HB_SUCCESS;
 }

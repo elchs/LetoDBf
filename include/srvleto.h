@@ -193,6 +193,7 @@ typedef struct
    LETO_LIST         IndexList;                /* Index List */
    HB_ULONG          ulFlags;                  /* Lock flags, some prehistoric relict ;-) */
    PGLOBESTRU        pGlobe;                   /* 1 to 1 relation into GLOBESTRU, for s_bNoSaveWA: n to 1 */
+   HB_BOOL           bModStamp;                /* table with HB_FT_MODTIME/ HB_FT_ROWVER fields */
 } TABLESTRU, * PTABLESTRU;                     /* 200 */
 
 typedef struct

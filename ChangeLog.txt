@@ -2,6 +2,27 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-11-19 11:19 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+    ! don't try lock/ unlock requests to server for *exclusive* table
+    ! fix behaviour for field types: HB_FT_MODTIME & HB_FT_ROWVER,
+      done by receiving new record data after unlocking/ commit a record;
+      This applies only to such tables, any else behave as before.
+      ; as *exclusive* table do not 'lock', DbUnlock() will not update
+        those fields -- DbCommit() must be used instead/ additionally
+      ; these fields are not updated during active transaction at client,
+        fields are filled/ use-able firstly after transaction is commited
+    * new boolean flag fModStamp to indicate table with above field-types
+    * add RecNo to flush request
+
+  * include/srvleto.h
+  * source/server/letofunc.c
+    * move flush into leto_UpdateRec(),
+      add flushing in leto_Transaction() for exclusive 'bModStamp' tables
+    * return record data for bModStamp table in leto_Flush(), leto_Unlock()
+
 2018-10-10 11:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letocl.c
     * debug message in leto_ParseRecord()

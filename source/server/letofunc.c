@@ -2986,6 +2986,7 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
    pTStru->bMemIO = ! strncmp( szName, "mem:", 4 );
    pTStru->bShared = bShared;
    pTStru->bReadonly = bReadonly;
+   pTStru->bModStamp = ( ( DBFAREAP ) pArea )->fModStamp;
    letoListInit( &pTStru->LocksList, sizeof( HB_ULONG ) );
    letoListInit( &pTStru->IndexList, sizeof( INDEXSTRU ) );
    SELF_FIELDCOUNT( pArea, &pTStru->uiFields );
@@ -6080,15 +6081,47 @@ static void leto_Unlock( PUSERSTRU pUStru, char * szData )
       {
          case 'r':  /* Delete record from the area/ table locks lists */
             leto_RecUnlock( pUStru->pCurAStru, ulRecNo );
-            leto_SendAnswer2( pUStru, szOk, 4, ! iRes, iRes );
+            if( ! pUStru->pCurAStru->pTStru->bModStamp )
+               leto_SendAnswer2( pUStru, szOk, 4, ! iRes, iRes );
+            else
+            {
+               HB_ULONG ulLen;
+               AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+               char *   szData1 = leto_recWithAlloc( pArea, pUStru, pUStru->pCurAStru, &ulLen );
+
+               if( szData1 )
+               {
+                  leto_SendAnswer( pUStru, szData1, ulLen );
+                  hb_xfree( szData1 );
+               }
+               else
+                  leto_SendAnswer( pUStru, szErr1, 4 );
+            }
             break;
 
          case 'f':  /* Unlock table */
             iRes = leto_TableUnlock( pUStru->pCurAStru, HB_FALSE, NULL ) ? 0 : 1021;  /* also record locks */
-            if( ! iRes )
-               leto_SendAnswer2( pUStru, szOk, 4, ! iRes, iRes );
+            if( ! pUStru->pCurAStru->pTStru->bModStamp )
+            {
+               if( ! iRes )
+                  leto_SendAnswer2( pUStru, szOk, 4, ! iRes, iRes );
+               else
+                  leto_SendAnswer2( pUStru, szErr4, 4, HB_FALSE, 1021 );
+            }
             else
-               leto_SendAnswer2( pUStru, szErr4, 4, HB_FALSE, 1021 );
+            {
+               HB_ULONG ulLen;
+               AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+               char *   szData1 = leto_recWithAlloc( pArea, pUStru, pUStru->pCurAStru, &ulLen );
+
+               if( szData1 && ! iRes )
+               {
+                  leto_SendAnswer( pUStru, szData1, ulLen );
+                  hb_xfree( szData1 );
+               }
+               else
+                  leto_SendAnswer( pUStru, szErr2, 4 );
+            }
             break;
 
          default:
@@ -6532,7 +6565,7 @@ static int leto_UpdateRecord( PUSERSTRU pUStru, const char * szData, HB_BOOL bAp
    return iRes;
 }
 
-static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppend )
+static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppend, HB_BOOL bFlush )
 {
    const char * pData;
    char         szData1[ 24 ];
@@ -6548,6 +6581,8 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
    else
    {
       iRes = leto_UpdateRecord( pUStru, szData, bAppend, &ulRecNo, NULL, NULL );
+      if( bFlush && ( iRes == 0 || iRes == 1 ) )
+         SELF_FLUSH( ( AREAP ) hb_rddGetCurrentWorkAreaPointer() );
       switch( iRes )
       {
          case 0:
@@ -6642,33 +6677,47 @@ static void leto_Flush( PUSERSTRU pUStru, char * szData )
       leto_wUsLog( pUStru, -1, "ERROR leto_Flush() %s missing", pArea ? "pAStru" : "WA" );
 
    if( szData )  /* else a flush done after append/ update */
-      leto_SendAnswer2( pUStru, szOk, 4, bOk, 1000 );
+   {
+      if( ! pUStru->pCurAStru->pTStru->bModStamp )
+         leto_SendAnswer2( pUStru, szOk, 4, bOk, 1000 );
+      else
+      {
+         HB_ULONG ulLen = strtoul( szData, NULL, 10 );  /*  ulRecNo */
+         char *   szData1;
+
+         if( ulLen )
+            leto_GotoIf( pArea, ulLen );
+         szData1 = leto_recWithAlloc( pArea, pUStru, pUStru->pCurAStru, &ulLen );
+         if( szData1 )
+         {
+            leto_SendAnswer( pUStru, szData1, ulLen );
+            hb_xfree( szData1 );
+         }
+         else
+            leto_SendAnswer( pUStru, szErr1, 4 );
+      }
+   }
 }
 
 static void leto_UpdateRecAdd( PUSERSTRU pUStru, char * szData )
 {
-   leto_UpdateRec( pUStru, szData, HB_TRUE );
+   leto_UpdateRec( pUStru, szData, HB_TRUE, HB_FALSE );
 }
 
 static void leto_UpdateRecAddflush( PUSERSTRU pUStru, char * szData )
 {
-   pUStru->bBeQuiet = HB_TRUE;  /* prevent detaching the WA */
-   leto_UpdateRec( pUStru, szData, HB_TRUE );
-   pUStru->bBeQuiet = HB_FALSE;
-   if( s_iDebugMode > 10 )
-      leto_wUsLog( pUStru, -1, "DEBUG leto_UpdateRecAddflush(%p) flush() after record update", pUStru->pCurAStru );
-   leto_Flush( pUStru, NULL );
+   leto_UpdateRec( pUStru, szData, HB_TRUE, HB_TRUE );
 }
 
 static void leto_UpdateRecUpd( PUSERSTRU pUStru, char * szData )
 {
-   leto_UpdateRec( pUStru, szData, HB_FALSE );
+   leto_UpdateRec( pUStru, szData, HB_FALSE, HB_FALSE );
 }
 
 static void leto_UpdateRecUpdflush( PUSERSTRU pUStru, char * szData )
 {
    pUStru->bBeQuiet = HB_TRUE;  /* prevent detaching the WA */
-   leto_UpdateRec( pUStru, szData, HB_FALSE );
+   leto_UpdateRec( pUStru, szData, HB_FALSE, HB_TRUE );
    pUStru->bBeQuiet = HB_FALSE;
    if( *szData == ' ' || *szData == '0' )
    {
@@ -6680,8 +6729,6 @@ static void leto_UpdateRecUpdflush( PUSERSTRU pUStru, char * szData )
          *szData = 'r';
       leto_Unlock( pUStru, szData );
    }
-   else
-      leto_Flush( pUStru, NULL );
 }
 
 static PHB_ITEM leto_KeyToItem( AREAP pArea, const char * ptr, int iKeyLen, const char * pOrder, char cKeyType )
@@ -11428,6 +11475,8 @@ static void leto_Transaction( PUSERSTRU pUStru, char * szData )
                }
                pulAppends[ i1 * 2 + 1 ] = pTA[ i ].ulRecNo;
 
+               if( ( ( DBFAREAP ) pArea )->fModStamp && ! ( ( DBFAREAP ) pArea )->fShared )
+                  SELF_FLUSH( pArea );
             }
             else
             {
@@ -11457,6 +11506,8 @@ static void leto_Transaction( PUSERSTRU pUStru, char * szData )
                if( pTA[ i ].pItems[ i1 ] )
                   SELF_PUTVALUE( pArea, pTA[ i ].puiIndex[ i1 ], pTA[ i ].pItems[ i1 ] );
             }
+            if( pTA[ i ].uiItems && ( ( DBFAREAP ) pArea )->fModStamp && ! ( ( DBFAREAP ) pArea )->fShared )
+               SELF_FLUSH( pArea );
          }
 
          /* unlocking all appended records, nowbody else knew about these locks */

@@ -3423,6 +3423,8 @@ static const char * leto_AddFields( LETOTABLE * pTable, HB_USHORT uiFields, cons
             break;
          case '=':
             pField->uiType = HB_FT_MODTIME;
+            pTable->fHaveAutoinc = HB_TRUE;
+            pTable->fModStamp = HB_TRUE;
             break;
          case '@':
             pField->uiType = HB_FT_TIMESTAMP;
@@ -3433,6 +3435,7 @@ static const char * leto_AddFields( LETOTABLE * pTable, HB_USHORT uiFields, cons
          case '^':
             pField->uiType = HB_FT_ROWVER;
             pTable->fHaveAutoinc = HB_TRUE;
+            pTable->fModStamp = HB_TRUE;
             break;
          case '+':
             pField->uiType = HB_FT_AUTOINC;
@@ -4597,12 +4600,26 @@ HB_ERRCODE LetoDbCommit( LETOTABLE * pTable )
       return HB_FAILURE;
    }
 
-   ulLen = eprintf( szData, "%c;%lu;", LETOCMD_flush, pTable->hTable );
-   if( ! leto_SendRecv2( pConnection, szData, ulLen, 1011 ) )
+   ulLen = eprintf( szData, "%c;%lu;%lu;", LETOCMD_flush, pTable->hTable, pTable->ulRecNo );
+   if( pTable->fModStamp )  /* server answer with record with updated values */
    {
-      pConnection->iError = 1011;
-      return 1;
+      if( leto_DataSendRecv( pConnection, szData, ulLen ) )
+      {
+         if( *( pConnection->szBuffer ) != '+' )
+         {
+            pConnection->iError = 1011;
+            return 1;
+         }
+         leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
+         pTable->ptrBuf = NULL;
+         if( pTable->fAutoRefresh )
+            pTable->llCentiSec = leto_MilliSec();
+      }
+      else
+         return 1;
    }
+   else if( ! leto_SendRecv2( pConnection, szData, ulLen, 1011 ) )
+      return 1;
 
    return HB_SUCCESS;
 }
@@ -4862,6 +4879,8 @@ HB_ERRCODE LetoDbAppend( LETOTABLE * pTable, unsigned int fUnLockAll )
       leto_SetUpdated( pTable, LETO_FLAG_UPD_APPEND | LETO_FLAG_UPD_UNLOCK );
    else
       leto_SetUpdated( pTable, LETO_FLAG_UPD_APPEND );
+   if( pTable->fModStamp )
+      pTable->uiUpdated |= LETO_FLAG_UPD_FLUSH;
    pTable->fBof = pTable->fEof = pTable->fFound = pTable->fDeleted = HB_FALSE;
    pTable->ptrBuf = NULL;
    pTable->ulRecCount++;
@@ -5134,7 +5153,24 @@ HB_ERRCODE LetoDbRecUnLock( LETOTABLE * pTable, unsigned long ulRecNo )
    }
 
    ulLen = eprintf( szData, "%c;%lu;r;%lu;", LETOCMD_unlock, pTable->hTable, ulRecNo );
-   if( ! leto_SendRecv2( pConnection, szData, ulLen, 1038 ) )
+   if( pTable->fModStamp )  /* server answer with record with updated values */
+   {
+      if( leto_DataSendRecv( pConnection, szData, ulLen ) )
+      {
+         if( *( pConnection->szBuffer ) != '+' )
+         {
+            pConnection->iError = 1038;
+            return 1;
+         }
+         leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
+         pTable->ptrBuf = NULL;
+         if( pTable->fAutoRefresh )
+            pTable->llCentiSec = leto_MilliSec();
+      }
+      else
+         return 1;
+   }
+   else if( ! leto_SendRecv2( pConnection, szData, ulLen, 1038 ) )
       return 1;
 
    if( ulRecNo == pTable->ulRecNo )
@@ -5192,7 +5228,24 @@ HB_ERRCODE LetoDbFileUnLock( LETOTABLE * pTable )
    }
 
    ulLen = eprintf( szData, "%c;%lu;f;", LETOCMD_unlock, pTable->hTable );
-   if( ! leto_SendRecv2( pConnection, szData, ulLen, 1038 ) )
+   if( pTable->fModStamp )  /* server answer with record with updated values */
+   {
+      if( leto_DataSendRecv( pConnection, szData, ulLen ) )
+      {
+         if( *( pConnection->szBuffer ) != '+' )
+         {
+            pConnection->iError = 1038;
+            return 1;
+         }
+         leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
+         pTable->ptrBuf = NULL;
+         if( pTable->fAutoRefresh )
+            pTable->llCentiSec = leto_MilliSec();
+      }
+      else
+         return 1;
+   }
+   else if( ! leto_SendRecv2( pConnection, szData, ulLen, 1038 ) )
       return 1;
 
    pTable->fFLocked = pTable->fRecLocked = HB_FALSE;

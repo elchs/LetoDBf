@@ -182,6 +182,7 @@ typedef struct _LETOTABLE
    int               iBufRefreshTime;   /* cache refresh time in 1/1000 sec */
    HB_BOOL           fMemIO;            /* 'mem:' in filename */
    HB_BOOL           fAutoRefresh;      /* if true fetch autorefresh data from server if hotbuffer elapsed */
+   HB_BOOL           fModStamp;         /* table with B_FT_MODTIME/ HB_FT_ROWVER fields */
    LETOTAGINFO *     pTagInfo;
    LETOTAGINFO *     pTagCurrent;       /* current order */
    HB_ULONG *        pLocksPos;         /* List of records locked */
