@@ -222,10 +222,19 @@ PROCEDURE Main( cCommand, cData )
 #ifdef __WIN_SERVICE__
 
       IF cCommand != NIL
+         IF Lower( cCommand ) $ "config|install|uninstall|test" .AND. ! EMPTY( cData )
+            cData := LOWER( cData )
+            IF .NOT. ".ini" $ cData
+               cData += ".ini"
+            ENDIF
+            s_cIniName := cData
+         ENDIF
+         oApp := HApp():New()
+
          IF Lower( cCommand ) == "install"
-            IF leto_serviceInstall( "The famous LetoDBf database server for data in DBF tables" )
+            IF leto_serviceInstall( "The famous LetoDBf database server for data in DBF tables", oApp:cSvcName, s_cIniName )
                WrLog( "LetoDB service has been successfully installed" )
-               __RUN( "net start LetoDBf_Service" )
+               __RUN( "net start " + oApp:cSvcName )
             ELSE
                WrLog( "Error installing LetoDB service: " + Str( letowin_GetLastError() ) )
                IF letowin_GetLastError() == 1073
@@ -234,7 +243,7 @@ PROCEDURE Main( cCommand, cData )
             ENDIF
             RETURN
          ELSEIF Lower( cCommand ) == "uninstall"
-            IF leto_serviceDelete()
+            IF leto_serviceDelete( oApp:cSvcName )
                WrLog( "LetoDB service has been deleted" )
             ELSE
                WrLog( "Error deleting LetoDB service: " + Str( letowin_GetLastError() )  )
@@ -243,13 +252,15 @@ PROCEDURE Main( cCommand, cData )
          ELSEIF Lower( cCommand ) == "test"
             StartServer()
             RETURN
-         ELSE
+         ELSEIF Lower( cCommand ) != "config"
             ? "LetoDB { install | uninstall }"
             RETURN
          ENDIF
+      ELSE
+         oApp := HApp():New()
       ENDIF
 
-      IF ! leto_serviceStart( "StartServer" )
+      IF ! leto_serviceStart( "StartServer", oApp:cSvcName )
          WrLog( "LetoDB service have had some problems: " + Str( letowin_GetLastError() ) )
          ErrorLevel( 1 )
       ENDIF
@@ -450,6 +461,7 @@ CLASS HApp
    DATA lSMBServer    INIT .F.
    DATA cSMBPath      INIT ""
    DATA cAddrSpace
+   DATA cSvcName      INIT "LetoDBf_Service"
 
    METHOD New()
 
@@ -671,6 +683,12 @@ METHOD New() CLASS HApp
                   ::cAddrSpace := cValue
                   IF Right( ::cAddrSpace, 1 ) != ";"
                      ::cAddrSpace += ";"
+                  ENDIF
+                  EXIT
+               CASE "SVC_NAME"
+                  cTmp := AllTrim( cValue )
+                  IF ! Empty( cTmp ) .AND. Len( cTmp ) < 236  /* 256, but config to add */
+                     ::cSvcName := cTmp
                   ENDIF
                   EXIT
                ENDSWITCH

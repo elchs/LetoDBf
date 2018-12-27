@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2018-12-27 03:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/leto_win.c
+  * source/server/server.prg
+  * Readme.txt
+    * add config option to Windows-service mode
+      ; use [2nd|3rd] param: letodb [un]install letodb.ini
+        to install service using a different config file
+    + new option: SRV_NAME in letodb.ini to adapt default service name
+      "LetoDBf_Service"
+    * add used config file to service display name
+    ; all above a request from Rossine
+
 2018-11-19 11:19 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/leto1.c

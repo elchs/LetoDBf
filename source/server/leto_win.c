@@ -2,7 +2,7 @@
  * Leto db server (Windows) functions
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
- *           2017 Rolf 'elch' Beckmann
+ *           2018 Rolf 'elch' Beckmann
  *                ( formatting, fixes, service description, ... )
  *
  * This program is free software; you can redistribute it and/or modify
@@ -52,12 +52,12 @@
 #include "srvleto.h"
 
 #define _SERVICE_NAME          "LetoDBf_Service"
-#define _SERVICE_DISPLAY_NAME  "LetoDBf Service"
+#define _SERVICE_NAME_LEN      256
 
 static SERVICE_STATUS_HANDLE s_hServiceHandle = 0;
 static char     s_ServiceEntryFunc[ HB_SYMBOL_NAME_LEN + 1 ];
-static TCHAR    s_ServiceName[] = _SERVICE_NAME;
-static TCHAR    s_ServiceDisplayName[] = _SERVICE_DISPLAY_NAME;
+static TCHAR    s_ServiceName[ _SERVICE_NAME_LEN ] = _SERVICE_NAME;
+static TCHAR    s_ServiceDisplayName[ _SERVICE_NAME_LEN ] = _SERVICE_NAME;
 static HB_ULONG s_ulSvcError = 0;
 
 extern void leto_SrvShutDown( unsigned int uiWait );
@@ -78,7 +78,7 @@ void leto_SetServiceStatus( DWORD State )
       SetServiceStatus( s_hServiceHandle, &SrvStatus );
 }
 
-DWORD WINAPI leto_GetServiceStatus( void )
+static DWORD WINAPI leto_GetServiceStatus( void )
 {
    DWORD     dwState = 0;
    SC_HANDLE schSCM = OpenSCManager( NULL, NULL, SC_MANAGER_CONNECT );
@@ -140,7 +140,7 @@ void WINAPI leto_ServiceControlHandler( DWORD dwCtrlCode )
    leto_SetServiceStatus( dwState );
 }
 
-void WINAPI leto_ServiceMainFunction( DWORD dwArgc, LPTSTR * lpszArgv )
+static void WINAPI leto_ServiceMainFunction( DWORD dwArgc, LPTSTR * lpszArgv )
 {
    HB_SYMBOL_UNUSED( dwArgc );
    HB_SYMBOL_UNUSED( lpszArgv );
@@ -157,7 +157,7 @@ void WINAPI leto_ServiceMainFunction( DWORD dwArgc, LPTSTR * lpszArgv )
       if( pDynSym )
       {
          leto_SetServiceStatus( SERVICE_RUNNING );
-         
+
          if( hb_vmRequestReenter() )
          {
             hb_vmPushDynSym( pDynSym );
@@ -177,6 +177,9 @@ HB_FUNC( LETO_SERVICESTART )
 {
    HB_BOOL bRetVal = HB_FALSE;
 
+   if( hb_parclen( 2 ) && strcmp( hb_parc( 2 ), _SERVICE_NAME ) )
+      hb_strncpy( s_ServiceName, hb_parc( 2 ), _SERVICE_NAME_LEN - 1 );
+
    if( hb_parclen( 1 ) )
    {
       SERVICE_TABLE_ENTRY lpServiceTable[ 2 ] = { { s_ServiceName, ( LPSERVICE_MAIN_FUNCTION ) leto_ServiceMainFunction },
@@ -192,7 +195,7 @@ HB_FUNC( LETO_SERVICESTART )
    hb_retl( bRetVal );
 }
 
-/* need a string for service description as first param */
+/* need a string for service description as first param - optional service name & config filename */
 HB_FUNC( LETO_SERVICEINSTALL )
 {
    HB_BOOL bRetVal = HB_FALSE;
@@ -200,7 +203,30 @@ HB_FUNC( LETO_SERVICEINSTALL )
 
    if( hb_parclen( 1 ) && GetModuleFileName( NULL, szPath, MAX_PATH ) )
    {
-      SC_HANDLE schSCM = OpenSCManager( NULL, NULL, SC_MANAGER_ALL_ACCESS );
+      SC_HANDLE    schSCM = OpenSCManager( NULL, NULL, SC_MANAGER_ALL_ACCESS );
+      unsigned int uiLen = strlen( szPath );
+
+      /* adapt if non-default service name */
+      if( hb_parclen( 2 ) && strcmp( hb_parc( 2 ), _SERVICE_NAME ) )
+      {
+         hb_strncpy( s_ServiceName, hb_parc( 2 ), _SERVICE_NAME_LEN - 1 );
+         hb_strncpy( s_ServiceDisplayName, hb_parc( 2 ), _SERVICE_NAME_LEN - 1 );
+      }
+
+      /* add ' config letodb.ini' to path and display name */
+      if( hb_parclen( 3 ) && uiLen < MAX_PATH - hb_parclen( 3 ) - 8 )
+      {
+         hb_strncpy( szPath + uiLen, " config ", MAX_PATH - 1 );
+         uiLen += 8;
+         hb_strncpy( szPath + uiLen, hb_parc( 3 ), MAX_PATH - 1 );
+
+         uiLen = strlen( s_ServiceDisplayName );
+         if( uiLen < _SERVICE_NAME_LEN - hb_parclen( 3 ) - 1 )
+         {
+            s_ServiceDisplayName[ uiLen ] = ' ';
+            hb_strncpy( s_ServiceDisplayName + uiLen + 1, hb_parc( 3 ), _SERVICE_NAME_LEN - 1 );
+         }
+      }
 
       if( schSCM )
       {
@@ -235,8 +261,12 @@ HB_FUNC( LETO_SERVICEINSTALL )
    hb_retl( bRetVal );
 }
 
+/* not used */
 HB_FUNC( LETO_GETSERVICESTATE )
 {
+   if( hb_parclen( 1 ) && strcmp( hb_parc( 1 ), _SERVICE_NAME ) )
+      hb_strncpy( s_ServiceName, hb_parc( 1 ), _SERVICE_NAME_LEN - 1 );
+
    hb_retni( leto_GetServiceStatus() );
 }
 
@@ -244,6 +274,9 @@ HB_FUNC( LETO_SERVICEDELETE )
 {
    HB_BOOL   bRetVal = HB_FALSE;
    SC_HANDLE schSCM = OpenSCManager( NULL, NULL, SC_MANAGER_ALL_ACCESS );
+
+   if( hb_parclen( 1 ) && strcmp( hb_parc( 1 ), _SERVICE_NAME ) )
+      hb_strncpy( s_ServiceName, hb_parc( 1 ), _SERVICE_NAME_LEN - 1 );
 
    if( schSCM )
    {

@@ -306,7 +306,9 @@ A. Internals
  For use as "Windows service" server executable must be compiled for this task, see 2.1
  To install LetoDbf as service, the executable must be placed in a directory covered by the OS
  system search paths to be found from any place. Then run letodb with 'install' parameter:
-      letodb.exe install
+      letodb.exe install [letodb.ini]
+ The 3rd param is optinonal for different config to use for multiple LetoDBf services, e.g.
+ running at different disk partitions.
 
  Verify in letodbf.log that the service was successful installed and started.
  To check the state of a Windows service use the GUI management for services.
@@ -315,7 +317,7 @@ A. Internals
       net stop LetoDBf_Service
 
  To deinstall service again, run letodb with 'uninstall' parameter:
-      letodb.exe uninstall
+      letodb.exe uninstall [letodb.ini]
  It possible may need to restart your Windows machine. You can check beforehand if the service is
  still listed in the GUI management for services, else it is not needed.
 
@@ -505,6 +507,9 @@ A. Internals
      ;SMB_SERVER = 0           -    set this to 1 for concurrency usage with Samba, and read 4.4 Samba
      ;SMB_PATH =               -    in conjunction with SMB_SERVER = 1, for both options read further
                                     in 4.4 Samba file service
+     ;SRV_NAME =               -    useable for Windows service to set a different service-name for
+                                    multiple running server at same machine, default is "LetoDBf_Service";
+                                    commonly used together with different filename for configuration
 
 
       4.2  Different Server compile setups/ extensions
