@@ -195,7 +195,22 @@ HB_FUNC( LETO_FILE )
    char szFile[ HB_PATH_MAX ];
 
    if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
-      hb_retl( LetoFileExist( pConnection, szFile ) );
+   {
+      char *  szFoundPath = NULL;
+      HB_BOOL fFound;
+
+      if( hb_pcount() > 1 && HB_ISBYREF( 2 ) )
+         szFoundPath = ( char * ) hb_xgrabz( HB_PATH_MAX );
+      fFound = LetoFileExist( pConnection, szFile, &szFoundPath );
+      if( fFound && szFoundPath )
+      {
+         //if( ! hb_storclen_buffer( szFoundPath, HB_PATH_MAX, 2 ) )
+         hb_storc( szFoundPath, 2 );
+         hb_xfree( szFoundPath );
+      }
+
+      hb_retl( fFound );
+   }
    else
       hb_retl( HB_FALSE );
 }
@@ -608,7 +623,7 @@ HB_FUNC( LETO_FCOPYTOSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
 
          if( ! hb_fileExists( hb_parc( 1 ), NULL ) )
             fError = HB_TRUE;
-         if( ! fError && LetoFileExist( pConnection, szFile ) )
+         if( ! fError && LetoFileExist( pConnection, szFile, NULL ) )
             fError = ! LetoFileErase( pConnection, szFile );
 
          if( ! fError && ( pFile = hb_fileExtOpen( hb_parc( 1 ), NULL, FO_READ | FO_SHARED | FO_PRIVATE, NULL, NULL ) ) != NULL )
@@ -657,7 +672,7 @@ HB_FUNC( LETO_FCOPYFROMSRV )  /* ( cFileLocal, cFileServer, nStepSize ) */
          HB_SIZE  nStepSize = HB_ISNUM( 3 ) && hb_parni( 3 ) > 0 ? hb_parni( 3 ) : 0x100000;
          HB_FATTR nMode = FO_READWRITE | FO_DENYNONE | FXO_TRUNCATE | FXO_SHARELOCK;
 
-         if( ! LetoFileExist( pConnection, szFile ) )
+         if( ! LetoFileExist( pConnection, szFile, NULL ) )
             hb_fsSetFError( 2 );
          else if( ( pFile = hb_fileExtOpen( hb_parc( 1 ), NULL, nMode, NULL, NULL ) ) != NULL )
          {
@@ -905,6 +920,52 @@ HB_FUNC( LETO_DISCONNECT )
    }
    else
       hb_retl( HB_FALSE );
+}
+
+HB_FUNC( LETO_SETPATH )
+{
+   LETOCONNECTION * pConnection = letoGetCurrConn();
+   HB_set_enum setId = HB_ISLOG( 2 ) && hb_parl( 2 ) ? HB_SET_DEFAULT : HB_SET_PATH;
+
+   if( pConnection && HB_ISCHAR( 1 ) )
+   {
+      char *  pPaths = hb_strndup( hb_parc( 1 ), HB_PATH_MAX - 1 );
+      HB_SIZE nLen = strlen( pPaths );
+
+      if( nLen && pPaths[ nLen - 1 ] == ';' )  /* trim not allowed trailing ';' */
+      {
+         nLen--;
+         pPaths[ nLen - 1 ] = '\0';
+      }
+
+      while( nLen )  /* convert OS path seperator to ',' */
+      {
+         if( pPaths[ nLen ] == ';' || pPaths[ nLen ] == ':' )
+            pPaths[ nLen ] = ',';
+         nLen--;
+      }
+
+      LetoSet( pConnection, 1000 + setId, pPaths );
+      hb_xfree( pPaths );
+      hb_retl( HB_TRUE );
+   }
+   else
+      hb_retl( HB_FALSE );
+}
+
+HB_FUNC( LETO_SETCONNECTLOOKUP )
+{
+   LETOCONNECTION * pConnection = letoGetCurrConn();
+
+   if( pConnection )
+   {
+      hb_retl( pConnection->fTryOtherConn );
+      if( HB_ISLOG( 1 ) )
+         pConnection->fTryOtherConn = hb_parl( 1 );
+      return;
+   }
+
+   hb_retl( HB_FALSE );
 }
 
 /* valid "//IP:port/" is needed, else no connection changed */

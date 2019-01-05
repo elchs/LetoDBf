@@ -507,7 +507,7 @@ A. Internals
      ;SMB_SERVER = 0           -    set this to 1 for concurrency usage with Samba, and read 4.4 Samba
      ;SMB_PATH =               -    in conjunction with SMB_SERVER = 1, for both options read further
                                     in 4.4 Samba file service
-     ;SRV_NAME =               -    useable for Windows service to set a different service-name for
+     ;SVC_NAME =               -    useable for Windows service to set a different service-name for
                                     multiple running server at same machine, default is "LetoDBf_Service";
                                     commonly used together with different filename for configuration
 
@@ -1090,6 +1090,25 @@ A. Internals
  the network socket is closed ( default: 1 s ).
  <nLockTimeout> in ms can be used as timeout-value to re-establish former existing locks,
  where default value is 0 == *no* extra timeout to get a lock, one time immediate try.
+
+      LETO_SETCONNECTLOOKUP( [ lSet ] )                          ==> lOld, setting before
+ This activates to lookup/ search at other available connections for existing DBF table,
+ if the table is not found at the active connection.
+ The setting is specific for a connection, so the active connection must have set this flag.
+ Default is false [ .F. ] for a new connection.
+ If table is found nowhere expect feedback as usual -- as no search will happen in case of a
+ SHAREd open error.
+
+      LETO_SETPATH( cPath[, lDefault ] )                         ==> lSet
+ It set "SET PATH TO ( cPath )" at LetoDBf server. This path(s) are relative to "DataPath" in
+ 'letodb.ini' configuration and are searched for DBF tables when *plain* table filenames without
+ a path component are used for DbUseArea()/ DbSetIndex().
+ With optional given <lDefault> as true (.T.), "SET DEFAULT TO ( cPath )" is set at server,
+ that then will become a subdirectory of "DatPath" where new tables are created.
+ Also herefor filename must be given as *plain*, when containing a path they are treated relative
+ to 'DataPath'.
+ Please note that no verification is done if the paths already exist. Non existing paths will
+ lead to non found files or an create error.
 
 
       7.2 Transaction functions

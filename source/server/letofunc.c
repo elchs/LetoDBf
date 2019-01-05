@@ -4767,6 +4767,29 @@ static HB_BOOL leto_FilePathChk( const char * szPath )
    return HB_TRUE;
 }
 
+static void leto_FilePathClean( char * pFullPath )
+{
+   HB_SIZE nS1 = *s_pDataPath && s_pDataPath[ 1 ] == ':' ? 2 : 0;
+   HB_SIZE nS2 = *pFullPath && pFullPath[ 1 ] == ':' ? 2 : 0;
+   HB_SIZE nS3 = 0;
+
+   while( *( s_pDataPath + nS1 + nS3 ) )
+   {
+      if( *( s_pDataPath + nS1 + nS3 ) == *( pFullPath + nS2 + nS3 ) )
+         nS3++;
+#if defined( HB_OS_WIN )
+      else if( HB_TOUPPER( *( s_pDataPath + nS1 + nS3 ) ) == HB_TOUPPER( *( pFullPath + nS2 + nS3 ) ) )
+         nS3++;
+#endif
+      else
+         break;
+   }
+   if( ( nS3 || nS2 ) && *( pFullPath + nS2 + nS3 ) == DEF_SEP )
+      nS3++;
+   if( nS3 )
+      memmove( pFullPath, pFullPath + nS2 + nS3, strlen( pFullPath ) - ( nS2 + nS3 ) + 1 );
+}
+
 static void leto_FileFunc( PUSERSTRU pUStru, char * szData )
 {
    char * pSrcFile, * pp2, * pp3 = NULL;
@@ -4794,11 +4817,30 @@ static void leto_FileFunc( PUSERSTRU pUStru, char * szData )
 #if defined( __HARBOUR30__ )
                if( hb_fsFileExists( szFile ) )
 #else
-               if( hb_fileExists( szFile, NULL ) )
+               if( pp2 )
+                  pBuffer = ( char * ) hb_xgrabz( HB_PATH_MAX + 3 );
+               if( hb_fileExists( pBuffer ? pSrcFile : szFile, pBuffer ? pBuffer + 3 : NULL ) )
 #endif
-                  strcpy( szData1, "+T;0;" );
+               {
+                  if( pBuffer )
+                  {
+                     leto_FilePathClean( pBuffer + 3 );
+                     memcpy( pBuffer, "+T;", 3 );
+                     ulLen = strlen( pBuffer );
+                     bFreeBuf = HB_TRUE;
+                  }
+                  else
+                     strcpy( szData1, "+T;0;" );
+               }
                else
+               {
                   strcpy( szData1, "+F;2;" );
+                  if( pBuffer )
+                  {
+                     hb_xfree( pBuffer );
+                     pBuffer = NULL;
+                  }
+               }
                break;
 
             case '2':  /* ferase */
@@ -10791,42 +10833,77 @@ static void leto_BeautifyPath( char * szPath )
    }
 }
 
-static void leto_PathFinder( char * szOnePath, const char * szDataPath )
+static void leto_SetPathDefault( const char * ptr, HB_SIZE nLen )
 {
-   char     szTmpPath[ HB_PATH_MAX ];
-   const char *   pContain = strstr( szOnePath, szDataPath );
-   HB_ULONG ulLenOne;
+   char *   szOnePath = ( char * ) hb_xgrab( HB_PATH_MAX );
+   char *   szDefaultPath = ( char * ) hb_xgrab( HB_PATH_MAX );
+   PHB_ITEM pItem = NULL;
 
-   if( pContain )
+   memcpy( szOnePath, ptr, HB_MIN( nLen, HB_PATH_MAX - 1 ) );
+   szOnePath[ HB_MIN( nLen, HB_PATH_MAX - 1 ) ] = '\0';
+   leto_BeautifyPath( szOnePath );
+
+   nLen = ( HB_USHORT ) strlen( szOnePath );
+   if( nLen > 1 && szOnePath[ nLen - 1 ] == DEF_SEP )
+      szOnePath[ nLen - 1 ] = '\0';
+   leto_DataPath( szOnePath, szDefaultPath );
+   pItem = hb_itemPutC( pItem, szDefaultPath );
+   hb_setSetItem( HB_SET_DEFAULT, pItem );
+   pItem = hb_itemPutC( pItem, s_pDataPath );
+   hb_setSetItem( HB_SET_PATH, pItem );
+   hb_itemRelease( pItem );
+   hb_xfree( szDefaultPath );
+   hb_xfree( szOnePath );
+}
+
+static void leto_SetPathSearch( const char * ptr, const char * pEnd, HB_SIZE nLen )
+{
+   char *    szOnePath= ( char * ) hb_xgrab(  HB_PATH_MAX );
+   char *    szSearchPath;
+   HB_UCHAR  uPaths = 1;  /* given paths plus DataPath as last */
+   HB_USHORT uiLenOne;
+   PHB_ITEM  pItem = NULL;
+
+   pEnd = ptr;
+   while( ( HB_SIZE ) ( pEnd - ptr ) < nLen )
    {
-      ulLenOne = ( pContain - szOnePath ) + strlen( szDataPath );
-      strcpy( szTmpPath, szOnePath + ulLenOne );
-      leto_BeautifyPath( szTmpPath );
-      strcpy( szOnePath, szTmpPath );
+      uPaths++;
+      if( ( pEnd = strchr( pEnd, ';' ) ) == NULL )
+         break;
+      pEnd++;
    }
-   else
+   szSearchPath = ( char * ) hb_xgrab( uPaths-- * HB_PATH_MAX );
+   nLen = 0;
+
+   while( uPaths > 0 )
    {
-      char * pTmp;
+      pEnd = strchr( ptr, ';' );
+      if( ! pEnd )  /* last one not terminated by ';' */
+         pEnd = ptr + strlen( ptr );
 
-      strcpy( szTmpPath, szOnePath );
-      while( ( pTmp = strrchr( szTmpPath, DEF_SEP ) ) != NULL )
-      {
-         ulLenOne = pTmp - szTmpPath;
-         if( ! ulLenOne )
-            break;
-         memcpy( szTmpPath, szOnePath, ulLenOne );
-         szTmpPath[ ulLenOne ] = '\0';
+      memcpy( szOnePath, ptr, HB_MIN( pEnd - ptr, HB_PATH_MAX - 1 ) );
+      szOnePath[ HB_MIN( pEnd - ptr, HB_PATH_MAX - 1 ) ] = '\0';
+      leto_BeautifyPath( szOnePath );
 
-         pContain = strstr( szDataPath, szTmpPath );
-         if( pContain )
-         {
-            strcpy( szTmpPath, szOnePath + ( pTmp - szTmpPath ) );
-            leto_BeautifyPath( szTmpPath );
-            strcpy( szOnePath, szTmpPath );
-            break;
-         }
-      }
+      uiLenOne = ( HB_USHORT ) strlen( szOnePath );
+      if( szOnePath[ uiLenOne - 1 ] == DEF_SEP )
+         szOnePath[ uiLenOne - 1 ] = '\0';
+      nLen += leto_DataPath( szOnePath, szSearchPath + nLen );
+      szSearchPath[ nLen++ ] = DEF_SEPPATH;
+
+      ptr = pEnd + 1;
+      uPaths--;
    }
+
+   /* add DataPath as last search path */
+   strcpy( szSearchPath + nLen, s_pDataPath );
+   leto_StrTran( szSearchPath + nLen, DEF_CH_SEP, DEF_SEP, s_uiDataPathLen );
+
+   pItem = hb_itemPutC( pItem, szSearchPath );
+   hb_setSetItem( HB_SET_PATH, pItem );
+   hb_itemRelease( pItem );
+   hb_xfree( szSearchPath );
+   hb_xfree( szOnePath );
 }
 
 static void leto_Intro( PUSERSTRU pUStru, char * szData )
@@ -10974,35 +11051,14 @@ static void leto_Intro( PUSERSTRU pUStru, char * szData )
                   pItem = NULL;
                }
 
-               /* one ! default path, not allowed to be terminated with ';' ! -- need newest client lib */
+               /* one ! default path, not allowed to be terminated with ';' ! */
                if( *ptr && ( ptr = strchr( ptr, ';' ) ) != NULL )
                {
                   const char * pEnd = strchr( ++ptr, ';' );
-                  int          iLen = pEnd ? ( pEnd - ptr ) : 0;
+                  HB_SIZE      nLen = pEnd ? ( pEnd - ptr ) : 0;
 
-                  if( iLen )
-                  {
-                     char * szOnePath = ( char * ) hb_xgrab( HB_PATH_MAX );
-                     char * szDefaultPath = ( char * ) hb_xgrab(  HB_PATH_MAX );
-
-                     memcpy( szOnePath, ptr, HB_MIN( iLen, HB_PATH_MAX - 1 ) );
-                     szOnePath[ HB_MIN( iLen, HB_PATH_MAX - 1 ) ] = '\0';
-                     leto_BeautifyPath( szOnePath );
-                     leto_PathFinder( szOnePath, s_pDataPath );
-
-                     iLen = ( HB_USHORT ) strlen( szOnePath );
-                     if( iLen > 1 && szOnePath[ iLen - 1 ] == DEF_SEP )
-                        szOnePath[ iLen - 1 ] = '\0';
-                     leto_DataPath( szOnePath, szDefaultPath );
-                     pItem = hb_itemPutC( pItem, szDefaultPath );
-                     hb_setSetItem( HB_SET_DEFAULT, pItem );
-                     pItem = hb_itemPutC( pItem, s_pDataPath );
-                     hb_setSetItem( HB_SET_PATH, pItem );
-                     hb_itemRelease( pItem );
-                     pItem = NULL;
-                     hb_xfree( szDefaultPath );
-                     hb_xfree( szOnePath );
-                  }
+                  if( nLen )
+                     leto_SetPathDefault( ptr, nLen );
                   else  /* set DEFAULT to DataPath of letodb.ini */
                   {
                      pItem = hb_itemPutC( pItem, s_pDataPath );
@@ -11012,67 +11068,19 @@ static void leto_Intro( PUSERSTRU pUStru, char * szData )
                      pItem = NULL;
                   }
 
-                  /* search paths, if given by newest client lib */
+                  /* search paths */
                   if( pEnd )
                   {
                      ptr = ++pEnd;
-                     iLen = strlen( ptr );
+                     nLen = strlen( ptr );
                   }
                   else
                   {
-                     iLen = 0;
-                     leto_writelog( NULL, 0, "ERROR leto_Intro() elch told you not to use old client lib .. :-)" );
+                     nLen = 0;
+                     leto_writelog( NULL, 0, "ERROR leto_Intro() check 'SET DEFAULT' / LETO client lib version" );
                   }
-                  if( iLen )
-                  {
-                     char *    szOnePath= ( char * ) hb_xgrab(  HB_PATH_MAX );
-                     char *    szSearchPath;
-                     HB_UCHAR  uPaths = 1;  /* first will become the letodb.ini DataPAth */
-                     HB_USHORT uiLenOne;
-
-                     pEnd = ptr;
-                     while( pEnd - ptr < iLen )
-                     {
-                        uPaths++;
-                        if( ( pEnd = strchr( pEnd, ';' ) ) == NULL )
-                           break;
-                        pEnd++;
-                     }
-                     szSearchPath = ( char * ) hb_xgrab( uPaths-- * HB_PATH_MAX );
-                     strcpy( szSearchPath, s_pDataPath );
-                     iLen = strlen( szSearchPath );
-                     leto_StrTran( szSearchPath, DEF_CH_SEP, DEF_SEP, ( HB_SIZE ) iLen );
-                     szSearchPath[ iLen++ ] = DEF_SEPPATH;
-                     szSearchPath[ iLen ] = '\0';
-
-                     while( uPaths > 0 )
-                     {
-                        pEnd = strchr( ptr, ';' );
-                        if( ! pEnd )  /* last one not terminated by ';' */
-                           pEnd = ptr + strlen( ptr );
-
-                        memcpy( szOnePath, ptr, HB_MIN( pEnd - ptr, HB_PATH_MAX - 1 ) );
-                        szOnePath[ HB_MIN( pEnd - ptr, HB_PATH_MAX - 1 ) ] = '\0';
-                        leto_BeautifyPath( szOnePath );
-                        leto_PathFinder( szOnePath, s_pDataPath );
-
-                        uiLenOne = ( HB_USHORT ) strlen( szOnePath );
-                        if( szOnePath[ uiLenOne - 1 ] == DEF_SEP )
-                           szOnePath[ uiLenOne - 1 ] = '\0';
-                        iLen += leto_DataPath( szOnePath, szSearchPath + iLen );
-                        if( uPaths > 1 )
-                           szSearchPath[ iLen++ ] = DEF_SEPPATH;
-
-                        ptr = pEnd + 1;
-                        uPaths--;
-                     }
-
-                     pItem = hb_itemPutC( pItem, szSearchPath );
-                     hb_setSetItem( HB_SET_PATH, pItem );
-                     hb_itemRelease( pItem );
-                     hb_xfree( szSearchPath );
-                     hb_xfree( szOnePath );
-                  }
+                  if( nLen )
+                     leto_SetPathSearch( ptr, pEnd, nLen );
                }
             }
          }
@@ -11320,19 +11328,37 @@ static void leto_Set( PUSERSTRU pUStru, char * szData )
             }
             break;
 
+         case 1000 + HB_SET_PATH:
+         case 1000 + HB_SET_DEFAULT:
+            {
+               HB_SIZE nLen = strlen( pAreaID );
+
+               leto_StrTran( pAreaID, ',', ';', nLen );
+               iCmd -= 1000;
+               if( iCmd == HB_SET_DEFAULT )
+                  leto_SetPathDefault( pAreaID, nLen );
+               else
+                  leto_SetPathSearch( pAreaID, pAreaID + nLen, nLen );
+               if( s_iDebugMode >= 10 )
+                  leto_wUsLog( pUStru, -1, "DEBUG leto_Set: %s: -> P: %s, D: %s )",
+                               iCmd == HB_SET_PATH ? "Path" : "Default", hb_setGetPath(), hb_setGetDefault() );
+            }
+            break;
+
          default:  /* SET #defines + 1000 */
             if( nParam >= 2 && iCmd > 1000 )
             {
-               PHB_ITEM  pItem = hb_itemNew( NULL );
+               PHB_ITEM pItem = hb_itemNew( NULL );
 
+               iCmd -= 1000;
                if( *pAreaID == 'T' || *pAreaID == 'F' )
                   hb_itemPutL( pItem, *pAreaID == 'T' );
                else
                   hb_itemPutNI( pItem, atoi( pAreaID ) );
-               hb_setSetItem( ( HB_set_enum ) ( iCmd - 1000 ), pItem );
+               hb_setSetItem( ( HB_set_enum ) iCmd, pItem );
                hb_itemRelease( pItem );
                if( s_iDebugMode >= 10 )
-                  leto_wUsLog( pUStru, -1, "DEBUG leto_Set: Set( %d, %s )", iCmd - 1000, pAreaID );
+                  leto_wUsLog( pUStru, -1, "DEBUG leto_Set: Set( %d, %s )", iCmd, pAreaID );
             }
             break;
       }
@@ -13889,7 +13915,6 @@ static void leto_OpenTable( PUSERSTRU pUStru, char * szRawData )
          hb_xfree( szExt );
       }
       hb_xfree( pFilePath );
-
       if( ! bMemIO && ! strchr( szFile, DEF_SEP ) )
       {
          char * szFilePath = ( char * ) hb_xgrab( HB_PATH_MAX );
@@ -13897,7 +13922,8 @@ static void leto_OpenTable( PUSERSTRU pUStru, char * szRawData )
          if( ! hb_fileExists( szFileName, NULL ) && hb_fileExists( szFile, szFilePath ) )
          {
             strcpy( szFileName, szFilePath );
-            strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
+            leto_FilePathClean( szFilePath );
+            strcpy( szFile, szFilePath );
          }
          hb_xfree( szFilePath );
       }
@@ -14571,7 +14597,8 @@ static void leto_CreateTable( PUSERSTRU pUStru, char * szRawData )
                szFilePath[ uiLen++ ] = DEF_SEP;
             hb_strncpy( szFilePath + uiLen, szFile, HB_PATH_MAX - uiLen - 1 );
             strcpy( szFileName, szFilePath );
-            strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
+            leto_FilePathClean( szFilePath );
+            strcpy( szFile, szFilePath );
          }
          hb_xfree( szFilePath );
       }
@@ -15134,7 +15161,8 @@ static void leto_OpenIndex( PUSERSTRU pUStru, char * szRawData )
          if( ! hb_fileExists( szFileName, NULL ) && hb_fileExists( szFile, szFilePath ) )
          {
             strcpy( szFileName, szFilePath );
-            strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
+            leto_FilePathClean( szFilePath );
+            strcpy( szFile, szFilePath );
          }
          hb_xfree( szFilePath );
       }
@@ -15474,7 +15502,8 @@ static void leto_CreateIndex( PUSERSTRU pUStru, char * szRawData )
                szFilePath[ uiLen++ ] = DEF_SEP;
             hb_strncpy( szFilePath + uiLen, szFile, HB_PATH_MAX - uiLen - 1 );
             strcpy( szFileName, szFilePath );
-            strcpy( szFile, szFileName + s_uiDataPathLen + 1 );
+            leto_FilePathClean( szFilePath );
+            strcpy( szFile, szFilePath );
          }
          hb_xfree( szFilePath );
       }

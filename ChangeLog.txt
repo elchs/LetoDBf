@@ -2,6 +2,42 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-05 09:49 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * Readme.txt
+  * ChangeLog.txt
+    ! fix typo for new config option, correct is: SVC_NAME as short for
+      SerViCe_name; Thanks for note by Rossine
+
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letomgmn.c
+    + LETO_SETCONNECTLOOKUP( [lNewSet] ) toogle flag for active connection
+      ; when set try to open a table at other available connections,
+      if table is not found ( no SHAREed error ) at current connection
+    + LETO_SETPATH( cPath, lDefault )
+      ; similar to 'SET PATH TO'/ 'SET DELAULT TO', but implemented as
+      extra function to not disturb PATH/ DEFAULT settings for possible
+      used local RDD
+    % refresh given EOF flag after table hotbuffer timeout with a SKIP(0)
+
+  * include/letocl.h
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    + new internal function LetoDbHot() to query hotbuffer state
+    * apply DEFAULT & search PATH only for the first established connection
+      ; to avoid use LETO_CONNECT() before you SET PATH/ DEFAULT
+    % extend internal LetoFileExist() to possible use the search PATH:
+      LETO_FILE( cFile[, @cPath[ ) with optional 2nd param by reference
+      --> if found, <cPath> contains filepath where file was found
+      ; without 2nd param <cFile> must be at "DataPath" + <cFile>
+
+  * source/server/letofunc.c
+    - remove leto_PathFinder(), it was for case a path was given absolute,
+      now all paths are handled relative;
+    * extract set of [DEFAULT] PATH out of leto_Intro() into new seperate
+      functions: leto_SetPathDefault() / leto_SetPathSearch()
+    * add client side handling of SET DEFAULT|PATH in leto_set()
+
 2018-12-27 03:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/leto_win.c
   * source/server/server.prg
@@ -9,7 +45,7 @@
     * add config option to Windows-service mode
       ; use [2nd|3rd] param: letodb [un]install letodb.ini
         to install service using a different config file
-    + new option: SRV_NAME in letodb.ini to adapt default service name
+    + new option: SVC_NAME in letodb.ini to adapt default service name
       "LetoDBf_Service"
     * add used config file to service display name
     ; all above a request from Rossine

@@ -397,6 +397,12 @@ static HB_ERRCODE letoEof( LETOAREAP pArea, HB_BOOL * pEof )
    if( pArea->lpdbPendingRel )
       SELF_FORCEREL( ( AREAP ) pArea );
 
+   /* refresh EOF info from server */
+   if( pArea->area.fEof && LetoDbHot( pArea->pTable ) != HB_SUCCESS )
+   {
+      SELF_SKIP( ( AREAP ) pArea, 0 );
+      pArea->pTable->llCentiSec = leto_MilliSec();
+   }
    *pEof = pArea->area.fEof;
 
    return HB_SUCCESS;
@@ -2931,7 +2937,7 @@ static HB_ERRCODE letoNewArea( LETOAREAP pArea )
 
 static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
 {
-   LETOCONNECTION * pConnection;
+   LETOCONNECTION * pConnection, * pConnFirst;
    HB_USHORT        uiFields, uiCount;
    DBFIELDINFO      dbFieldInfo;
    LETOTABLE *      pTable;
@@ -2939,6 +2945,7 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    HB_ERRCODE       errCode;
    char             szFile[ HB_PATH_MAX ];
    char             szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
+   unsigned int     uiConnNext = 0;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOpen(%p, %p)", pArea, pOpenInfo ) );
 
@@ -2947,6 +2954,7 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
       hb_rddSetNetErr( HB_TRUE );
       return HB_FAILURE;
    }
+   pConnFirst = pConnection;
    pArea->szDataFileName = hb_strdup( szFile );
    if( ( ! pOpenInfo->atomAlias || ! *pOpenInfo->atomAlias ) && *szFile )  /* create a missing Alias */
    {
@@ -2954,15 +2962,43 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
       pOpenInfo->atomAlias = szAlias;
    }
 
+   hb_rddSetNetErr( HB_FALSE );
+
    do
    {
-      hb_rddSetNetErr( HB_FALSE );
-      /* sets pTable->pTagCurrent */
-      pTable = LetoDbOpenTable( pConnection, szFile, pOpenInfo->atomAlias,
-                                pOpenInfo->fShared, pOpenInfo->fReadonly,
-                                pOpenInfo->cdpId ? pOpenInfo->cdpId : "", pOpenInfo->uiArea );
+      while( HB_TRUE )
+      {
+         /* sets pTable->pTagCurrent */
+         pTable = LetoDbOpenTable( pConnection, szFile, pOpenInfo->atomAlias,
+                                   pOpenInfo->fShared, pOpenInfo->fReadonly,
+                                   pOpenInfo->cdpId ? pOpenInfo->cdpId : "", pOpenInfo->uiArea );
+         if( pTable || pConnection->iError == EDBF_SHARED ||
+             ! pConnFirst->fTryOtherConn || letoGetConnCount() < 2 )
+            break;
+
+         if( pConnection->iConnection != pConnFirst->iConnection )
+            pConnection->iError = 0;
+         if( pConnFirst->iConnection == uiConnNext )
+            uiConnNext++;
+         if( uiConnNext < letoGetConnCount() )
+         {
+            pConnection = letoGetConnPool( uiConnNext++ );
+            continue;
+         }
+         else  /* re-set connection to original */
+         {
+            pConnection = pConnFirst;
+            uiConnNext = 0;
+            break;
+         }
+      }
+
       if( pTable )
+      {
+         if( pConnection != pConnFirst )
+            pConnFirst->iError = 0;
          break;
+      }
 
       if( ! pConnection->iError )
          pConnection->iError = 1021;

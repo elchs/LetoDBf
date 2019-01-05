@@ -1334,11 +1334,19 @@ long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * szData, unsig
 #if ! defined( __HARBOUR30__ )  /* new function since 2015/08/17 */
          hb_socketSetError( LETO_SOCK_GETERROR() );
 #endif
+#ifdef LETO_CLIENTLOG
+         leto_clientlog( NULL, 0, "leto_DataSendRecv() read error %ld", lRecv );
+#endif
          lRecv = 0;
          pConnection->fMustResync = HB_TRUE;
          pConnection->iError = 1000;
       }
    }
+#ifdef LETO_CLIENTLOG
+   else
+      leto_clientlog( NULL, 0, "leto_DataSendRecv() write error %ld", lRecv );
+#endif
+
 
    return lRecv;
 }
@@ -2993,7 +3001,7 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
          }
          *ptr++ = ';';
 
-         eprintf( ptr, "%s;%c%c%c%d;%s;%d;%s;%s",
+         ptr += eprintf( ptr, "%s;%c%c%c%d;%s;%d;",
 #if defined( __LETO_C_API__ )
                        leto_GetServerCdp( pConnection, s_pLetoSetGet->id ),
 #else
@@ -3001,7 +3009,11 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
 #endif
                        hb_setGetSoftSeek() ? 'T' : 'F', hb_setGetDeleted() ? 'T' : 'F',
                        hb_setGetAutOpen() ? 'T' : 'F', hb_setGetAutOrder(),
-                       hb_setGetDateFormat(), hb_setGetEpoch(), hb_setGetDefault(), hb_setGetPath() );
+                       hb_setGetDateFormat(), hb_setGetEpoch() );
+         if( letoGetConnCount() < 2 )  /* set paths only for the first connection */
+            eprintf( ptr, "%s;%s", hb_setGetDefault(), hb_setGetPath() );
+         else
+            eprintf( ptr, "%s;%s", "", "" );
 
          ulLen = strlen( szData + LETO_MSGSIZE_LEN );
          HB_PUT_LE_UINT32( szData, ulLen );
@@ -3845,6 +3857,7 @@ LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, 
    pTable->fShared = fShared;
    pTable->fReadonly = fReadOnly;
    pTable->fEncrypted = HB_FALSE;
+   pTable->llCentiSec = leto_MilliSec();
    pTable->iBufRefreshTime = pConnection->iBufRefreshTime;
 
    pTable->pLocksPos = NULL;
@@ -4319,6 +4332,14 @@ unsigned int LetoDbFieldDec( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int
 
    *uiDec = ( pTable->pFields + uiIndex - 1 )->uiDec;
    return 0;
+}
+
+HB_ERRCODE LetoDbHot( LETOTABLE * pTable )
+{
+   if( leto_HotBuffer( pTable ) )
+      return HB_SUCCESS;
+   else
+      return HB_FAILURE;
 }
 
 HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo )
@@ -5639,14 +5660,15 @@ const char * LetoVarGetList( LETOCONNECTION * pConnection, const char * szGroup,
    return NULL;
 }
 
-HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile )
+/* pRetPath not NULL lead to PATH search at server, filled with path where found */
+HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile, char ** pRetPath )
 {
    unsigned long ulLen = 24 + strlen( szFile );
    char *        pData;
    unsigned int  uiRes;
 
    pData = ( char * ) hb_xgrab( ulLen );
-   ulLen = eprintf( pData, "%c;01;%s;", LETOCMD_file, szFile );
+   ulLen = eprintf( pData, "%c;01;%s;%c", LETOCMD_file, szFile, *pRetPath ? ';' : ' ' );
 
    uiRes = leto_DataSendRecv( pConnection, pData, ulLen );
    hb_xfree( pData );
@@ -5655,7 +5677,21 @@ HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile )
       const char * ptr = leto_firstchar( pConnection );
 
       if( *( ptr - 1 ) == '+' && *ptr == 'T' )
+      {
+         HB_SIZE nPos = 0;
+
+         if( *pRetPath && *( ptr + 2 ) )
+         {
+            hb_strncpy( *pRetPath, ptr + 2, HB_PATH_MAX - 1 );
+            while( *( *pRetPath + nPos ) )
+            {
+               if( *( *pRetPath + nPos ) == DEF_CH_SEP )
+                  *( *pRetPath + nPos ) = DEF_SEP;
+               nPos++;
+            }
+         }
          return HB_TRUE;
+      }
 
       pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
    }

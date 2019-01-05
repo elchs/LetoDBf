@@ -227,6 +227,7 @@ typedef struct _LETOCONNECTION_
    char              szAccess[ 8 ];
    char              cDopcode[ LETO_DOPCODE_LEN + 1 ];   /* bytes > 0 for mixed into LETO_PASSWORD */
    HB_BOOL           fCloseAll;
+   HB_BOOL           fTryOtherConn;        /* if table opening at current fails, try other available */
    PCDPSTRU          pCdpTable;
    HB_BOOL           fTransActive;
    HB_BOOL           fTransForce;          /* to ignore un!locks during transaction */
@@ -300,6 +301,7 @@ extern HB_EXPORT LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, co
 extern HB_EXPORT LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias, int iShared, int iReadOnly, const char * szCdp, unsigned int uiArea );
 extern HB_EXPORT const char * LetoDbGetMemo( LETOTABLE * pTable, unsigned int uiIndex, unsigned long * ulLen );
 extern HB_EXPORT HB_ERRCODE LetoDbRecCount( LETOTABLE * pTable, unsigned long * ulCount );
+extern HB_EXPORT HB_ERRCODE LetoDbHot( LETOTABLE * pTable );
 extern HB_EXPORT HB_ERRCODE LetoDbGoTo( LETOTABLE * pTable, unsigned long ulRecNo );
 extern HB_EXPORT HB_ERRCODE LetoDbGoTop( LETOTABLE * pTable );
 extern HB_EXPORT HB_ERRCODE LetoDbGoBottom( LETOTABLE * pTable );
@@ -370,7 +372,7 @@ extern HB_EXPORT long LetoVarDecr( LETOCONNECTION * pConnection, const char * sz
 extern HB_EXPORT int LetoVarDel( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar );
 extern HB_EXPORT const char * LetoVarGetList( LETOCONNECTION * pConnection, const char * szGroup, HB_LONG lMaxLen );
 
-extern HB_EXPORT HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile );
+extern HB_EXPORT HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile, char ** pRetPath );
 extern HB_EXPORT HB_BYTE LetoFileErase( LETOCONNECTION * pConnection, const char * szFile );
 extern HB_EXPORT HB_BYTE LetoFileRename( LETOCONNECTION * pConnection, const char * szFile, const char * szFileNew );
 extern HB_EXPORT HB_BYTE LetoFileCopy( LETOCONNECTION * pConnection, const char * szFile, const char * szFileNew );
