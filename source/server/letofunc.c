@@ -4325,7 +4325,7 @@ static void leto_Drop( PUSERSTRU pUStru, char * szData )
 
       if( pRDDNode )
       {
-         if( ! strlen( hb_setGetPath() ) || strchr( szData, DEF_SEP ) || strchr( szData, DEF_CH_SEP ) )
+         if( ! hb_setGetPath() || ! strlen( hb_setGetPath() ) || strchr( szData, DEF_SEP ) || strchr( szData, DEF_CH_SEP ) )
             leto_DataPath( szData, szBuf );
          else
             strcpy( szBuf, szData );
@@ -4333,7 +4333,7 @@ static void leto_Drop( PUSERSTRU pUStru, char * szData )
 
          if( *pIFile )
          {
-            if( ! strlen( hb_setGetPath() ) || strchr( pIFile, DEF_SEP ) || strchr( pIFile, DEF_CH_SEP ) )
+            if( ! hb_setGetPath() || ! strlen( hb_setGetPath() ) || strchr( pIFile, DEF_SEP ) || strchr( pIFile, DEF_CH_SEP ) )
                leto_DataPath( pIFile, szBuf );
             else
                strcpy( szBuf, pIFile );
@@ -10849,8 +10849,11 @@ static void leto_SetPathDefault( const char * ptr, HB_SIZE nLen )
    leto_DataPath( szOnePath, szDefaultPath );
    pItem = hb_itemPutC( pItem, szDefaultPath );
    hb_setSetItem( HB_SET_DEFAULT, pItem );
-   pItem = hb_itemPutC( pItem, s_pDataPath );
-   hb_setSetItem( HB_SET_PATH, pItem );
+   if( ! hb_setGetPath() || ! strlen( hb_setGetPath() ) )  /* else keep an already set PATH */
+   {
+      pItem = hb_itemPutC( pItem, s_pDataPath );
+      hb_setSetItem( HB_SET_PATH, pItem );
+   }
    hb_itemRelease( pItem );
    hb_xfree( szDefaultPath );
    hb_xfree( szOnePath );

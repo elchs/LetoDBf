@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-05 11:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    * keep in leto_SetPathDefault() an already set PATH,
+      aka if not empty do not set it to 'DataPath'
+
 2019-01-05 09:49 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * Readme.txt
   * ChangeLog.txt
