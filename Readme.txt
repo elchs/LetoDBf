@@ -1099,16 +1099,20 @@ A. Internals
  If table is found nowhere expect feedback as usual -- as no search will happen in case of a
  SHAREd open error.
 
-      LETO_SETPATH( cPath[, lDefault ] )                         ==> lSet
- It set "SET PATH TO ( cPath )" at LetoDBf server. This path(s) are relative to "DataPath" in
- 'letodb.ini' configuration and are searched for DBF tables when *plain* table filenames without
- a path component are used for DbUseArea()/ DbSetIndex().
+      LETO_SETPATH( cPath[, lDefault ] )                         ==> cOldPath
+ It set "SET PATH TO ( cPath )" at LetoDBf server.
+ This path(s) are relative to "DataPath" in 'letodb.ini' configuration and are searched for DBF tables
+ when *plain* table filenames without a path component are used for DbUseArea()/ DbSetIndex().
  With optional given <lDefault> as true (.T.), "SET DEFAULT TO ( cPath )" is set at server,
- that then will become a subdirectory of "DatPath" where new tables are created.
- Also herefor filename must be given as *plain*, when containing a path they are treated relative
- to 'DataPath'.
- Please note that no verification is done if the paths already exist. Non existing paths will
- lead to non found files or an create error.
+ then this will become a subdirectory of "DatPath" where *new* tables are created.
+ Also herefor filename must be given in *plain* form -- when containing a path, filenames are ever
+ treated as relative to 'DataPath'.
+ Setting the DEFAULT path also set 'DataPath' of 'letodb.ini' as search PATH, if its not already set.
+ Setting a search PATH also adds 'DataPath' itself as additional last search PATH.
+ <cOldPath> will be just a single ";" if no connection active or else error occured, else it is
+ the relative path(s) formerly active -- useful to temporary change and reset back to before.
+ Please note that no verification is done if the paths already exist, so non existing paths will
+ lead to not found files or even an create error.
 
 
       7.2 Transaction functions
@@ -1547,6 +1551,10 @@ A. Internals
 
       Leto_FileSize( cFileName )                               ==> -1 if failed
  Returns a length of file at the server
+
+      Leto_FileMD5( cFileName[, lBinary ]                      ==> cMD5sum
+ Returns the MD5 sum of a file at server, empty string if not found or any else error.
+ By default as 32 chars long hex string, with <lBinary> == true (.T.) as 16-byte binary value.
 
       Leto_FileAttr( cFileName [, cNewAttr] )                  ==> cAttr
  Get ( without given cNewAttr ) or set <cNewAttr> file attributes, where returned value

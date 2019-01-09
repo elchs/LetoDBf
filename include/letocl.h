@@ -376,6 +376,7 @@ extern HB_EXPORT HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char
 extern HB_EXPORT HB_BYTE LetoFileErase( LETOCONNECTION * pConnection, const char * szFile );
 extern HB_EXPORT HB_BYTE LetoFileRename( LETOCONNECTION * pConnection, const char * szFile, const char * szFileNew );
 extern HB_EXPORT HB_BYTE LetoFileCopy( LETOCONNECTION * pConnection, const char * szFile, const char * szFileNew );
+extern HB_EXPORT const char * LetoFileMD5( LETOCONNECTION * pConnection, const char * szFile, HB_BOOL fBinary );
 extern HB_EXPORT const char * LetoMemoRead( LETOCONNECTION * pConnection, const char * szFile, unsigned long * ulMemoLen );
 extern HB_EXPORT HB_BOOL LetoMemoWrite( LETOCONNECTION * pConnection, const char * szFile, const char * szValue, unsigned long ulLen );
 extern HB_EXPORT const char * LetoFileRead( LETOCONNECTION * pConnection, const char * szFile, unsigned long ulStart, unsigned long * ulLen );

@@ -1412,7 +1412,12 @@ HB_ERRCODE LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szC
    unsigned long ulLen;
 
    ulLen = eprintf( szData, "%c;%d;%s;", LETOCMD_set, iCommand, szCommand );
-   if( ! leto_SendRecv2( pConnection, szData, ulLen, 0 ) )
+   if( iCommand == 1000 + HB_SET_PATH || iCommand == 1000 + HB_SET_DEFAULT )
+   {
+      if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) )
+         return HB_FAILURE;
+   }
+   else if( ! leto_SendRecv2( pConnection, szData, ulLen, 0 ) )
       return HB_FAILURE;
 
    return HB_SUCCESS;
@@ -5777,6 +5782,32 @@ HB_BYTE LetoFileCopy( LETOCONNECTION * pConnection, const char * szFile, const c
       pConnection->iError = -1;
 
    return 0;
+}
+
+const char * LetoFileMD5( LETOCONNECTION * pConnection, const char * szFile, HB_BOOL fBinary )
+{
+   unsigned long ulLen = 24 + strlen( szFile );
+   char *        pData;
+   unsigned int  uiRes;
+
+   pData = ( char * ) hb_xgrab( ulLen );
+   ulLen = eprintf( pData, "%c;08;%s;%c;", LETOCMD_file, szFile, fBinary ? 'T' : 'F' );
+
+   uiRes = leto_DataSendRecv( pConnection, pData, ulLen );
+   hb_xfree( pData );
+   if( uiRes )
+   {
+      const char * ptr = leto_firstchar( pConnection );
+
+      if( *( ptr - 1 ) == '+' && ( *ptr == 'T' ) )
+         return ptr + 2;
+
+      pConnection->iError = ( unsigned int ) atoi( ptr + 2 );
+   }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
+
+   return NULL;
 }
 
 const char * LetoMemoRead( LETOCONNECTION * pConnection, const char * szFile, unsigned long * ulMemoLen )

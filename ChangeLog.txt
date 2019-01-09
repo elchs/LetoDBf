@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-09 12:09 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * Readme.txt
+  * include/letocl.h
+  * include/srvleto.h
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+  * source/server/letofunc.c
+    ! fix some left problems with leto_SetPath[Search|Default](),
+      and a misusage of HB_IS_BLOCK in LETO_DBUPDATE
+    * extending LETO_SETPATH() ==> cOldPath -- return old setting before
+    + introduce LETO_FILEMD5( cFile[, lBinary] ) as server side file MD5sum
+      like HB_MD5FILE() does locally; MD5 to be used in trusted environment
+
 2019-01-05 11:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     * keep in leto_SetPathDefault() an already set PATH,

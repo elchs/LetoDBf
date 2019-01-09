@@ -204,7 +204,6 @@ HB_FUNC( LETO_FILE )
       fFound = LetoFileExist( pConnection, szFile, &szFoundPath );
       if( fFound && szFoundPath )
       {
-         //if( ! hb_storclen_buffer( szFoundPath, HB_PATH_MAX, 2 ) )
          hb_storc( szFoundPath, 2 );
          hb_xfree( szFoundPath );
       }
@@ -213,6 +212,29 @@ HB_FUNC( LETO_FILE )
    }
    else
       hb_retl( HB_FALSE );
+}
+
+HB_FUNC( LETO_FILEMD5 )
+{
+   LETOCONNECTION * pConnection;
+   char szFile[ HB_PATH_MAX ];
+
+   if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   {
+      HB_BOOL      fBinary = hb_parl( 2 );
+      const char * szMd5 = LetoFileMD5( pConnection, szFile, fBinary );
+
+      if( szMd5 )
+      {
+         if( fBinary )
+            hb_retclen( szMd5, 16 );
+         else
+            hb_retc( szMd5 );
+         return;
+      }
+   }
+
+   hb_retc_null();
 }
 
 HB_FUNC( LETO_FERASE )
@@ -945,12 +967,30 @@ HB_FUNC( LETO_SETPATH )
          nLen--;
       }
 
-      LetoSet( pConnection, 1000 + setId, pPaths );
+      if( LetoSet( pConnection, 1000 + setId, pPaths ) == HB_SUCCESS )
+      {
+         HB_SIZE nLen = strlen( pConnection->szBuffer ), nPos;
+
+         if( nLen > 4 )
+         {
+            char * pPath = pConnection->szBuffer + 4;
+
+            for( nPos = 0; nPos < nLen; nPos++ )
+            {
+               if( pPath[ nPos ] == ':' )  /* Unix style --> Harbour */
+                  pPath[ nPos ] = ';';
+            }
+            hb_retc( pPath );
+         }
+         else
+            hb_retc( "" );
+      }
+      else
+         hb_retc( ";" );  /* transmission failure */
       hb_xfree( pPaths );
-      hb_retl( HB_TRUE );
    }
    else
-      hb_retl( HB_FALSE );
+      hb_retc( ";" );
 }
 
 HB_FUNC( LETO_SETCONNECTLOOKUP )

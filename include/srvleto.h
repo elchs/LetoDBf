@@ -63,6 +63,7 @@
    #include "hbzlib.h"
 #endif
 #include "hbznet.h"
+#include "hbchksum.h"
 #include "math.h"
 
 #include "cmdleto.h"
