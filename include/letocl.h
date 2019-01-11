@@ -382,6 +382,7 @@ extern HB_EXPORT HB_BOOL LetoMemoWrite( LETOCONNECTION * pConnection, const char
 extern HB_EXPORT const char * LetoFileRead( LETOCONNECTION * pConnection, const char * szFile, unsigned long ulStart, unsigned long * ulLen );
 extern HB_EXPORT HB_BOOL LetoFileWrite( LETOCONNECTION * pConnection, const char * szFile, const char * szValue, unsigned long ulStart, unsigned long ulLen );
 extern HB_EXPORT long LetoFileSize( LETOCONNECTION * pConnection, const char * szFile );
+extern HB_EXPORT HB_BOOL LetoFileTime( LETOCONNECTION * pConnection, const char * szFile, long * lJulian, long * lMillis );
 extern HB_EXPORT const char * LetoFileAttr( LETOCONNECTION * pConnection, const char * szFile, const char * szAttr );
 extern HB_EXPORT const char * LetoDirectory( LETOCONNECTION * pConnection, const char * szDir, const char * szAttr );
 extern HB_EXPORT HB_BYTE LetoDirMake( LETOCONNECTION * pConnection, const char * szFile );

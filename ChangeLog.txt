@@ -2,6 +2,42 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-11 19:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+  * source/server/letofunc.c
+    ! fix in LETO_VARDECR(), default: 1.0 missing if non amount given
+    ! mem access err in LetoFileExist(), bug fixes about path handling
+      in LETO_SETPATH(), leto_SetPathDefault(), leto_FilePathClean()
+      ; at one hand a ':' is Linux separator for multiple paths, and
+      at other hand a Windows drive-letter to cut of is identified by ':';
+      using at client side anytime Harbour separator ';' seem a way to go
+    + new function Leto_FileTime( cFile[, dDate][, cTime][, nReturnType] ),
+      which can *modify* a file timestamp ( a missing functionality );
+      useable without given date/time/timestamp arguments to query for the
+      file timestamp and return it in various formats
+    * extend Leto_FileAttr()/ Leto_Directory() to accept numeric attributes,
+      Leto_FileAttr() returns them as char, new 3rd boolean param to toggle
+    * Leto_FileCopy() 3rd boolean param, if true delete source afterwards
+
+  * include/letofile.ch
+    * modifications related to the old pull request of Mauricio:
+      ; new define __LETO_TRANSLATE_CT for CT-contrib file function group
+      ; new define __LETO_TRANSLATE_FILE_ALL
+        if set in your source *before* the #include "letofile.ch",
+        then all function groups will be included for translation
+      ; new define __LETO_TRANSLATE_FILE__ at top, outcommenting it will
+        disable translating the default set of function groups;
+        then they can be specific enabled/ defined in your source *before*
+        the #include "letofile.ch"
+
+  * Readme.txt
+  * tests/test_var.prg
+    * correct shown result for decrementing a decimal value;
+      change expression-test to handle a valid expression
+    * updates about recent changes
+
 2019-01-09 12:09 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * Readme.txt
   * include/letocl.h

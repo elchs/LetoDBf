@@ -156,11 +156,12 @@ Function Main( cPath )
    Inkey( 0 )
    ?
 
+   leto_varDecr( "main", "var_dec",, 2.135 )
    ? "Increment var_int, current value is [100]", leto_varIncr( "main", "var_int", LETO_VPREVIOUS )
    ? "Increment var_int, next    value is [102]", leto_varIncr( "main", "var_int" )
    ? "Decrement var_int, current value is [102]", leto_varDecr( "main", "var_int", LETO_VPREVIOUS )
    ? "Decrement var_int, next    value is [100]", leto_varDecr( "main", "var_int" )
-   ? "Decrement var_dec, no valid integer [NIL]", leto_varDecr( "main", "var_dec" )
+   ? "Decrement var_dec, decimal decriment[121.32]", leto_varGet( "main", "var_dec" )
 
    ? "Press any key to continue..."
    Inkey( 0 )
@@ -234,7 +235,7 @@ Function Main( cPath )
 #ifndef __XHARBOUR__
    ?
    ?
-   cTest := "FIELD > cPub .AND. aPriv[ 1 ] == 'first'"
+   cTest := "'exit' < cPub .AND. aPriv[ 1 ] == 'first'"
    ? "test   expression: "
    IF Leto_VarExprTest( cTest )
       ?? "found memvar variables"
@@ -247,7 +248,7 @@ Function Main( cPath )
    ? "==> "
    cTest := Leto_VarExprCreate( cTest, @aArr )
    cGroup := LETO_VPREFIX + hb_NToS( Leto_Connect() )  /* variable group name */
-   IF UPPER( cTest ) == UPPER( "FIELD>LETO_VARGET('" + cGroup + "','CPUB').AND.LETO_VARGET('" + cGroup + "','aPriv')[1]=='FIRST'" )
+   IF UPPER( cTest ) == UPPER( "'exit'<LETO_VARGET('" + cGroup + "','CPUB').AND.LETO_VARGET('" + cGroup + "','aPriv')[1]=='FIRST'" )
       ?? "ok"
    ELSE
       ?? "failed"

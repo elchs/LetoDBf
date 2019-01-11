@@ -5673,7 +5673,7 @@ HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile, char *
    unsigned int  uiRes;
 
    pData = ( char * ) hb_xgrab( ulLen );
-   ulLen = eprintf( pData, "%c;01;%s;%c", LETOCMD_file, szFile, *pRetPath ? ';' : ' ' );
+   ulLen = eprintf( pData, "%c;01;%s;%c", LETOCMD_file, szFile, pRetPath && *pRetPath ? ';' : ' ' );
 
    uiRes = leto_DataSendRecv( pConnection, pData, ulLen );
    hb_xfree( pData );
@@ -5685,7 +5685,7 @@ HB_BOOL LetoFileExist( LETOCONNECTION * pConnection, const char * szFile, char *
       {
          HB_SIZE nPos = 0;
 
-         if( *pRetPath && *( ptr + 2 ) )
+         if( pRetPath && *pRetPath )
          {
             hb_strncpy( *pRetPath, ptr + 2, HB_PATH_MAX - 1 );
             while( *( *pRetPath + nPos ) )
@@ -5973,6 +5973,48 @@ long LetoFileSize( LETOCONNECTION * pConnection, const char * szFile )
       pConnection->iError = -1;
 
    return -1;
+}
+
+HB_BOOL LetoFileTime( LETOCONNECTION * pConnection, const char * szFile, long * lJulian, long * lMillis )
+{
+   unsigned long ulLen = 48 + strlen( szFile );
+   char *        pData;
+   unsigned long ulRes;
+
+   pData = ( char * ) hb_xgrab( ulLen );
+   ulLen = eprintf( pData, "%c;18;%s;%ld;%ld;", LETOCMD_file, szFile, *lJulian, *lMillis );
+
+   ulRes = leto_DataSendRecv( pConnection, pData, ulLen );
+   hb_xfree( pData );
+   if( ulRes )
+   {
+      char * ptr = leto_firstchar( pConnection );
+
+      if( *( ptr - 1 ) == '+' )
+      {
+         if( *ptr == 'T' )
+         {
+            char * ptrPar;
+
+            *lJulian = strtol( ptr + 2, &ptrPar, 10 );
+            if( ptrPar && *lJulian > 0 )
+               *lMillis = strtol( ptrPar + 1, NULL, 10 );
+            else
+            {
+               *lJulian = 0;
+               *lMillis = 0;
+            }
+
+            return HB_TRUE;
+         }
+         else
+            pConnection->iError = atoi( ptr + 2 );
+      }
+   }
+   else if( ! pConnection->iError )
+      pConnection->iError = -1;
+
+   return HB_FALSE;
 }
 
 const char * LetoFileAttr( LETOCONNECTION * pConnection, const char * szFile, const char * szAttr )

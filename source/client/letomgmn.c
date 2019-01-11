@@ -53,6 +53,7 @@
    #define LETOVAR_TYPES    ( HB_IT_LOGICAL | HB_IT_NUMERIC | HB_IT_STRING | HB_IT_DATE )
 #endif
 
+
 LETOCONNECTION * leto_getConnection( int iParam );
 void leto_ConnectionClose( LETOCONNECTION * pConnection );
 
@@ -279,7 +280,17 @@ HB_FUNC( LETO_FCOPY )
        ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
       if( LetoFileCopy( pConnection, szFile, leto_RemoveIpFromPath( hb_parc( 2 ) ) ) )
-         hb_retni( 0 );
+      {
+         if( hb_parl( 3 ) )  /* move action */
+         {
+            if( LetoFileErase( pConnection, szFile ) )
+               hb_retni( 0 );
+            else
+               hb_retni( -1 );
+         }
+         else
+            hb_retni( 0 );
+      }
       else
          hb_retni( -1 );
    }
@@ -760,21 +771,124 @@ HB_FUNC( LETO_FILESIZE )  /* ( cFile ) */
 }
 
 
-HB_FUNC( LETO_FILEATTR )  /* ( cFile [, cNewAttr ] ) */
+HB_FUNC( LETO_FILEATTR )  /* ( cFile [, cnNewAttr ][, lAsNumeric] ) */
 {
    LETOCONNECTION * pConnection;
    char szFile[ HB_PATH_MAX ];
 
    if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
-      hb_retc( LetoFileAttr( pConnection, szFile, HB_ISCHAR( 2 ) ? hb_parc( 2 ) : NULL ) );
+      char         szAttr[ 21 ] = { 0 };
+      const char * szAttrFound;
+
+      if( HB_ISCHAR( 2 ) )
+         hb_strncpy( szAttr, hb_parc( 2 ), 20 );
+      else if( HB_ISNUM( 2 ) )
+         hb_fsAttrDecode( ( HB_FATTR ) hb_parni( 2 ), szAttr );
+
+      szAttrFound = LetoFileAttr( pConnection, szFile, *szAttr ? szAttr : NULL );
+      if( HB_ISNUM( 2 ) || hb_parl( 3 ) )
+      {
+         if( pConnection->iError )
+            hb_retni( pConnection->iError * -1 );
+         else
+            hb_retni( hb_fsAttrEncode( szAttrFound ) );
+      }
+      else
+         hb_retc( szAttrFound );
       return;
    }
 
    hb_retc( "" );
 }
 
-HB_FUNC( LETO_DIRECTORY )  /* ( cPathSpec, cAttributes ) */
+HB_FUNC( LETO_FILETIME )  /* ( cFile[, [d|ts]Date][, cTime][, nRetType] ) --> various return */
+{
+   LETOCONNECTION * pConnection;
+   char szFile[ HB_PATH_MAX ];
+   int  iRet = hb_parni( 4 );
+
+   if( hb_parclen( 1 ) && ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
+   {
+      HB_LONG  lJulian, lMillis;
+      PHB_ITEM pDate, pTime;
+      HB_BOOL  fSuccess = HB_TRUE;
+
+      if( HB_ISTIMESTAMP( 2 ) )
+      {
+         if( ! hb_partdt( &lJulian, &lMillis, 2 ) )
+         {
+            lJulian = lMillis = 0;
+            fSuccess = HB_FALSE;
+         }
+      }
+      else
+      {
+         pDate = hb_param( 2, HB_IT_DATE );
+         pTime = hb_param( 3, HB_IT_STRING );
+         lJulian = pDate ? hb_itemGetDL( pDate ) : -1;
+         if( pTime )
+         {
+            int hour = 0, minute = 0, second = 0, msec = 0;
+
+            hb_timeStrGet( hb_itemGetCPtr( pTime ), &hour, &minute, &second, &msec );
+            lMillis = hb_timeEncode( hour, minute, second, msec );
+         }
+         else
+            lMillis = 0;
+      }
+      if( ( hb_parinfo( 2 ) != HB_IT_NIL && lJulian < 1 ) ||
+          ( hb_parinfo( 3 ) != HB_IT_NIL && lMillis < 1 ) )
+         fSuccess = HB_FALSE;  /* invalid argument */
+      if( lJulian > 0 || lMillis > 0 || ! fSuccess )
+         iRet = 0;
+
+      if( ! fSuccess || ! LetoFileTime( pConnection, szFile, &lJulian, &lMillis ) )
+      {
+         lJulian = 0;
+         lMillis = 0;
+         fSuccess = HB_FALSE;
+      }
+
+      switch( iRet )
+      {
+         case 0:  /* boolean */
+            hb_retl( fSuccess );
+            break;
+
+         case 1:  /* timestamp */
+            hb_rettdt( lJulian, lMillis );
+            break;
+
+         case 2:  /* date */
+            hb_retdl( lJulian );
+            break;
+
+         case 3:  /* time with millisec */
+         case 4:  /* short time */
+         {
+            char szTime[ 18 ];
+
+            hb_timeStr( szTime, lMillis );
+            if( iRet == 4 )
+               hb_retclen( szTime, 8 );
+            else
+               hb_retc( szTime );
+            break;
+         }
+
+         case 5:  /* julian */
+            hb_retnl( lJulian );
+            break;
+      }
+
+      return;
+   }
+
+   hb_retl( HB_FALSE );
+}
+
+HB_FUNC( LETO_DIRECTORY )  /* ( cPathSpec, cnAttributes ) */
 {
    LETOCONNECTION * pConnection;
    char             szFile[ HB_PATH_MAX ];
@@ -783,9 +897,16 @@ HB_FUNC( LETO_DIRECTORY )  /* ( cPathSpec, cAttributes ) */
 
    if( ( pConnection = letoParseParam( hb_parc( 1 ), szFile ) ) != NULL )
    {
+      char szAttr[ 21 ] = { 0 };
+
       if( ! *szFile )
          strcpy( szFile, "." );
-      ptr = LetoDirectory( pConnection, szFile, HB_ISCHAR( 2 ) ? hb_parc( 2 ) : NULL );
+      if( HB_ISCHAR( 2 ) )
+         hb_strncpy( szAttr, hb_parc( 2 ), 20 );
+      else if( HB_ISNUM( 2 ) )
+         hb_fsAttrDecode( ( HB_FATTR ) hb_parni( 2 ), szAttr );
+
+      ptr = LetoDirectory( pConnection, szFile, *szAttr ? szAttr : NULL );
       if( ptr != NULL )
       {
          ptr = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer + 3 );
@@ -956,14 +1077,14 @@ HB_FUNC( LETO_SETPATH )
 
       if( nLen && pPaths[ nLen - 1 ] == ';' )  /* trim not allowed trailing ';' */
       {
-         nLen--;
          pPaths[ nLen - 1 ] = '\0';
+         nLen--;
       }
 
-      while( nLen )  /* convert OS path seperator to ',' */
+      while( nLen )  /* convert Harbour path separator ';' to ',' */
       {
-         if( pPaths[ nLen ] == ';' || pPaths[ nLen ] == ':' )
-            pPaths[ nLen ] = ',';
+         if( pPaths[ nLen - 1 ] == ';' )
+            pPaths[ nLen - 1 ] = ',';
          nLen--;
       }
 
@@ -977,7 +1098,7 @@ HB_FUNC( LETO_SETPATH )
 
             for( nPos = 0; nPos < nLen; nPos++ )
             {
-               if( pPath[ nPos ] == ':' )  /* Unix style --> Harbour */
+               if( pPath[ nPos ] == ',' )  /* transmitted pathsep --> Harbour */
                   pPath[ nPos ] = ';';
             }
             hb_retc( pPath );
@@ -2140,7 +2261,7 @@ HB_FUNC( LETO_VARGETSAVE )
 }
 
 /*
- * LETO_VARINCR( cGroupName, cVarName[, nFlags ) --> nValue
+ * LETO_VARINCR( cGroupName, cVarName[, nFlags, nIncr ) --> nValue
  */
 HB_FUNC( LETO_VARINCR )
 {
@@ -2179,7 +2300,7 @@ HB_FUNC( LETO_VARINCR )
 }
 
 /*
- * LETO_VARDECR( cGroupName, cVarName[, nFlags ) --> nValue
+ * LETO_VARDECR( cGroupName, cVarName[, nFlags, nDecrement ) --> nValue
  */
 HB_FUNC( LETO_VARDECR )
 {
@@ -2198,8 +2319,10 @@ HB_FUNC( LETO_VARDECR )
 
             if( pDecrement && ( HB_IS_INTEGER( pDecrement ) || HB_IS_LONG( pDecrement ) ) )
                ultostr( hb_parni( 4 ), szDecrement );
-            else
+            else if( HB_ISNUM( 4 ) )
                sprintf( szDecrement, "%f", hb_parnd( 4 ) );
+            else
+               sprintf( szDecrement, "%c", '1' );
             lValue = LetoVarDecr( pCurrentConn, hb_parc( 1 ), hb_parc( 2 ), iFlag, szDecrement );
             if( ! pCurrentConn->iError )
             {

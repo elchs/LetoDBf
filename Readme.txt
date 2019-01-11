@@ -1511,12 +1511,16 @@ A. Internals
  Returns an error code set by ( some, not for all ) file functions at client.
  NEW: with optional <lAskServer> set to TRUE ( .T. ) a query is send to the server.
 
-      Leto_File( cFileName )                                   ==> lFileExists
+      Leto_File( cFileName[, @cFilePath ] )                    ==> lFileExists
  Determine if file exist at the server, analog of File() function.
- <cFileName> is ever relative to the <DataPath> of letodb.ini.
+ <cFileName> is ever relative to the <DataPath> of 'letodb.ini'
+ If <cFileName> is a *plain* filename without path element, and <@cFilePath> given by reference,
+ plus a search path is set with Leto_SetPath(), <@cFilePath> contains [sub]directory plus filename
+ where <cFileName> was found.
 
-      Leto_FCopy( cFilename, cFileNewName )                    ==> -1 if failed
- Copy a file at the server with a new name at server
+      Leto_FCopy( cFilename, cFileNewName[, lMove ] )          ==> -1 if failed
+ Copy a file at the server with a new name at server.
+ With optional set <lMove> == true (.T.), the source is deleted afterwards.
 
       Leto_FErase( cFileName )                                 ==> -1 if failed
  Delete a file at the server.
@@ -1535,7 +1539,7 @@ A. Internals
  MemoWrit() function.
  ! FIXED ! Notice, that character '26' == 'strg-z' is appened to <cBuf>.
 
-      Leto_Directory( [ cDir ] [, cAttr] )                     ==> aDirectory
+      Leto_Directory( [ cDir ] [, cnAttr] )                    ==> aDirectory
  Returns a content of directory at the server in the same format as Directory() function.
  With no given <cDir> the DataPath root directory is used.
 
@@ -1552,15 +1556,31 @@ A. Internals
       Leto_FileSize( cFileName )                               ==> -1 if failed
  Returns a length of file at the server
 
+      Leto_FileTime( cFile[, dDate][, cTime][, nReturnType] )  ==> various return
+ It queries _or_ set a date/ time/ timestamp for file <cFile>.
+ Without any of optional <dDate> and <cTime>, a query is done at server,
+ then depending on <nReturnType> returned value is:
+ '0' = boolean for success, '1' = timestamp, '2' = dDate, '3' = cTime with Millisec,
+ '4' = shortened 8-char cTime, '5' = nJulianDay.
+ If given <dDate> and/or <cTime> _or_ a timestamp for <dDate>, then this datetime will
+ be set for the file. If left out <dDate> or <cTime>, missing value will be fetched from the
+ existing file, aka a given <dDate> but missing <cTime> only changes the filedate but not filetime,
+ and only given <cTime> will change the filetime but not the filedate.
+ <dDate> and/or <cTime> must be NIL or filled with correct type, <cTime> can contain MilliSeconds
+ in format: "hh:mm:ss.xxx".
+ Return value for any *set* action is a boolean (.T./.F.) for success, or false if no connection,
+ or the wanted valtype as a blank-value in case of a failure to query for it.
+
       Leto_FileMD5( cFileName[, lBinary ]                      ==> cMD5sum
  Returns the MD5 sum of a file at server, empty string if not found or any else error.
  By default as 32 chars long hex string, with <lBinary> == true (.T.) as 16-byte binary value.
 
-      Leto_FileAttr( cFileName [, cNewAttr] )                  ==> cAttr
+      Leto_FileAttr( cFile [, cnNewAttr ][, lAsNumeric ] )     ==> cnAttr
  Get ( without given cNewAttr ) or set <cNewAttr> file attributes, where returned value
- <cAttr> are the active attributes ( after an optional change with <cNewAttr> )
- <cNewAttr> can contain at first place a "-", to revert the following attribute(s),
+ <cnAttr> are the active attributes ( after an optional change with <cnNewAttr> )
+ <cnNewAttr> can contain at first place a "-", to revert the following attribute(s),
  e.g.; "-A" will remove the 'archive' attribute; "-" will remove all attributes.
+ Optional <lAsNumeric> as true (.T. ) will return the attributes as numeric value.
  File attributes are only valid for FileSystem which support them !
 
       Leto_FileRead( cFileName, [ nStart ], [ nLen ], @cBuf )  ==> -1 if failed
@@ -1775,13 +1795,15 @@ A. Internals
 
  Function return value of variable <cVarName> from group <cGroupName>
 
-      LETO_VARINCR( cGroupName, cVarName, nFlags )             ==> nValue
-      LETO_VARDECR( cGroupName, cVarName, nFlags )             ==> nValue
+      LETO_VARINCR( cGroupName, cVarName,[ nFlags ],[ nVal ] ) ==> nValue
+      LETO_VARDECR( cGroupName, cVarName,[ nFlags ],[ nVal ] ) ==> nValue
 
- Function increment/ decrement integer value of variable <cVarName> of group <cGroupName>.
- ! Only allowed for integer [ INT() ] variables without decimals!
+ Function increment/ decrement numeric value of variable <cVarName> of group <cGroupName>.
+ [NEW] If <nVal> is not explicitely given, 1.0 is incremented/ decremented,
+ and all numeric values (integer or decimals ) are now allowed.
+ These both functions are nice to sum a value, where incrementing a negative value is in effect
+ a decrementing and vice versa.
  Remark that e.g. a result of a division: 'x / y' is ever a decimal value.
- So if in doubt use INT( value ) when you want to create/ update such a variable.
 
       LETO_VARDEL( cGroupName[, cVarName ] )                   ==> lSuccess
 
@@ -2174,8 +2196,8 @@ A. Internals
 
       LETO_VARSET( cGroupName, cVarName, xValue[, nFlags )     ==> xValue
       LETO_VARGET( cGroupName, cVarName )                      ==> xValue
-      LETO_VARINCR( cGroupName, cVarName )                     ==> nValue
-      LETO_VARDECR( cGroupName, cVarName )                     ==> nValue
+      LETO_VARINCR( cGroupName, cVarName[ nFlags ],[ nVal ] )  ==> nValue
+      LETO_VARDECR( cGroupName, cVarName[ nFlags ],[ nVal ] )  ==> nValue
       LETO_VARDEL( cGroupName, cVarName )                      ==> lSuccess
       LETO_VARGETLIST( [cGroupName, [lValue]] )                ==> aList
 

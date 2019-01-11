@@ -4786,7 +4786,7 @@ static void leto_FilePathClean( char * pFullPath )
    }
    if( ( nS3 || nS2 ) && *( pFullPath + nS2 + nS3 ) == DEF_SEP )
       nS3++;
-   if( nS3 )
+   if( nS3 || ( nS2 == 2 && pFullPath[ 1 ] == ':' ) )
       memmove( pFullPath, pFullPath + nS2 + nS3, strlen( pFullPath ) - ( nS2 + nS3 ) + 1 );
 }
 
@@ -5228,6 +5228,69 @@ static void leto_FileFunc( PUSERSTRU pUStru, char * szData )
 #endif
                   if( fResult )
                      strcpy( szData1, "+T;0;" );
+                  else
+                     sprintf( szData1, "+F;%d;", hb_fsError() );
+               }
+               break;
+            }
+
+            case '8':  /* Leto_FileTime */
+            {
+               if( nParam < 4 || ! pp2 || ! pp3 )
+                  strcpy( szData1, "+F;1;" );
+               else
+               {
+                  HB_BOOL fResult;
+                  HB_LONG lJulian = atol( pp2 ), lMillis = atol( pp3 );
+
+#if defined( __HARBOUR30__ )
+                  if( lJulian > 0 || lMillis > 0 )  /* to set */
+                  {
+                     if( lJulian <= 0 || lMillis <= 0 )
+                     {
+                        HB_LONG lJulia, lMilli;
+
+                        if( hb_fsGetFileTime( szFile, &lJulia, &lMilli ) )
+                        {
+                           if( lJulian <= 0 )
+                              lJulian = lJulia;
+                           else
+                              lMillis = lMilli;
+                        }
+                     }
+                     fResult = hb_fsSetFileTime( szFile, lJulian, lMillis );
+                  }
+                  else
+                     fResult = hb_fsGetFileTime( szFile, &lJulian, &lMillis );
+#else
+                  if( lJulian > 0 || lMillis > 0 )  /* to set */
+                  {
+                     if( lJulian <= 0 || lMillis <= 0 )
+                     {
+                        HB_LONG lJulia, lMilli;
+
+                        if( hb_fileTimeGet( szFile, &lJulia , &lMilli ) )
+                        {
+                           if( lJulian <= 0 )
+                              lJulian = lJulia;
+                           else
+                              lMillis = lMilli;
+                        }
+                     }
+                     fResult = hb_fileTimeSet( szFile, lJulian, lMillis );
+                  }
+                  else
+                     fResult = hb_fileTimeGet( szFile, &lJulian, &lMillis );
+#endif
+                  if( fResult )
+                  {
+                     pBuffer = ( char * ) hb_xgrabz( HB_PATH_MAX );
+
+                     memcpy( pBuffer, "+T;", 3 );
+                     ulLen = eprintf( pBuffer + 3, "%ld;%ld;", lJulian, lMillis ) + 3;
+                     pBuffer[ ulLen ] = '\0';
+                     bFreeBuf = HB_TRUE;
+                  }
                   else
                      sprintf( szData1, "+F;%d;", hb_fsError() );
                }
@@ -10891,9 +10954,9 @@ static void leto_SetPathDefault( const char * ptr, HB_SIZE nLen )
    if( ! hb_setGetPath() || ! strlen( hb_setGetPath() ) )  /* else keep an already set PATH */
    {
 #if defined( HB_OS_WIN )
-      if( ! leto_stricmp( s_pDataPath, szDefaultPath ) )
+      if( leto_stricmp( s_pDataPath, szDefaultPath ) )
 #else
-      if( ! strcmp( s_pDataPath, szDefaultPath ) )
+      if( strcmp( s_pDataPath, szDefaultPath ) )
 #endif
       {
          pItem = hb_itemPutC( pItem, s_pDataPath );
@@ -11393,6 +11456,7 @@ static void leto_Set( PUSERSTRU pUStru, char * szData )
                hb_setGetItem( ( HB_set_enum ) iCmd, pReturn, NULL, NULL );
                szResult = ( char * ) hb_xgrab( hb_itemGetCLen( pReturn ) + 5 );
                eprintf( szResult, "++++%s", hb_itemGetCPtr( pReturn ) );
+               hb_itemRelease( pReturn );
                leto_FilePathClean( szResult + nPos );
                while( ( pSubPath = strchr( szResult + nPos, DEF_SEPPATH ) ) != NULL )
                {
@@ -11403,7 +11467,7 @@ static void leto_Set( PUSERSTRU pUStru, char * szData )
                   nPos--;
                while( *( szResult + nPos ) == DEF_SEPPATH )
                   *( szResult + nPos-- ) = '\0';
-               hb_itemRelease( pReturn );
+               leto_StrTran( szResult, DEF_SEPPATH, ',', nPos );
 
                leto_StrTran( pAreaID, ',', ';', nLen );
                if( iCmd == HB_SET_DEFAULT )

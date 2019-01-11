@@ -54,16 +54,38 @@
 #ifndef LETOFILE_CH_
 #define LETOFILE_CH_
 
+/* this activates the default set */
+#define __LETO_TRANSLATE_FILE__
+
 /* non-modifying queries for size and exist */
+#if ! defined( __LETO_TRANSLATE_FILE ) && ( defined( __LETO_TRANSLATE_FILE__ ) || defined( __LETO_TRANSLATE_FILE_ALL ) )
    #define __LETO_TRANSLATE_FILE
-/* extended set of copy, delete, rename */
+#endif
+
+/* extended set of copy, delete, rename, timestamp */
+#if ! defined( __LETO_TRANSLATE_FILE_MORE ) && ( defined( __LETO_TRANSLATE_FILE__ ) || defined( __LETO_TRANSLATE_FILE_ALL ) )
    #define __LETO_TRANSLATE_FILE_MORE
-/* low-level Fxxx() function set */
-//   #define __LETO_TRANSLATE_FILE_LOW
+#endif
+
+/* low-level Fxxx() function set -- need allowed UDF at server */
+#if ! defined( __LETO_TRANSLATE_FILE_LOW ) && defined( __LETO_TRANSLATE_FILE_ALL )
+   #define __LETO_TRANSLATE_FILE_LOW
+#endif
+
 /* memo functions to read, write */
+#if ! defined( __LETO_TRANSLATE_MEMO ) && ( defined( __LETO_TRANSLATE_FILE__ ) || defined( __LETO_TRANSLATE_FILE_ALL ) )
    #define __LETO_TRANSLATE_MEMO
+#endif
+
 /* directory function set to query, test, make, remove */
+#if ! defined( __LETO_TRANSLATE_DIR ) && ( defined( __LETO_TRANSLATE_FILE__ ) || defined( __LETO_TRANSLATE_FILE_ALL ) )
    #define __LETO_TRANSLATE_DIR
+#endif
+
+/* CT contrib functions -- need CT-contrib linked to application  */
+#if ! defined( __LETO_TRANSLATE_CT ) && defined( __LETO_TRANSLATE_FILE_ALL )
+   #define __LETO_TRANSLATE_CT
+#endif
 
 
 #if defined( __LETO_TRANSLATE_FILE )
@@ -86,6 +108,8 @@
    #xtranslate DELETE FILE <(f)>             => LETO_FERASE( <f> )
    #xtranslate FERASE( [<x,...>] )           => LETO_FERASE( <x> )
    #xtranslate FRENAME( [<x,...>] )          => LETO_FRENAME( <x> )
+
+   #xtranslate HB_FSETDATETIME( <x,...> )    => LETO_FILETIME( <x> )
 #endif
 
 #if defined( __LETO_TRANSLATE_FILE_LOW )
@@ -97,6 +121,8 @@
    #xtranslate FREAD( [<x,...>] )            => leto_Fread( <x> )
    #xtranslate FREADSTR( [<x,...>] )         => leto_Udf( "FReadStr", <x> )
    #xtranslate FWRITE( [<x,...>] )           => leto_Udf( "FWrite", <x> )
+
+   #xtranslate HB_FCREATE( <x,...> )         => leto_Udf( "Leto_FCreate", <x> )
 #endif
 
 #if defined( __LETO_TRANSLATE_MEMO )
@@ -115,6 +141,20 @@
    #xtranslate DIRMAKE( [<x,...>] )          => LETO_DIRMAKE( <x> )
    #xtranslate MAKEDIR( [<x,...>] )          => LETO_DIRMAKE( <x> )
    #xtranslate DIRREMOVE( [<x,...>] )        => LETO_DIRREMOVE( <x> )
+#endif
+
+#if defined( __LETO_TRANSLATE_CT )
+   #xtranslate FILEATTR( <x> )               => LETO_FILEATTR( <x>,,.T. )
+   #xtranslate SETFATTR( <x>,<y> )           => LETO_FILEATTR( <x>, <y>, .T. )
+   #xtranslate FILEDATE( <x> )               => LETO_FILETIME( <x>,,, 2 )
+   #xtranslate FILETIME( <x> )               => LETO_FILETIME( <x>,,, 4 )
+   #xtranslate SETFDATI( <x,...> )           => LETO_FILETIME( <x> )
+   /* to catch a broken/ not yet established connection, aka no returned array */
+   #xtranslate DISKSPACE( [<x,...>] )        => EVAL( {| a | a := Leto_MgSysInfo(), IIF( VALTYPE( a ) == "A", a\[ 1 \], 0 ) } )
+   #xtranslate FILECOPY( <x>, <y> )          => LETO_FCOPY( <x>, <y> )
+   #xtranslate FILEMOVE( <x>, <y> )          => LETO_FCOPY( <x>, <y>, .T. )
+   #xtranslate DELETEFILE( <x> )             => LETO_FERASE( <x> )
+   #xtranslate RENAMEFILE( <x>, <y> )        => LETO_FRENAME( <x>, <y> )
 #endif
 
 
