@@ -5331,7 +5331,8 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
 
       if( ! ( pTable->uiUpdated & LETO_FLAG_UPD_APPEND ) && ( uiAction == REC_UNLOCK || uiAction == FILE_UNLOCK ) )
       {
-         if( ! ( pConnection->fTransActive || pTable->fModStamp ) )  /* fModStamp: fresh data with LetoDbRecUnLock() */
+         /* fModStamp: fresh data with LetoDbRecUnLock() // no shortcut for non established hSocketErr */
+         if( ! ( pConnection->fTransActive || pConnection->hSocketErr == HB_NO_SOCKET || pTable->fModStamp ) )
          {
             fInstant = HB_TRUE;
             pTable->uiUpdated |= LETO_FLAG_UPD_FLUSH;

@@ -688,15 +688,17 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
       if( bDelayedError )
       {
          if( pUStru->ulBytesSend )
-         {
             leto_wUsLog( pUStru, -1, "DEBUG delayed error send: %s",
                          ( const char * ) ( pUStru->pSendBuffer + LETO_MSGSIZE_LEN ) );
-         }
          else
-         {
-            //pUStru->hSocketErr = HB_NO_SOCKET;
             leto_wUsLog( pUStru, 0, "ERROR could not send error message at extra socket !" );
-         }
+      }
+      else if( iDebugMode() >= 15 )
+      {
+         if( iDebugMode() <= 20 )
+            leto_wUsLog( pUStru, -1, "DEBUG leto_SendAnswer2() %lu bytes", ulLen );
+         else
+            leto_wUsLog( pUStru, ( ( ulLen > 2048 ) ? 1024 : ulLen ), ( char * ) pUStru->pSendBuffer );
       }
    }
 }

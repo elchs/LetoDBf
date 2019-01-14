@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-14 11:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/leto_2.c
+    * debug feedback in leto_SendAnswer2() in case of no hSocketErr
+
+  * source/client/leto1.c
+    ! no unlock shortcut in letoRawLock() for non established hSocketErr
+      ; in case of missing second socket server will send 2 ACKs, one for
+      data update and one for unlock, where client expects only one answer
+      ; this should be the long searched error reported from Marek
+
 2019-01-11 19:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/letocl.c
