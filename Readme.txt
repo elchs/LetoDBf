@@ -138,7 +138,7 @@ A. Internals
 
  Client library:
     -- all OS:          hbmk2 rddleto
- Recommended is to integrate LetoDbf client library into your Harbour environment as an 'addon':
+    Recommended is to integrate LetoDbf client library into your Harbour environment as an 'addon':
     -- all OS:          hbmk2 rddletoaddon
 
     If Linux user have 'installed' Harbour, you need root rights to also install LetoDBf as 'addon':
@@ -153,6 +153,9 @@ A. Internals
  else you have to point to the "letodb.hbc", example out of a sub-directory in LetoDBf:
     hbmk2 your_application ../letodb.hbc
 
+ !* If "letodb.hbc" is not used, please check section: 5.1.2 building your application *!
+ how to manually ensure what the "letodb.hbc" automatize.
+
  For first testing purpose it is recommended to let the server executable remain in the "bin"
  directory of your LetoDBf package. The following will just copy the executable and letodb.ini
  to another place, you may know a better place for them and do that manually.
@@ -165,6 +168,8 @@ A. Internals
  where you need admin rights to change config options.
  ! Installing LetoDBf needs to outcomment and adjust the <LogPath> in letodb.ini !
  Use e.g. temporary directory of your OS, where normal users have write rights, e.g.: "/tmp".
+
+ Scroll down, continue to read in section: 3. Running and stopping server
 
 
       2.2 Borland Win32 C++ compiler
@@ -759,6 +764,7 @@ A. Internals
  example place it in function main(). Take a look into 'tests/basic.prg'
 
       IF leto_Connect( "//192.168.7.42:2812/" ) < 0
+         Alert( "Can't connect to server ..." )
          QUIT
       ENDIF
 
@@ -766,38 +772,38 @@ A. Internals
  or if you application need to connect to multiple ! LetoDBf server, check detailed params of
  leto_Connect() in: 7.1
 
+ If you need to make more source changes specific for LetoDBf, you may like to encapsulte them:
+     #ifdef RDDLETO_CH_
+        ... special for Leto
+     #endif
+ to keep your source portable for usage without LetoDBf.
+
 
       5.1.2 building your application
 
  Hopefully you did not set the second param of: DbUseArea( , cDriver, ... )
  or used the "VIA" option of the "USE command": then remove cDriver for all WA to be used with LetoDBf.
+ This will make your application portable to also other RDD as LETO, as the default RDD can be easy
+ determined at program start by setting: RDDSetDefault( "XXXX" ), e.g. "DBFCDX".
+ A successful login to the server sets the default RDD to "LETO".
 
  Most easy and highly recommended is to build your app for LetoDBf by using "letodb.hbc" for hbmk2.
  You can include it into your project HBP by adding it in an extra line, or use it at command line:
 
       hbmk2 yourapp[.prg|.hbp] letodb.hbc
 
- It automates for you the following steps:
- .) add LetoDbf library and include paths
- a) request for the LetoDBf RDD driver, else manually must be set outside the main() procedure:
+ It automatize for you the following steps:
+ a) add LetoDbf library and include paths for the linking process
+ b) request to link the LetoDBf RDD driver, else it must be set manually outside the main() procedure
       REQUEST LETO
- b) includes the header file: "rddleto.ch", else it must be done manually in every of your PRG:
+ c) includes the header file: "rddleto.ch", else it must be done manually in every of your PRG:
       #include "rddleto.ch"
-    or by using the <-u+> option for Harbour:
-      -u+rddleto.ch
- c) set the switch "-mt" to link your application with LetoDBf client library with multi-thread support.
+      or
+      it can be done by using the <-u+> option for Harbour: -u+rddleto.ch
+ d) same as for c) includes the header file: "leto_std.ch"
+ e) set the switch "-mt=yes" to link your application with LetoDBf client library with multi-thread support.
     Further an internal, additive idletask is activated, if your application is build with '-mt'.
- d) links the "rddleto" client lib
-
- Then there are two ways to open a DBF table at the server,
- THE **very recommended** because portable way is using a initially leto_Connect().
-
-      IF leto_Connect( "//192.168.5.22:2812/" ) < 0
-         Alert( "Can't connect to server ..." )
-         QUIT
-      ENDIF
-
- For detailed parameters info of leto_Connect() see: 7.1
+ and at end links the "rddleto" client lib functions called in your source into the executable.
 
 
        5.1.3 successful connected to server

@@ -1,3 +1,7 @@
+REM
+REM check file "Readme.txt", chapter: 2.1 -- this file is commonly not what you want
+REM
+
 REM SET PATH=F:\MsVc8\VC\bin;F:\MsVc8\SDK\v2.0\bin;f:\HbVc8\bin
 REM SET PATH=F:\MsVc9\VC\bin;F:\MsVc9\SDK\v3.5\bin;f:\HbVc9\bin
 

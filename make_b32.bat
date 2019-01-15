@@ -1,3 +1,7 @@
+REM
+REM check file "Readme.txt", chapter: 2.1 -- this file is commonly not what you want
+REM
+
 rem SET PATH=C:\BCC55\BIN;F:\hbcc\bin
 rem SET HB_PATH=F:\hbcc
 

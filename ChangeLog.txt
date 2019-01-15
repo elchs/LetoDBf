@@ -2,6 +2,23 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-15 23:39 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * Readme.txt
+    * improve some hints how to work *without* recommended 'letodb.hbc'
+
+  - readme_rus.txt
+  - readme_pt_br.txt
+    * these both help files got very very outdated, sorry!,
+      they were inherited from origin LetoDB when LetoDBf started at GitHub
+    ; does someone like to translate the new Readme.txt into a witespread
+      language like Russian, Spanish, French etc -- welcome !!,
+      but best to inform beforhand the developer to coordinate your effort
+
+  * make_b32.bat
+  * make_vc.bat
+    * add a note at top in these Windows batch files to avoid them,
+      and as ever possible to use best hbmk2 build tool of Harbour
+
 2019-01-14 11:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/leto_2.c
     * debug feedback in leto_SendAnswer2() in case of no hSocketErr
