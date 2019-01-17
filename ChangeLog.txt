@@ -2,6 +2,13 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-17 13:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    ! fix a reported server crash in leto_GroupBy() if an expression
+      is used instead of a field for grouping;
+    ! add missing blocks destroy in UDF LETO_DBTOTAL()
+    * use hb_vmDestroyBlockOrMacro() instead of hb_itemRelease()
+
 2019-01-15 23:39 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * Readme.txt
     * improve some hints how to work *without* recommended 'letodb.hbc'

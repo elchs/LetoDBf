@@ -8592,19 +8592,22 @@ HB_FUNC( LETO_DBTOTAL )
    AREAP      pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    PHB_DYNS   pDo = hb_dynsymFind( "__DBTOTAL" );
    PHB_ITEM   pBlock, pFor, pWhile;
+   PHB_ITEM   pMyBlock, pMyFor, pMyWhile;
+   HB_BOOL    bSuccess = HB_FALSE;
 
+   pMyBlock = pMyFor = pMyWhile = NULL;
    hb_xvmSeqBegin();
 
    if( HB_ISCHAR( 2 ) )
-      pBlock = leto_mkCodeBlock( pUStru, hb_parc( 2 ), hb_parclen( 2 ), HB_FALSE );
+      pMyBlock = pBlock = leto_mkCodeBlock( pUStru, hb_parc( 2 ), hb_parclen( 2 ), HB_FALSE );
    else
       pBlock = hb_param( 2, HB_IT_BLOCK );
    if( HB_ISCHAR( 4 ) )
-      pFor = leto_mkCodeBlock( pUStru, hb_parc( 4 ), hb_parclen( 4 ), HB_FALSE );
+      pMyFor = pFor = leto_mkCodeBlock( pUStru, hb_parc( 4 ), hb_parclen( 4 ), HB_FALSE );
    else
       pFor = hb_param( 4, HB_IT_BLOCK );
    if( HB_ISCHAR( 5 ) )
-      pWhile = leto_mkCodeBlock( pUStru, hb_parc( 5 ), hb_parclen( 5 ), HB_FALSE );
+      pMyWhile = pWhile = leto_mkCodeBlock( pUStru, hb_parc( 5 ), hb_parclen( 5 ), HB_FALSE );
    else
       pWhile = hb_param( 5, HB_IT_BLOCK );
 
@@ -8629,9 +8632,19 @@ HB_FUNC( LETO_DBTOTAL )
       {
          hb_vmPush( hb_param( i, HB_IT_ANY ) );
       }
+
+      hb_xvmSeqBegin();
       hb_vmDo( ( HB_USHORT ) ( HB_MAX( 5, iLen ) ) );
+      hb_xvmSeqEnd();
+      if( ! pUStru->iHbError )
+         bSuccess = HB_TRUE;
    }
-   else
+
+   hb_vmDestroyBlockOrMacro( pMyBlock );
+   hb_vmDestroyBlockOrMacro( pMyFor );
+   hb_vmDestroyBlockOrMacro( pMyWhile );
+
+   if( ! bSuccess )
       hb_retl( HB_FALSE );
 }
 
@@ -12119,7 +12132,7 @@ static void leto_GroupBy( PUSERSTRU pUStru, char * szData )
       char         szFieldName[ 12 ];
       PHB_ITEM     pValFilter, pNumItem;
       PHB_ITEM     pGroupBlock = NULL;
-      PHB_ITEM     pGroupVal = NULL;
+      PHB_ITEM     pGroupVal= hb_itemNew( NULL );
       PHB_ITEM     pItem = hb_itemNew( NULL ), pBlock;
       PHB_ITEM     pFilterBlock = NULL;
       PHB_ITEM     pTopScope = NULL;
@@ -12150,12 +12163,13 @@ static void leto_GroupBy( PUSERSTRU pUStru, char * szData )
          else
             cGroupType = 'U';
          hb_itemRelease( pItemType );
-         pGroupVal = hb_itemNew( NULL );
       }
       else
       {
          cGroupType = leto_ExprGetType( pUStru, pGroup, pFields - pGroup - 1 );
          pGroupBlock = leto_mkCodeBlock( pUStru, pGroup, pFields - pGroup - 1, HB_TRUE );
+         if( ! pGroupBlock )
+            cGroupType = 'U';
       }
 
       ptr = pFields;
@@ -12258,14 +12272,11 @@ static void leto_GroupBy( PUSERSTRU pUStru, char * szData )
          while( ! pUStru->iHbError )
          {
             leto_setSetDeleted( *pFlag == 0x41 );
-            if( pBottomScope )
+            if( pTopScope )
                leto_ScopeCommand( pArea, DBOI_SCOPETOP, pTopScope );
             if( pBottomScope )
                leto_ScopeCommand( pArea, DBOI_SCOPEBOTTOM, pBottomScope );
-#if 0  /* ToFix-- this i don't understand */
-            else if( pTopScope )
-               leto_ScopeCommand( pArea, DBOI_SCOPEBOTTOM, pTopScope );
-#endif
+
             if( ! ( pTopScope || pBottomScope ) && ! ( ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) ) )
             {
                LETOTAG * pTag = pAStru->pTagCurrent;
@@ -12306,10 +12317,7 @@ static void leto_GroupBy( PUSERSTRU pUStru, char * szData )
                   if( uiGroup )
                      bEnd = ( SELF_GETVALUE( pArea, uiGroup, pGroupVal ) == HB_SUCCESS );
                   else
-                  {
-                     pGroupVal = hb_vmEvalBlock( pGroupBlock );
-                     bEnd = HB_TRUE;
-                  }
+                     hb_itemCopy( pGroupVal, hb_vmEvalBlock( pGroupBlock ) );
                }
 
                if( bEnd )
@@ -12363,7 +12371,7 @@ static void leto_GroupBy( PUSERSTRU pUStru, char * szData )
              leto_ClearFilter( pArea );
          if( pFilterBlock )
          {
-            hb_itemRelease( pFilterBlock );
+            hb_vmDestroyBlockOrMacro( pFilterBlock );
             if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
                leto_ClearFilter( pArea );
             else if( ! pAStru->itmFltExpr )  /* restore filter */
@@ -12419,17 +12427,21 @@ static void leto_GroupBy( PUSERSTRU pUStru, char * szData )
             }
             else
             {
+               PHB_ITEM pLen;
+
                hb_xvmSeqBegin();
-               pGroupVal = hb_vmEvalBlock( pGroupBlock );
+               pLen = hb_vmEvalBlock( pGroupBlock );
                hb_xvmSeqEnd();
 
-               if( HB_IS_STRING( pGroupVal ) )
-                  uiLen = ( HB_USHORT ) hb_itemGetCLen( pGroupVal ) + 2;
-               else if( HB_IS_DATE( pGroupVal ) )
+               if( pUStru->iHbError || ! pLen )
+                  uiLen = 0;
+               else if( HB_IS_STRING( pLen ) )
+                  uiLen = ( HB_USHORT ) hb_itemGetCLen( pLen ) + 2;
+               else if( HB_IS_DATE( pLen ) )
                   uiLen = 8;
-               else if( HB_IS_NUMBER( pGroupVal ) )
+               else if( HB_IS_NUMBER( pLen ) )
                   uiLen = 20;
-               else if( HB_IS_LOGICAL( pGroupVal ) )
+               else if( HB_IS_LOGICAL( pLen ) )
                   uiLen = 1;
                else
                   uiLen = 0;
@@ -12496,14 +12508,13 @@ static void leto_GroupBy( PUSERSTRU pUStru, char * szData )
       for( uiIndex = 0; uiIndex < uiCount; uiIndex++ )
       {
          if( pSumFields[ uiIndex ].pBlock )
-            hb_itemRelease( pSumFields[ uiIndex ].pBlock );
+            hb_vmDestroyBlockOrMacro( pSumFields[ uiIndex ].pBlock );
       }
       hb_xfree( pSumFields );
       hb_itemRelease( pItem );
       if( pGroupBlock )
-         hb_itemRelease( pGroupBlock );
-      if( pGroupVal )
-         hb_itemRelease( pGroupVal );
+         hb_vmDestroyBlockOrMacro( pGroupBlock );
+      hb_itemRelease( pGroupVal );
       hb_itemRelease( pHash );
       hb_itemRelease( pDefault );
    }
@@ -12653,10 +12664,7 @@ static void leto_Sum( PUSERSTRU pUStru, char * szData )
             leto_ScopeCommand( pArea, DBOI_SCOPETOP, pTopScope );
          if( pBottomScope )
             leto_ScopeCommand( pArea, DBOI_SCOPEBOTTOM, pBottomScope );
-#if 0  /* ToFix -- this i don't understand */
-         else if( pTopScope )
-            leto_ScopeCommand( pArea, DBOI_SCOPEBOTTOM, pTopScope );
-#endif
+
          if( ! ( pTopScope || pBottomScope ) && ! ( ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) ) )
          {
             LETOTAG * pTag = pUStru->pCurAStru->pTagCurrent;
@@ -12678,9 +12686,7 @@ static void leto_Sum( PUSERSTRU pUStru, char * szData )
             for( uiIndex = 0; uiIndex < uiCount; uiIndex++ )
             {
                if( pSums[ uiIndex ].Pos < 0 )
-               {
                   pSums[ uiIndex ].value.lSum++;
-               }
                else if( pSums[ uiIndex ].pBlock )
                {
                   pNumItem = hb_vmEvalBlock( pSums[ uiIndex ].pBlock );
@@ -12721,7 +12727,7 @@ static void leto_Sum( PUSERSTRU pUStru, char * szData )
           leto_ClearFilter( pArea );
       if( pFilterBlock )
       {
-         hb_itemRelease( pFilterBlock );
+         hb_vmDestroyBlockOrMacro( pFilterBlock );
          if( ! ( s_bNoSaveWA && ! pAStru->pTStru->bMemIO ) )
             leto_ClearFilter( pArea );
          else if( ! pAStru->itmFltExpr )  /* restore filter */
@@ -12789,7 +12795,7 @@ static void leto_Sum( PUSERSTRU pUStru, char * szData )
       for( uiIndex = 0; uiIndex < uiCount; uiIndex++ )
       {
          if( pSums[ uiIndex ].pBlock )
-            hb_itemRelease( pSums[ uiIndex ].pBlock );
+            hb_vmDestroyBlockOrMacro( pSums[ uiIndex ].pBlock );
       }
       hb_xfree( pSums );
       hb_itemRelease( pItem );
