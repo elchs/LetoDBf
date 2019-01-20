@@ -1674,6 +1674,44 @@ void leto_getFileFromPath( const char * szSource, char * szFile, HB_USHORT uLenM
    szFile[ uLen ] = '\0';
 }
 
+int leto_Connect( const char * szAddress, const char * szUser, const char * szPass, int iTimeOut, int iRefr, HB_BOOL fZombieCheck )
+{
+   LETOCONNECTION * pConnection;
+   char szAddr[ 96 ];
+   char szPath[ 96 ] = { 0 };
+   int  iPort = 0;
+   int  iRet = -1;
+
+   if( szAddress )
+      hb_strncpy( szPath, szAddress, 95 );
+
+   if( szPath[ 0 ] != '/' )  /* add "//.../" */
+   {
+      memmove( szPath + 2, szPath, 94 );
+      szPath[ 0 ] = '/';
+      szPath[ 1 ] = '/';
+      szPath[ HB_MIN( 94, strlen( szPath ) ) ] = '/';
+   }
+
+   if( leto_getIpFromPath( szPath, szAddr, &iPort, NULL ) &&
+       ( ( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) != NULL ) ||
+         ( ( pConnection = LetoConnectionNew( szAddr, iPort, szUser, szPass, iTimeOut, fZombieCheck ) ) != NULL ) ) )
+   {
+      if( iTimeOut > -2 )  /* -2 == not determined */
+      {
+         if( iTimeOut == 0 )
+            iTimeOut = LETO_DEFAULT_TIMEOUT;
+         pConnection->iTimeOut = iTimeOut;
+      }
+      if( iRefr > -2 )
+         pConnection->iBufRefreshTime = HB_MAX( iRefr * 10, -1 );
+
+      iRet = pConnection->iConnection;
+   }
+
+   return iRet;
+}
+
 #ifdef USE_LZ4
 static _HB_INLINE_ void leto_lz4Uncompress( char * pDst, HB_SIZE * pnDst, const char * pSrc, HB_SIZE nSrc )
 {

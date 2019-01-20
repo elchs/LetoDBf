@@ -54,7 +54,7 @@
 #endif
 
 
-LETOCONNECTION * leto_getConnection( int iParam );
+LETOCONNECTION * leto_getConnection( const char * szAddress );
 void leto_ConnectionClose( LETOCONNECTION * pConnection );
 
 
@@ -994,13 +994,10 @@ static int Leto_MgID( LETOCONNECTION * pConnection, HB_BOOL fRefresh )
 
 HB_FUNC( LETO_CONNECT )
 {
-   LETOCONNECTION * pConnection;
-   char szAddr[ 96 ];
-   char szPath[ 96 ];
-   int  iPort = 0;
    const char * szUser = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
    const char * szPass = hb_parclen( 3 ) ? hb_parc( 3 ) : NULL;
-   int          iTimeOut = HB_MAX( -1, hb_parni( 4 ) );  /* defaults to 0 */
+   int          iTimeOut = ! HB_ISNUM( 4 ) ? -2 : HB_MAX( -1, hb_parni( 4 ) );  /* defaults to 0 */
+   int          iRefr = ! HB_ISNUM( 5 ) ? -2 : HB_MAX( 0, hb_parni( 5 ) );
    HB_BOOL      fZombieCheck = ( HB_ISLOG( 6 ) ) ? hb_parl( 6 ) : LETO_USE_THREAD;
    int          iRet = -1;
 
@@ -1008,46 +1005,23 @@ HB_FUNC( LETO_CONNECT )
 
    if( ! hb_parclen( 1 ) )
    {
-      pConnection = letoGetCurrConn();
+      LETOCONNECTION * pConnection = letoGetCurrConn();
+
       if( pConnection )
-         hb_retni( Leto_MgID( pConnection, HB_TRUE ) );
-      else
-         hb_retni( iRet );
-      return;
+         iRet = Leto_MgID( pConnection, HB_TRUE );
    }
-   memset( szPath, 0, 96 );
-   memcpy( szPath, hb_parc( 1 ), HB_MIN( hb_parclen( 1 ), 95 ) );
+   else
+      iRet = leto_Connect( hb_parc( 1 ), szUser, szPass, iTimeOut, iRefr, fZombieCheck );
 
-   if( szPath[ 0 ] != '/' )  /* add "//.../" */
-   {
-      memmove( szPath + 2, szPath, 94 );
-      szPath[ 0 ] = '/';
-      szPath[ 1 ] = '/';
-      szPath[ strlen( szPath ) ] = '/';
-   }
-
-   if( HB_ISCHAR( 1 ) && leto_getIpFromPath( szPath, szAddr, &iPort, NULL ) &&
-       ( ( ( pConnection = leto_ConnectionFind( szAddr, iPort ) ) != NULL ) ||
-         ( ( pConnection = LetoConnectionNew( szAddr, iPort, szUser, szPass, iTimeOut, fZombieCheck ) ) != NULL ) ) )
-   {
-      if( HB_ISNUM( 4 ) )
-      {
-         if( iTimeOut == 0 )
-            iTimeOut = LETO_DEFAULT_TIMEOUT;
-         pConnection->iTimeOut = iTimeOut;
-      }
-      if( HB_ISNUM( 5 ) )
-         pConnection->iBufRefreshTime = HB_MAX( hb_parni( 5 ) * 10, -1 );
+   if( iRet >= 0 )
       hb_rddDefaultDrv( "LETO" );
-      iRet = pConnection->iConnection;
-   }
 
    hb_retni( iRet );
 }
 
 HB_FUNC( LETO_DISCONNECT )
 {
-   LETOCONNECTION * pConnection = leto_getConnection( 1 );
+   LETOCONNECTION * pConnection = leto_getConnection( hb_parc( 1 ) );
 
    if( pConnection )
    {
@@ -1132,7 +1106,8 @@ HB_FUNC( LETO_SETCONNECTLOOKUP )
 /* valid "//IP:port/" is needed, else no connection changed */
 HB_FUNC( LETO_SETCURRENTCONNECTION )
 {
-   LETOCONNECTION * pConnection = HB_ISCHAR( 1 ) ? leto_getConnection( 1 ) : NULL;
+   LETOCONNECTION * pConnBefore = ( HB_ISLOG( 2 ) && hb_parl( 2 ) ) ? letoGetCurrConn() : NULL;
+   LETOCONNECTION * pConnection = leto_getConnection( hb_parc( 1 ) );
 
    if( pConnection )
    {
@@ -1141,10 +1116,10 @@ HB_FUNC( LETO_SETCURRENTCONNECTION )
 
       szAddr[ 0 ] = '/';
       szAddr[ 1 ] = '/';
-      strcpy( szAddr + 2, pConnection->pAddr );
+      strcpy( szAddr + 2, pConnBefore ? pConnBefore->pAddr : pConnection->pAddr );
       iLen = strlen( szAddr );
       szAddr[ iLen++ ] = ':';
-      iLen += ultostr( pConnection->iPort, szAddr + iLen );
+      iLen += ultostr( pConnBefore ? pConnBefore->iPort : pConnection->iPort, szAddr + iLen );
       szAddr[ iLen++ ] = '/';
       szAddr[ iLen ] = '\0';
 
@@ -1154,29 +1129,8 @@ HB_FUNC( LETO_SETCURRENTCONNECTION )
       hb_retc( "" );
 }
 
-HB_FUNC( LETO_GETCURRENTCONNECTION )
-{
-   LETOCONNECTION * pConnection = letoGetCurrConn();
-
-   if( pConnection )
-   {
-      char szAddr[ 96 ];
-      int  iLen;
-
-      szAddr[ 0 ] = '/';
-      szAddr[ 1 ] = '/';
-      strcpy( szAddr + 2, pConnection->pAddr );
-      iLen = strlen( szAddr );
-      szAddr[ iLen++ ] = ':';
-      iLen += ultostr( pConnection->iPort, szAddr + iLen );
-      szAddr[ iLen++ ] = '/';
-      szAddr[ iLen ] = '\0';
-
-      hb_retc( szAddr );
-   }
-   else
-      hb_retc( "" );
-}
+/* simplified as Leto_SetCurrentConnection() without arguments does now the same */
+HB_FUNC_TRANSLATE( LETO_GETCURRENTCONNECTION, LETO_SETCURRENTCONNECTION )
 
 /* redirected to RDDINFO [ request in letostd.ch ]; pConnection->iLockTimeOut */
 HB_FUNC( LETO_SETLOCKTIMEOUT )
@@ -1659,7 +1613,7 @@ HB_FUNC( LETO_MGGETTIME )
 
 HB_FUNC( LETO_PING )
 {
-   LETOCONNECTION * pConnection = leto_getConnection( 1 );
+   LETOCONNECTION * pConnection = leto_getConnection( hb_parc( 1 ) );
 
    if( ! pConnection )
       pConnection = letoGetCurrConn();

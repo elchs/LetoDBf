@@ -179,6 +179,8 @@ A. Internals
  for BCC and old older MsVc exists a make_b32.bat and a make_vc.bat. Look into, adapt OS search
  paths to point to Harbour and your C-compiler executable. Further important is to set:
  "HB_PATH" to point to the base! directory of Harbour, e.g. "C:\harbour"
+ Called without argument these build the C-API client library, called with "full" as first argument
+ they build LetoDBf server and Harbour client library.
  You will know what to do, are on your own. I use them only for sporadic compile tests.
 
  BCC55 and maybe also newer ones have a problem with compiling LZ4 compression library, you will
@@ -343,7 +345,7 @@ A. Internals
 
  Other default values in the distributed config file are choosen to satisfy most common first needs,
  can be hardend and optimzed on occasion.
- LetoDBf newbies then like to continue reading with section: 5. How to work with the LetoDBf server.
+ LetoDBf newbies now like to continue reading with section: 5. How to work with the LetoDBf server.
 
       Currently following parameters exists ( default values are designated ).
 
@@ -1040,14 +1042,19 @@ A. Internals
  With <nNrOfPossible> can be selected between multiple server responding to same service name.
  Alternative to new build-in at server was before a standalone exe: 8.2. 'Uhura'
 
-      LETO_SETCURRENTCONNECTION( cAddress )                    ==> cAddress
- Returns the <cAddress> of the active connection after a try to change the active one.
- It is an empty string "" if IP was wrong/ not given.
+      LETO_SETCURRENTCONNECTION( [ cAddress[, lBefore ] ] )   ==> cAddress
+ Returns the address of the new active connection <cAddress> after a try to change the active.
+ <cAddress> must be given in usual format, without or with port number: "//127.0.0.1:2812/".
+ Empty string "" is returned if the want-to-activate connection was not found or if there was
+ no active connection before.
+ NEW: optional param <lBefore> given as true (.T.) will return address of active connection
+ before a successful change was done.
+ Please note, its impossible to switch to <no> connection as long as at least one is available.
 
       LETO_GETCURRENTCONNECTION()                              ==> cAddress
- Return the <cAddress> of the active connection, EMPTY string "" in case of no active
- connection. This function can be used together with Leto_SetCurrentConnection() to
- save/ restore the active connection.
+ Deprecated, existing further as translated function -- Leto_SetCurrentConnection() without any param
+ or an empty string does also return the active connection.
+ This function was used together with Leto_SetCurrentConnection() to save/ restore active connection.
 
       LETO_GETSERVERVERSION( [ lHarbourVersion ] )             ==> cVersion
  Returns version of LetoDBf server, with given .T. boolean parameter the version of Harbour at
@@ -1293,28 +1300,25 @@ A. Internals
 
 
       LETO_SUM( <cFieldNames>|<cExpr>, [ cFilter ], [xScopeTop], [xScopeBottom] )
-                                                               ==> nSumma if one field or expression passed, or
-                                                               {nSumma1, nSumma2, ...} for several fields
+                                                               ==> nSumma| aSumma
  The first parameter of leto_sum is a comma separated list of fields or expressions,
- optional cFilter is a filter condition to be taken instead a possible active filter [ DbSetFilter() ],
+ If one single field or expression is passed, a single numeric value is returned,
+ else an array with the sums for multiple given fieldnames/ expressions.
+ Optional <cFilter> is a filter condition to be taken instead a possible active filter [ DbSetFilter() ],
  optional xScope[Top|Bottom] are scope values for an active index order,
  Example:
-    leto_sum("NumField1,numField2,#", "CharField $ 'elch'", cScopeTop, cScopeBottom )
+    leto_sum( "NumField1, numField2, #", "'JOY' $ cField", cScopeTop, cScopeBottom )
  returns an array with values of sum fields NumField1 and NumField2.
+ If "#" symbol passed as field name, leto_sum returns a count of evaluated records, f.e:
+    leto_sum( "Sum1, Sum2, Sum1+Sum2, #", cFilter, cScopeTop, cScopeBottom) --> { nSum1, nSum2, nSum3, nCount }
 
- If "#" symbol passed as field name, leto_sum returns a count of
- evaluated records, f.e:
- leto_sum("Sum1,Sum2,Sum1+Sum2,#", cFilter, cScopeTop, cScopeBottom)
-                                                               ==> {nSum1, nSum2, nSum3, nCount}
- If only one field name or expression is passed, leto_sum() returns a numeric value
-
-
-      LETO_GROUPBY( cGroup, <cFields>|<cExpr>, [cFilter], [xScopeTop], [xScopeBottom]) ==> aValues
-                                                               {{xGroup1, nSumma1, nSumma2, ...}, ...}
-
- This function return two-dimensional array. The first element of each row is a value of <cGroup> field,
- elements from 2 - sum of comma separated fields or expressions, represented in <cFields>.
- If "#" symbol passed as field name in cFields, leto_groupby return a count of evaluated records in each group
+      LETO_GROUPBY( cGroup, cFields, [ cFilter ], [ xScopeTop ], [ xScopeBottom ] )
+                                                               ==> aValues
+ This function returns a two-dimensional array in format: { { xGroup1, nSumma1, nSumma2, ...}, ... }
+ <cGroup> and <cFields> can utilize functions, aka can be an expression instead of only a plain fieldname.
+ Resulting array: first element of each sub-array is the value of the <cGroup> field,
+ the others are the numeric sum of the fields/ expressions.
+ If "#" symbol is passed as fieldname in cFields, a count of evaluated records for the group is returned.
 
       LETO_ISFLTOPTIM()                                        ==> lFilterOptimized
 
@@ -1475,6 +1479,25 @@ A. Internals
  If not changed default timeout: 0 with RddInfo( RDDI_LOCKRETRY[ nMilliSec ] ), such a Rlock() will be tried only
  one time successful or not. With timeout, server will try multiple times during the timespan. This spares
  repeated request from the client over network.
+
+     RddInfo( RDDI_CONNECT, { "LETO", cAddress, [ cUserName ], [ cPassword ],
+                              [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck } )
+                                                               ==> nConnection, -1 if failed
+
+ Does the same as Leto_Connect(), arguments explained there. "LETO" must be the default driver at execution.
+ Example usage:
+   #include "dbinfo.ch"
+   ...
+   IF ASCAN( RddList(), "LETO" ) > 0   /* verify LETO available */
+      RddSetDefault( "LETO" )          /* set as default driver */
+      nConnection := RddInfo( RDDI_CONNECT, { "LETO", cAddress, ... } )
+   ENDIF
+
+
+     RddInfo( RDDI_DISCONNECT( [ cAddress ] )                  ==> lSuccess
+
+ Similar Leto_Disconnect(), "LETO" must be the default driver at execution time to close [ active ] connection.
+
 
       LETO_SETSEEKBUFFER( nRecsInBuf )                         ==> 0
  ! DEPRECATED !
@@ -2258,7 +2281,7 @@ A. Internals
       -> rename all files to lowercase, use config option: <Lower_Path>
    * OS access rights
       -> set <Server_User> -or- <Server_UID> [ + <Server_GID> ]
- + server storage is loudly rattling, bad performance in accessing files
+ + server storage is loudly rattling, very bad performance in updating data
    -> do *not* use <hardcommit> option in letodb.ini
 
  + low bandwith network only available, what to improve
@@ -2299,7 +2322,6 @@ A. Internals
    -> decrease cache timeout set with DBI_BUFREFRESHTIME cache,
       or the LETO_CONNECT( ,,,,,<nBufRefreshTime> )
    -> perhaps activate even DBI_AUTOREFRESH
-
 
 
 -------------
@@ -2367,11 +2389,11 @@ A. Internals
  In this kind, a DBF table is opened only one time by server, and by detaching/ requesting then exchanged
  between multiple connections. This have significant performance advantage for below explained default mode 1.
  Disadvanttage is: as long as one connection/ UDF needs this WA for action, no other connection can use it.
- Further it is at only one single Workarea for one connection active: this is important for UDF what need more
+ Further it is for a connection only one single Workarea active: this is important for UDF what need more
  than one WA.
 
  File open modes: LetoDBf knows three (4) modes, choose the appropiate for you needs.
- #1# Share_Tables = 0, No_Save_WA = 0 [ default if not explicitely set ]
+ #1# Share_Tables = 0, No_Save_WA = 0
  The server exclusive use the DBF files, so no third party software ( non LetoDBf user ) can access
  DBF tables opend by LetoDBf server. This is the fastest server mode.
  Workareas are exchanged between connections using above explained detach/ request technic.
@@ -2382,7 +2404,10 @@ A. Internals
  Open a DBF table in shared mode gives third party / non LetoDBf users the possibility to work simultanous
  with DBF tables opened by LetoDBf server. This mode is a bit slower, but when concurency access is needed
  the way to go.
- #3# No_Save_WA = 1, Share_Tables option will indicate 3rd party software is active along the server.
+ #3# No_Save_WA = 1  [ plus: Share_Tables = 1; default if not explicitely set ]
+ Share_Tables option indicates that another software as one LetoDBf server is accessing the DBF tables,
+ then physical file/record locking will happen to coordinate sharing -- else locks are only internal/ logical
+ and can be noticed only by that LetoDBf server. Logical locking is expected to give slightly better performance.
  The workareas are NOT exchanged between connections using detach/ request technic.
  At server side each DBF is opened in exact the same workarea-ID and ALIAS name as at client side, and
  for every next connection once again -- further shared or exclusive, like client requested the DBF table.

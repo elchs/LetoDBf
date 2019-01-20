@@ -100,21 +100,26 @@ REQUEST HB_GT_NUL_DEFAULT
 
 /* following selected functions are linked into server executable with REQUEST */
 REQUEST OS, VERSION, HB_VERSION
-REQUEST ABS, ALLTRIM, AT, CHR, CTOD, DATE, DAY, DELETED, DESCEND, DTOC, DTOS, ;
+REQUEST ABS, ALLTRIM, AT, BLANK, CHR, CTOD, DATE, DAY, DELETED, DESCEND, DTOC, DTOS, DOW, ;
         EMPTY, I2BIN, L2BIN, LEFT, LEN, LOWER, LTRIM, MAX, MIN, MONTH, OS, PAD, PADC, ;
         PADL, PADR, RAT, RECNO, RIGHT, ROUND, RTRIM, SPACE, STOD, STR, STRZERO, ;
-        SUBSTR, REPLICATE, TIME, TRANSFORM, TRIM, UPPER, VAL, YEAR
+        SUBSTR, REPLICATE, TIME, TRANSFORM, TRIM, UPPER, VAL, VALTYPE, YEAR
 REQUEST HB_DATETIME, HB_DTOT, HB_TTOD, HB_NTOT, HB_TTON, HB_CTOT, HB_TTOC, ;
         HB_TTOS, HB_STOT, HB_HOUR, HB_MINUTE, HB_SEC, HB_VALTOEXP, HB_ZCOMPRESS
 REQUEST HB_HEXTONUM, HB_NUMTOHEX
+REQUEST DOY, WEEK
 
-REQUEST hb_ATokens, hb_tokenGet, hb_tokenCount, hb_DiskSpace, hb_strformat
+REQUEST hb_ATokens, hb_tokenGet, hb_tokenCount, hb_strformat
 REQUEST FieldPos, FieldGet, FieldPut, hb_FieldType, hb_FieldLen, hb_FieldDec
 REQUEST hb_WildMatch, hb_AtX
 REQUEST Deleted, Found, Bof, Eof
-REQUEST hb_Hash, hb_Hset, hb_Hget, hb_Hdel
-
-REQUEST Array, AClone, ASize, ADel, AIns, AEval, AScan, ASize, ASort
+#ifdef _STREAMFLEX_  /* enquirer */
+   REQUEST hb_HAllocate, hb_HAutoAdd, hb_HBinary, hb_HCaseMatch, hb_HDefault, hb_HKeepOrder
+   REQUEST hb_Hash, hb_HClear, hb_HFill, hb_HClone, hb_HCopy, hb_HMerge, hb_HSort, hb_HEval
+   REQUEST hb_HHasKey, hb_HPos, hb_HScan, hb_HValueAt, hb_HKeyAt, hb_HPairAt, hb_HKeys, hb_HValues
+   REQUEST hb_HSet, hb_HGet, hb_HDel, hb_HDelAt
+#endif
+REQUEST Array, AClone, ASize, ADel, AIns, AAdd, AEval, AScan, ASort
 REQUEST hb_idleSleep, hb_milliSeconds
 
 REQUEST dbGoTop, dbGoBottom, dbSkip, dbGoto, dbSeek, dbEval, dbInfo, dbStruct

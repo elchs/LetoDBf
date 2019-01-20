@@ -172,6 +172,11 @@
    #define  HB_RDD_MAX_ALIAS_LEN       HARBOUR_MAX_RDD_ALIAS_LENGTH
 #endif
 
+#ifndef RDDI_CONNECT
+   #define RDDI_CONNECT     61 
+   #define RDDI_DISCONNECT  62 
+#endif
+
 
 HB_EXTERN_BEGIN
 

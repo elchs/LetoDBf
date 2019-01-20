@@ -351,6 +351,7 @@ const char * leto_RemoveIpFromPath( const char * szPath );
 void leto_BeautifyPath( char * szPath, const char cReplace );
 HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, char * szPath );
 void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMax );
+int leto_Connect( const char * szAddress, const char * szUser, const char * szPass, int iTimeOut, int iRefr, HB_BOOL fZombieCheck );
 
 const char * leto_DecryptText( LETOCONNECTION * pConnection, unsigned long * pulLen, char * ptr );
 HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead );

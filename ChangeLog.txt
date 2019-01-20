@@ -2,6 +2,37 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-20 20:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/server.prg
+    * remove REQUEST: HB_DISKSPACE,
+      add: AADD, BLANK, DOW, DOY, VALTYPE, WEEK
+    * add on enquiry full set of Harbour hash functions for usage in UDF;
+      linked into server by usage: hbmk2 letodb -prgflag=-D_STREAMFLEX_=1
+
+  * include/rddleto.h
+  * source/client/leto1.c
+    * simplify/ translate LETO_GETCURRENTCONNECTION(); optional param for
+      LETO_SETCURRENTCONNECTION() to return active connection before change
+    * change param of internal leto_getConnection() to 'const char *'
+    + add RDDI_CONNECT and RDDI_DISCONNECT for RddInfo()
+      It connects to LetoDBf server exactly like Leto_Connect(),
+      but executed by pure Harbour PRG functions, example:
+      #include "dbinfo.ch"
+      ...
+      IF ASCAN( RddList(), "LETO" ) > 0   /* verify LETO available */
+         RddSetDefault( "LETO" )          /* set as default driver */
+         nConnection := RddInfo( RDDI_CONNECT, { "LETO", cAddress, ... } )
+      ENDIF
+
+  * include/letocl.h
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    * new centralized leto_Connect() used by LETO_CONNECT()/ RDDI_CONNECT,
+      as result its also available for the C-API
+
+  * Readme.txt
+    * typos and news
+
 2019-01-17 13:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     ! fix a reported server crash in leto_GroupBy() if an expression

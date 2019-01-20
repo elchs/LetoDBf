@@ -5722,6 +5722,26 @@ static int leto_LockScheme( LETOCONNECTION * pConnection )
    return iLockScheme;
 }
 
+LETOCONNECTION * leto_getConnection( const char * szAddress )
+{
+   LETOCONNECTION * pConnection = NULL;
+
+   HB_TRACE( HB_TR_DEBUG, ( "leto_getConnection(%s)", szAddress ? szAddress : "default" ) );
+
+   if( szAddress && *szAddress )
+   {
+      char szAddr[ 96 ];
+      int  iPort = 0;
+
+      if( leto_getIpFromPath( szAddress, szAddr, &iPort, NULL ) )
+         pConnection = leto_ConnectionFind( szAddr, iPort );
+   }
+   else
+      pConnection = letoGetCurrConn();
+
+   return pConnection;
+}
+
 static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int uiConnect, PHB_ITEM pItem )
 {
    LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
@@ -5732,6 +5752,40 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
    {
       case RDDI_REMOTE:
          hb_itemPutL( pItem, HB_TRUE );
+         break;
+
+      case RDDI_CONNECT:
+         if( HB_IS_ARRAY( pItem ) && hb_arrayGetCLen( pItem, 2 ) )  /* first array item == "LETO" */
+         {
+            const char * szAddress = hb_arrayGetCPtr( pItem, 2 );
+            const char * szUser = hb_arrayGetCLen( pItem, 3 ) ? hb_arrayGetCPtr( pItem, 3 ) : NULL;
+            const char * szPass = hb_arrayGetCLen( pItem, 4 ) ? hb_arrayGetCPtr( pItem, 4 ) : NULL;
+            int          iTimeOut = HB_MAX( -1, hb_arrayGetNI( pItem, 5 ) );  /* defaults to 0 */
+            int          iRefr = HB_MAX( hb_arrayGetNI( pItem, 6 ) * 10, -1 );
+            HB_BOOL      fZombieCheck = ( hb_itemType( hb_arrayGetItemPtr( pItem, 7 ) ) & HB_IT_LOGICAL ) ?
+                                        hb_arrayGetL( pItem, 7 ) : LETO_USE_THREAD;
+
+            if( ! ( hb_itemType( hb_arrayGetItemPtr( pItem, 5 ) ) & HB_IT_NUMERIC ) )
+               iTimeOut = -2;
+            if( ! ( hb_itemType( hb_arrayGetItemPtr( pItem, 6 ) ) & HB_IT_NUMERIC ) )
+               iRefr = -2;
+
+            hb_itemPutNI( pItem, leto_Connect( szAddress, szUser, szPass, iTimeOut, iRefr, fZombieCheck ) );
+         }
+         else
+            hb_itemPutNI( pItem, -1 );
+         break;
+
+      case RDDI_DISCONNECT:
+         if( ( pConnection = leto_getConnection( hb_itemGetCPtr( pItem ) ) ) != NULL )
+         {
+            leto_ConnectionClose( pConnection );
+            letoClearCurrConn();
+            hb_idleSleep( 0.005 );
+            hb_itemPutL( pItem, HB_TRUE );
+         }
+         else
+            hb_itemPutL( pItem, HB_FALSE );
          break;
 
       case RDDI_CONNECTION:
@@ -8799,38 +8853,12 @@ HB_FUNC( LETO_SETFASTAPPEND )
    hb_retl( HB_FALSE );
 }
 
-LETOCONNECTION * leto_getConnection( int iParam )
-{
-   LETOCONNECTION * pConnection = NULL;
-
-   HB_TRACE( HB_TR_DEBUG, ( "leto_getConnection(%d)", iParam ) );
-
-   if( HB_ISCHAR( iParam ) )
-   {
-      char szAddr[ 96 ];
-      int  iPort = 0;
-
-      if( leto_getIpFromPath( hb_parc( iParam ), szAddr, &iPort, NULL ) )
-         pConnection = leto_ConnectionFind( szAddr, iPort );
-   }
-   else
-      pConnection = letoGetCurrConn();
-
-   return pConnection;
-}
-
 HB_FUNC( LETO_DBDRIVER )
 {
-   LETOCONNECTION * pConnection = NULL;
+   LETOCONNECTION * pConnection = leto_getConnection( hb_parc( 4 ) );
    const char *     szDriver = HB_ISCHAR( 1 ) ? hb_parc( 1 ) : NULL;
    const char *     szMemoType = HB_ISCHAR( 2 ) ? hb_parc( 2 ) : NULL;
    int              iMemoBlocksize = HB_ISNUM( 3 ) ? hb_parni( 3 ) : 0;
-   int              iParam = HB_ISNUM( 4 ) ? 4 : 0;
-
-   if( iParam > 0 )
-      pConnection = leto_getConnection( iParam );
-   if( ! pConnection )
-      pConnection = letoGetCurrConn();
 
    if( pConnection )
    {
@@ -9139,7 +9167,7 @@ HB_FUNC( LETO_TABLEUNLOCK )
 
 HB_FUNC( LETO_CLOSEALL )
 {
-   LETOCONNECTION * pConnection = leto_getConnection( 1 );
+   LETOCONNECTION * pConnection = leto_getConnection( hb_parc( 1 ) );
 
    if( pConnection )
       hb_retl( leto_CloseAll( pConnection ) );
