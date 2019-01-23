@@ -1932,15 +1932,19 @@ A. Internals
  be applied to the local memvar.
 
 
-      7.10 Calling udf-functions on the server
+      7.10 Calling UDF-functions at the server
+
+ If a server side function modifies table data, and especially when workarea environment like
+ active index order, filter condition, etc, is touched by the action, check also: 9. Server-side functions
+ for limits and convention to keep client and server in sync.
 
       LETO_UDF( cSeverFunc [, xParam1, ... ] )                 ==> xResult
  This function is called from client application. The string <cServerFunc> can
  optional contains a server connection string, minimum is udf function name:
  [ //ip_address:port/ ]funcname
- A <funcname> function should be defined on the letodb server.
+ A <funcname> function should be defined( REQUESTed at link time ) at the LetoDBf server.
  Udf function can return result (any type except pointers) to client.
- Examples of udf-functions are in the tests/letoudf.prg
+ Examples of 'loadable' UDF-functions are in: tests/letoudf.prg
 
       LETO_UDF( cCodeBlock [, xParam1, ... ] )                 ==> xResult
  If <cCodeBlock> contains a valid codeblock string, it is evaluated at server.
@@ -2087,21 +2091,49 @@ A. Internals
  The first parameter for such UDF functions formerly was numeric type, it is now obsolete.
  As result the places for your params in your older defined functions rise up one place in order.
 
- These functions can be run from the client by function leto_udf,
- and includes also functions defined in the file letoudf.hrb, loaded with server start.
+ REQUESTed functions can be run from the client by function Leto_UDF(),
+ including also functions defined in the file letoudf.hrb, loaded with server start.
 
-      leto_SetEnv( xTopScope, xScopeBottom, xOrder, cFilter, lDeleted )
-      leto_ClearEnv( xTopScope, xScopeBottom, xOrder, cFilter )
- These functions save with setting and later restore possible changed conditions by your UDF.
- Just fill in all param that are needed to be set, and call leto_ClearEnv() with the same params set.
- Scope with filter example: leto_SetEnv( "1000", "2000" ) => leto_ClearEnv( "1000", "2000" )
+ The client application does not know what the UDF function have done, so all workarea environment changes
+ at server have to be reset, because client and server workarea environment must stay in sync.
+ Example: client set index order <x> as active, in next step does a DbSeek() -- but in between these two
+ requests an UDF changed at server the active order, and did not re-set it --> failure.
+
+ * newly locked record/ file by UDF, but not released: remain set until all connections closed the table
+ * if client have something locked, but UDF unlocks it, can lead later to a RTE: lock missing
+   Recommended is to use below explained lock/ unlock functions, as they register locks *at server side*,
+   respecting different server modes -- and are gone if forgotten, when this connection close the workarea
+ * not allowed is to leave a changed list of index orders -- or a different active index order
+ * not allowed is to close any open table -- new opened table must be closed again, for this best to use
+   leto_DbUseArea() as it respect different server modes; leto_DbCloseArea() won't close not allowed ones
+ * never change any SET( xxx ) else as <lDeleted> with below two functions;
+   this and three further SET-ting can be set *from client side*: _SET_SOFTSEEK, _SET_AUTOPEN, _SET_AUTORDER
+ * best is even to restore the RECNO, done by below two functions
+
+      Leto_SetEnv( [ xTopScope, xScopeBottom, ncOrder, cFilter, lDeleted ] )
+      Leto_ClearEnv()
+ These pair of help functions is to to savely change the workarea environment in an UDF-function,
+ and to restore it at function end -- they spares to do it manually by your own.
+ Most easy use scenario is to call at UDF start: Leto_SetEnv() and at function end: Leto_ClearEnv()
+ The saved states before first change will not be overwritten by another call, so it does
+ not harm to call Leto_SetEnv() multiple times for same workarea, and it must be called for each
+ workarea with expected changes for:
+ # <xTopScope> and <xScopeBottom> set top and/or bottom scope for the active or <ncOrder> index order,
+   where its verified that the type of <x...Scope> is valid for the wanted index order.
+ # <ncOrder> given alone (as numeric or string) only changes the active index order
+ # <cFilter> set a filter expression, empty string ( "" ) will clear a possible active filter
+ # <lDeleted> changes the 'SET( _SET_DELETED )' setting.
+ NEW: Functions can be used for multiple workarea, as they store & set/ restore for specific WA.
+      Leto_SetEnv() called without any argument saves all settings for active workarea.
+      No arguments no more needed for leto_ClearEnv(), it restores all previosly saved settings
+      for all saved workarea, so it's enough to call Leto_ClearEnv() once at UDF-function end
 
       leto_Alias( cClientAlias )                               ==> cServerAlias
+ This function is mainly needed for mode 'No_Save_WA=0', here to use additional different workareas
+ than the one which was actve when an UDF was initalially called.
  This function return the ALIAS name used at server for a given client side alias <cClientAlias>.
  Side effect is, if ALIAS name is valid, it will change the active selected workarea at server.
  The returned server ALIAS then can be used in usual RDD-operations.
- This function is mainly needed for mode 'No_Save_WA=0', here to use additional different workareas
- than the one which was actve when an UDF was initalially called.
  In server mode: 'No_Save_WA=0', ALIAS names at server and ALIAS name at client are different.
  All workareas used in an UDF are not available for other connections as long as the UDF is working.
  In server mode: 'No_Save_WA=1', ALIAS names at server and client side are the same.
@@ -2114,9 +2146,10 @@ A. Internals
   <nSecs> param is only available in server file open mode: No_save_WA = 1.
   With given optional <nSecs> [ can be decimal: 1.5 ] it will wait for success if not
   immediate succesfull.
-  These locks are internal known for your connection, as if done locally.
+  These locks are server internal known for this connection, but not viewable for the client application.
   If you append a record in your UDF, which is locked after a successful append, you have to only
   register it for your connection, done by third param set to TRUE ( .T. ) == append lock.
+  These locks are removed, when client application closes this WA.
 
       leto_RecUnLock( [ nRecord ] )                            ==> lWasLocked
   leto_RecUnlock function unlocks a locked record with <nRecord> number.
@@ -2143,6 +2176,8 @@ A. Internals
 
       leto_Select( [ ncClientAlias ] )                         ==> nWorkareaID
  Selects to the workarea given by workarea ID oder ALIAS ( if valid )
+ For server mode "NO_SAVE_WA = 0" it requests the detached workarea, which can be hindered by another
+ connection actually using that, as in this server mode a WA can be used only once by all connections.
 
       leto_AreaID( [ cAlias ] )                                ==> nAreaId
  Function return internal workarea-ID of current/ by ALIAS name given workarea,
@@ -2183,7 +2218,7 @@ A. Internals
  For the other values see Harbour documentation for OrdCondSet().
 
       leto_DbCloseArea( [ ncAreaID ] )                         ==> lSuccess
- Close the active or by numeric or by string ALIAS given workarea.
+ Close the active or by numeric or by string ALIAS given workarea, if WA was opened by above functions.
 
       LETO_DBEVAL( <cbBlock> , [ <cbFor> ], [ <cbWhile> ], [ nNext ], [ nRecord ], [ lRest ],;
                    [ <lResultArr> ], [ <lNeedLock> ], [ <lDescend> ], <lStay> )

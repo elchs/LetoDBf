@@ -170,11 +170,7 @@ STATIC s_cDirBase
 STATIC s_pHrb
 STATIC s_cIniName := "letodb.ini"
 
-THREAD STATIC lOldDeleted
-THREAD STATIC cOldFilter
-THREAD STATIC nOldOrder
-THREAD STATIC xOldScope
-THREAD STATIC xOldScopeBottom
+THREAD STATIC s_hWASet
 
 PROCEDURE Main( cCommand, cData )
 
@@ -733,70 +729,137 @@ METHOD New() CLASS HApp
 
    RETURN Self
 
-FUNCTION leto_SetEnv( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
+/* NEW: called with non argument all relevant states are saved */
+FUNCTION Leto_SetEnv( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
+   LOCAL cWA := ALIAS(), nOrder, i
 
-   IF ! Empty( xOrder ) .AND. ValType( xOrder) $ "CN"
-      nOldOrder := OrdNumber()
-      ordSetFocus( xOrder )
+   IF VALTYPE( s_hWASet ) != "H"
+      s_hWASet := hb_Hash()
    ENDIF
-   IF ValType( cFilter ) == "C" .AND. ! Empty( cFilter )
-      cOldFilter := DbFilter()
-      dbSetFilter( &( "{||" + cFilter + "}" ), cFilter )
-   ENDIF
-   IF lDeleted != Nil
-      lOldDeleted := SET( _SET_DELETED )
-      SET( _SET_DELETED, lDeleted )
+   IF hb_HPos( s_hWASet, cWA ) < 1
+      s_hWASet[ cWA ] := hb_Hash()
+      s_hWASet[ cWA ][ "nRecNo" ] := RECNO()
    ENDIF
 
-   IF xScope != Nil
-      xOldScope := dbOrderInfo( DBOI_SCOPETOP )
-      dbOrderInfo( DBOI_SCOPETOP, /*filename*/, /*iOrder*/, xScope )
-   ENDIF
-   IF xScopeBottom != Nil
-      xOldScopeBottom := dbOrderInfo( DBOI_SCOPEBOTTOM )
-      dbOrderInfo( DBOI_SCOPEBOTTOM,,, iif( xScopeBottom == Nil, xScope, xScopeBottom ) )
+   IF PCount() == 0 .AND. LEN( s_hWASet[ cWA ] ) == 1
+      s_hWASet[ cWA ][ "nOldOrder" ] := OrdNumber()
+      s_hWASet[ cWA ][ "cOldFilter" ] := DbFilter()
+      s_hWASet[ cWA ][ "lOldDeleted" ] := SET( _SET_DELETED )
+      IF OrdCount() > 0
+         nOrder := OrdNumber()
+         s_hWASet[ cWA ][ "aScopes" ] := {}
+         FOR i := 1 TO OrdCount()
+            ordSetFocus( i )
+            AADD( s_hWASet[ cWA ][ "aScopes" ],;
+                  { i, dbOrderInfo( DBOI_SCOPETOP ), dbOrderInfo( DBOI_SCOPEBOTTOM ) } )
+         NEXT i
+         ordSetFocus( nOrder )
+      ENDIF
+   ELSE
+      IF hb_HPos( s_hWASet[ cWA ], "nOldOrder" ) < 1
+         s_hWASet[ cWA ][ "nOldOrder" ] := OrdNumber()
+      ENDIF
+      IF ValType( xOrder) $ "CN"
+         ordSetFocus( xOrder )
+      ENDIF
+      IF ValType( cFilter ) == "C"
+         IF hb_HPos( s_hWASet[ cWA ], "lOldDeleted" ) < 1
+            s_hWASet[ cWA ][ "cOldFilter" ] := DbFilter()
+         ENDIF
+         IF ! Empty( cFilter )
+            dbSetFilter( &( "{||" + cFilter + "}" ), cFilter )
+         ELSE
+            dbClearFilter()
+         ENDIF
+      ENDIF
+      IF VALTYPE( lDeleted ) == "L"
+         IF hb_HPos( s_hWASet[ cWA ], "lOldDeleted" ) < 1
+            s_hWASet[ cWA ][ "lOldDeleted" ] := SET( _SET_DELETED )
+         ENDIF
+         SET( _SET_DELETED, lDeleted )
+      ENDIF
+      IF IndexOrd() > 0 .AND. ! EMPTY( IndexKey() ) .AND. VALTYPE( xScope ) == VALTYPE( &( IndexKey() ) )
+         IF hb_HPos( s_hWASet[ cWA ], "aScopes" ) < 1
+            s_hWASet[ cWA ][ "aScopes" ] := {}
+         ENDIF
+         IF ASCAN( s_hWASet[ cWA ][ "aScopes" ], { | aItem | aItem[ 1 ] == OrdNumber() } ) < 1
+            AADD( s_hWASet[ cWA ][ "aScopes" ],;
+                  { OrdNumber(), dbOrderInfo( DBOI_SCOPETOP ), dbOrderInfo( DBOI_SCOPEBOTTOM ) } )
+         ENDIF
+         dbOrderInfo( DBOI_SCOPETOP, /*filename*/, /*iOrder*/, xScope )
+      ENDIF
+      IF IndexOrd() > 0 .AND. ! EMPTY( IndexKey() ) .AND. VALTYPE( xScopeBottom ) == VALTYPE( &( IndexKey() ) )
+         IF hb_HPos( s_hWASet[ cWA ], "aScopes" ) < 1
+            s_hWASet[ cWA ][ "aScopes" ] := {}
+         ENDIF
+         IF ASCAN( s_hWASet[ cWA ][ "aScopes" ], { | aItem | aItem[ 1 ] == OrdNumber() } ) < 1
+            AADD( s_hWASet[ cWA ][ "aScopes" ],;
+                  { OrdNumber(), dbOrderInfo( DBOI_SCOPETOP ), dbOrderInfo( DBOI_SCOPEBOTTOM ) } )
+         ENDIF
+         dbOrderInfo( DBOI_SCOPEBOTTOM,,, xScopeBottom )
+      ENDIF
    ENDIF
 
    RETURN NIL
 
-FUNCTION leto_ClearEnv( xScope, xScopeBottom, xOrder, cFilter )
+FUNCTION Leto_ClearEnv()
+   LOCAL nWA := SELECT(), cWA, i
 
-   IF lOldDeleted != Nil
-      SET( _SET_DELETED, lOldDeleted )
-      lOldDeleted := NIL
-   ENDIF
+   IF VALTYPE( s_hWASet ) == "H"
+      DO WHILE LEN( s_hWASet ) > 0
+         cWA := hb_HKeyAt( s_hWASet, 1 )
+         SELECT ( cWA )
 
-   IF ! Empty( xOrder )
-      IF VALTYPE( nOldOrder ) == "N"
-         ordSetFocus( nOldOrder )
+         IF hb_HPos( s_hWASet[ cWA ], "lOldDeleted" ) > 0
+            SET( _SET_DELETED, s_hWASet[ cWA ][ "lOldDeleted" ] )
+            hb_HDel( s_hWASet[ cWA ], "lOldDeleted" )
+         ENDIF
+
+         /* done before restoring ordSetFocus */
+         IF hb_HPos( s_hWASet[ cWA ], "aScopes" ) > 0 .AND. VALTYPE( s_hWASet[ cWA ][ "aScopes" ] ) == "A"
+            i := LEN( s_hWASet[ cWA ][ "aScopes" ] )
+            DO WHILE i > 0
+               ordSetFocus( s_hWASet[ cWA ][ "aScopes" ][ i ][ 1 ] )
+               IF VALTYPE( s_hWASet[ cWA ][ "aScopes" ][ i ][ 2 ] ) != "U"
+                  dbOrderInfo( DBOI_SCOPETOP,,, s_hWASet[ cWA ][ "aScopes" ][ i ][ 2 ] )
+               ELSE
+                  dbOrderInfo( DBOI_SCOPETOPCLEAR )
+               ENDIF
+               IF VALTYPE( s_hWASet[ cWA ][ "aScopes" ][ i ][ 3 ] ) != "U"
+                  dbOrderInfo( DBOI_SCOPEBOTTOM,,, s_hWASet[ cWA ][ "aScopes" ][ i ][ 3 ] )
+               ELSE
+                  dbOrderInfo( DBOI_SCOPEBOTTOMCLEAR )
+               ENDIF
+               i--
+            ENDDO
+         ENDIF
+         IF hb_HPos( s_hWASet[ cWA ], "nOldOrder" ) > 0
+            ordSetFocus( s_hWASet[ cWA ][ "nOldOrder" ] )
+            hb_HDel( s_hWASet[ cWA ], "nOldOrder" )
+         ENDIF
+         IF hb_HPos( s_hWASet[ cWA ], "cOldFilter" ) > 0
+            IF ! Empty( s_hWASet[ cWA ][ "cOldFilter" ] )
+               dbSetFilter( &( "{||" + s_hWASet[ cWA ][ "cOldFilter" ] + "}" ), s_hWASet[ cWA ][ "cOldFilter" ] )
+            ELSE
+               dbClearFilter()
+            ENDIF
+            hb_HDel( s_hWASet[ cWA ], "cOldFilter" )
+         ENDIF
+
+         IF hb_HPos( s_hWASet[ cWA ], "nRecNo" ) > 0
+            DbGoto( s_hWASet[ cWA ][ "nRecNo" ] )
+            hb_HDel( s_hWASet[ cWA ], "nRecNo" )
+         ENDIF
+
+         hb_HDel( s_hWASet, cWA )
+      ENDDO
+
+      IF LEN( s_hWASet ) < 1
+         s_hWASet := NIL
       ENDIF
    ENDIF
 
-   IF xScope != Nil
-      IF xOldScope != Nil
-         dbOrderInfo( DBOI_SCOPETOP,,, xOldScope )
-         xOldScope := Nil
-      ELSE
-         dbOrderInfo( DBOI_SCOPETOPCLEAR )
-      ENDIF
-   ENDIF
-   IF xScopeBottom != Nil
-      IF xOldScope != Nil
-         dbOrderInfo( DBOI_SCOPEBOTTOM,,, xOldScopeBottom )
-         xOldScopeBottom := NIL
-      ELSE
-         dbOrderInfo( DBOI_SCOPEBOTTOMCLEAR )
-      ENDIF
-   ENDIF
-
-   IF ValType( cFilter ) == "C"
-      IF ValType( cOldFilter ) == "C" .AND. ! Empty( cOldFilter )
-         dbSetFilter( &( "{||" + cOldFilter + "}" ), cOldFilter )
-         cOldFilter := NIL
-      ELSE
-         dbClearFilter()
-      ENDIF
-   ENDIF
+   SELECT ( nWA )
 
    RETURN NIL
 

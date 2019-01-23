@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-23 17:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/server.prg
+    ; facelifting for old inherited leto_SetEnv() and leto_ClearEnv():
+    * switch single statics into one thread-local hash-array, which stores
+      values per ALIAS as sub-hash
+    * leto_SetEnv() save states before its first change for active WA;
+      all possible states for one WA if no param given
+    * leto_ClearEnv() no more need any param, a single call will restore
+      all saved states for all WA
+
+  * Readme.txt
+    * about above, some more notes for chapter: 9. Server-side functions
+
 2019-01-20 20:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/server.prg
     * remove REQUEST: HB_DISKSPACE,
