@@ -731,8 +731,12 @@ METHOD New() CLASS HApp
 
 /* NEW: called with non argument all relevant states are saved */
 FUNCTION Leto_SetEnv( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
-   LOCAL cWA := ALIAS(), nOrder, i
 
+   LOCAL cWA := ALIAS(), i
+
+   IF EMPTY( cWA )
+      RETURN NIL
+   ENDIF
    IF VALTYPE( s_hWASet ) != "H"
       s_hWASet := hb_Hash()
    ENDIF
@@ -746,14 +750,13 @@ FUNCTION Leto_SetEnv( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
       s_hWASet[ cWA ][ "cOldFilter" ] := DbFilter()
       s_hWASet[ cWA ][ "lOldDeleted" ] := SET( _SET_DELETED )
       IF OrdCount() > 0
-         nOrder := OrdNumber()
          s_hWASet[ cWA ][ "aScopes" ] := {}
          FOR i := 1 TO OrdCount()
             ordSetFocus( i )
             AADD( s_hWASet[ cWA ][ "aScopes" ],;
                   { i, dbOrderInfo( DBOI_SCOPETOP ), dbOrderInfo( DBOI_SCOPEBOTTOM ) } )
          NEXT i
-         ordSetFocus( nOrder )
+         ordSetFocus( s_hWASet[ cWA ][ "nOldOrder" ] )
       ENDIF
    ELSE
       IF hb_HPos( s_hWASet[ cWA ], "nOldOrder" ) < 1
@@ -803,12 +806,18 @@ FUNCTION Leto_SetEnv( xScope, xScopeBottom, xOrder, cFilter, lDeleted )
    RETURN NIL
 
 FUNCTION Leto_ClearEnv()
+
    LOCAL nWA := SELECT(), cWA, i
 
    IF VALTYPE( s_hWASet ) == "H"
       DO WHILE LEN( s_hWASet ) > 0
          cWA := hb_HKeyAt( s_hWASet, 1 )
-         SELECT ( cWA )
+         IF SELECT( cWA ) > 0
+            SELECT ( cWA )
+         ELSE
+            hb_HDel( s_hWASet, cWA )
+            LOOP
+         ENDIF
 
          IF hb_HPos( s_hWASet[ cWA ], "lOldDeleted" ) > 0
             SET( _SET_DELETED, s_hWASet[ cWA ][ "lOldDeleted" ] )
@@ -832,6 +841,7 @@ FUNCTION Leto_ClearEnv()
                ENDIF
                i--
             ENDDO
+            hb_HDel( s_hWASet[ cWA ], "aScopes" )
          ENDIF
          IF hb_HPos( s_hWASet[ cWA ], "nOldOrder" ) > 0
             ordSetFocus( s_hWASet[ cWA ][ "nOldOrder" ] )
@@ -868,24 +878,26 @@ FUNCTION leto_Set( nSet, xPar1, xPar2 )
 
 /* try to find IP address for an interface name -- or return the first found with a MAC */
 STATIC FUNCTION IPForInterface( cName )
- LOCAL aIFace := hb_socketGetIFaces( HB_SOCKET_AF_INET, .T. )
- LOCAL nIFace := 0
- LOCAL cIP    := ""
 
-  IF LEN( aIFace ) > 0
-    IF ! EMPTY( cName )
-      cName := UPPER( cName )
-      nIFace := ASCAN( aIFace, { | aItm | UPPER( aItm[ HB_SOCKET_IFINFO_NAME ] ) == cName } )
-    ELSE
-      /* first interface with guilty MAC address */
-      nIFace := ASCAN( aIFace, { | aItm | ! EMPTY( aItm[ HB_SOCKET_IFINFO_HWADDR ] ) .AND.;
-                                          ! aItm[ HB_SOCKET_IFINFO_HWADDR ] == "00:00:00:00:00:00" } )
-    ENDIF
-  ENDIF
-  IF nIFace > 0
-    cIP := aIFace[ nIFace, HB_SOCKET_IFINFO_ADDR ]
-  ENDIF
-RETURN cIP
+   LOCAL aIFace := hb_socketGetIFaces( HB_SOCKET_AF_INET, .T. )
+   LOCAL nIFace := 0
+   LOCAL cIP    := ""
+
+   IF LEN( aIFace ) > 0
+      IF ! EMPTY( cName )
+         cName := UPPER( cName )
+         nIFace := ASCAN( aIFace, { | aItm | UPPER( aItm[ HB_SOCKET_IFINFO_NAME ] ) == cName } )
+      ELSE
+         /* first interface with guilty MAC address */
+         nIFace := ASCAN( aIFace, { | aItm | ! EMPTY( aItm[ HB_SOCKET_IFINFO_HWADDR ] ) .AND.;
+                                             ! aItm[ HB_SOCKET_IFINFO_HWADDR ] == "00:00:00:00:00:00" } )
+      ENDIF
+   ENDIF
+   IF nIFace > 0
+      cIP := aIFace[ nIFace, HB_SOCKET_IFINFO_ADDR ]
+   ENDIF
+
+   RETURN cIP
 
 
 /* don't ! use, elch historical needed mixkey */

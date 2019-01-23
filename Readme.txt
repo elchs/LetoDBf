@@ -1397,7 +1397,7 @@ A. Internals
   then all data movement can happen at server without network load.
   If <bFor> or <bWhile> are codeblocks, aka {||...} versus "{||...}" with apostrophs, these
   can not transfered to server and much be evaluated (slow performent) at client side.
-  The header: "leto_std.ch" translates the corresponding COMMAND version to letoDbš() variants,
+  The header: "leto_std.ch" translates the corresponding COMMAND version to letoDBf() variants,
   e.g. 'SORT TO cFile ALL FOR cFor' --> letoDbSort( cToFile, {{all fields}}, "cFor", ... ).
 
       leto_DBJOIN( cnAlias, [cFile, [aFields], cbFor, cRDD, nConnection, cCodePage[, [ lTemp ] ] )
@@ -2112,7 +2112,7 @@ A. Internals
 
       Leto_SetEnv( [ xTopScope, xScopeBottom, ncOrder, cFilter, lDeleted ] )
       Leto_ClearEnv()
- These pair of help functions is to to savely change the workarea environment in an UDF-function,
+ These pair of help functions is to savely change the workarea environment in an UDF-function,
  and to restore it at function end -- they spares to do it manually by your own.
  Most easy use scenario is to call at UDF start: Leto_SetEnv() and at function end: Leto_ClearEnv()
  The saved states before first change will not be overwritten by another call, so it does

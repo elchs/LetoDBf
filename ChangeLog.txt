@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-23 19:23 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * Readme.txt
+    * remove one illegal char; typo
+
+  * source/server/server.prg
+    ! immedediate return in Leto_SetEnv() if no active WA;
+      avoid RTE if a WA with saved states is closed before Leto_ClearEnv(),
+    * formatting
+
 2019-01-23 17:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/server.prg
     ; facelifting for old inherited leto_SetEnv() and leto_ClearEnv():
