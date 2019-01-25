@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-25 12:19 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/phpclient/letocl.php
+  * tests/php/testleto1.php
+    ! restoring basic PHP access-ability to LetoDBf server
+    ; tested with Nginx 1.14/ PHP 7.2 [-fpm] fastCGI module.
+      Note that *no* argument can be transfered to the UDF function,
+      and *no* returned result can be directly recieved;
+      Basic idea is to use the Leto_Var*() system for information exchange,
+      as both sides can access it.
+      Further is missing the whole workarea environment at PHP side, so a
+      PHP access to LetoDBf is very limited and inconvenient manually.
+
 2019-01-23 19:23 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * Readme.txt
     * remove one illegal char; typo

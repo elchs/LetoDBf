@@ -2,9 +2,27 @@
 /*
  * Php client module for LetoDB
  * Copyright 2014 Alexander S. Kresin <alex / at / kresin.ru>
+ * adaption for LetoDBf 2019 Rolf 'elch' Beckmann
  * www - http://www.kresin.ru
  */
+
 $leto_debug1 = false;
+$leto_dateform = "dd/mm/yy";
+$leto_language = "EN";
+
+/* variable type */
+const LETOVAR_LOG    = "1";
+const LETOVAR_NUM    = "2";
+const LETOVAR_STR    = "3";
+const LETOVAR_DAT    = "5";
+
+/* variable flags */
+const LETO_VCREAT    =  1;
+const LETO_VOWN      =  2;
+const LETO_VDENYWR   =  4;
+const LETO_VDENYRD   =  8;
+const LETO_VPREVIOUS = 16;
+
 
 function letoRead( $conn ) {
   if( $conn["proto"] == 1 ) {
@@ -30,13 +48,22 @@ function letoDataSend( $conn, $data, $datalen ) {
   return letoRead( $conn );
 }
 
-function letoConnect( $addr, $port ) {
+function letoConnect( $addr, $port, $user, $passwd ) {
   $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
-  if( $socket >= 0 )
-    if( !socket_connect( $socket, $addr, $port ) ) {
+  if( $socket >= 0 ) {
+    if( ! isset( $addr ) )
+      $addr = "127.0.0.1";
+    if( ! isset( $port ) )
+      $port = 2812;
+    if( ! isset( $user ) )
+      $user = "";
+    if( ! isset( $passwd ) )
+      $passwd = "";
+    if( ! socket_connect( $socket, $addr, $port ) ) {
       socket_close( $socket );
       $socket = -1;
     }
+  }
   if( $socket < 0 ) {
     echo "Error : ".socket_strerror(socket_last_error())."<br />";
     return NULL;
@@ -49,7 +76,7 @@ function letoConnect( $addr, $port ) {
   if( strcmp( $awr, "Leto" ) == 0 )
     $awr = $awr.socket_read( $socket, 1024 );
   else {
-    $conn["proto"] = 2;
+    $conn["proto"] = 3;
     $a1 = unpack( "V", $awr );
     $awr = socket_read( $socket, $a1[1] );
   }
@@ -58,58 +85,89 @@ function letoConnect( $addr, $port ) {
   if( $GLOBALS['leto_debug1'] )
     echo $awr."<br />";
 
-  $msg = "I;0.99;WEB;WebClient;Alex;;EN;dd/mm/yy;T;;";
-  letoDataSend( $conn, $msg, strlen($msg) );
-
-  return $conn;
+  $msg = "J;3.00;WWW;PHPClient;".$user.";".$passwd.";".$leto_language.";TTT0;".$leto_dateform.";1900;;";
+  /* LETOCMD_intro */
+  $awr = letoDataSend( $conn, $msg, strlen($msg) );
+  if( substr( $awr, 0, 1 ) == "+" ) {
+    return $conn;
+  }
+  else
+    return NULL;
 }
 
 function letoMgInfo( $conn ) {
   $msg = "M;00;";
   $awr = letoDataSend( $conn, $msg, strlen( $msg ) );
-      
-  return explode( ";",$awr );
+  if( substr( $awr, 0, 1 ) == "+" ) {
+    return explode( ";", substr( $awr, 1 ) );
+  }
+  else
+    return NULL;
 }
 
 function letoVarGet( $conn, $group, $var ) {
+  /* LETOCMD_var */
   $msg = "V;g;".$group.";".$var.";";
   $awr = letoDataSend( $conn, $msg, strlen( $msg ) );
   if( substr( $awr, 0, 1 ) == "+" ) {
-    $pos = strpos( $awr, ';' );
-    if( $pos === false )
-      return NULL;
+    $type = substr( $awr, 1, 1 );  /* TYPE character -- followed by ';' */
+    if( $type == LETOVAR_STR or $type == LETOVAR_DAT )
+      return substr( $awr, 3 );
+    elseif( $type == LETOVAR_LOG ) {
+       if( substr( $awr, 3, 1 ) == "1" )
+          return true;
+       else
+          return false;
+    }
+    elseif( $type == LETOVAR_NUM ) {
+       return strval( substr( $awr, 3 ) );
+    }
     else {
-      $a1 = explode( ";",$awr );
-      return $a1[1];
+      return NULL;
     }
   }
   else
     return NULL;
 }
 
-function letoVarSet( $conn, $group, $var, $type, $value, $lReturn, $lCreate ) {
-  $fl1 = $lCreate ? '!' : ' ';
-  $fl2 = $lReturn ? '!' : ' ';
-  $msg = "V;s;".$group.";".$var.";".strval( $value ).";".$type.$fl1.$fl2.";";
+function addLen( $len ) {
+  if( $len < 256 ) {
+    $msg = chr( 1 );
+    $msg .= chr( $len );
+  }
+  else {
+    $msg = chr( 2 );
+    $msg .= chr( $len & 255 );
+    $msg .= chr( ( $$len >> 8 ) & 255 );
+  }
+  return $msg;
+}
+
+function letoVarFlag( $flags, $nflag ) {
+ if( $nflag == 1 )
+   $flag = 32 | ( $flags & ( LETO_VCREAT | LETO_VOWN | LETO_VDENYWR | LETO_VDENYRD ) );
+ else
+   $flag = 32 | ( $flags & LETO_VPREVIOUS );
+ return chr( $flag );
+}
+
+function letoVarSet( $conn, $group, $var, $type, $value, $flags ) {
+  $fl1 = letoVarFlag( $flags, 1 );
+  $fl2 = letoVarFlag( $flags, 2 );
+  $addlen = addLen( strlen( $value ) );
+  $msg = "V;s;".$group.";".$var.";".$type.$fl1.$fl2.";".$addlen.$value;
   $awr = letoDataSend( $conn, $msg, strlen( $msg ) );
   if( substr( $awr, 0, 1 ) == "+" ) {
-    $pos = strpos( $awr, ';' );
-    if( $pos === false )
-      return NULL;
-    else {
-      if( $lReturn )
-        return substr( $awr, 1, $pos - 1 );
-      else
-        return true;
-    }
+    return true;
   }
   else
-    return NULL;
+    return false;
 }
 
-function letoVarIncr( $conn, $group, $var, $lCreate ) {
-  $fl1 = $lCreate ? '!' : ' ';
-  $msg = "V;i;".$group.";".$var.";2".$fl1."!;";
+function letoVarSum( $conn, $group, $var, $flags, $incr ) {
+  $fl1 = letoVarFlag( $flags, 1 );
+  $fl2 = letoVarFlag( $flags, 2 );
+  $msg = "V;i;".$group.";".$var.";2".$fl1.$fl2.";".$incr.";";
   $awr = letoDataSend( $conn, $msg, strlen( $msg ) );
   if( substr( $awr, 0, 1 ) == "+" ) {
     $pos = strpos( $awr, ';' );
@@ -122,9 +180,26 @@ function letoVarIncr( $conn, $group, $var, $lCreate ) {
     return NULL;
 }
 
-function letoVarDecr( $conn, $group, $var, $lCreate ) {
-  $fl1 = $lCreate ? '!' : ' ';
-  $msg = "V;d;".$group.";".$var.";2".$fl1."!;";
+function letoVarIncr( $conn, $group, $var, $flags ) {
+  $fl1 = letoVarFlag( $flags, 1 );
+  $fl2 = letoVarFlag( $flags, 2 );
+  $msg = "V;i;".$group.";".$var.";2".$fl1.$fl2.";1;";
+  $awr = letoDataSend( $conn, $msg, strlen( $msg ) );
+  if( substr( $awr, 0, 1 ) == "+" ) {
+    $pos = strpos( $awr, ';' );
+    if( $pos === false )
+      return NULL;
+    else
+      return intval( substr( $awr, 1, $pos - 1 ) );
+  }
+  else
+    return NULL;
+}
+
+function letoVarDecr( $conn, $group, $var, $flags ) {
+  $fl1 = letoVarFlag( $flags, 1 );
+  $fl2 = letoVarFlag( $flags, 2 );
+  $msg = "V;d;".$group.";".$var.";2".$fl1.$fl2.";1;";
   $awr = letoDataSend( $conn, $msg, strlen( $msg ) );
   if( substr( $awr, 0, 1 ) == "+" ) {
     $pos = strpos( $awr, ';' );
@@ -144,6 +219,28 @@ function letoVarDel( $conn, $group, $var ) {
       return true;
   else
     return NULL;
+}
+
+function letoUdfExist( $conn, $func ) {
+  $msg = "U;3;;;".$func.";";
+  /* LETOCMD_udf_fun */
+  $awr = letoDataSend( $conn, $msg, strlen( $msg ) );
+  if( substr( $awr, 0, 1 ) == "+" )
+    return true;
+  else
+    return false;
+}
+
+function letoUdf( $conn, $func, $ldeleted, $lexclusive ) {
+  $fl1 = $ldeleted ? 'A' : '@';
+  $fl2 = $lexclusive ? 'T' : 'F';
+  $msg = "U;2;".$fl1.";0;".$func.";".$fl2.";0;";
+  /* LETOCMD_udf_fun */
+  $awr = letoDataSend( $conn, $msg, strlen( $msg ) );
+  if( substr( $awr, 0, 1 ) == "+" )
+    return true;
+  else
+    return false;
 }
 
 ?>
