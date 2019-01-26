@@ -2,6 +2,25 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-01-26 22:36 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/rddleto.ch
+  * source/client/letocl.c
+    + new RDDI_BUFREFRESHTIME for RddInfo(), smilar 5th of LETO_CONNECT()
+    * add respect of DBI_AUTOREFRESH in letoPutValue() for field updates:
+      when a field update happend after cache timed-out, it will be refreshed
+      automatic to server even without a DbCommit()/ DbUnlock()
+
+  * source/server/letofunc.c
+    ! change from 2019-01-05 09:49:
+      "refresh given EOF flag after table hotbuffer timeout with a SKIP(0)"
+      still didn't worked, fixed by performing SELF_GOTO() in leto_GotoIf()
+      to refresh EOF flag when set
+
+  * Readme.txt
+    + new RDDI_BUFREFRESHTIME
+    * missing comment on RddInfo( RDDI_DBEVALCOMPAT ) for LetoDbEval()
+    * note that as integer created Leto_Var() keeps to be without decimals
+
 2019-01-25 12:19 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/phpclient/letocl.php
   * tests/php/testleto1.php

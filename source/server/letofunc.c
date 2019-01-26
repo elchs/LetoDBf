@@ -3977,7 +3977,7 @@ static _HB_INLINE_ HB_ERRCODE leto_GotoIf( AREAP pArea, HB_ULONG ulRecNo )
    HB_ULONG ulOldRecNo;
 
    SELF_RECNO( pArea, &ulOldRecNo );  /* update pending relations */
-   if( ulOldRecNo == ulRecNo )
+   if( ulOldRecNo == ulRecNo && ! pArea->fEof )
       return HB_SUCCESS;
    else
       return SELF_GOTO( pArea, ulRecNo );
@@ -14510,8 +14510,7 @@ HB_FUNC( LETO_DBUSEAREA )  /* 'wrong' number for not fresh opened */
       char *       ptrdouble;
 
       ptrdouble = szFile;
-      strncpy( szFile, HB_ISCHAR( 2 ) ? hb_parc( 2 ) : "", HB_PATH_MAX );
-      szFile[ HB_ISCHAR( 2 ) ? HB_MIN( hb_parclen( 2 ), HB_PATH_MAX ) : 0 ] = '\0';
+      hb_strncpy( szFile, HB_ISCHAR( 3 ) ? hb_parc( 3 ) : "", HB_PATH_MAX - 1 );
       if( strlen( ptrdouble ) >= 2 && *( ptrdouble + 1 ) == ':' )  /* C:\... */
          ptrdouble += 2;
       while( *ptrdouble == '/' || *ptrdouble == '\\' )
@@ -15077,8 +15076,7 @@ HB_FUNC( LETO_DBCREATE )
       int          i;
 
       ptrdouble = szFile;
-      strncpy( szFile, HB_ISCHAR( 1 ) ? hb_parc( 1 ) : "", HB_PATH_MAX - 1);
-      szFile[ HB_ISCHAR( 1 ) ? HB_MIN( hb_parclen( 1 ), HB_PATH_MAX - 1 ) : 0 ] = '\0';
+      hb_strncpy( szFile, HB_ISCHAR( 1 ) ? hb_parc( 1 ) : "", HB_PATH_MAX - 1 );
       if( strlen( ptrdouble ) >= 2 && *( ptrdouble + 1 ) == ':' )  /* C:\... */
          ptrdouble += 2;
       while( *ptrdouble == '/' || *ptrdouble == '\\' )

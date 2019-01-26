@@ -1811,6 +1811,10 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
          }
          break;
       }
+
+      default:
+         fTypeError = HB_TRUE;
+         break;
    }
 
    if( fTypeError )
@@ -1821,6 +1825,15 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
 
    pTable->uiUpdated |= LETO_FLAG_UPD_CHANGE;
    *( pTable->pFieldUpd + uiIndex ) = 1;
+
+   if( pTable->fAutoRefresh )
+   {
+      if( pTable->iBufRefreshTime && ( int ) leto_MilliDiff( pTable->llCentiSec ) >= pTable->iBufRefreshTime )
+      {
+         pTable->uiUpdated |= LETO_FLAG_UPD_FLUSH;
+         leto_PutRec( pArea );
+      }
+   }
 
    return HB_SUCCESS;
 }
@@ -2882,6 +2895,8 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
       {
          int iBufRefreshTime = pTable->iBufRefreshTime;
 
+         if( iBufRefreshTime > 0 )
+            iBufRefreshTime /= 10;
          if( HB_IS_NUMERIC( pItem ) )
          {
             pConnection = letoGetConnPool( pTable->uiConnection );
@@ -6048,6 +6063,21 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
             hb_itemPutNL( pItem, -1 );
          break;
       }
+
+      case RDDI_BUFREFRESHTIME:
+         if( pConnection )
+         {
+            if( HB_IS_NUMERIC( pItem ) )
+               pConnection->iBufRefreshTime = HB_MAX( hb_itemGetNI( pItem ) * 10, -1 );
+
+            if( pConnection->iBufRefreshTime > 0 )
+               hb_itemPutNI( pItem, pConnection->iBufRefreshTime / 10 );
+            else
+               hb_itemPutNI( pItem, pConnection->iBufRefreshTime );
+         }
+         else
+            hb_itemPutNI( pItem, -2 );
+         break;
 
       case RDDI_REFRESHCOUNT:
          if( pConnection )

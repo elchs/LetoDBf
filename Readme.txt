@@ -1283,6 +1283,12 @@ A. Internals
 
  <lDescend> set to TRUE ( .T. ) will start at bottom and DbSkip() to the top -- default is top to bottom.
 
+ <lRest> in Harbour world: a given value is overwritten by a given <cbFor> or a <cbWhile> condition,
+   then <Rest> will become true (.T.), what means to continue with the active record.
+   LetoDBf introduces: RddInfo( RDDI_DBEVALCOMPAT, .F. ) -- then compatibility to Harbour is ignored,
+   and only the given <lRest> determine if to start at TOP of WA or at active record, independent from
+   given conditions, what offers a greater flexibility.
+
  <lStay>, default is ,T., will stay at last processed record,
    with a given .F. it is jumped back to record which was active when Leto_DbEval() started.
    This FALSE activates also to try an initial Flock() for the first processed record, when successful it
@@ -1480,6 +1486,13 @@ A. Internals
  one time successful or not. With timeout, server will try multiple times during the timespan. This spares
  repeated request from the client over network.
 
+     RddInfo( RDDI_BUFREFRESHTIME [, nNewTimeout ] )           ==> nTimeout
+
+ This is similar to the 5th param of Leto_Connect(), the global timeout value for the skipbuffer cache.
+ A not given <lNewTimeout>, it returns the active timeout value, where '-2' indicates no connection is active.
+ A given <lNewTimeout> is valid from then on for *new to be opened* tables.
+ <lNewTimeout> unit is ms ( 1/100 s ), range is from '-1' == no refresh, '0' == infinite, and > 0.
+
      RddInfo( RDDI_CONNECT, { "LETO", cAddress, [ cUserName ], [ cPassword ],
                               [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck } )
                                                                ==> nConnection, -1 if failed
@@ -1498,6 +1511,11 @@ A. Internals
 
  Similar Leto_Disconnect(), "LETO" must be the default driver at execution time to close [ active ] connection.
 
+     RddInfo( RDDI_DBEVALCOMPAT[, lNew] )                      ==> lOldSet
+
+ Toggle compatibility behaviour for Leto_DbEval() related to its <lRest> argument.
+ Default (.T.) is to behave same as Harbour, disabling let only the <lRest> param determine. if Leto_DbEval()
+ starts processing at TOP or at active record.
 
       LETO_SETSEEKBUFFER( nRecsInBuf )                         ==> 0
  ! DEPRECATED !
@@ -1833,6 +1851,7 @@ A. Internals
  These both functions are nice to sum a value, where incrementing a negative value is in effect
  a decrementing and vice versa.
  Remark that e.g. a result of a division: 'x / y' is ever a decimal value.
+ A numeric value once set as integer will keep to be an integer without decimals.
 
       LETO_VARDEL( cGroupName[, cVarName ] )                   ==> lSuccess
 

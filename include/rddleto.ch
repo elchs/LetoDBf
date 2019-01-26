@@ -94,6 +94,7 @@
 #define RDDI_BUFKEYNO         102
 #define RDDI_BUFKEYCOUNT      103
 #define RDDI_VERSION          104
+#define RDDI_BUFREFRESHTIME   105
 #define RDDI_DEBUGLEVEL       110
 #define RDDI_LOCKTIMEOUT      111
 #define RDDI_CLEARBUFFER      112
