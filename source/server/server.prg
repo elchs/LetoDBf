@@ -100,14 +100,16 @@ REQUEST HB_GT_NUL_DEFAULT
 
 /* following selected functions are linked into server executable with REQUEST */
 REQUEST OS, VERSION, HB_VERSION
-REQUEST ABS, ALLTRIM, AT, BLANK, CHR, CTOD, DATE, DAY, DELETED, DESCEND, DTOC, DTOS, DOW, ;
+REQUEST ABS, ALLTRIM, AT, CHR, CTOD, DATE, DAY, DELETED, DESCEND, DTOC, DTOS, DOW, ;
         EMPTY, I2BIN, L2BIN, LEFT, LEN, LOWER, LTRIM, MAX, MIN, MONTH, OS, PAD, PADC, ;
         PADL, PADR, RAT, RECNO, RIGHT, ROUND, RTRIM, SPACE, STOD, STR, STRZERO, ;
         SUBSTR, REPLICATE, TIME, TRANSFORM, TRIM, UPPER, VAL, VALTYPE, YEAR
 REQUEST HB_DATETIME, HB_DTOT, HB_TTOD, HB_NTOT, HB_TTON, HB_CTOT, HB_TTOC, ;
         HB_TTOS, HB_STOT, HB_HOUR, HB_MINUTE, HB_SEC, HB_VALTOEXP, HB_ZCOMPRESS
 REQUEST HB_HEXTONUM, HB_NUMTOHEX
-REQUEST DOY, WEEK
+#ifdef LETO_SMALLCMDSET_CT
+   REQUEST DOY, WEEK, BLANK
+#endif
 
 REQUEST hb_ATokens, hb_tokenGet, hb_tokenCount, hb_strformat
 REQUEST FieldPos, FieldGet, FieldPut, hb_FieldType, hb_FieldLen, hb_FieldDec
@@ -329,7 +331,7 @@ PROCEDURE StartServer()
    ENDIF
    leto_InitSet()
    leto_HrbLoad()
-   leto_CreateData( oApp:cAddr, oApp:nPort, oApp:cAddrSpace, oApp:cServer )
+   leto_CreateData( oApp:cAddr, oApp:nPort, oApp:cAddrSpace, oApp:cServer, oApp:lCryptTraffic )
 
    IF ! leto_Server( oApp:nPort, oApp:cAddr, oApp:nTimeOut, oApp:nZombieCheck, oApp:cBCService, oApp:cBCInterface, oApp:nBCPort )
       WrLog( "Socket error " + hb_socketErrorString( hb_socketGetError() ) )

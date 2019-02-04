@@ -273,6 +273,7 @@ typedef struct _LETOCONNECTION_
    HB_FHANDLE        hSockPipe[ 2 ];
    HB_BYTE           uSrvLock;             /* 0 or type of server 'lock for e.g. replication' mode */
    HB_BOOL           fMustResync;          /* future idea, e.g. after missing answer for a request */
+   HB_BOOL           fCryptTraf;           /* if true, server demands! for network traffic encryotion */
    PHB_ITEM          whoCares;             /* temporary tasks, e.g. collect WA relations for Leto_ReConnect() */
 } LETOCONNECTION;                          /* 408 */
 

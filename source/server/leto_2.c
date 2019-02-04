@@ -100,7 +100,7 @@ static const char * szOk = "++++";
 static const char * szErr1 = "-001";
 
 static HB_SOCKET s_hSocketMain = HB_NO_SOCKET;
-static HB_UINT * s_paSocks;
+static HB_UINT * s_paSocks = NULL;
 static int       s_iSocksMax = 0;
 static int       s_iTimeOut = -1;
 static int       s_iZombieCheck = 0;     /* dead connection check time interval */
@@ -109,6 +109,7 @@ static HB_SOCKET s_hSocketUDP = HB_NO_SOCKET;
 static char      s_szUDPService[ HB_PATH_MAX ] = { 0 };
 static char      s_UDPServer[ HB_PATH_MAX ] = { 0 };
 static char      s_szAddrSpace[ HB_PATH_MAX ] = { 0 };
+static HB_BOOL   s_bCryptTraf = HB_FALSE;
 
 /* command description table */
 static const char * s_szCmdSetDesc[ LETOCMD_SETLEN ] = { 0 };
@@ -123,11 +124,11 @@ static HB_U64 s_ullCPULoad = 0;          /* sum in us of CPU load for requests *
 
 extern HB_USHORT leto_ActiveUser( void );
 extern HB_USHORT leto_MaxUsers( void );
-extern char leto_CryptTraf( void );
 extern int iDebugMode( void );
 extern const char * leto_sDirBase( void );
 extern HB_BOOL leto_ConnectIsLock( void );
 
+extern PUSERSTRU letoGetsUStru( void );
 extern PUSERSTRU leto_InitUS( HB_SOCKET hSocket );
 extern HB_BOOL leto_SeekUS( int iServerPort, HB_SOCKET hSocket );
 extern void leto_CloseUS( PUSERSTRU pUStru );
@@ -146,11 +147,12 @@ extern void leto_CommandSetInit( void );
 extern void leto_setTimeout( HB_ULONG iTimeOut );
 
 
-void leto_SrvSetPort( int iPort, const char * szAddrSpace )
+void leto_SrvSetPort( int iPort, const char * szAddrSpace, HB_BOOL bCryptTraf )
 {
    s_iServerPort = iPort;
    if( szAddrSpace && *szAddrSpace )
       hb_strncpy( s_szAddrSpace, szAddrSpace, HB_PATH_MAX - 1 );
+   s_bCryptTraf = bCryptTraf;
 }
 
 HB_U64 leto_Statistics( int iEntry )
@@ -828,8 +830,9 @@ HB_FUNC( LETO_SENDMESSAGE )
    else
       szAddr = "127.0.0.1";
 
-   /* security : only allow these two commands */
-   if( hb_parclen( 2 ) > 1 || ! ( szMessage[ 0 ] == LETOCMD_stop || szMessage[ 0 ] == LETOCMD_udf_rel ) )
+   /* security : allow this function executed only locally, not remote by Leto_UDF */
+   if( letoGetsUStru() || hb_parclen( 2 ) > 1 || ! hb_parclen( 2 ) ||
+       ! ( szMessage[ 0 ] == LETOCMD_stop || szMessage[ 0 ] == LETOCMD_udf_rel ) )
    {
       hb_retl( bRetVal );
       return;
@@ -876,14 +879,46 @@ HB_FUNC( LETO_SENDMESSAGE )
 
                   szBuffer[ LETO_MSGSIZE_LEN ] = szMessage[ 0 ];
                   szBuffer[ LETO_MSGSIZE_LEN + 1 ] = ';';
-                  szBuffer[ LETO_MSGSIZE_LEN + 2 ] = '\0';
+                  if( szMessage[ 0 ] == LETOCMD_stop )
+                  {
+                     char *   ptr = strchr( pBuffer, ';' );
+                     HB_ULONG ulLen = 0;
+
+                     if( ptr )
+                     {
+                        ptr += 2;
+                        ulLen = strlen( ptr );
+                     }
+                     if( ulLen )
+                     {
+                        char * szDopCode = ( char * ) hb_xgrab( ulLen );
+
+                        leto_hexchar2byte( ptr, ulLen, szDopCode );
+                        leto_decrypt( szDopCode, ulLen / 2, szDopCode, &ulLen, LETO_PASSWORD, HB_TRUE );
+                        if( ulLen == LETO_DOPCODE_LEN )
+                        {
+                           char szPass[ 64 ];
+
+                           leto_encrypt( "ShutDown", 8, szPass, &ulSendLen, szDopCode, HB_TRUE );
+                           leto_byte2hexchar( szPass, ( int ) ulSendLen, szBuffer + LETO_MSGSIZE_LEN + 2 );
+                           ulSendLen *= 2;
+                           ulSendLen += 2;
+                        }
+                        else
+                           leto_writelog( NULL, 0, "ERROR client fits not to server, different internal password" );
+                        memset( szDopCode, 0, ulLen );
+                        hb_xfree( szDopCode );
+                     }
+                  }
+                  szBuffer[ LETO_MSGSIZE_LEN + ulSendLen ] = '\0';
+
                   if( szData )
                   {
                      int iLen = HB_MIN( strlen( szData ), 60 - LETO_MSGSIZE_LEN );
 
-                     memcpy( szBuffer + LETO_MSGSIZE_LEN + 2, szData, iLen );
-                     szBuffer[ LETO_MSGSIZE_LEN + 2 + iLen ] = ';';
-                     szBuffer[ LETO_MSGSIZE_LEN + 2 + iLen + 1 ] = '\0';
+                     memcpy( szBuffer + LETO_MSGSIZE_LEN + ulSendLen, szData, iLen );
+                     szBuffer[ LETO_MSGSIZE_LEN + ulSendLen + iLen ] = ';';
+                     szBuffer[ LETO_MSGSIZE_LEN + ulSendLen + iLen + 1 ] = '\0';
                      ulSendLen += iLen + 1;
                   }
                   HB_PUT_LE_UINT32( szBuffer, ulSendLen );
@@ -1518,7 +1553,7 @@ static HB_THREAD_STARTFUNC( thread2 )
 
       ulTmp = sprintf( szBuffer, "%s %s", LETO_RELEASE_STRING, LETO_VERSION_STRING );
       szBuffer[ ulTmp++ ] = ';';
-      szBuffer[ ulTmp++ ] = 'N';  /* ex. s_bCryptTraf */
+      szBuffer[ ulTmp++ ] = s_bCryptTraf ? 'Y' : 'N';
 
       leto_random_block( pUStru->cDopcode, LETO_DOPCODE_LEN, 42 );
       leto_encrypt( pUStru->cDopcode, LETO_DOPCODE_LEN, szTmp, &ulLen, LETO_PASSWORD, HB_TRUE );
@@ -1795,6 +1830,20 @@ static HB_THREAD_STARTFUNC( thread2 )
                                   pUStru->ulDataLen );
          if( iDebugMode() >= 20 )  /* log complete communication data */
             leto_wUsLog( pUStru, pUStru->ulDataLen, ( char * ) pUStru->pBuffer );
+      }
+
+      if( s_bCryptTraf && ! pUStru->bZipCrypt )
+      {
+         const char cCmd = *pUStru->pBuffer;
+
+         /* allowed unencrypted requests if encrytion is demanded to use */
+         if( cCmd != LETOCMD_zip && cCmd != LETOCMD_stop && cCmd != LETOCMD_udf_rel )
+         {
+            if( iDebugMode() > 0 )
+               leto_writelog( NULL, -1, "DEBUG thread2() LetoDBf client at %s:%d ! not using encryption",
+                              pUStru->szAddr, pUStru->iPort );
+            break;
+         }
       }
 
       if( ! leto_ParseCommand( pUStru ) )

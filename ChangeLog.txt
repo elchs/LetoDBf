@@ -2,6 +2,28 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-02-04 10:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/letocl.h
+  * source/client/letocl.c
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+  * source/server/server.prg
+    ! fix two overlooked 'hb_parc( 2 )' in internal LetoToggleZip() instead
+      of using 2nd function param
+    * re-use letodb.ini option: Crypt_Traffic = 1  [ default '0' ]
+      ; If activated, client is informed network encryption must be used,
+      then even its initial 'Intro' request is send encrypted.
+      This is nearly the same as manually using Leto_ToggleZip() with a
+      password, where here the used password is a 31-byte random key,
+      !plus! it will block any connection not using LETO encryption.
+      ; please also rebuild 'console' if want to use
+    * new boolean param [encrypt] for LETO_CREATEDATA()/ leto_SrvSetPort()
+    * ensure LETO_SENDMESSAGE() can be executed only by server executable
+    * harden server-stop request in Leto_SendMessage() by adding an encoded
+      keyword to the request, verified in leto_StopServer()
+
+  * Readme.txt
+
 2019-01-26 22:36 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/rddleto.ch
   * source/client/letocl.c

@@ -173,7 +173,7 @@ static HB_CRITICAL_NEW( s_TStruMtx );    /* also used for s_uiIndexCurr */
 extern HB_U64 leto_Statistics( int iEntry );
 extern int leto_ExitGlobal( HB_BOOL fExit );
 extern void leto_SrvShutDown( unsigned int uiWait );
-extern void leto_SrvSetPort( int iPort, const char * szAddrSpace );
+extern void leto_SrvSetPort( int iPort, const char * szAddrSpace, HB_BOOL bCryptTraf );
 
 extern char * leto_memoread( const char * szFilename, HB_ULONG * pulLen );
 extern HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG ulStart, HB_ULONG * ulLen );
@@ -3851,6 +3851,7 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
    const int    iPort = HB_ISNUM( 2 ) ? hb_parni( 2 ) : LETO_DEFAULT_PORT;
    const char * szAddrSpace = hb_parclen( 3 ) ? hb_parc( 3 ) : NULL;
    const char * szServerID = hb_parclen( 4 ) ? hb_parc( 4 ) : NULL;
+   HB_BOOL      bCryptTraf = hb_parldef( 5, HB_FALSE );
 
    if( ! s_users )
    {
@@ -3865,7 +3866,7 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
       if( szServerID && *szServerID )
          hb_strncpy( s_szServerID, szServerID, HB_PATH_MAX - 1 );
 
-      leto_SrvSetPort( iPort, szAddrSpace );
+      leto_SrvSetPort( iPort, szAddrSpace, bCryptTraf );
 
       leto_writelog( NULL, -1, "INFO: %s %s, will run at %s%s:%d ( internal also used :%d )",
                      LETO_RELEASE_STRING, LETO_VERSION_STRING, strlen( szAddr ) ? "IP " : "port ", szAddr, iPort, iPort + 1 );
@@ -16267,9 +16268,22 @@ static void leto_UdfReload( PUSERSTRU pUStru, char * szData )
 
 static void leto_StopServer( PUSERSTRU pUStru, char * szData )
 {
-   HB_SYMBOL_UNUSED( szData );
+   HB_ULONG ulLen = strlen( szData );
 
-   leto_SrvShutDown( 0 );
+   if( ulLen )
+   {
+      char * szStop = ( char * ) hb_xgrabz( ulLen );
+
+      leto_hexchar2byte( szData, ( int ) ulLen, szStop );
+      leto_decrypt( szStop, ulLen / 2, szStop, &ulLen, pUStru->cDopcode, HB_TRUE );
+      if( ulLen && ! strcmp( "ShutDown", szStop ) )
+         leto_SrvShutDown( 0 );
+      else
+         leto_wUsLog( pUStru, 0, "ERROR: wrong secret given to stop server" );
+
+      memset( szStop, 0, ulLen );
+      hb_xfree( szStop );
+   }
    pUStru->bNoAnswer = HB_TRUE;
    pUStru->bCloseConnection = HB_TRUE;
 }

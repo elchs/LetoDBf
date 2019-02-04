@@ -794,7 +794,8 @@ static void leto_RecvFirst( LETOCONNECTION * pConnection, const char * szPass )
          {
             memcpy( pConnection->szVersion, pConnection->szBuffer, ulLen );
             pConnection->szVersion[ ulLen ] = '\0';
-            ptr += 2;  /* no more usesd CryptTraf 'N' */
+            pConnection->fCryptTraf = ( *( ptr + 1 ) == 'Y' );
+            ptr += 2;
             ulLen = strlen( ptr );
          }
          else
@@ -810,6 +811,7 @@ static void leto_RecvFirst( LETOCONNECTION * pConnection, const char * szPass )
                memcpy( pConnection->cDopcode, szPassTmp, LETO_DOPCODE_LEN );
             else  /* LETO_PASSWORD different to server --> leto_decrypt() fail about padded bytes -> 0 */
                pConnection->iConnectRes = LETO_ERR_ACCESS;
+            memset( szPassTmp, 0, ulLen );
             hb_xfree( szPassTmp );
          }
          else
@@ -2978,6 +2980,7 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
       pConnection->uiMajorVer = 0;
       pConnection->uiMinorVer = 0;
       pConnection->fMustResync = HB_FALSE;
+      pConnection->fCryptTraf = HB_FALSE;
       pConnection->iError = 0;
 
       leto_RecvFirst( pConnection, ( ! szUser && szPass && strlen( szPass ) ) ? szPass : NULL );
@@ -3061,16 +3064,29 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
          ulLen = strlen( szData + LETO_MSGSIZE_LEN );
          HB_PUT_LE_UINT32( szData, ulLen );
 
-#ifdef LETO_CLIENTLOG
-         leto_clientlog( NULL, 0, "INTRO :%s", szData + 4 );
-#endif
-         if( hb_socketSend( hSocket, szData, LETO_MSGSIZE_LEN + ulLen, 0, -1 ) <= 0 )
+         if( pConnection->fCryptTraf )
          {
-            pConnection->iConnectRes = LETO_ERR_SEND;
-            LetoConnectionClose( pConnection );
-            return;
+            char szRandomPW[ 32 ] = { 0 };
+            int  iLevel = 1;
+
+            leto_random_block( szRandomPW, 31, 42 );
+#ifdef USE_LZ4
+            iLevel += 5;
+#endif
+            LetoToggleZip( pConnection, iLevel, szRandomPW );
+#ifdef LETO_CLIENTLOG
+            if( LetoToggleZip( pConnection, -2, NULL ) == iLevel )
+               leto_clientlog( NULL, 0, "CRYPT : server demanded network encryption, activated" );
+            else
+               leto_clientlog( NULL, 0, "CRYPT : FAIL to enable server demanded network encryption" );
+#endif
+            memset( szRandomPW, 0, 32 );
          }
-         if( ! leto_Recv( pConnection ) )
+
+#ifdef LETO_CLIENTLOG
+         leto_clientlog( NULL, 0, "INTRO : %s", szData + 4 );
+#endif
+         if( ! leto_DataSendRecv( pConnection, szData + LETO_MSGSIZE_LEN, ulLen ) )
          {
             if( szPass )
                pConnection->iConnectRes = LETO_ERR_LOGIN;
@@ -6218,7 +6234,7 @@ int LetoToggleZip( LETOCONNECTION * pConnection, int iZipRecord, const char * sz
 {
    if( ! pConnection )
       pConnection = letoGetCurrConn();
-   if( pConnection && iZipRecord >= -1 )
+   if( pConnection && iZipRecord >= -1 && ( pConnection->fCryptTraf ? pConnection->iZipRecord < 0 : HB_TRUE ) )
    {
 #ifdef USE_LZ4
       if( iZipRecord <= 15 )
@@ -6238,7 +6254,7 @@ int LetoToggleZip( LETOCONNECTION * pConnection, int iZipRecord, const char * sz
             if( iKeyLen > LETO_MAX_KEYLENGTH )  /* 96 == max pass 37 */
                iKeyLen = LETO_MAX_KEYLENGTH;
 
-            leto_encrypt( hb_parc( 2 ), ( HB_ULONG ) iKeyLen, szData, &ulLen, szKey, HB_FALSE );
+            leto_encrypt( szPassword, ( HB_ULONG ) iKeyLen, szData, &ulLen, szKey, HB_FALSE );
             leto_byte2hexchar( szData, ( int ) ulLen, szPass );
             szPass[ ulLen * 2 ] = '\0';
             if( szKey )
@@ -6279,7 +6295,7 @@ int LetoToggleZip( LETOCONNECTION * pConnection, int iZipRecord, const char * sz
                   int    i;
                   char * szPW = ( char * ) hb_xgrabz( iKeyLen + 1 );
 
-                  memcpy( szPW, hb_parc( 2 ), iKeyLen );
+                  memcpy( szPW, szPassword, iKeyLen );
                   for( i = 0; i < HB_MIN( LETO_DOPCODE_LEN, iKeyLen ); i++ )
                   {
                      szPW[ i ] ^= pConnection->cDopcode[ i ];

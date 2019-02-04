@@ -113,7 +113,7 @@ A. Internals
     It is strong recommended to download and build Harbour from the fresh 3.2 source:
        git clone https://github.com/harbour/core.git
     For this you need your C-Compiler used for Harbour in your OS search path.
- Or use latest Harbour binary package:
+ Or use latest Harbour binary ( 'nightly' ) package:
        https://sourceforge.net/projects/harbour-project/files/
     Afterall the path to the 'hbmk2' executable is also added to OS search path list.
     Follow the instructions found with Harbour.
@@ -517,6 +517,10 @@ A. Internals
      ;SVC_NAME =               -    useable for Windows service to set a different service-name for
                                     multiple running server at same machine, default is "LetoDBf_Service";
                                     commonly used together with different filename for configuration
+     ;Crypt_Traffic =          -    if set to '1' [ default = 0 ] it enforces network traffic encryption,
+                                    aka all connections not using encryption are blocked/ shut down.
+                                    A manually used Leto_ToggleZip() will be without effect, aka compression
+                                    with encryption can not be deactivated.
 
 
       4.2  Different Server compile setups/ extensions
@@ -743,6 +747,9 @@ A. Internals
    This is activated on demand in conjunction with network compression, by using the cPassword>
    parameter in Leto_Togglezip( nLevel, cPassword ).
    Compression ( plus encryption ) can be activated immediate after a connection is established.
+   NEW: with server option "CRYPT_TRAFFIC" network traffic encryption is demanded to be used by
+   client, this is like above Leto_Togglezip() from the very beginning using a random password.
+   It will block any connection which is not using encryption.
 
 
 
@@ -1243,7 +1250,7 @@ A. Internals
  case if a non-optimized FILTER or non-optimzed RELATION are active. [ non-optimize == only at client active ].
 
  This works alike Harbours' DbEval() command, but is optimized to act likely an UDF directly at the server,
- so only the result is transferred over network, not all the records [ to be ] processed.
+ so only the result is transferred over network, not all the records [ to be ] processed locally.
  Codeblock expressions may, but not mandatory, start/ end with '{' and '}' chars -- if these are missing,
  at front a '{||' and at end a '}' is added. "Literally codeblocks" are a LETO extension for DBEval().
 
@@ -1284,7 +1291,7 @@ A. Internals
  <lDescend> set to TRUE ( .T. ) will start at bottom and DbSkip() to the top -- default is top to bottom.
 
  <lRest> in Harbour world: a given value is overwritten by a given <cbFor> or a <cbWhile> condition,
-   then <Rest> will become true (.T.), what means to continue with the active record.
+   then <lRest> will become true (.T.), what means to continue with the active record.
    LetoDBf introduces: RddInfo( RDDI_DBEVALCOMPAT, .F. ) -- then compatibility to Harbour is ignored,
    and only the given <lRest> determine if to start at TOP of WA or at active record, independent from
    given conditions, what offers a greater flexibility.
@@ -1652,7 +1659,7 @@ A. Internals
  A simple backup:
     aArr := Leto_Directory( "*" )
     AEval( aArr, { |aItem| Leto_FCopyFromSrv( aItem[1], aItem[1] } )
- Copy from a logged into HbNetIO server a file to LeoDBf located in RAM:
+ Copy from a logged into HbNetIO server a file to LetoDBf located in RAM:
     Leto_FCopyToSrv( "net:hbnetio.txt", "mem:RAMfile.txt" )
 
 
