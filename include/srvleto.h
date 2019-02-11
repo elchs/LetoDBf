@@ -142,13 +142,13 @@ typedef struct
    char *            szBagName;                /* filename plus extension */
    char *            szFullPath;               /* complete non relative path to index */
    char *            szOrdKey;                 /* key expression of index */
-   HB_USHORT         uiAreas;
+   HB_ULONG          ulAreas;
    HB_BOOL           bCompound;                /* multiple TAGs in one index, e.g. CDX */
    HB_BOOL           bClear;                   /* temporary help var for OrdListClear() */
    HB_BOOL           bProduction;              /* CDX autoopened production order */
    HB_BOOL           bShared;                  /* temporary private index order */
    char              cKeyType;                 /* type of expression */
-} INDEXSTRU, * PINDEXSTRU;                     /* 48 */
+} INDEXSTRU, * PINDEXSTRU;                     /* 64 */
 
 typedef struct _LETOTAG
 {
@@ -172,7 +172,7 @@ typedef struct
 #endif
    HB_BOOL           bLocked;                  /* table filelock [ not reclock ] */
    unsigned char     uMemoType;                /* MEMO type DBT 1/ FPT 2/ SMT 3 */
-   HB_USHORT         uiAreas;                  /* Number of references */
+   HB_ULONG          ulAreas;                  /* Number of references */
 } GLOBESTRU, * PGLOBESTRU;                     /* 48 */
 
 typedef struct
@@ -186,7 +186,7 @@ typedef struct
    HB_BYTE *         szTable;                  /* may include leading [back]slash, name of table */
    char              szLetoAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];  /* server internal alias: 7 + 1 or No_save_WA: 63 + 1 */
    HB_U32            uiCrc;                    /* hash value for szTable speed search */
-   HB_USHORT         uiAreas;                  /* Number of references, 1 for s_bNoSaveWA */
+   HB_ULONG          ulAreas;                  /* Number of references, 1 for s_bNoSaveWA */
    HB_USHORT         uiRecordLen;
    HB_USHORT         uiFields;                 /* number of fields per record */
    HB_USHORT         uiIndexCount;             /* index count opend by [all] users */
@@ -195,7 +195,7 @@ typedef struct
    HB_ULONG          ulFlags;                  /* Lock flags, some prehistoric relict ;-) */
    PGLOBESTRU        pGlobe;                   /* 1 to 1 relation into GLOBESTRU, for s_bNoSaveWA: n to 1 */
    HB_BOOL           bModStamp;                /* table with HB_FT_MODTIME/ HB_FT_ROWVER fields */
-} TABLESTRU, * PTABLESTRU;                     /* 200 */
+} TABLESTRU, * PTABLESTRU;                     /* 216 */
 
 typedef struct
 {
@@ -217,7 +217,7 @@ typedef struct
 #ifdef __BM
    void *            pBM;
 #endif
-} AREASTRU, * PAREASTRU;                       /* 200 */
+} AREASTRU, * PAREASTRU;                       /* 192 */
 
 typedef struct
 {
@@ -281,7 +281,7 @@ typedef struct
    HB_BOOL           bGCCollect;              /* true if this thread is designated to do GC */
    HB_MAXINT *       pOpenHandles;            /* list of files opened by Leto_Fopen()/ Leto_FCreate() */
    HB_ULONG          ulOpenHandles;           /* number of open file handles */
-} USERSTRU, * PUSERSTRU;                      /* 536 */
+} USERSTRU, * PUSERSTRU;                      /* 544 */
 
 typedef struct
 {

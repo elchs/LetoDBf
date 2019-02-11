@@ -601,7 +601,7 @@ METHOD New() CLASS HApp
                   EXIT
                CASE "USERS_MAX"
                   nTmp := INT( Val( cValue ) )
-                  IF nTmp > 10 .AND. nTmp <= 100000
+                  IF nTmp >= 9 .AND. nTmp < 65535
                      ::nUsers_max := nTmp
                   ENDIF
                CASE "DEBUG"

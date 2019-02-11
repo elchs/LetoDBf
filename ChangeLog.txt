@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-02-11 20:11 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/srvleto.h
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+    ! fix if same! table is opened > 64K times ( HB_USHORT -> HB_ULONG )
+    ! fix if max configured user exceeded in Leto_UDF()/ seperate thread
+    ! add mutex re-using for pUStru in leto_InitUS()
+
+  * source/server/server.prg
+    * lower limit of MAX_USERS to >= 9
+      ; it have influence on digit-length of letodbf_xxx.log file-name,
+        so instead 1000 better to use 999
+
 2019-02-04 10:01 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/letocl.h
   * source/client/letocl.c

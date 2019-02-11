@@ -1907,6 +1907,8 @@ static HB_THREAD_STARTFUNC( thread2 )
 
    leto_CloseUS( pUStru );
    hb_vmThreadQuit();
+   if( ! *s_UDPServer )  /* HVM thread */
+      hb_gcCollectAll( HB_FALSE );
    HB_THREAD_END
 }
 
@@ -1966,8 +1968,11 @@ HB_FUNC( LETO_SERVER )
          }
       }
 
-      hb_xfree( pSockAddr );
-      pSockAddr = NULL;
+      if( pSockAddr )
+      {
+         hb_xfree( pSockAddr );
+         pSockAddr = NULL;
+      }
 
       /* now the socket for async error */
       if( hSocketMain != HB_NO_SOCKET &&
@@ -2321,10 +2326,7 @@ HB_FUNC( LETO_SERVER )
 
          pUStru = leto_InitUS( incoming );
          if( ! pUStru )
-         {
-            leto_writelog( NULL, 0, "ERROR configured mamimum number of users reached ..."  );
             continue;
-         }
 
          pUStru->ulBufferLen = LETO_SENDRECV_BUFFSIZE;
          pUStru->pBuffer = ( HB_BYTE * ) hb_xgrab( LETO_SENDRECV_BUFFSIZE + 1 );

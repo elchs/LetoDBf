@@ -2540,7 +2540,7 @@ static PINDEXSTRU leto_InitIndex( PUSERSTRU pUStru, const char * szTagName, cons
 
       pTStru->uiIndexCount++;
       pIStru = ( PINDEXSTRU ) letoAddToList( &pTStru->IndexList );
-      pIStru->uiAreas = 0;
+      pIStru->ulAreas = 0;
 
       s_uiIndexCurr++;
       if( s_uiIndexCurr > s_uiIndexMax )
@@ -2593,7 +2593,7 @@ static PINDEXSTRU leto_InitIndex( PUSERSTRU pUStru, const char * szTagName, cons
        ( ( pIStru->bProduction && leto_ProdSupport( pAStru->pTStru->szDriver ) ) || *szFileName == '*' ||
          ( ( ! s_bLowerPath ) ? ! strcmp( szFileName, pIStru->szBagName ) : ! leto_stricmp( szFileName, pIStru->szBagName ) ) ) )
    {
-         pIStru->uiAreas++;
+         pIStru->ulAreas++;
          pIStru->bCompound = leto_OrdCanCompound( pArea, szTagName );
          leto_AddTag( pAStru, pIStru, szTagName );
          bRegistered = HB_TRUE;
@@ -2754,7 +2754,7 @@ static void leto_CloseIndex( PINDEXSTRU pIStru )
       hb_xfree( pIStru->szOrdKey );
       pIStru->szOrdKey = NULL;
    }
-   pIStru->uiAreas = 0;
+   pIStru->ulAreas = 0;
    s_uiIndexCurr--;
 }
 
@@ -2794,14 +2794,14 @@ static void leto_CloseGlobe( PGLOBESTRU pGStru )
 {
    if( s_bNoSaveWA )
    {
-      pGStru->uiAreas--;
-      if( pGStru->uiAreas )
+      pGStru->ulAreas--;
+      if( pGStru->ulAreas )
          return;
 
       s_uiGlobesCurr--;
    }
    else
-      pGStru->uiAreas = 0;
+      pGStru->ulAreas = 0;
 
    if( pGStru->szTable )
    {
@@ -2849,7 +2849,7 @@ static void leto_CloseTable( PTABLESTRU pTStru )
    }
    letoListFree( &pTStru->IndexList );
 
-   pTStru->ulAreaID = pTStru->uiAreas = 0;
+   pTStru->ulAreaID = pTStru->ulAreas = 0;
    pTStru->pGlobe->bLocked = HB_FALSE;
    leto_CloseGlobe( pTStru->pGlobe );
 
@@ -2873,12 +2873,12 @@ static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT ui
          if( uiGlobe >= s_uiGlobesCurr )  /* new one */
          {
             s_uiGlobesCurr++;
-            pGStru->uiAreas = 1;
+            pGStru->ulAreas = 1;
             break;
          }
          else if( pGStru->uiCrc == uiCrc && ! strcmp( ( const char * ) pGStru->szTable, szTable ) )
          {
-            pGStru->uiAreas++;
+            pGStru->ulAreas++;
             break;
          }
          pGStru++;
@@ -2888,10 +2888,10 @@ static PGLOBESTRU leto_InitGlobe( const char * szTable, HB_U32 uiCrc, HB_UINT ui
    else
    {
       pGStru = s_globes + uiTable;
-      pGStru->uiAreas = 1;
+      pGStru->ulAreas = 1;
    }
 
-   if( pGStru->uiAreas == 1 )
+   if( pGStru->ulAreas == 1 )
    {
       pGStru->szTable = ( HB_BYTE * ) hb_xgrab( uiLen + 1 );
       memcpy( pGStru->szTable, szTable, uiLen );
@@ -2930,7 +2930,7 @@ static _HB_INLINE_ HB_BOOL leto_InitGlobeValidCP( int iTableStru, const char * s
 {
    PTABLESTRU pTStru = s_tables + iTableStru;
 
-   if( ( s_bNoSaveWA && ! pTStru->bMemIO ) ? pTStru->pGlobe->uiAreas > 1 : HB_TRUE )
+   if( ( s_bNoSaveWA && ! pTStru->bMemIO ) ? pTStru->pGlobe->ulAreas > 1 : HB_TRUE )
    {
       if( pTStru->pGlobe->szCdp )
       {
@@ -2993,7 +2993,7 @@ static int leto_InitTable( HB_ULONG ulAreaID, const char * szName, const char * 
 
    pTStru->ulFlags = 0;
    pTStru->uiIndexCount = 0;
-   pTStru->uiAreas = 1;
+   pTStru->ulAreas = 1;
 
    if( uiTable >= s_uiTablesMax )
       s_uiTablesMax = uiTable + 1;
@@ -3183,8 +3183,8 @@ static HB_BOOL leto_CloseArea( PUSERSTRU pUStru, PAREASTRU pAStru )
 
    HB_GC_LOCKT();
 
-   pTStru->uiAreas--;
-   if( pTStru->uiAreas == 0 )  /* close table if this was last area for it */
+   pTStru->ulAreas--;
+   if( ! pTStru->ulAreas )  /* close table if this was last area for it */
    {
       AREAP pArea;
 
@@ -3242,8 +3242,8 @@ static HB_BOOL leto_CloseArea( PUSERSTRU pUStru, PAREASTRU pAStru )
       while( pTag )
       {
          pIStru = pTag->pIStru;
-         pIStru->uiAreas--;
-         if( ! pIStru->uiAreas )
+         pIStru->ulAreas--;
+         if( ! pIStru->ulAreas )
          {
             leto_CloseIndex( pIStru );
             letoDelItemList( &pTStru->IndexList, ( PLETO_LIST_ITEM ) pIStru );
@@ -3307,7 +3307,7 @@ static void leto_CloseUdfAreas( PUSERSTRU pUStru )
       if( pAStru && pAStru->pTStru && pAStru->ulUdf == ( HB_ULONG ) pUStru->iUserStru )
       {
          if( s_iDebugMode > 1 )
-            leto_wUsLog( pUStru, -1, "DEBUG leto_CloseUdfAreas! %s (used: %d)", pAStru->pTStru->szTable, pAStru->pTStru->uiAreas );
+            leto_wUsLog( pUStru, -1, "DEBUG leto_CloseUdfAreas! %s (used: %lu)", pAStru->pTStru->szTable, pAStru->pTStru->ulAreas );
          leto_CloseArea( pUStru, pAStru );
       }
    }
@@ -3506,6 +3506,7 @@ void leto_CloseUS( PUSERSTRU pUStru )
 
    HB_GC_UNLOCKU();
 
+   pUStru->bGCCollect = HB_TRUE;  /* indicate a still existing mutex */
    hb_threadLeaveCriticalSection( &pUStru->pMutex );
 }
 
@@ -3569,7 +3570,6 @@ PUSERSTRU leto_InitUS( HB_SOCKET hSocket )
 {
    PUSERSTRU pUStru;
    int       iUserStru;
-   HB_CRITICAL_NEW( pMutex );
 
    HB_GC_LOCKU();
 
@@ -3586,12 +3586,26 @@ PUSERSTRU leto_InitUS( HB_SOCKET hSocket )
    if( iUserStru >= s_uiUsersAlloc )
    {
       HB_GC_UNLOCKU();
+      leto_writelog( NULL, -1, "ERROR configured max users ( %d ) outreached ...", iUserStru  );
       return NULL;
    }
    else
    {
+      HB_BOOL       bSwapMutex = pUStru->bGCCollect;
+      HB_CRITICAL_T pOldMutex;
+
+      if( bSwapMutex )
+         pOldMutex = pUStru->pMutex;
       memset( pUStru, 0, sizeof( USERSTRU ) );  /* clean before re-use */
       pUStru->iUserStru = s_uiUsersFree = ( HB_USHORT ) ( iUserStru + 1 );  /* pUStru->iUserStru > 0 indicates a used pUStru */
+      if( bSwapMutex )  /* to verify this works */
+         pUStru->pMutex = pOldMutex;
+      else
+      {
+         HB_CRITICAL_NEW( pMutex );
+
+         pUStru->pMutex = pMutex;
+      }
    }
 
    s_uiUsersCurr++;
@@ -3602,7 +3616,6 @@ PUSERSTRU leto_InitUS( HB_SOCKET hSocket )
 
    HB_GC_UNLOCKU();
 
-   pUStru->pMutex = pMutex;
    pUStru->hSocket = hSocket;
    pUStru->uiDriver = s_uiDriverDef;
    pUStru->hSocketErr = HB_NO_SOCKET;
@@ -4365,7 +4378,7 @@ static void leto_Drop( PUSERSTRU pUStru, char * szData )
             iTableStru = leto_FindTable( szFileName, NULL );
 
             /* check if table is used solely by active user */
-            if( iTableStru >= 0 && ( ( PTABLESTRU ) s_tables + iTableStru )->pGlobe->uiAreas == 1 )
+            if( iTableStru >= 0 && ( ( PTABLESTRU ) s_tables + iTableStru )->pGlobe->ulAreas == 1 )
             {
                PAREASTRU       pAStru;
                PLETO_LIST_ITEM pListItem = pUStru->AreasList.pItem;
@@ -7499,7 +7512,7 @@ static PHB_ITEM leto_dbEvalJoinAdd( PUSERSTRU pUStru, const char * ptr, AREAP pA
    while( bValid && ptr && *ptr && *ptr != ';' )
    {
       ptr1 = strchr( ptr, ',' );
-      if( ptr1 )
+      if( ptr1 && ptr1 - ptr >= 4 )
          ptr2 = strchr( ++ptr1, ',' );
       else
          ptr2 = NULL;
@@ -8383,7 +8396,7 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
    }
 }
 
-/* leto_udf() leto_DbEval( cbBlock, cbFor, cbWhile, nNext, nRec, lRest[, lResultArr, lNeedLock, lBackward ] ) */
+/* leto_udf() leto_DbEval( cbBlock, cbFor, cbWhile, nNext, nRec, lRest[, lResultArr, lNeedLock, lBackward, lStay ] ) */
 HB_FUNC( LETO_DBEVAL )
 {
    PUSERSTRU  pUStru = letoGetUStru();
@@ -9289,7 +9302,7 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
 
             if( pIStru )
             {
-               if( pIStru->uiAreas > 1 )
+               if( pIStru->ulAreas > 1 )
                {
                   if( s_iDebugMode > 0 )
                      leto_wUsLog( pUStru, -1, "ERROR leto_OrdFunc OrdDestroy bag %s in use by other",
@@ -9391,8 +9404,8 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
                   }
 
                   pTag->pIStru->bClear = HB_TRUE;
-                  pTag->pIStru->uiAreas--;
-                  if( ! pTag->pIStru->uiAreas )
+                  pTag->pIStru->ulAreas--;
+                  if( ! pTag->pIStru->ulAreas )
                      bDelete = HB_TRUE;
                   if( s_iDebugMode > 20 )
                      leto_wUsLog( pUStru, -1, "DEBUG leto_OrdFunc OrdBagClear accepted to clear %s for %s",
@@ -9447,7 +9460,7 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
                if( pIStru->bClear )
                {
                   pIStru->bClear = HB_FALSE;
-                  if( ! pIStru->uiAreas )
+                  if( ! pIStru->ulAreas )
                   {
                      if( s_iDebugMode > 20 )
                         leto_wUsLog( pUStru, -1, "DEBUG leto_OrdFunc OrdBagClear de-registered %s for %s",
@@ -9557,8 +9570,8 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
                      pTag = pTagPrev->pNext = pTag->pNext;
                   if( pAStru->pTagCurrent == pTag1 )
                      pAStru->pTagCurrent = NULL;
-                  pTag1->pIStru->uiAreas--;
-                  if( ! pTag1->pIStru->uiAreas )
+                  pTag1->pIStru->ulAreas--;
+                  if( ! pTag1->pIStru->ulAreas )
                   {
                      pIStru = pTag1->pIStru;
                      if( s_iDebugMode > 20 )
@@ -13216,6 +13229,12 @@ static void leto_Udf( PUSERSTRU pUStru, char * szData, HB_ULONG ulAreaID )
          {
             PUSERSTRU pUStruT = leto_InitUS( HB_NO_SOCKET );
 
+            if( ! pUStruT )
+            {
+               leto_SendAnswer( pUStru, szErrAcc, 4 );
+               return;
+            }
+
             pUStruT->cdpage = hb_vmCDP();
             strcpy( pUStruT->szDriver, pUStru->szDriver );
             nSize = strtoul( pp6, &ptr, 10 );
@@ -14300,7 +14319,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, char * szRawData )
             {
                if( leto_InitGlobeValidCP( iTableStru, szCdp ) )
                {
-                  ( s_tables + iTableStru )->uiAreas++;
+                  ( s_tables + iTableStru )->ulAreas++;
                   HB_GC_UNLOCKT();
                   bUnlocked = HB_TRUE;
                   leto_InitArea( pUStru, iTableStru, ulAreaID, szAlias, NULL, ulSelectID );
@@ -15827,7 +15846,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, char * szRawData )
                {
                   if( ! strcmp( pIStru->szBagName, szFile ) )
                   {
-                     if( pIStru->uiAreas > 1 )
+                     if( pIStru->ulAreas > 1 )
                         uiIndexInUse = uo + 1;
                      else if( pIStru->bShared )  /* if no temporary order, check if used only by me own */
                      {
@@ -15997,9 +16016,9 @@ static void leto_CreateIndex( PUSERSTRU pUStru, char * szRawData )
                   while( pTag )
                   {
                      pIStru = pTag->pIStru;
-                     if( pIStru->uiAreas > 0 )  /* for safety ;-) */
-                        pIStru->uiAreas--;
-                     if( ! pIStru->uiAreas )
+                     if( pIStru->ulAreas > 0 )  /* for safety ;-) */
+                        pIStru->ulAreas--;
+                     if( ! pIStru->ulAreas )
                      {
                         leto_CloseIndex( pIStru );
                         letoDelItemList( &pTStru->IndexList, ( PLETO_LIST_ITEM ) pIStru );
