@@ -2,6 +2,10 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-02-14 11:33 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    * will comment on that future topic later, just to save changes ...
+
 2019-02-11 20:11 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/srvleto.h
   * source/server/leto_2.c
