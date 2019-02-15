@@ -2,6 +2,12 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-02-15 21:12 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    * more still uncommented work about a planned Leto_DbEval() extension
+    * using directly the WA record number not with SELF_RECNO() to avoid
+      for special occasion possible pending relations being refreshed
+
 2019-02-14 11:33 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     * will comment on that future topic later, just to save changes ...
