@@ -2,6 +2,19 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-02-17 18:19 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    % collect in 'letodbf.log' notes about possible double used index TAG,
+      after leto_IndexesInfo() detected misorder
+    * one more fix about the FULL join, plus new join-type 'EMPTY' ;-)
+
+  * include/rddleto.ch
+  * include/srvleto.h
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    + new RDDI_DBEVALTIMEOUT [ 120s ] timeout value for a single request,
+      actually used in Leto_DbEval to limit/stop a runaway request
+
 2019-02-15 21:12 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     * more still uncommented work about a planned Leto_DbEval() extension

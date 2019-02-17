@@ -6020,6 +6020,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
       case RDDI_DEBUGLEVEL:
       case RDDI_LOCKRETRY:  /* not used in Harbour core, used as RDDI_LOCKTIMEOUT */
       case RDDI_LOCKTIMEOUT:
+      case RDDI_DBEVALTIMEOUT:
       {
          int iRes = 1;
 
@@ -7142,6 +7143,8 @@ HB_FUNC( LETO_DBEVAL )
                          fResultAsArr, fNeedLock, fBackward, fStay, &pParams, hb_parc( 11 ) ) )
          {
             hb_itemRelease( pParams );
+            if( HB_ISBYREF( 7 ) )  /* clean ref. value */
+               hb_stor( 7 );
             if( ! strncmp( pConnection->szBuffer + 1, "004", 3 ) )  /* error in expression ? */
             {
                leto_CheckError( pArea, pConnection );

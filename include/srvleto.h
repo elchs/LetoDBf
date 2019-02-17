@@ -249,6 +249,7 @@ typedef struct
    HB_BOOL           bLastAct;                /* temporary value, internal used as replace for void return value */
    HB_U64            llLastAct;               /* seconds ago of last activity */
    HB_U64            ullCPULoad;              /* milliseconds sum of server CPU load for requests except network time */
+   HB_ULONG          ulActTimeout;            /* max timespan in ms for a single request, used e.g. in DbEval() */
    LETO_LIST         AreasList;
    HB_USHORT         uiAreasCount;
    VAR_LINK *        pVarLink;
