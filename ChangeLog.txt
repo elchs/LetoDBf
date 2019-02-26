@@ -2,6 +2,30 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-02-26 12:09 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * bin/leto.sh
+    % do not try to start server if already running
+
+  * source/client/leto1.c
+    * validate JOIN string at server, return all joined WA as string to
+      add all fields of all WA for mask '*' in LETO_DBEVAL()
+    * check for Leto_DbEval() if connection is still up
+
+  * source/server/letofunc.c
+    ! fix an ugly bug in thread2():
+      after a socket problem the reference to the socket-handle was deleted
+    * move assignment/ clearance of sockets into global HB_GC_LOCKU() mutex
+    * perform the JOINing before evaluating the FOR/WHILE in leto_dbEval(),
+      as the conditions should be able to refer to joined WAs.
+    * not deactivate demanded locking in case of joined WA, as the found
+      records, even if not need to lock, are positions for the second
+      pass-through
+
+  * source/server/leto_lnx.c
+    % not manually closing the hNull file handle, it is done by dup2()
+      ; now all first three system handles point to /dev/null,
+        and stdin as read-only
+
 2019-02-17 18:19 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     % collect in 'letodbf.log' notes about possible double used index TAG,

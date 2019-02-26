@@ -3414,21 +3414,11 @@ void leto_CloseUS( PUSERSTRU pUStru )
    if( pUStru->iUserStru == s_iUserLock )
       s_iUserLock = -1;
 
-   /* first the error socket */
    if( pUStru->hSocketErr != HB_NO_SOCKET )
-   {
       hb_socketShutdown( pUStru->hSocketErr, HB_SOCKET_SHUT_RDWR );
-      hb_socketClose( pUStru->hSocketErr );
-      pUStru->hSocketErr = HB_NO_SOCKET;
-   }
-
-   /* now main socket */
    if( pUStru->hSocket != HB_NO_SOCKET )
-   {
       hb_socketShutdown( pUStru->hSocket, HB_SOCKET_SHUT_RDWR );
-      hb_socketClose( pUStru->hSocket );
-      pUStru->hSocket = HB_NO_SOCKET;
-   }
+
    if( pUStru->zstream )
    {
 #ifdef USE_LZ4
@@ -3465,7 +3455,7 @@ void leto_CloseUS( PUSERSTRU pUStru )
                      ( pUStru->szAddr    ? ( char * ) pUStru->szAddr    : szNull ),
                      ( pUStru->iPort     ? ( int ) pUStru->iPort     : 0 ),
                      ( *( pUStru->szExename ) ? ( char * ) pUStru->szExename : szNull ),
-                     pUStru->iUserStru, s_uiUsersCurr, s_uiUsersMax,
+                     pUStru->iUserStru - 1, s_uiUsersCurr, s_uiUsersMax,
                      s_uiTablesCurr, s_uiTablesMax );
    }
 
@@ -3504,6 +3494,16 @@ void leto_CloseUS( PUSERSTRU pUStru )
       s_uiUsersFree = ( HB_USHORT ) ( ( pUStru - s_users ) / sizeof( USERSTRU ) );
 
    pUStru->iUserStru = 0;
+   if( pUStru->hSocketErr != HB_NO_SOCKET )
+   {
+      hb_socketClose( pUStru->hSocketErr );
+      pUStru->hSocketErr = HB_NO_SOCKET;
+   }
+   if( pUStru->hSocket != HB_NO_SOCKET )
+   {
+      hb_socketClose( pUStru->hSocket );
+      pUStru->hSocket = HB_NO_SOCKET;
+   }
 
    HB_GC_UNLOCKU();
 
@@ -3615,11 +3615,12 @@ PUSERSTRU leto_InitUS( HB_SOCKET hSocket )
 
    letoListInit( &pUStru->AreasList, sizeof( AREASTRU ) );
 
+   pUStru->hSocket = hSocket;
+   pUStru->hSocketErr = HB_NO_SOCKET;
+
    HB_GC_UNLOCKU();
 
-   pUStru->hSocket = hSocket;
    pUStru->uiDriver = s_uiDriverDef;
-   pUStru->hSocketErr = HB_NO_SOCKET;
    pUStru->hSockPipe[ 0 ] = FS_ERROR;
    pUStru->hSockPipe[ 1 ] = FS_ERROR;
    pUStru->szAccess[ 0 ] = 0xFF;
@@ -7508,7 +7509,7 @@ static HB_BOOL leto_dbEvalJoinRel( AREAP pArea, AREAP pJoined )
 static PHB_ITEM leto_dbEvalJoinAdd( PUSERSTRU pUStru, const char * ptr, AREAP pArea )
 {
    char         szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ] = { 0 };
-   char *       pAlias;
+   char *       pAlias, * pTmp;
    const char * ptr1, * ptr2;
    int          iArea;
    PHB_ITEM     pOne, pBlock, pJoins = hb_itemArrayNew( 0 );
@@ -7551,7 +7552,7 @@ static PHB_ITEM leto_dbEvalJoinAdd( PUSERSTRU pUStru, const char * ptr, AREAP pA
          else
          {
             if( s_iDebugMode > 0 )
-               leto_wUsLog( pUStru, -1, "ERROR leto_dbEvalJoinAdd() unknown JOIN type: %.*s", ptr1 - ptr - 1, ptr );
+               leto_wUsLog( pUStru, -1, "ERROR leto_dbEvalJoinAdd() unknown/ invalid JOIN type: %.*s", ptr1 - ptr - 1, ptr );
             hb_itemRelease( pOne );
             ptr = strchr( ptr2 + 1, ';' );
             if( ptr )
@@ -7601,7 +7602,9 @@ static PHB_ITEM leto_dbEvalJoinAdd( PUSERSTRU pUStru, const char * ptr, AREAP pA
             if( ptr - ptr2 - 1 > 0 && bNeedKey )
             {
                ulLen = ( HB_ULONG ) ( ptr - ptr2 - 1 );
-               pAlias = leto_AliasTranslate( pUStru, ptr2 + 1, &ulLen );
+               pTmp = ( char * ) hb_xgrabz( ulLen + 1 );
+               memcpy( pTmp, ptr2 + 1, ulLen );
+               pAlias = leto_AliasTranslate( pUStru, pTmp, &ulLen );
                pBlock = leto_mkCodeBlock( pUStru, pAlias, ulLen, HB_FALSE );
 
                if( ( hb_itemType( hb_vmEvalBlock( pBlock ) ) & HB_IT_LOGICAL ) )
@@ -7673,6 +7676,7 @@ static PHB_ITEM leto_dbEvalJoinAdd( PUSERSTRU pUStru, const char * ptr, AREAP pA
 
                hb_vmDestroyBlockOrMacro( pBlock );
                hb_xfree( pAlias );
+               hb_xfree( pTmp );
             }
             else if( bNeedKey )
             {
@@ -7807,8 +7811,10 @@ static HB_BOOL leto_dbEvalJoinFor( PHB_ITEM pJoins, AREAP pArea )
                      if( cJoinType == 'E' )
                         hb_arraySetNL( pJoin, 7, 0 );
                      else if( ! ( hb_arrayGetType( pJoin, 7 ) && ! hb_arrayGetNL( pJoin, 7 ) ) )
+                     {
                         hb_arraySetNL( pJoin, 7, ulAreaRecNo );
-                     bResult = HB_TRUE;
+                        bResult = HB_TRUE;
+                     }
                      break;
                   }
                }
@@ -7859,7 +7865,6 @@ static HB_BOOL leto_dbEvalJoinFor( PHB_ITEM pJoins, AREAP pArea )
                   bEof = leto_dbEvalJoinForPos( pJoin, pArea, HB_TRUE );
                   if( ! bEof )
                      hb_arraySetNL( pJoin, 7, ( ( DBFAREAP ) pArea )->ulRecNo );
-                  bResult = HB_TRUE;
                }
             }
             else
@@ -7913,14 +7918,13 @@ static HB_BOOL leto_dbEvalJoinPrePos( PHB_ITEM pJoin, AREAP pArea, HB_BOOL bReve
    }
    else
    {
-      PHB_ITEM pResult, pResultJoin;
+      PHB_ITEM pResultJoin;
       int      iResult;
 
       hb_rddSelectWorkAreaNumber( pJoinArea->uiArea );
       pResultJoin = hb_itemClone( hb_vmEvalBlock( pEval ) );
       hb_rddSelectWorkAreaNumber( pArea->uiArea );
-      pResult = hb_vmEvalBlock( pEval );
-      if( hb_itemCompare( pResult, pResultJoin, HB_TRUE, &iResult ) )
+      if( hb_itemCompare( hb_vmEvalBlock( pEval ), pResultJoin, HB_TRUE, &iResult ) )
          bEof = iResult ? HB_TRUE : HB_FALSE;
       else
          bEof = HB_TRUE;
@@ -7932,13 +7936,13 @@ static HB_BOOL leto_dbEvalJoinPrePos( PHB_ITEM pJoin, AREAP pArea, HB_BOOL bReve
 
 static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
 {
-   HB_BOOL  bEof, bOneMore = HB_FALSE;
+   HB_BOOL  bOneMore = HB_FALSE, bLoop = HB_TRUE, bEof, bJoinEof;
    PHB_ITEM pJoin;
    AREAP    pJoinArea;
    HB_SIZE  nPos = 0;
    char     cJoinType;
 
-   while( ! bOneMore && ++nPos <= hb_arrayLen( pJoins ) )
+   while( bLoop && ++nPos <= hb_arrayLen( pJoins ) )
    {
       pJoin = hb_arrayGetItemPtr( pJoins, nPos );
       pJoinArea = ( AREAP ) hb_arrayGetPtr( pJoin, 2 );
@@ -7948,8 +7952,9 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
          case 'C':  /* CROSS JOIN */
             SELF_SKIP( pJoinArea, 1 );
             SELF_EOF( pJoinArea, &bEof );
-            bOneMore = bEof ? HB_FALSE: HB_TRUE;
-            if( bEof && nPos < hb_arrayLen( pJoins ) )  /* else handled by leto_dbEvalJoinPostSkip() */
+            if( ! bEof )
+               bOneMore = HB_TRUE;
+            else if( nPos < hb_arrayLen( pJoins ) )  /* else handled by leto_dbEvalJoinPostSkip() */
                SELF_GOTOP( pJoinArea );
             break;
 
@@ -7962,17 +7967,15 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
                SELF_EOF( pJoinArea, &bEof );
                if( ! bEof )
                {
-                  /* negated ( NOT ! ) query */
-                  bOneMore = leto_dbEvalJoinPrePos( pJoin, pArea, HB_TRUE );
-                  if( ! bOneMore && cJoinType != 'E' )
+                  bJoinEof = leto_dbEvalJoinPrePos( pJoin, pArea, HB_TRUE );
+                  if( ! bJoinEof && cJoinType != 'E' )
                      hb_arraySetNL( pJoin, 8, ( ( DBFAREAP ) pJoinArea )->ulRecNo );
                   else
                   {
                      SELF_GOTO( pArea, hb_arrayGetNL( pJoin, 7 ) );
                      if( ! hb_arrayGetNL( pJoin, 7 ) )  /* set after last LEFT --> find next */
                      {
-                        HB_BOOL bJoinEof = HB_FALSE;
-
+                        bJoinEof = HB_FALSE;
                         SELF_SKIP( pJoinArea, 1 );
                         SELF_EOF( pJoinArea, &bEof );
                         while( ! bEof )
@@ -7986,16 +7989,15 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
                               SELF_EOF( pJoinArea, &bEof );
                            }
                         }
-                        if( bEof || ! bJoinEof )
-                           bOneMore = HB_FALSE;
+                        if( ! ( bEof || ! bJoinEof ) )
+                           bOneMore = HB_TRUE;
                      }
+                     else if( bJoinEof )
+                        bOneMore = HB_TRUE;
                   }
                }
                else
-               {
                   hb_arraySetNL( pJoin, 8, 0 );
-                  bOneMore = HB_FALSE;
-               }
                break;
             }
             if( cJoinType == 'E' )
@@ -8006,14 +8008,17 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
          case 'L':  /* LEFT JOIN */
             if( hb_arrayGetType( pJoin, 5 ) || hb_arrayGetType( pJoin, 6 ) )
             {
+               bJoinEof = HB_TRUE;
                SELF_SKIP( pJoinArea, 1 );
                SELF_EOF( pJoinArea, &bEof );
                if( ! bEof )
-                  bOneMore = ! leto_dbEvalJoinPrePos( pJoin, pArea, HB_FALSE );
-               else
-                  bOneMore = HB_FALSE;
+               {
+                  bJoinEof = leto_dbEvalJoinPrePos( pJoin, pArea, HB_FALSE );
+                  if( ! bJoinEof )
+                     bOneMore = HB_TRUE;
+               }
 
-               if( ! bOneMore )
+               if( bJoinEof )
                {
                   if( hb_arrayGetType( pJoin, 5 ) )
                      hb_itemSetNil( hb_arrayGetItemPtr( pJoin, 5 ) );
@@ -8023,8 +8028,7 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
                   /* ugly - must find first after last handled for FULL JOIN */
                   if( cJoinType == 'F' && hb_arrayGetType( pJoin, 8 ) && leto_dbEvalJoinEof( pArea ) )
                   {
-                     HB_BOOL bJoinEof = HB_FALSE;
-
+                     bJoinEof = HB_FALSE;
                      SELF_GOTO( pJoinArea, hb_arrayGetNL( pJoin, 8 ) );
                      SELF_SKIP( pJoinArea, 1 );
                      SELF_EOF( pJoinArea, &bEof );
@@ -8051,61 +8055,68 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
                      SELF_GOTO( pJoinArea, 0 );
                }
             }
-            else
-               bOneMore = HB_FALSE;
             break;
 
          case 'R':  /* RIGHT JOIN */
             if( hb_arrayGetType( pJoin, 7 ) )
             {
+               SELF_GOTO( pArea, hb_arrayGetNL( pJoin, 7 ) );
                SELF_SKIP( pArea, 1 );
                SELF_EOF( pArea, &bEof );
                if( ! bEof )
-                  bOneMore = ! leto_dbEvalJoinPrePos( pJoin, pArea, HB_TRUE );
+                  bEof = leto_dbEvalJoinPrePos( pJoin, pArea, HB_TRUE );
+               if( ! bEof )
+                  hb_arraySetNL( pJoin, 7, ( ( DBFAREAP ) pArea )->ulRecNo );
                else
-                  bOneMore = HB_FALSE;
-
-               if( ! bOneMore )
                {
                   SELF_GOTO( pArea, hb_arrayGetNL( pJoin, 7 ) );
                   hb_itemSetNil( hb_arrayGetItemPtr( pJoin, 7 ) );
+                  SELF_SKIP( pJoinArea, 1 );
                }
+               bOneMore = HB_TRUE;
             }
             else
-               bOneMore = HB_FALSE;
-
-            if( ! bOneMore )
             {
-               SELF_SKIP( pJoinArea, 1 );
                SELF_EOF( pJoinArea, &bEof );
-               if( bEof )
+               if( ! bEof )
                {
-                  SELF_GOTO( pArea, 0 );
-                  bOneMore = HB_FALSE;
+                  SELF_SKIP( pJoinArea, 1 );
+                  SELF_EOF( pJoinArea, &bEof );
                }
-               else
+
+               if( ! bEof )
                   bOneMore = HB_TRUE;
+               else
+               {
+                   bLoop = HB_FALSE;
+                   SELF_GOBOTTOM( pArea);
+               }
             }
             break;
       }
+
+      if( cJoinType != 'R' )
+         bLoop = ! bOneMore;
    }
 
    return bOneMore;
 }
 
-static HB_BOOL leto_dbEvalJoinPostSkip( PHB_ITEM pJoins )
+static HB_BOOL leto_dbEvalJoinPostSkip( PHB_ITEM pJoins, AREAP pArea )
 {
    HB_BOOL  bResult = HB_TRUE;
    PHB_ITEM pJoin;
    AREAP    pJoinArea;
    HB_SIZE  nPos = 0;
 
+   HB_SYMBOL_UNUSED( pArea );
+
    while( ++nPos <= hb_arrayLen( pJoins ) )
    {
       pJoin = hb_arrayGetItemPtr( pJoins, nPos );
       switch( *( hb_arrayGetCPtr( pJoin, 1 ) ) )
       {
-         case 'C' :  /* CROSS JOIN */
+         case 'C' :
             pJoinArea = ( AREAP ) hb_arrayGetPtr( pJoin, 2 );
             bResult = SELF_GOTOP( pJoinArea ) == HB_SUCCESS;
             break;
@@ -8120,7 +8131,7 @@ static HB_BOOL leto_dbEvalJoinLock( PUSERSTRU pUStru, PHB_ITEM pJoins, HB_BOOL b
    HB_BOOL    bResult = HB_TRUE, bEof;
    PHB_ITEM   pJoin;
    AREAP      pJoinArea, pArea;
-   HB_ULONG   ulRecNo = 0;
+   HB_ULONG   ulRecNo;
    HB_SIZE    nPos = 0, nLen;
    PAREASTRU  pAStru;
    PHB_ITEM   pJLocks;
@@ -8137,21 +8148,26 @@ static HB_BOOL leto_dbEvalJoinLock( PUSERSTRU pUStru, PHB_ITEM pJoins, HB_BOOL b
          if( pAStru )
          {
             ulRecNo = ( ( DBFAREAP ) pJoinArea )->ulRecNo;
-            hb_rddSelectWorkAreaNumber( pJoinArea->uiArea );
 
-            if( bTryFLock )
+            if( ! ( pAStru->bLocked || ! pAStru->pTStru->bShared ) )  /* bNeedLock */
             {
-               if( ! leto_TableLock( pAStru, iLockTime ) )
+               hb_rddSelectWorkAreaNumber( pJoinArea->uiArea );
+               if( bTryFLock )
                {
-                  if( s_iDebugMode > 20 )
-                     leto_wUsLog( pUStru, -1,"DEBUG leto_dbEvalJoinLock FLOck failed, trying RLock for %lu in %s",
-                                             ulRecNo, pAStru->szAlias );
-                  if( ! leto_RecLock( pUStru, pAStru, ulRecNo, HB_FALSE, iLockTime ) )
-                     bResult = HB_FALSE;
+                  if( ! leto_TableLock( pAStru, iLockTime ) )
+                  {
+                     if( s_iDebugMode > 20 )
+                        leto_wUsLog( pUStru, -1,"DEBUG leto_dbEvalJoinLock FLOck failed, trying RLock for %lu in %s",
+                                                ulRecNo, pAStru->szAlias );
+                     if( ! leto_RecLock( pUStru, pAStru, ulRecNo, HB_FALSE, iLockTime ) )
+                        bResult = HB_FALSE;
+                  }
                }
+               else if( ! pAStru->bLocked && ! leto_RecLock( pUStru, pAStru, ulRecNo, HB_FALSE, iLockTime ) )
+                  bResult = HB_FALSE;
             }
-            else if( ! pAStru->bLocked && ! leto_RecLock( pUStru, pAStru, ulRecNo, HB_FALSE, iLockTime ) )
-               bResult = HB_FALSE;
+            else
+               bResult = HB_TRUE;
 
             if( ! bResult )
             {
@@ -8199,7 +8215,6 @@ static void leto_dbEvalJoinUnlock( PUSERSTRU pUStru, PHB_ITEM pJoins, HB_BOOL bF
    AREAP     pJoinArea;
    HB_SIZE   nPos = 0, nLockPos;
    PHB_ITEM  pJoin, pJLocks;
-   HB_ULONG  ulRecNo;
 
    HB_SYMBOL_UNUSED( pUStru );
 
@@ -8216,8 +8231,7 @@ static void leto_dbEvalJoinUnlock( PUSERSTRU pUStru, PHB_ITEM pJoins, HB_BOOL bF
             nLockPos = 0;
             while( ++nLockPos <= hb_arrayLen( pJLocks ) )
             {
-               ulRecNo = hb_arrayGetNL( pJLocks, nLockPos );
-               if( ulRecNo > 0 )
+               if( pAStru->pTStru->bShared && hb_arrayGetNL( pJLocks, nLockPos ) > 0 )  /* bNeedLock */
                {
                   if( bFLock )  /* initial fLock tried */
                   {
@@ -8236,51 +8250,33 @@ static void leto_dbEvalJoinUnlock( PUSERSTRU pUStru, PHB_ITEM pJoins, HB_BOOL bF
    }
 }
 
-
-static void leto_dbEvalJoinPos( PUSERSTRU pUStru, PHB_ITEM pJoins )
+static void leto_dbEvalJoinPos( PHB_ITEM pJoins, HB_BOOL bRestore )
 {
    AREAP      pJoinArea;
    HB_SIZE    nPos = 0;
    PHB_ITEM   pJoin;
    HB_ULONG   ulRecNo, ulRecCount;
 
-   HB_SYMBOL_UNUSED( pUStru );
-
    while( ++nPos <= hb_arrayLen( pJoins ) )
    {
       pJoin = hb_arrayGetItemPtr( pJoins, nPos );
       pJoinArea = ( AREAP ) hb_arrayGetPtr( pJoin, 2 );
-      SELF_RECCOUNT( pJoinArea, &ulRecCount );
-      ulRecNo = ( ( DBFAREAP ) pJoinArea )->ulRecNo;
-      if( ulRecNo > ulRecCount )
-         ulRecNo = 0;
-      hb_arraySetNL( pJoin, 9, ulRecNo );
+      if( bRestore )
+         SELF_GOTO( pJoinArea, hb_arrayGetNL( pJoin, 9 ) );
+      else
+      {
+         SELF_RECCOUNT( pJoinArea, &ulRecCount );
+         ulRecNo = ( ( DBFAREAP ) pJoinArea )->ulRecNo;
+         hb_arraySetNL( pJoin, 9, ulRecNo <= ulRecCount ? ulRecNo : 0 );
+      }
    }
 }
 
-static void leto_dbEvalJoinPosRest( PUSERSTRU pUStru, PHB_ITEM pJoins )
-{
-   AREAP      pJoinArea;
-   HB_SIZE    nPos = 0;
-   PHB_ITEM   pJoin;
-
-   HB_SYMBOL_UNUSED( pUStru );
-
-   while( ++nPos <= hb_arrayLen( pJoins ) )
-   {
-      pJoin = hb_arrayGetItemPtr( pJoins, nPos );
-      pJoinArea = ( AREAP ) hb_arrayGetPtr( pJoin, 2 );
-      SELF_GOTO( pJoinArea, hb_arrayGetNL( pJoin, 9 ) );
-   }
-}
-
-static void leto_dbEvalJoinGoto( PUSERSTRU pUStru, PHB_ITEM pJoins, HB_SIZE nLockPos )
+static void leto_dbEvalJoinGoto( PHB_ITEM pJoins, HB_SIZE nLockPos )
 {
    AREAP      pJoinArea;
    HB_SIZE    nPos = 0;
    PHB_ITEM   pJoin, pJLocks;
-
-   HB_SYMBOL_UNUSED( pUStru );
 
    while( ++nPos <= hb_arrayLen( pJoins ) )
    {
@@ -8290,6 +8286,32 @@ static void leto_dbEvalJoinGoto( PUSERSTRU pUStru, PHB_ITEM pJoins, HB_SIZE nLoc
       if( hb_arrayLen( pJLocks ) >= nLockPos )
          SELF_GOTO( pJoinArea, hb_arrayGetNL( pJLocks, nLockPos ) );
    }
+}
+
+static char * leto_dbEvalJoinAlias( PHB_ITEM pJoins, const char * szAdd )
+{
+   AREAP      pJoinArea;
+   HB_SIZE    nPos = 0;
+   PHB_ITEM   pJoin;
+   HB_SIZE    nAlias = szAdd ? strlen( szAdd ) : 0;
+   char       szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
+   char *     szAliasList = ( char * ) hb_xgrab( ( ( HB_RDD_MAX_ALIAS_LEN + 1 ) * hb_arrayLen( pJoins ) ) + 1 + nAlias );
+
+   if( nAlias )
+   {
+      memcpy( szAliasList, szAdd, nAlias );
+      szAliasList[ nAlias++ ] = ';';
+      szAliasList[ nAlias ] = '\0';
+   }
+   while( ++nPos <= hb_arrayLen( pJoins ) )
+   {
+      pJoin = hb_arrayGetItemPtr( pJoins, nPos );
+      pJoinArea = ( AREAP ) hb_arrayGetPtr( pJoin, 2 );
+      SELF_ALIAS( pJoinArea, szAlias );
+      nAlias += eprintf( szAliasList + nAlias, "%s;", szAlias );
+   }
+
+   return szAliasList;
 }
 
 static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEvalInfo, int iLockTime, HB_BOOL bStay )
@@ -8326,7 +8348,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
       /* SELF_RECNO() handles pending relations, first here else above pArea->valResult is lost */
       SELF_RECNO( pArea, &ulLastRecNo );
       if( pArea && pEvalInfo->dbsci.lpstrFor )
-         leto_dbEvalJoinPos( pUStru, pEvalInfo->dbsci.lpstrFor );
+         leto_dbEvalJoinPos( pEvalInfo->dbsci.lpstrFor, HB_FALSE );
 
       if( pEvalInfo->dbsci.lNext && hb_itemGetNL( pEvalInfo->dbsci.lNext ) >= 0 )
          lNext = hb_itemGetNL( pEvalInfo->dbsci.lNext );
@@ -8381,23 +8403,27 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
       if( ! bEof )
          hb_itemPutNS( pEvalut, 1 );
 
-      while( ! bEof && ( ! pEvalInfo->dbsci.itmCobWhile || hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobWhile, 2, pProces, pEvalut ) ) ) )
+      while( ! bEof )
       {
-         if( pEvalInfo->dbsci.itmCobFor )  /* FOR */
-            bValid = hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobFor, 2, pProces, pEvalut ) );
-         if( bValid && pEvalInfo->dbsci.lpstrFor )
-         {
+         bValid = HB_TRUE;
+         if( pEvalInfo->dbsci.lpstrFor )
             bValid = leto_dbEvalJoinFor( pEvalInfo->dbsci.lpstrFor, pArea );
-            if( bValid )
+         if( bValid && ! ( ! pEvalInfo->dbsci.itmCobWhile ||
+                           hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobWhile, 2, pProces, pEvalut ) ) ) )
+            break;
+         if( bValid && pEvalInfo->dbsci.itmCobFor )  /* FOR */
+            bValid = hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobFor, 2, pProces, pEvalut ) );
+         if( bValid )  /* try to lock joined WAs before the master WA */
+         {
+            if( ! leto_dbEvalJoinLock( pUStru, pEvalInfo->dbsci.lpstrFor, ! bStay, iLockTime ) )
             {
-               if( ! leto_dbEvalJoinLock( pUStru, pEvalInfo->dbsci.lpstrFor, ! bStay, iLockTime ) )
-               {
-                  bProved = HB_FALSE;
-                  break;
-               }
+               bProved = HB_FALSE;
+               break;
             }
          }
+
          hb_itemPutNS( pEvalut, hb_itemGetNS( pEvalut ) + 1 );
+
          if( bValid )
          {
             hb_itemPutNS( pProces, hb_itemGetNS( pProces ) + 1 );
@@ -8405,8 +8431,10 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
             SELF_RECNO( pArea, &ulLockRecNo );
             dbLockInfo.itmRecID = hb_itemPutNL( dbLockInfo.itmRecID, ulLockRecNo );
 
+            if( pUStru->pCurAStru->bLocked || ! pUStru->pCurAStru->pTStru->bShared )
+               dbLockInfo.fResult = HB_TRUE;
             /* an initial Flock was successful, dbLockInfo.fResult is HB_TRUE */
-            if( ! ( dbLockInfo.uiMethod == DBLM_FILE && hb_arrayLen( pRLocks ) ) )
+            else if( ! ( dbLockInfo.uiMethod == DBLM_FILE && hb_arrayLen( pRLocks ) ) )
             {
                do
                {
@@ -8449,18 +8477,25 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
          if( ! bOneMore )
          {
-            SELF_SKIP( pArea, ! pEvalInfo->dbsci.fBackward ? 1 : -1 );
-            if( ! pEvalInfo->dbsci.fBackward )
-               SELF_EOF( pArea, &bEof );
-            else
-               SELF_BOF( pArea, &bEof );
+            SELF_EOF( pArea, &bEof );
+            if( ! bEof )
+            {
+               SELF_SKIP( pArea, ! pEvalInfo->dbsci.fBackward ? 1 : -1 );
+               if( ! pEvalInfo->dbsci.fBackward )
+                  SELF_EOF( pArea, &bEof );
+               else
+                  SELF_BOF( pArea, &bEof );
+            }
          }
 
          if( ! bEof && ! bOneMore && pEvalInfo->dbsci.lpstrFor )
-            leto_dbEvalJoinPostSkip( pEvalInfo->dbsci.lpstrFor );
+         {
+            leto_dbEvalJoinPostSkip( pEvalInfo->dbsci.lpstrFor, pArea );
+            SELF_EOF( pArea, &bEof );
+         }
          if( ! ulTimeoutHz )
             ulTimeoutHz = ( HB_ULONG ) HB_MAX( 1, ( 1000 / HB_MAX( 1, ( leto_MilliSec() - ullTimePoint ) ) ) );
-         if( ! ( ( hb_itemGetNL( pProces ) + 1 ) % ulTimeoutHz ) &&
+         if( ! ( ( hb_itemGetNL( pEvalut ) + 1 ) % ulTimeoutHz ) &&
              leto_MilliSec() - ullTimePoint > pUStru->ulActTimeout )
          {
             if( s_iDebugMode > 0 )
@@ -8509,7 +8544,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
          {
             SELF_GOTO( pArea, hb_arrayGetNL( pRLocks, 1 ) );
             if( pEvalInfo->dbsci.lpstrFor )
-               leto_dbEvalJoinGoto( pUStru, pEvalInfo->dbsci.lpstrFor, 1 );
+               leto_dbEvalJoinGoto( pEvalInfo->dbsci.lpstrFor, 1 );
             bEof = HB_FALSE;
          }
          else
@@ -8524,19 +8559,21 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
       hb_xvmSeqBegin();
 
-      if( ! bEof && pEvalInfo->dbsci.lpstrFor )
+      if( ! bEof && ! pRLocks && pEvalInfo->dbsci.lpstrFor )
          bEof = leto_dbEvalJoinStart( pEvalInfo->dbsci.lpstrFor );
       if( ! bEof )
          hb_itemPutNS( pEvalut, 1 );
 
-      while( ! bEof && ( pRLocks || ! pEvalInfo->dbsci.itmCobWhile || hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobWhile, 2, pProces, pEvalut ) ) ) )
+      while( ! bEof )
       {
-         if( ! pRLocks && pEvalInfo->dbsci.itmCobFor )  /* FOR */
-            bValid = hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobFor, 2, pProces, pEvalut ) );
-         else
-            bValid = HB_TRUE;
-         if( bValid && ! pRLocks && pEvalInfo->dbsci.lpstrFor )
+         bValid = HB_TRUE;
+         if( ! pRLocks && pEvalInfo->dbsci.lpstrFor )
             bValid = leto_dbEvalJoinFor( pEvalInfo->dbsci.lpstrFor, pArea );
+         if( bValid && ! ( pRLocks || ! pEvalInfo->dbsci.itmCobWhile ||
+                           hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobWhile, 2, pProces, pEvalut ) ) ) )
+            break;
+         if( bValid && ! pRLocks && pEvalInfo->dbsci.itmCobFor )  /* FOR */
+            bValid = hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobFor, 2, pProces, pEvalut ) );
 
          hb_itemPutNS( pEvalut, hb_itemGetNS( pEvalut ) + 1 );
 
@@ -8581,7 +8618,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
             {
                SELF_GOTO( pArea, hb_arrayGetNL( pRLocks, nPos + 1 ) );
                if( pEvalInfo->dbsci.lpstrFor )
-                  leto_dbEvalJoinGoto( pUStru, pEvalInfo->dbsci.lpstrFor, nPos + 1 );
+                  leto_dbEvalJoinGoto( pEvalInfo->dbsci.lpstrFor, nPos + 1 );
             }
             else
             {
@@ -8593,20 +8630,26 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
          {
             if( ! bOneMore )
             {
-               SELF_SKIP( pArea, ! pEvalInfo->dbsci.fBackward ? 1 : -1 );
-
-               if( ! pEvalInfo->dbsci.fBackward )
+               SELF_EOF( pArea, &bEof );
+               if( ! bEof )
+               {
+                  SELF_SKIP( pArea, ! pEvalInfo->dbsci.fBackward ? 1 : -1 );
+                  if( ! pEvalInfo->dbsci.fBackward )
+                     SELF_EOF( pArea, &bEof );
+                  else
+                     SELF_BOF( pArea, &bEof );
+               }
+               if( pEvalInfo->dbsci.lpstrFor )
+               {
+                  leto_dbEvalJoinPostSkip( pEvalInfo->dbsci.lpstrFor, pArea );
                   SELF_EOF( pArea, &bEof );
-               else
-                  SELF_BOF( pArea, &bEof );
+               }
             }
-
-            if( ! bEof && ! bOneMore && pEvalInfo->dbsci.lpstrFor )
-               leto_dbEvalJoinPostSkip( pEvalInfo->dbsci.lpstrFor );
          }
+
          if( ! ulTimeoutHz )
             ulTimeoutHz = ( HB_ULONG ) HB_MAX( 1, ( 1000 / HB_MAX( 1, ( leto_MilliSec() - ullTimePoint ) ) ) );
-         if( ! ( ( hb_itemGetNL( pProces ) + 1 ) % ulTimeoutHz ) &&
+         if( ! ( ( hb_itemGetNL( pEvalut ) + 1 ) % ulTimeoutHz ) &&
              leto_MilliSec() - ullTimePoint > pUStru->ulActTimeout )
          {
             if( s_iDebugMode > 0 )
@@ -8633,10 +8676,13 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
    if( pRLocks && hb_arrayLen( pRLocks ) )
    {
-      if( ! bStay )  /* initial fLock tried */
-         leto_TableUnlock( pUStru->pCurAStru, HB_FALSE , pArea );
-      else  /* throw away all locks at once if too many */
-         leto_TableUnlock( pUStru->pCurAStru, hb_arrayLen( pRLocks ) > 42 ? HB_FALSE : HB_TRUE, pArea );
+      if( pUStru->pCurAStru->pTStru->bShared )
+      {
+         if( ! bStay )  /* initial fLock tried */
+            leto_TableUnlock( pUStru->pCurAStru, HB_FALSE , pArea );
+         else  /* throw away all locks at once if too many */
+            leto_TableUnlock( pUStru->pCurAStru, hb_arrayLen( pRLocks ) > 42 ? HB_FALSE : HB_TRUE, pArea );
+      }
       if( pEvalInfo->dbsci.lpstrFor )
          leto_dbEvalJoinUnlock( pUStru, pEvalInfo->dbsci.lpstrFor, ! bStay );
    }
@@ -8647,7 +8693,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
       {
          leto_GotoIf( pArea, ulLastRecNo );
          if( pEvalInfo->dbsci.lpstrFor )
-            leto_dbEvalJoinPosRest( pUStru, pEvalInfo->dbsci.lpstrFor );
+            leto_dbEvalJoinPos( pEvalInfo->dbsci.lpstrFor, HB_TRUE );
       }
 
       if( pArea->valResult )
@@ -8763,7 +8809,7 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
          bValid = HB_FALSE;
       else
       {
-         bNeedLock = ! ( pUStru->pCurAStru->bLocked || ! pUStru->pCurAStru->pTStru->bShared );
+         bNeedLock = ! ( pUStru->pCurAStru->bLocked || ! pUStru->pCurAStru->pTStru->bShared ) || pEvalInfo.dbsci.lpstrFor;
          if( bNeedLock && ! ( pUStru->uSrvLock & 0x01 ) )  /* RDDI_AUTOLOCK */
          {
             if( s_iDebugMode > 0 )
@@ -8818,7 +8864,15 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
    else if( pUStru->iHbError )
       leto_SendError( pUStru, szErr4, 4 );
    else if( ! pEvalInfo.itmBlock )
-      leto_SendAnswer( pUStru, szErr2, 4 );
+   {
+      if( ! pEvalInfo.dbsci.lpstrFor )
+         leto_SendAnswer( pUStru, szErr2, 4 );
+      else
+      {
+         szData1 = leto_dbEvalJoinAlias( pEvalInfo.dbsci.lpstrFor, szErr2 );
+         leto_SendAnswer( pUStru, szData1, strlen( szData1 ) );
+      }
+   }
    else
       leto_SendAnswer( pUStru, szErr3, 4 );
 
@@ -8849,7 +8903,7 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
    }
 }
 
-/* leto_udf() leto_DbEval( cbBlock, cbFor, cbWhile, nNext, nRec, lRest[, lResultArr, lNeedLock, lBackward, lStay ] ) */
+/* leto_udf() leto_DbEval( cbBlock, cbFor, cbWhile, nNext, nRec, lRest[, lResultArr, lNeedLock, lBackward, lStay, cJoin ] ) */
 HB_FUNC( LETO_DBEVAL )
 {
    PUSERSTRU  pUStru = letoGetUStru();
@@ -8866,23 +8920,6 @@ HB_FUNC( LETO_DBEVAL )
    HB_BOOL    bValid = pArea ? HB_TRUE : HB_FALSE;
 
    memset( &pEvalInfo, 0, sizeof( DBEVALINFO ) );
-   if( pArea && bNeedLock )
-   {
-      if( pUStru->pCurAStru->pTStru->bReadonly )
-         bValid = HB_FALSE;
-      else
-      {
-         bNeedLock = ! ( pUStru->pCurAStru->bLocked || ! pUStru->pCurAStru->pTStru->bShared );
-         if( bNeedLock && ! ( pUStru->uSrvLock & 0x01 ) )  /* RDDI_AUTOLOCK */
-         {
-            if( s_iDebugMode > 0 )
-               leto_wUsLog( pUStru, -1, "ERROR LETO_DBEVAL: R-locks need, but no RDDI_AUTOLOCK for WA %s", pUStru->pCurAStru->szAlias );
-            bValid = HB_FALSE;
-         }
-         else if( s_iDebugMode > 20 )
-            leto_wUsLog( pUStru, -1, "DEBUG LETO_DBEVAL: will use RDDI_AUTOLOCK for WA %s", pUStru->pCurAStru->szAlias );
-      }
-   }
 
    hb_xvmSeqBegin();
 
@@ -8920,6 +8957,23 @@ HB_FUNC( LETO_DBEVAL )
          pEvalInfo.dbsci.lpstrFor = leto_dbEvalJoinAdd( pUStru, hb_parc( 11 ), pArea );
          if( ! pEvalInfo.dbsci.lpstrFor )
             bValid = HB_FALSE;
+      }
+      if( bValid && bNeedLock )
+      {
+         if( pUStru->pCurAStru->pTStru->bReadonly )
+            bValid = HB_FALSE;
+         else
+         {
+            bNeedLock = ! ( pUStru->pCurAStru->bLocked || ! pUStru->pCurAStru->pTStru->bShared ) || pEvalInfo.dbsci.lpstrFor;
+            if( bNeedLock && ! ( pUStru->uSrvLock & 0x01 ) )  /* RDDI_AUTOLOCK */
+            {
+               if( s_iDebugMode > 0 )
+                  leto_wUsLog( pUStru, -1, "ERROR LETO_DBEVAL: R-locks need, but no RDDI_AUTOLOCK for WA %s", pUStru->pCurAStru->szAlias );
+               bValid = HB_FALSE;
+            }
+            else if( s_iDebugMode > 20 )
+               leto_wUsLog( pUStru, -1, "DEBUG LETO_DBEVAL: will use RDDI_AUTOLOCK for WA %s", pUStru->pCurAStru->szAlias );
+         }
       }
       if( bValid && bResultAsArr )
          pArea->valResult = hb_itemArrayNew( 0 );
@@ -11700,7 +11754,7 @@ static void leto_Intro( PUSERSTRU pUStru, char * szData )
          pData = pBuf;
          letoSetUStru( pUStru );
 
-         if( pUStru->hSocketErr == HB_NO_SOCKET && s_iDebugMode > 0 )  /* second socket comes also here */
+         if( s_iDebugMode > 0 )
             leto_writelog( NULL, -1, "INFO: connected  %s:%d %s CP: %s  DF: %s  conn-ID %d",
                                      pUStru->szAddr, pUStru->iPort,
                                      ( *( pUStru->szExename ) ? ( char * ) pUStru->szExename : "?exe?" ),

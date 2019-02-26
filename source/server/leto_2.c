@@ -799,7 +799,7 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
    if( pUStru->ulBytesSend != ulLen )
    {
       leto_writelog( NULL, -1, "ERROR leto_SendAnswer() send %lu of %lu bytes (%d), client %s :%d %s",
-                    pUStru->ulSndBufLen, ulLen, LETO_SOCK_GETERROR(), pUStru->szAddr, pUStru->iPort, pUStru->szExename );
+                    pUStru->ulBytesSend, ulLen, LETO_SOCK_GETERROR(), pUStru->szAddr, pUStru->iPort, pUStru->szExename );
    }
 }
 
@@ -1143,7 +1143,7 @@ static HB_BOOL leto_BroadcastIP( const char * szAddr, char * szBroadcast )
 
 /*
  * Note: without HVM
- * Thread3 will wait max 2 second to establish a second socket for error feedback
+ * Thread3 will wait max 3 second to establish a second socket for error feedback
  * Should be ever run/ sleep -- waken up by pipe from master, then dispatch one single or a set of sockets
  * to their corresponding threads already serving the regularly socket for a connection
  */
@@ -1216,7 +1216,7 @@ static HB_THREAD_STARTFUNC( thread3 )
       HB_GC_UNLOCKX();
 
 #if 1 && defined( HB_HAS_POLL )
-      iChange = poll( pPoll, uiCount, uiCount == 1 ? -1 : 2000 );
+      iChange = poll( pPoll, uiCount, uiCount == 1 ? -1 : 3000 );
       if( iChange <= 0 )
       {
          if( LETO_SOCK_IS_EINTR( LETO_SOCK_GETERROR() ) )
@@ -1231,14 +1231,12 @@ static HB_THREAD_STARTFUNC( thread3 )
    #if defined( HB_OS_WIN )
 
       if( uiCount == 1 )  /* infinite for only the wake-up pipe */
-      {
          iChange = iPipeIn = hb_fsPipeIsData( s_paSocks[ 0 ], 1, -1 );
-      }
       else
       {
          int iRound = 0;
          iChange = 0;
-         while( iChange == 0 && iRound++ < 100 )
+         while( iChange == 0 && iRound++ < 150 )
          {
             MicroWait.tv_sec = 0;
             MicroWait.tv_usec = 20000;  /* 20 ms */
@@ -1277,7 +1275,11 @@ static HB_THREAD_STARTFUNC( thread3 )
          for( ui = 1; ui < uiMax; ui++ )
          {
             if( s_paSocks[ ui ] )
+            {
+               if( iDebugMode() > 10 )
+                  leto_writelog( NULL, -1, "DEBUG thread3() client not prompted for second socket %u", s_paSocks[ ui ] );
                s_paSocks[ ui ] = 0;
+            }
          }
          continue;
       }
@@ -1604,7 +1606,6 @@ static HB_THREAD_STARTFUNC( thread2 )
                   leto_writelog( NULL, -1, "DEBUG thread2() socket error %s (%d) - maybe closed ..",
                                  hb_socketErrorStr( iErr ), iErr );
             }
-            pUStru->hSocket = HB_NO_SOCKET;
             break;
          }
 #else

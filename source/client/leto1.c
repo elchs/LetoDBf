@@ -6825,19 +6825,21 @@ HB_FUNC( LETO_DBEVALTEST )
    {
       LetoDbEval( pArea->pTable, NULL, hb_parc( 1 ), hb_parc( 2 ),
                   -1, -1, 0, HB_FALSE, HB_FALSE, HB_FALSE, HB_TRUE, NULL, NULL );
-      if( strncmp( pConnection->szBuffer, "-004", 4 ) )
+      if( ! pConnection->iError && strncmp( pConnection->szBuffer, "-004", 4 ) )
          fOptimized = HB_TRUE;
    }
 
    hb_retl( fOptimized );
 }
 
-/* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward, lStay ] ) */
+/* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward, lStay, cJoin ] ) */
 HB_FUNC( LETO_DBEVAL )
 {
    LETOCONNECTION * pConnection = NULL;
    const char *     szFor = ! HB_ISARRAY( 2 ) ? hb_parc( 2 ) : hb_arrayGetCPtr( hb_stackItemFromBase( 2 ), 2 );
    const char *     szWhile = ! HB_ISARRAY( 3 ) ? hb_parc( 3 ) : hb_arrayGetCPtr( hb_stackItemFromBase( 3 ), 2 );
+   const char *     szJoin = hb_parclen( 11 ) ? hb_parc( 11 ) : NULL;
+   const char *     szJoinAlias = NULL;
    LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
    HB_BOOL   fOptimized = HB_FALSE;
    HB_LONG   lNext = hb_parnldef( 4, -1 );
@@ -6861,6 +6863,9 @@ HB_FUNC( LETO_DBEVAL )
       szFor = NULL;
    if( szWhile && ! *szWhile )
       szWhile = NULL;
+   if( szJoin && szJoin[ strlen( szJoin ) - 1 ] != ';' )
+      szJoin = NULL;
+
    if( fValid && leto_CheckArea( pArea ) && pArea->pTable )
       pConnection = letoGetConnPool( pArea->pTable->uiConnection );
 
@@ -6889,7 +6894,7 @@ HB_FUNC( LETO_DBEVAL )
             fOptimized = HB_FALSE;
       }
 
-      if( fOptimized && ( szFor || szWhile ) )
+      if( fOptimized && ( szFor || szWhile || szJoin ) )
       {
 #if ! defined( __XHARBOUR__ )
          if( hb_setGetForceOpt() )
@@ -6911,9 +6916,13 @@ HB_FUNC( LETO_DBEVAL )
 #endif
          /* pre-test without block for FOR and WHILE */
          LetoDbEval( pArea->pTable, NULL, szForOpt ? szForOpt : szFor, szWhileOpt ? szWhileOpt : szWhile, lNext, -1, -1,
-                     fResultAsArr, fNeedLock, fBackward, fStay, NULL, NULL );
-         if( ! strncmp( pConnection->szBuffer, "-004", 4 ) )  /* error in for or while expression */
+                     fResultAsArr, fNeedLock, fBackward, fStay, NULL, szJoin );
+         if( pConnection->iError )
+            fValid = HB_FALSE;
+         else if( ! strncmp( pConnection->szBuffer, "-004", 4 ) )  /* error in for or while expression */
             fOptimized = HB_FALSE;
+         else if( szJoin && ( szJoinAlias = strchr( pConnection->szBuffer, ';' ) ) == NULL )
+            fValid = HB_FALSE;
          else
          {
             if( szForOpt )
@@ -7052,22 +7061,59 @@ HB_FUNC( LETO_DBEVAL )
          }
          else if( strstr( szBlock, "{ * }" ) )  /* "{|n| { * } }" add all fields as hashtable */
          {
-            HB_USHORT    ui, uiCount;
-            char         szField[ 16 ];
-            HB_SIZE      nHPos = 24;
+            HB_USHORT ui, uiCount;
+            char      szField[ 16 ];
+            HB_SIZE   nHPos = 24;
+            char      szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
 
+            SELF_ALIAS( ( AREAP ) pArea, szAlias );
             SELF_FIELDCOUNT( ( AREAP ) pArea, &uiCount );
             if( uiCount )
                memcpy( szBlock, "{|n| {'recno'=>RecNo(), ", 24 );
             for( ui = 1; ui <= uiCount; ui++ )
             {
                SELF_FIELDNAME( ( AREAP ) pArea, ui, szField );
-               if( nHPos > nBlockSize - 32 ) /* 28 worst case */
+               if( nHPos > nBlockSize - 64 )
                {
                   nBlockSize += HB_PATH_MAX;
                   szBlock = ( char * ) hb_xrealloc( szBlock, nBlockSize );
                }
-               nHPos += eprintf( szBlock + nHPos, "%c%c%s%c => %s", ui == 1 ? ' ' : ',','"', szField, '"', szField );
+               if( ! szJoinAlias )
+                  nHPos += eprintf( szBlock + nHPos, "%c%c%s%c=>%s", ui == 1 ? ' ' : ',','"', szField, '"', szField );
+               else
+                  nHPos += eprintf( szBlock + nHPos, "%c%c%s->%s%c=>%s->%s",
+                                                     ui == 1 ? ' ' : ',', '"', szAlias, szField, '"', szAlias, szField );
+            }
+
+            if( szJoinAlias )
+            {
+               AREAP        pJoinArea;
+               int          iArea = hb_rddGetCurrentWorkAreaNumber();
+               const char * szAliasStart = szJoinAlias + 1;  /* first is ';' */
+               const char * szAliasEnd = strchr( szAliasStart, ';' );
+
+               while( szAliasEnd )
+               {
+                  hb_strncpy( szAlias, szAliasStart, szAliasEnd - szAliasStart );
+                  hb_rddSelectWorkAreaAlias( szAlias );
+                  pJoinArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+                  SELF_FIELDCOUNT( ( AREAP ) pJoinArea, &uiCount );
+                  for( ui = 1; ui <= uiCount; ui++ )
+                  {
+                     SELF_FIELDNAME( ( AREAP ) pJoinArea, ui, szField );
+                     if( nHPos > nBlockSize - 64 )
+                     {
+                        nBlockSize += HB_PATH_MAX;
+                        szBlock = ( char * ) hb_xrealloc( szBlock, nBlockSize );
+                     }
+                     nHPos += eprintf( szBlock + nHPos, ",%c%s->%s%c=>%s->%s",
+                                                        '"', szAlias, szField, '"', szAlias, szField );
+                  }
+                  szAliasStart = szAliasEnd + 1;
+                  szAliasEnd = strchr( szAliasStart, ';' );
+               }
+
+               hb_rddSelectWorkAreaNumber( iArea );
             }
             strcpy( szBlock + nHPos, " } }" );
          }
@@ -7140,12 +7186,17 @@ HB_FUNC( LETO_DBEVAL )
       do
       {
          if( LetoDbEval( pArea->pTable, szBlock, szFor, szWhile, lNext, lRecNo, iRest,
-                         fResultAsArr, fNeedLock, fBackward, fStay, &pParams, hb_parc( 11 ) ) )
+                         fResultAsArr, fNeedLock, fBackward, fStay, &pParams, szJoin ) )
          {
             hb_itemRelease( pParams );
             if( HB_ISBYREF( 7 ) )  /* clean ref. value */
                hb_stor( 7 );
-            if( ! strncmp( pConnection->szBuffer + 1, "004", 3 ) )  /* error in expression ? */
+            if( pConnection->iError )
+            {
+               commonError( pArea, EG_DATAWIDTH, pConnection->iError, 0, NULL, 0, NULL );
+               break;
+            }
+            else if( ! strncmp( pConnection->szBuffer + 1, "004", 3 ) )  /* error in expression ? */
             {
                leto_CheckError( pArea, pConnection );
                break;
