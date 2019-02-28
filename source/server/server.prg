@@ -604,6 +604,7 @@ METHOD New() CLASS HApp
                   IF nTmp >= 9 .AND. nTmp < 65535
                      ::nUsers_max := nTmp
                   ENDIF
+                  EXIT
                CASE "DEBUG"
                   nTmp := INT( Val( cValue ) )
                   IF nTmp >= 0

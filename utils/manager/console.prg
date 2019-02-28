@@ -189,7 +189,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    /* ATAIL( aBrows ):footSep   := CHR_FOOTSEP */
    ATAIL( aBrows ):colSep    := CHR_COLSEP
    oColumn := TbColumnNew( "ID", ArrBlock( ATAIL( aBrows ), 1, @aPos[ 1 ] ) )
-   oColumn:width := 4
+   oColumn:width := 5
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "IP address", ArrBlock( ATAIL( aBrows ), 2, @aPos[ 1 ] ) )
@@ -197,7 +197,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "system name", ArrBlock( ATAIL( aBrows ), 3, @aPos[ 1 ] ) )
-   oColumn:width := 17
+   oColumn:width := 15
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "executable", ArrBlock( ATAIL( aBrows ), 4, @aPos[ 1 ] ) )
@@ -213,11 +213,11 @@ FUNCTION Main( cAddress, cUser, cPasswd )
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "last action", ArrBlock( ATAIL( aBrows ), 6, @aPos[ 1 ] ) )
-   oColumn:width := 64
+   oColumn:width := 63
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    oColumn := TbColumnNew( "username", ArrBlock( ATAIL( aBrows ), 8, @aPos[ 1 ] ) )
-   oColumn:width := 12
+   oColumn:width := 21
    oColumn:defcolor := { 1, 2 }
    ATAIL( aBrows ):addColumn( oColumn )
    ATAIL( aBrows ):freeze := 1
@@ -749,6 +749,8 @@ STATIC FUNCTION ActionDecode( cAction )
          cHaveDone := "append+  "
       CASE cCode == LETOCMD_upd
          cHaveDone := "replace  "
+      CASE cCode == LETOCMD_dbeval
+         cHaveDone := "dbeval   "
       CASE cCode == LETOCMD_rela
          cHaveDone := "relation "
       CASE cCode == LETOCMD_cmtu
@@ -807,7 +809,7 @@ STATIC FUNCTION GetTables( nConnection )
  LOCAL aTables := leto_MgGetTables( nConnection )
 
    IF ! EMPTY( aTables )
-      IF LEN( aTables[ 1 ] ) < 7 .OR. VALTYPE( aTables[ 1, 5 ] ) != "L" 
+      IF LEN( aTables[ 1 ] ) < 7 .OR. VALTYPE( aTables[ 1, 5 ] ) != "L"
          QUIT
       ENDIF
       AEVAL( aTables, {| aData | aData[ 5 ] := IIF( aData[ 5 ] , "shar", "excl" ) } )

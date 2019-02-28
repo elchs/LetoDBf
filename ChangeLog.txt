@@ -2,6 +2,23 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-02-28 18:29 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/leto_2.c
+    * formatting/ cleaning
+
+  * source/server/letofunc.c
+    * add configured max users to startup-feedback
+    * add logic for combined RIGHT JOINs, plus more work about JOINs
+
+  * source/server/server.prg
+    ! an EXIT missing in the CASE switch in method New() for config
+      ; Thanks to Ash for his patience to report
+
+  * utils/manager/console.prg
+    * add in ActionDecode() text for DbEval()
+      slightly modify column lengths in connections browse
+      ; full display of all columns need 170 char wide window
+
 2019-02-26 12:09 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * bin/leto.sh
     % do not try to start server if already running

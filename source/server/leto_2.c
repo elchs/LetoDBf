@@ -2,7 +2,7 @@
  * Leto db server core function, Harbour mt model
  *
  * Copyright 2008 Alexander S. Kresin <alex / at / belacy.belgorod.su>
- *           2014-18 Rolf 'elch' Beckmann
+ *           2014-19 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2039,11 +2039,13 @@ HB_FUNC( LETO_SERVER )
    /* the second socket advisor thread3 */
    if( hb_fsPipeCreate( hThreadPipe ) )
    {
-      /* ugly: thread3() must hb_xfree this, but here grabbed to ensure it's ready */
-      s_paSocks = ( unsigned int * ) hb_xgrabz( sizeof( unsigned int ) * leto_MaxUsers() );
       th_h = hb_threadCreate( &th_id, thread3, ( void * ) &hThreadPipe );
       if( th_h )
+      {
+         /* thread3() will hb_xfree() this, here grabbed to ensure it's ready */
+         s_paSocks = ( unsigned int * ) hb_xgrabz( sizeof( unsigned int ) * leto_MaxUsers() );
          hb_threadDetach( th_h );
+      }
    }
 
    /* 'Uhura' UDP broadcast service thread */
@@ -2237,11 +2239,8 @@ HB_FUNC( LETO_SERVER )
             }
          }
       }
-      else
-      {
-         /* poss. case of too much open files ( include Linux sockets ) */
+      else  /* poss. case of too much open files ( include Linux sockets ) */
          continue;
-      }
 
       /* local connection can log-in into even into locked server */
       if( leto_ConnectIsLock() && incoming != HB_NO_SOCKET && ! bExtraWait )
@@ -2293,7 +2292,6 @@ HB_FUNC( LETO_SERVER )
          hb_socketSetKeepAlive( incoming, HB_TRUE );
 #endif
          hb_socketSetNoDelay( incoming, HB_TRUE );
-         // hb_socketSetBlockingIO( incoming, HB_TRUE );
          /* set 64KB send and receive buffer */
          hb_socketSetSndBufSize( incoming, 0xFFFF );
          hb_socketSetRcvBufSize( incoming, 0xFFFF );
