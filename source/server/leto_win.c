@@ -199,7 +199,7 @@ HB_FUNC( LETO_SERVICESTART )
 HB_FUNC( LETO_SERVICEINSTALL )
 {
    HB_BOOL bRetVal = HB_FALSE;
-   TCHAR   szPath[ MAX_PATH ];
+   TCHAR   szPath[ MAX_PATH  + 1 ] = { 0 };
 
    if( hb_parclen( 1 ) && GetModuleFileName( NULL, szPath, MAX_PATH ) )
    {
@@ -216,15 +216,15 @@ HB_FUNC( LETO_SERVICEINSTALL )
       /* add ' config letodb.ini' to path and display name */
       if( hb_parclen( 3 ) && uiLen < MAX_PATH - hb_parclen( 3 ) - 8 )
       {
-         hb_strncpy( szPath + uiLen, " config ", MAX_PATH - 1 );
+         strcpy( szPath + uiLen, " config " );
          uiLen += 8;
-         hb_strncpy( szPath + uiLen, hb_parc( 3 ), MAX_PATH - 1 );
+         strcpy( szPath + uiLen, hb_parc( 3 ) );
 
          uiLen = strlen( s_ServiceDisplayName );
          if( uiLen < _SERVICE_NAME_LEN - hb_parclen( 3 ) - 1 )
          {
             s_ServiceDisplayName[ uiLen ] = ' ';
-            hb_strncpy( s_ServiceDisplayName + uiLen + 1, hb_parc( 3 ), _SERVICE_NAME_LEN - 1 );
+            strcpy( s_ServiceDisplayName + uiLen + 1, hb_parc( 3 ) );
          }
       }
 

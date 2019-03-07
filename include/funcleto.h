@@ -82,7 +82,10 @@
 #endif
 
 #define LETO_MSGSIZE_LEN        4
-#define LETO_SENDRECV_BUFFSIZE  65535
+#ifndef LETO_SENDRECV_BUFFSIZE
+   /* ( x * 8192 ) - 1 */
+   #define LETO_SENDRECV_BUFFSIZE  65535
+#endif
 
 #define LETO_VERSION_STRING     "3.00"
 #define LETO_RELEASE_STRING     "LetoDBf Server"

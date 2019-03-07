@@ -112,12 +112,16 @@ HB_FUNC( LETO_DAEMON )
       close( i );
    }
 
-   hNull = open( "/dev/null", O_RDWR );
-   dup2( hNull, 0 );               /* fd 0 = stdin */
-   dup2( hNull, 1 );               /* fd 1 = stdout */
-   dup2( hNull, 2 );               /* fd 1 = stderr */
-   if( hNull != ( HB_FHANDLE ) -1 )
-      hb_fsClose( hNull );
+   /* redirect stdin|stdout|stderr to /dev/null */
+   for( i = 0; i <= 2; i++ )
+   {
+      hNull = open( "/dev/null", i == 0 ? O_RDONLY : O_WRONLY );
+      if( hNull < ( HB_FHANDLE ) 0 || dup2( hNull, i ) != i )
+      {
+         hb_retl( HB_FALSE );
+         return;
+      }
+   }
 
    umask( 0x02 );  /* rw-rw-r-- set this to whatever is appropriate for you */
 

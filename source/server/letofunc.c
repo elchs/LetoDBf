@@ -3593,10 +3593,8 @@ PUSERSTRU leto_InitUS( HB_SOCKET hSocket )
    else
    {
       HB_BOOL       bSwapMutex = pUStru->bGCCollect;
-      HB_CRITICAL_T pOldMutex;
+      HB_CRITICAL_T pOldMutex = pUStru->pMutex;
 
-      if( bSwapMutex )
-         pOldMutex = pUStru->pMutex;
       memset( pUStru, 0, sizeof( USERSTRU ) );  /* clean before re-use */
       pUStru->iUserStru = s_uiUsersFree = ( HB_USHORT ) ( iUserStru + 1 );  /* pUStru->iUserStru > 0 indicates a used pUStru */
       if( bSwapMutex )  /* to verify this works */
@@ -3871,6 +3869,22 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
 
    if( ! s_users )
    {
+      char     szDate[ 9 ] = { 0 };
+#if ! defined( __HARBOUR30__ )
+      PHB_ITEM pDate = NULL;
+      HB_LONG lJulian, lMillis;
+      char *  szModName = hb_cmdargProgName();
+
+      if( szModName )
+      {
+         hb_fsGetFileTime( szModName, &lJulian, &lMillis );
+         pDate = hb_itemPutDL( pDate, lJulian );
+         hb_itemGetDS( pDate, szDate );
+         hb_xfree( szModName );
+         hb_itemRelease( pDate );
+      }
+#endif
+
       /* allocate maximum useable user/ tables structures, plus one more to avoid ptr overflow */
       s_users = ( USERSTRU * ) hb_xgrabz( sizeof( USERSTRU ) * ( s_uiUsersAlloc + 1 ) );
       s_tables = ( TABLESTRU * ) hb_xgrabz( sizeof( TABLESTRU ) * ( s_uiTablesAlloc + 1 ) );
@@ -3884,8 +3898,8 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
 
       leto_SrvSetPort( iPort, szAddrSpace, bCryptTraf );
 
-      leto_writelog( NULL, -1, "INFO: %s %s, will run at %s%s:%d ( internal also used :%d )",
-                     LETO_RELEASE_STRING, LETO_VERSION_STRING, strlen( szAddr ) ? "IP " : "port ", szAddr, iPort, iPort + 1 );
+      leto_writelog( NULL, -1, "INFO: %s %s (%s), will run at %s%s:%d ( internal also used :%d )",
+                     LETO_RELEASE_STRING, LETO_VERSION_STRING, szDate , strlen( szAddr ) ? "IP " : "port ", szAddr, iPort, iPort + 1 );
       leto_writelog( NULL, -1, "INFO: DataPath=%s, ShareTables=%d, NoSaveWA=%d, Max Tables=%d",
                      ( s_pDataPath ? s_pDataPath : "" ), s_bShareTables, s_bNoSaveWA, s_uiTablesAlloc );
       leto_writelog( NULL, -1, "INFO: LoginPassword=%d, CacheRecords=%d, LockExtended=%d, Max Users=%d",
@@ -7530,10 +7544,10 @@ static PHB_ITEM leto_dbEvalJoinAdd( PUSERSTRU pUStru, const char * ptr, AREAP pA
       if( ptr1 - ptr > 1 )
       {
          bNeedKey = HB_TRUE;
-         pOne = hb_itemArrayNew( 10 );
+         pOne = hb_itemArrayNew( 11 );
          /* 1 = cJoinType, 2 = joined pArea, 3 = condition block, 4 = bCondIsLogical
-            5,6,8 = joined WA RecNo marker for I/L/F, 7 = source WA RecNo marker for F/R
-            9 = joined WA RecNo at start, 10 = locked RecNo as GoTo list */
+          * 5,6,8 = joined WA RecNo marker for I/L/F, 7 = source WA RecNo marker for F/R
+          * 9 = joined WA RecNo at start, 10 = locked RecNo as GoTo list, 11 = joined WA PreSkip */
          if( hb_strAtI( "CROSS", 5, ptr, ptr1 - ptr - 1 ) )
          {
             hb_arraySetC( pOne, 1, "CROSS" );
@@ -7705,7 +7719,7 @@ static PHB_ITEM leto_dbEvalJoinAdd( PUSERSTRU pUStru, const char * ptr, AREAP pA
    {
       HB_SIZE    nLen = hb_arrayLen( pJoins );
       PHB_ITEM   pJoinSort = hb_itemArrayNew( 0 );
-      const char cType[ 3 ] = { 'C', 'R', 'F' };
+      const char cType[ 4 ] = { 'C', 'R', 'F', '\0' };
       char       cJoinType;
       HB_SIZE    nJoin, nRound, nSort;
 
@@ -7804,6 +7818,27 @@ static HB_BOOL leto_dbEvalJoinForPos( PHB_ITEM pJoin, AREAP pArea, HB_BOOL bReve
    return bEof;
 }
 
+static void leto_dbEvalJoinPostPos( PHB_ITEM pJoins, HB_BOOL bTop )
+{
+   PHB_ITEM pJoin;
+   AREAP    pJoinArea;
+   HB_SIZE  nPos = 0;
+
+   while( ++nPos <= hb_arrayLen( pJoins ) )
+   {
+      pJoin = hb_arrayGetItemPtr( pJoins, nPos );
+      if( *( hb_arrayGetCPtr( pJoin, 1 ) ) == 'C' )
+      {
+         pJoinArea = ( AREAP ) hb_arrayGetPtr( pJoin, 2 );
+         if( bTop )
+            SELF_GOTOP( pJoinArea );
+         else
+            SELF_GOTO( pJoinArea, 0 );
+         hb_arraySetNL( pJoin, 11, ( ( DBFAREAP ) pJoinArea )->ulRecNo );
+      }
+   }
+}
+
 static HB_BOOL leto_dbEvalJoinFor( PHB_ITEM pJoins, AREAP pArea )
 {
    HB_BOOL  bResult = HB_TRUE, bEof;
@@ -7858,7 +7893,7 @@ static HB_BOOL leto_dbEvalJoinFor( PHB_ITEM pJoins, AREAP pArea )
                bResult = HB_TRUE;
             if( bResult || cJoinType == 'I' )
             {
-               if( cJoinType == 'F' )
+               if( cJoinType == 'F' && ! ( hb_arrayGetType( pJoin, 7 ) && ! hb_arrayGetNL( pJoin, 7 ) ) )
                   hb_arraySetNL( pJoin, 7, ulAreaRecNo );
                break;
             }
@@ -7876,7 +7911,8 @@ static HB_BOOL leto_dbEvalJoinFor( PHB_ITEM pJoins, AREAP pArea )
             if( cJoinType == 'F' )
             {
                hb_arraySetNL( pJoin, 5, ( ( DBFAREAP ) pJoinArea )->ulRecNo );
-               hb_arraySetNL( pJoin, 7, ulAreaRecNo );
+               if( ! ( hb_arrayGetType( pJoin, 7 ) && ! hb_arrayGetNL( pJoin, 7 ) ) )
+                  hb_arraySetNL( pJoin, 7, ulAreaRecNo );
             }
             break;
 
@@ -7974,30 +8010,63 @@ static HB_BOOL leto_dbEvalJoinPrePos( PHB_ITEM pJoin, AREAP pArea, HB_BOOL bReve
    return bEof;
 }
 
+static void leto_dbEvalJoinRevSkip( PHB_ITEM pJoins, HB_SIZE nPos, HB_BOOL bClean, char cType )
+{
+   PHB_ITEM pJoin;
+   HB_ULONG ulRecNo;
+
+   while( nPos )
+   {
+      pJoin = hb_arrayGetItemPtr( pJoins, nPos );
+      if( cType == '*' || *( hb_arrayGetCPtr( pJoin, 1 ) ) == cType )
+         ulRecNo = hb_arrayGetNL( pJoin, 11 );
+      else
+         ulRecNo = 0;
+      if( ulRecNo )
+      {
+         if( ! bClean )
+            SELF_GOTO( ( AREAP ) hb_arrayGetPtr( pJoin, 2 ), ulRecNo );
+         hb_arraySetNL( pJoin, 11, 0 );
+      }
+      nPos--;
+   }
+}
+
 static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
 {
-   HB_BOOL  bOneMore, bLoop, bRightMore, bMissSkip, bEof, bJoinEof;
-   PHB_ITEM pJoin, pOnePos, pLastPos = NULL;
+   HB_BOOL  bOneMore, bLoop, bRightMore, bFullMore, bCrossMore, bMissSkip, bEof, bJoinEof;
+   PHB_ITEM pJoin;
    AREAP    pJoinArea;
-   HB_SIZE  n, nPos = 0;
+   HB_SIZE  nPos = 0;
+   HB_ULONG ulLastRecNo;
    char     cJoinType;
 
-   bOneMore = bRightMore = HB_FALSE;
+   bOneMore = bRightMore = bFullMore = bCrossMore = HB_FALSE;
    bLoop = bMissSkip = HB_TRUE;
    while( bLoop && ++nPos <= hb_arrayLen( pJoins ) )
    {
       pJoin = hb_arrayGetItemPtr( pJoins, nPos );
       pJoinArea = ( AREAP ) hb_arrayGetPtr( pJoin, 2 );
       cJoinType = *( hb_arrayGetCPtr( pJoin, 1 ) );
+      hb_arraySetNL( pJoin, 11, 0 );
       switch( cJoinType )
       {
          case 'C':  /* CROSS JOIN */
+            hb_arraySetNL( pJoin, 11, ( ( DBFAREAP ) pJoinArea )->ulRecNo );
             SELF_SKIP( pJoinArea, 1 );
-            SELF_EOF( pJoinArea, &bEof );
-            if( ! bEof )
-               bOneMore = HB_TRUE;
-            else if( nPos < hb_arrayLen( pJoins ) )  /* else handled by leto_dbEvalJoinPostSkip() */
+            SELF_EOF( pJoinArea, &bJoinEof );
+            if( ! bJoinEof )
+            {
+               if( nPos > 1 )
+                  leto_dbEvalJoinRevSkip( pJoins, nPos - 1, HB_FALSE, 'C' );
+               bCrossMore = HB_TRUE;
+            }
+            else
+            {
                SELF_GOTOP( pJoinArea );
+               if( bCrossMore && nPos > 1 )
+                  leto_dbEvalJoinRevSkip( pJoins, nPos - 1, HB_TRUE, 'C' );
+            }
             break;
 
          case 'E':  /* EMPTY JOIN -- only not found for a RIGHT */
@@ -8036,14 +8105,12 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
                            }
                         }
                         if( bJoinEof && ! bEof )
-                           bOneMore = HB_TRUE;
+                           bFullMore = HB_TRUE;
                      }
                      else if( bJoinEof )
-                        bOneMore = HB_TRUE;
+                        bFullMore = HB_TRUE;
                   }
                }
-               else
-                  hb_arraySetNL( pJoin, 8, 0 );
                break;
             }
             if( cJoinType == 'E' )
@@ -8087,9 +8154,12 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
                      hb_itemSetNil( hb_arrayGetItemPtr( pJoin, 5 ) );
                   if( hb_arrayGetType( pJoin, 6 ) )
                      hb_itemSetNil( hb_arrayGetItemPtr( pJoin, 6 ) );
+                  if( cJoinType == 'I' )
+                     bOneMore = HB_FALSE;
 
                   /* ugly - must find first after last handled for FULL JOIN */
-                  if( cJoinType == 'F' && hb_arrayGetType( pJoin, 8 ) && leto_dbEvalJoinIsAtBot( pArea ) )
+                  if( cJoinType == 'F' && hb_arrayGetType( pJoin, 8 ) && leto_dbEvalJoinIsAtBot( pArea )
+                      && ! bFullMore && ! bRightMore )
                   {
                      bJoinEof = HB_FALSE;
                      SELF_GOTO( pJoinArea, hb_arrayGetNL( pJoin, 8 ) );
@@ -8108,7 +8178,7 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
                      }
                      if( ! bEof && bJoinEof )
                      {
-                        bOneMore = HB_TRUE;
+                        bFullMore = HB_TRUE;
                         hb_arraySetNL( pJoin, 7, 0 );
                      }
                      else
@@ -8124,6 +8194,11 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
             if( hb_arrayGetType( pJoin, 7 ) )
             {
                SELF_GOTO( pArea, hb_arrayGetNL( pJoin, 7 ) );
+
+               if( bCrossMore )
+                  break;
+               leto_dbEvalJoinPostPos( pJoins, HB_TRUE );
+
                SELF_SKIP( pArea, 1 );
                SELF_EOF( pArea, &bEof );
                if( ! bEof )
@@ -8132,8 +8207,6 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
                   hb_arraySetNL( pJoin, 7, ( ( DBFAREAP ) pArea )->ulRecNo );
                else
                {
-                  HB_ULONG ulLastRecNo;
-
                   SELF_GOTO( pArea, hb_arrayGetNL( pJoin, 7 ) );
                   hb_itemSetNil( hb_arrayGetItemPtr( pJoin, 7 ) );
                   /* skip & check if next record is of equal key for the condition */
@@ -8141,28 +8214,10 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
                   if( ulLastRecNo )  /* different key */
                   {
                      if( nPos < hb_arrayLen( pJoins ) )  /* remember for poss. more RIGHT */
-                     {
-                        pOnePos = hb_itemArrayNew( 2 );
-                        if( ! pLastPos )
-                           pLastPos = hb_itemArrayNew( 0 );
-                        hb_arraySetPtr( pOnePos, 1, pJoinArea );
-                        hb_arraySetNL( pOnePos, 2, ulLastRecNo );
-                        hb_arrayAdd( pLastPos, pOnePos );
-                        hb_itemRelease( pOnePos );
-                     }
+                        hb_arraySetNL( pJoin, 11, ulLastRecNo );
                   }
-                  else if( pLastPos )  /* same key, restore SKIPs of previous RIGHT JOIN */
-                  {
-                     n = hb_arrayLen( pLastPos );
-                     while( n )
-                     {
-                        pOnePos = hb_arrayGetItemPtr( pLastPos, n );
-                        SELF_GOTO( ( AREAP ) hb_arrayGetPtr( pOnePos, 1 ), hb_arrayGetNL( pOnePos, 2 ) );
-                        n--;
-                     }
-                     hb_itemRelease( pLastPos );
-                     pLastPos = NULL;
-                  }
+                  else if( nPos > 1 )
+                     leto_dbEvalJoinRevSkip( pJoins, nPos - 1, HB_FALSE, 'R' );
                }
                bRightMore = HB_TRUE;
             }
@@ -8185,39 +8240,11 @@ static HB_BOOL leto_dbEvalJoinPreSkip( PHB_ITEM pJoins, AREAP pArea )
             }
             break;
       }
-
-      if( bLoop )
-         bLoop = ! bOneMore;
    }
 
-   hb_itemRelease( pLastPos );
-   if( bRightMore )
+   if( bRightMore || bFullMore || bCrossMore )
       bOneMore = HB_TRUE;
    return bOneMore;
-}
-
-static HB_BOOL leto_dbEvalJoinPostSkip( PHB_ITEM pJoins, AREAP pArea )
-{
-   HB_BOOL  bResult = HB_TRUE;
-   PHB_ITEM pJoin;
-   AREAP    pJoinArea;
-   HB_SIZE  nPos = 0;
-
-   HB_SYMBOL_UNUSED( pArea );
-
-   while( ++nPos <= hb_arrayLen( pJoins ) )
-   {
-      pJoin = hb_arrayGetItemPtr( pJoins, nPos );
-      switch( *( hb_arrayGetCPtr( pJoin, 1 ) ) )
-      {
-         case 'C' :
-            pJoinArea = ( AREAP ) hb_arrayGetPtr( pJoin, 2 );
-            bResult = SELF_GOTOP( pJoinArea ) == HB_SUCCESS;
-            break;
-      }
-   }
-
-   return bResult;
 }
 
 static HB_BOOL leto_dbEvalJoinLock( PUSERSTRU pUStru, PHB_ITEM pJoins, HB_BOOL bTryFLock, int iLockTime )
@@ -8582,11 +8609,6 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
             }
          }
 
-         if( ! bEof && ! bOneMore && pEvalInfo->dbsci.lpstrFor )
-         {
-            leto_dbEvalJoinPostSkip( pEvalInfo->dbsci.lpstrFor, pArea );
-            SELF_EOF( pArea, &bEof );
-         }
          if( ! ulTimeoutHz )
             ulTimeoutHz = ( HB_ULONG ) HB_MAX( 1, ( 1000 / HB_MAX( 1, ( leto_MilliSec() - ullTimePoint ) ) ) );
          if( ! ( ( hb_itemGetNL( pEvalut ) + 1 ) % ulTimeoutHz ) &&
@@ -8732,11 +8754,6 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
                      SELF_EOF( pArea, &bEof );
                   else
                      SELF_BOF( pArea, &bEof );
-               }
-               if( pEvalInfo->dbsci.lpstrFor )
-               {
-                  leto_dbEvalJoinPostSkip( pEvalInfo->dbsci.lpstrFor, pArea );
-                  SELF_EOF( pArea, &bEof );
                }
             }
          }

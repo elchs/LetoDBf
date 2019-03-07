@@ -2,6 +2,23 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-03-07 19:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/srvleto.h
+    % make LETO_SENDRECV_BUFFSIZE define-able by user, use: ( x * 8192 ) - 1
+
+  * source/server/leto_win.c
+    ! fix buffer overflow in LETO_SERVICEINSTALL(): wrong used hb_strncpy(),
+      initialize szPath to be terminated in any case
+
+  * source/server/leto_lnx.c
+    * file missing in upload from 2019-02-26
+
+  * source/server/letofunc.c
+    ! (wrong) warning of 'possible' uninitalized variable in leto_InitUS()
+    * add date of server executable to startup feedback
+    * more work on joins in leto_dbEvalJoinAdd()/ leto_dbEvalJoinPreSkip(),
+      remove now obsolete leto_dbEvalJoinPostSkip() in leto_dbEval()
+
 2019-02-28 18:29 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/leto_2.c
     * formatting/ cleaning
