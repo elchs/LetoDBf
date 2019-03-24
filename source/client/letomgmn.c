@@ -1064,11 +1064,11 @@ HB_FUNC( LETO_SETPATH )
 
       if( LetoSet( pConnection, 1000 + setId, pPaths ) == HB_SUCCESS )
       {
-         HB_SIZE nLen = strlen( pConnection->szBuffer ), nPos;
-
+         nLen = strlen( pConnection->szBuffer );
          if( nLen > 4 )
          {
-            char * pPath = pConnection->szBuffer + 4;
+            HB_SIZE nPos;
+            char *  pPath = pConnection->szBuffer + 4;
 
             for( nPos = 0; nPos < nLen; nPos++ )
             {

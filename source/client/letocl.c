@@ -412,6 +412,20 @@ static PHB_ITEM leto_cloneError( PHB_ITEM pSourceError )
    return pDestError;
 }
 
+#if ! defined( __LETO_C_API__ )
+
+static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode );
+
+static void leto_BackupStop( void )
+{
+   LETOCONNECTION * pConnection = letoGetCurrConn();
+
+   if( pConnection )
+      pConnection->fBackupActive = HB_FALSE;
+}
+
+#endif
+
 /* check for thread global s_pError; clone into local var to keep mutex lock short */
 HB_ERRCODE delayedError( void )
 {
@@ -425,6 +439,27 @@ HB_ERRCODE delayedError( void )
       hb_errRelease( s_pError );
       s_pError = NULL;
       HB_GC_UNLOCKE();
+
+#if ! defined( __LETO_C_API__ )
+      if( pError )
+      {
+         errCode = hb_errGetGenCode( pError );
+         if( errCode == 3210 || errCode == 3211 )
+         {
+            if( errCode == 3211 )
+               errCode = leto_BackupStart( errCode );
+            else
+            {
+               leto_BackupStop();
+               errCode = 0;
+            }
+            hb_errRelease( pError );
+            pError = NULL;
+            if( errCode )
+               hb_vmRequestQuit();
+         }
+      }
+#endif
 
       if( pError )
       {
@@ -447,6 +482,95 @@ HB_ERRCODE delayedError( void )
    else
       return 0;
 }
+
+#if ! defined( __LETO_C_API__ )
+
+extern PHB_ITEM leto_SaveLocks( LETOCONNECTION * pConnection );
+extern HB_ERRCODE leto_RestoreLocks( LETOCONNECTION * pConnection );
+
+static void leto_BackupBox( int iTop, int iLeft, int iBottom, int iRight )
+{
+   char szOldColor[ HB_CLRSTR_LEN ];
+
+   hb_gtGetColorStr( szOldColor );
+
+   hb_gtSetColorStr( "W+/R" );
+   hb_gtBoxD( iTop, iLeft, iBottom, iRight );
+   hb_gtScroll( iTop + 1, iLeft + 1, iBottom - 1, iRight - 1, 0, 0 );
+   hb_gtSetColorStr( "G+/R" );
+   hb_gtWriteAt( iTop + 1, iLeft + 2, "BACK-UP", 7 );
+   hb_gtWriteAt( iTop + 2, iLeft + 2, "WAITING", 7 );
+   hb_gtSetColorStr( "B/G" );
+   hb_gtWriteAt( iTop + 3, iLeft + 1, "ESC->QUIT", 9 );
+   hb_gtSetPos( iTop + 3, iLeft + 2 );
+
+   hb_gtSetColorStr( szOldColor );
+}
+
+static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode )
+{
+   LETOCONNECTION * pConnection = letoGetCurrConn();
+
+   if( pConnection )
+   {
+      HB_SIZE  nSize;
+      PHB_ITEM pSavedLocks;
+      int      iYMiddle = ( ( hb_gtMaxRow() + 1 ) / 2 );
+      int      iXMiddle = ( ( hb_gtMaxCol() + 1 ) / 2 );
+      int      iTop = iYMiddle - 2;
+      int      iLeft = iXMiddle - 5;
+      int      iBottom = iYMiddle + 2;
+      int      iRight = iXMiddle + 5;
+      int      iEventMask = hb_setGetEventMask();
+      int      iOldY, iOldX;
+      int      iInkey;
+      char *   pBuffer;
+
+      hb_gtGetPos( &iOldY, &iOldX );
+      hb_gtRectSize( iTop, iLeft, iBottom, iRight, &nSize );
+      pBuffer = hb_xgrab( nSize + 1 );
+      hb_gtSave( iTop, iLeft, iBottom, iRight, pBuffer );
+      leto_BackupBox( iTop, iLeft, iBottom, iRight );
+      pSavedLocks = leto_SaveLocks( pConnection );
+
+      pConnection->fBackupActive = HB_TRUE;
+      while( pConnection->fBackupActive )
+      {
+         iInkey = hb_inkeyNext( iEventMask );
+         if( iInkey == 27 )
+            break;
+         else if( iInkey )
+            hb_inkey( HB_FALSE, 0, iEventMask );
+         if( hb_inkeyNext( iEventMask ) )
+            continue;
+         hb_idleSleep( 0.25 );
+         delayedError();
+      }
+
+      if( ! pConnection->fBackupActive )
+      {
+         if( pSavedLocks )
+         {
+            if( leto_RestoreLocks( pConnection ) == HB_SUCCESS )
+               errCode = 0;  /* failure to restore locks :-( ==> QUIT */
+         }
+         else
+            errCode = 0;
+   #ifdef LETO_CLIENTLOG
+      leto_clientlog( NULL, 0, "leto_BackupStart( %d )", errCode == HB_SUCCESS ? 1 : 0 );
+   #endif
+         /* wait longer to give others with outstanding locks restore precedence */
+         hb_idleSleep( 12 );  /* are 12 sec enough ?? */
+      }
+      hb_gtRest( iTop, iLeft, iBottom, iRight, pBuffer );
+      hb_gtSetPos( iOldY, iOldX );
+      hb_xfree( pBuffer );
+   }
+
+   return errCode;
+}
+
+#endif  /* ! __LETO_C_API__ */
 
 #endif  /* ! LETO_NO_THREAD */
 
@@ -3070,9 +3194,6 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
             int  iLevel = 1;
 
             leto_random_block( szRandomPW, 31, 42 );
-#ifdef USE_LZ4
-            iLevel += 5;
-#endif
             LetoToggleZip( pConnection, iLevel, szRandomPW );
 #ifdef LETO_CLIENTLOG
             if( LetoToggleZip( pConnection, -2, NULL ) == iLevel )

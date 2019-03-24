@@ -2,8 +2,58 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-03-25 00:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * ChangeLog.txt
+    ! wrong filename: srvleto.h; correct file funcleto.h was uploaded
+
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+    + add backup-mode: a message appears as long the server is locked
+      for locking; user can decide to quit the application
+      ; during this time existings locks are unlocked and afterwards
+        restored. To give restoring locks precedence over new ones,
+        and so ensure that they can be re-locked, clients will wait 12
+        seconds before proceeding after locking was turned off.
+        In case the locks can not be restored, the app quits.
+    * fetch more than 2047 FIELD at client side, don't try at server
+    * increase possible FIELD name length to HB_SYMBOL_NAME_LEN (63)
+    * formatting
+
+  * source/client/letomgmn.c
+    ! warning about a shadowed variable
+
+  * source/client/rddsys.prg
+    * do not 'quit' during auto-login in case of an access error,
+      e.g. a needed PW was not given
+
+  * source/server/letoacc.c
+    ! server un-locking was ok, feedback wrong about success in leto_Admin()
+
+  * source/server/letofunc.c
+    ! respect locked server in UDF LETO_TABLELOCK()
+    - remove old, experimental and unfinished code about copying tables
+      internal at server using extended Linux capabilities
+    + add backup info send to clients over second socket when server is
+      locked/ unlocked for locking -- deactivate-able default is ON;
+      if the locking user log-out, the lock is removed
+    * improved concept for SQL JOINs, esp. for problematic RIGHT and
+      FULL joins, move main logic for INNER into leto_dbEvalJoinFor()
+      ; results look promising but still hidden problems for multiple joins
+        would be not unlikely
+
+  * source/server/server.prg
+    + new letodb.ini option: BACKUP_INFO = 0 to deactivate backup-mode
+      info is send to clients
+    + three more REQUESTs
+
+  * utils/manager/console.prg
+    + new menu option for lock locking;
+      console can unlock any time a lock and never will be locked itself,
+      detected by its executable name: console[.exe]
+
 2019-03-07 19:30 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
-  * include/srvleto.h
+  * include/funcleto.h
     % make LETO_SENDRECV_BUFFSIZE define-able by user, use: ( x * 8192 ) - 1
 
   * source/server/leto_win.c

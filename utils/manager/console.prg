@@ -131,7 +131,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
       next
    endif
 
-   IF LEFT( cAddress,2 ) != "//"
+   IF LEFT( cAddress, 2 ) != "//"
       cAddress := "//" + cAddress
    ENDIF
    IF ! ":" $ cAddress .AND. ! EMPTY( cPort )
@@ -1325,6 +1325,7 @@ STATIC FUNCTION Administrate( nConnection )
  LOCAL nMenu := 0
  LOCAL oldcolor := SetColor( "W+/G,W+/B" )
  LOCAL bLocked := leto_LockConn()  /* only query for active state */
+ LOCAL bRLocked := leto_LockLock()
  LOCAL aMenu := {;
       "1 Add    User",;
       "2 Delete User",;
@@ -1336,6 +1337,7 @@ STATIC FUNCTION Administrate( nConnection )
       IIF( bLocked, "8 UNlock Server", "8 Lock   Server" ),;
       "9 View   Logfile",;
       "D Change Debug",;
+      IIF( bRLocked, "L UNlock Locking", "L Lock   Locking" ),;
       "0 QUIT ! Console" }
  LOCAL cSave := SAVESCREEN( 1, 2, 2 + LEN( aMenu ), 19 )
  LOCAL arr
@@ -1428,6 +1430,15 @@ STATIC FUNCTION Administrate( nConnection )
             ViewLogs( nConnection )
          CASE nMenu == 10
             ChangeDebug()
+         CASE nMenu == 11
+            TimedAlert( "LetoDBf server try to : " + IIF( bRLocked, "unlock", "lock" ) + " locking", 2, "W+/B" )
+            IF bRLocked
+               bRLocked := leto_LockLock( .F. )
+            ELSE
+               bRLocked := leto_LockLock( .T. )
+            ENDIF
+            TimedAlert( "LetoDBf server lock/ unlock locking: " + IIF( ! bRLocked, "failed", "successful" ), 2,;
+                         IIF( bRLocked,"W+/G", "W+/R" ) )
          CASE nMenu == 0
             EXIT
          CASE nMenu == LEN( aMenu )
@@ -1456,7 +1467,7 @@ FUNCTION MyChoice( nStatus )  /* must be a public FUNCTION */
       CASE nStatus == AC_EXCEPT
          cKey := Upper( CHR( nKey ) )  /* hb_keyChar( nKey ) */
          DO CASE
-            CASE ( cKey >= "0" .AND. cKey <= "9" ) .OR. cKey == "D"
+            CASE ( cKey >= "0" .AND. cKey <= "9" ) .OR. cKey == "D" .OR. cKey == "L"
                hb_keyPut( K_ENTER )
                RETURN AC_GOTO
             CASE nKey == K_HOME

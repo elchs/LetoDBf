@@ -88,7 +88,6 @@ PROCEDURE LETO
 
    RETURN
 
-
 #ifndef LETO_NO_THREAD
 INIT PROCEDURE LETO_INITERROR
 
@@ -103,12 +102,14 @@ INIT PROCEDURE LETO_INITERROR
    RETURN
 #endif
 
+
 #ifndef __XHARBOUR__
 INIT PROCEDURE LETO_CONNECTAUTO
    LOCAL hIni, nConnection, cServer, cService
    LOCAL cUser, cPW, nTimeOut, nBufRefr
    LOCAL cAppIni
    LOCAL nPort
+   LOCAL nError
 
    hb_FNameSplit( hb_ProgName(), /* @cPath */, @cAppIni, /* cExt */ )
    cAppIni := hb_FNameMerge( /* cPath */, cAppIni, ".ini" )
@@ -154,7 +155,10 @@ INIT PROCEDURE LETO_CONNECTAUTO
          nConnection := Leto_Connect( cServer, cUser, cPW, nTimeOut, nBufRefr )
          IF nConnection < 0
             OutErr( "LetoDBf connect failed of: " + leto_Connect_Err( .T. ) + HB_EOL() )
-            QUIT
+            nError := leto_Connect_Err( .F. )
+            IF ! ( nError == LETO_ERR_ACCESS .OR. nError == LETO_ERR_LOGIN )
+               QUIT
+            ENDIF
          ENDIF
       ELSE
          nConnection := -1

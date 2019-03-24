@@ -100,13 +100,13 @@ REQUEST HB_GT_NUL_DEFAULT
 
 /* following selected functions are linked into server executable with REQUEST */
 REQUEST OS, VERSION, HB_VERSION
-REQUEST ABS, ALLTRIM, AT, CHR, CTOD, DATE, DAY, DELETED, DESCEND, DTOC, DTOS, DOW, ;
+REQUEST ABS, ALLTRIM, AT, CHR, CTOD, CDOW, CMONTH, DATE, DAY, DELETED, DESCEND, DTOC, DTOS, DOW, ;
         EMPTY, I2BIN, L2BIN, LEFT, LEN, LOWER, LTRIM, MAX, MIN, MONTH, OS, PAD, PADC, ;
         PADL, PADR, RAT, RECNO, RIGHT, ROUND, RTRIM, SPACE, STOD, STR, STRZERO, ;
         SUBSTR, REPLICATE, TIME, TRANSFORM, TRIM, UPPER, VAL, VALTYPE, YEAR
 REQUEST HB_DATETIME, HB_DTOT, HB_TTOD, HB_NTOT, HB_TTON, HB_CTOT, HB_TTOC, ;
         HB_TTOS, HB_STOT, HB_HOUR, HB_MINUTE, HB_SEC, HB_VALTOEXP, HB_ZCOMPRESS
-REQUEST HB_HEXTONUM, HB_NUMTOHEX
+REQUEST HB_HEXTONUM, HB_NUMTOHEX, HB_NTOS
 #ifdef LETO_SMALLCMDSET_CT
    REQUEST DOY, WEEK, BLANK
 #endif
@@ -324,7 +324,7 @@ PROCEDURE StartServer()
          oApp:nMaxVars, oApp:nMaxVarSize, oApp:nCacheRecords, oApp:nTables_max, oApp:nUsers_max,;
          oApp:nDebugMode, oApp:lOptimize, oApp:nAutOrder, oApp:nMemoType, oApp:lForceOpt, oApp:nBigLock,;
          oApp:lUDFEnabled, oApp:nMemoBlkSize, oApp:lLower, oApp:cTrigger, oApp:lHardCommit,;
-         oApp:lSMBServer, oApp:cSMBPath )
+         oApp:lSMBServer, oApp:cSMBPath, oApp:lBackupInfo )
 
    IF oApp:nDebugMode > 1
       WrLog( "LetoDBf Server at port " + ALLTRIM( STR( oApp:nPort ) ) + " try to start ..." )
@@ -465,6 +465,7 @@ CLASS HApp
    DATA cSMBPath      INIT ""
    DATA cAddrSpace
    DATA cSvcName      INIT "LetoDBf_Service"
+   DATA lBackupInfo   INIT .T.
 
    METHOD New()
 
@@ -694,6 +695,9 @@ METHOD New() CLASS HApp
                   IF ! Empty( cTmp ) .AND. Len( cTmp ) < 236  /* 256, but config to add */
                      ::cSvcName := cTmp
                   ENDIF
+                  EXIT
+               CASE "BACKUP_INFO"
+                  ::lBackupInfo := ( cValue == '1' )
                   EXIT
                ENDSWITCH
 

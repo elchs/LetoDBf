@@ -897,10 +897,16 @@ void leto_Admin( PUSERSTRU pUStru, char * szData )
             {
                bLock = ( *pp1 == 'T' );
                bLock = leto_ServerLock( pUStru, bLock, atoi( pp2 ) );
+               if( *pp1 == 'T' )
+                  pData = bLock ? szOk : szErr4;
+               else
+                  pData = ! bLock ? szOk : szErr4;
             }
             else
+            {
                bLock = leto_ServerLock( NULL, HB_FALSE, 0 );
-            pData = bLock ? szOk : szErr4;
+               pData = bLock ? szOk : szErr4;
+            }
          }
          else
             pData = szErr3;

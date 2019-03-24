@@ -107,7 +107,7 @@ typedef struct _LETOBUFFER_
 
 typedef struct _LETOFIELD
 {
-   char              szName[ 12 ];
+   char              szName[ HB_SYMBOL_NAME_LEN + 1 ];
    HB_USHORT         uiType;
    HB_USHORT         uiLen;
    HB_USHORT         uiDec;
@@ -229,7 +229,8 @@ typedef struct _LETOCONNECTION_
    HB_BOOL           fCloseAll;
    HB_BOOL           fTryOtherConn;        /* if table opening at current fails, try other available */
    PCDPSTRU          pCdpTable;
-   HB_BOOL           fTransActive;
+   HB_BOOL           fBackupActive;        /* backup mode active */
+   HB_BOOL           fTransActive;         /* transaction active */
    HB_BOOL           fTransForce;          /* to ignore un!locks during transaction */
    HB_BYTE *         szTransBuffer;        /* buffered transaction data */
    HB_ULONG          ulTransBuffLen;       /* allocated len */
