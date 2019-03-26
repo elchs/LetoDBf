@@ -2681,10 +2681,10 @@ HB_FUNC( LETO_PROCESSRUN )
    {
       PHB_ITEM  pParam = hb_itemArrayNew( 1 );
       LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-      HB_BOOL fSuccess;
+      HB_BOOL   fSuccess;
 
       hb_arraySetC( pParam, 1, hb_parc( 1 ) );
-      fSuccess = LetoUdf( pConnection, pArea->pTable, HB_FALSE, "LETO_PROCESSRUN", &pParam );
+      fSuccess = LetoUdf( pConnection, pArea ? pArea->pTable : NULL, HB_FALSE, "LETO_PROCESSRUN", &pParam );
 
       if( fSuccess )
       {

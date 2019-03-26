@@ -2,9 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-03-26 22:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letomgmn.c
+    ! tiny fix for new leto_ProcessRun() when called without an active WA,
+      aka when positioned at WA '0' or none opened
+
 2019-03-26 14:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; * rebuild server AND client to use changes about topic backup, aka
-    * server locking --also the console got a new menu entry: 'Lock locking'
+    * server locking -- also the console got a new menu entry: 'Lock locking'
 
   * source/client/letomgmn.c
   * source/server/letofunc.c
