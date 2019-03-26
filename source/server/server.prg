@@ -147,6 +147,7 @@ REQUEST __dbTotal
 
 REQUEST LETO_IDLESLEEP
 REQUEST LETO_UDFMUSTQUIT
+REQUEST LETO_PROCESSRUN
 
 /* don't !! use, a ToDo to remove elch special ;-) */
 REQUEST MIXKEY

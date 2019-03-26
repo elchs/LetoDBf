@@ -65,6 +65,10 @@
    #include <errno.h>
 #endif
 
+#if ! defined( K_ESC )
+   #define K_ESC   27
+#endif
+
 #define LETO_EXCL_HOTBUFFER  1  /* no timeout data from server for exclusive workarea */
 
 #ifndef LETO_NO_THREAD
@@ -416,12 +420,12 @@ static PHB_ITEM leto_cloneError( PHB_ITEM pSourceError )
 
 static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode );
 
-static void leto_BackupStop( void )
+static void leto_BackupStop( HB_BOOL fOff )
 {
    LETOCONNECTION * pConnection = letoGetCurrConn();
 
    if( pConnection )
-      pConnection->fBackupActive = HB_FALSE;
+   pConnection->uiBackupActive = ( fOff ? 0 : 1 );
 }
 
 #endif
@@ -444,13 +448,13 @@ HB_ERRCODE delayedError( void )
       if( pError )
       {
          errCode = hb_errGetGenCode( pError );
-         if( errCode == 3210 || errCode == 3211 )
+         if( errCode == LETO_CLIENT_LOCKON || errCode == LETO_CLIENT_LOCKWAIT || errCode == LETO_CLIENT_LOCKOFF )
          {
-            if( errCode == 3211 )
+            if( errCode == LETO_CLIENT_LOCKON )
                errCode = leto_BackupStart( errCode );
             else
             {
-               leto_BackupStop();
+               leto_BackupStop( ( errCode == LETO_CLIENT_LOCKOFF ) );
                errCode = 0;
             }
             hb_errRelease( pError );
@@ -507,6 +511,21 @@ static void leto_BackupBox( int iTop, int iLeft, int iBottom, int iRight )
    hb_gtSetColorStr( szOldColor );
 }
 
+static HB_ERRCODE leto_InfoLocks( LETOCONNECTION * pConnection, HB_BOOL bSaved )
+{
+   HB_ERRCODE errCode = HB_SUCCESS;
+   char       szData[ 24 ];
+
+   hb_snprintf( szData, 24, "%c;locks;%c;", LETOCMD_admin, ( bSaved ? 'T' : 'F' ) );
+   if( leto_DataSendRecv( pConnection, szData, 0 ) )
+   {
+      if( *( leto_firstchar( pConnection ) ) != '+' )
+         errCode = HB_FAILURE;
+   }
+
+   return errCode;
+}
+
 static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode )
 {
    LETOCONNECTION * pConnection = letoGetCurrConn();
@@ -532,35 +551,48 @@ static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode )
       hb_gtSave( iTop, iLeft, iBottom, iRight, pBuffer );
       leto_BackupBox( iTop, iLeft, iBottom, iRight );
       pSavedLocks = leto_SaveLocks( pConnection );
+      if( pSavedLocks && hb_arrayLen( pSavedLocks ) )
+         leto_InfoLocks( pConnection, HB_TRUE );
 
-      pConnection->fBackupActive = HB_TRUE;
-      while( pConnection->fBackupActive )
+      pConnection->uiBackupActive = 2;
+      while( pConnection->uiBackupActive > 1 )
       {
+         delayedError();
          iInkey = hb_inkeyNext( iEventMask );
-         if( iInkey == 27 )
+         if( iInkey == K_ESC )
             break;
          else if( iInkey )
             hb_inkey( HB_FALSE, 0, iEventMask );
          if( hb_inkeyNext( iEventMask ) )
             continue;
-         hb_idleSleep( 0.25 );
-         delayedError();
+         hb_idleSleep( 0.1 );
       }
 
-      if( ! pConnection->fBackupActive )
+      if( pConnection->uiBackupActive < 2 )
       {
          if( pSavedLocks )
          {
             if( leto_RestoreLocks( pConnection ) == HB_SUCCESS )
-               errCode = 0;  /* failure to restore locks :-( ==> QUIT */
+            {
+               leto_InfoLocks( pConnection, HB_FALSE );
+               errCode = 0;
+            }
+            else /* unprobable ! fail to restore locks ==> QUIT */
+               hb_itemRelease( pSavedLocks );
          }
          else
             errCode = 0;
    #ifdef LETO_CLIENTLOG
       leto_clientlog( NULL, 0, "leto_BackupStart( %d )", errCode == HB_SUCCESS ? 1 : 0 );
    #endif
-         /* wait longer to give others with outstanding locks restore precedence */
-         hb_idleSleep( 12 );  /* are 12 sec enough ?? */
+         /* wait before proceeding for others with outstanding locks to restore */
+         while( ! errCode && pConnection->uiBackupActive )
+         {
+            delayedError();
+            iInkey = hb_inkey( HB_TRUE, 0.05, iEventMask );
+            if( iInkey == K_ESC )
+               break;
+         }
       }
       hb_gtRest( iTop, iLeft, iBottom, iRight, pBuffer );
       hb_gtSetPos( iOldY, iOldX );

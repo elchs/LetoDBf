@@ -908,6 +908,16 @@ void leto_Admin( PUSERSTRU pUStru, char * szData )
                pData = bLock ? szOk : szErr4;
             }
          }
+         else if( ! strncmp( szData, "locks", 5 ) )
+         {
+            if( *pp1 == 'T' || *pp1 == 'F' )
+            {
+               pUStru->bNeedRestoreLock = ( *pp1 == 'T' );
+               pData = szOk;
+            }
+            else
+               pData = szErr4;
+         }
          else
             pData = szErr3;
       }

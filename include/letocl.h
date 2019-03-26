@@ -229,7 +229,7 @@ typedef struct _LETOCONNECTION_
    HB_BOOL           fCloseAll;
    HB_BOOL           fTryOtherConn;        /* if table opening at current fails, try other available */
    PCDPSTRU          pCdpTable;
-   HB_BOOL           fBackupActive;        /* backup mode active */
+   HB_USHORT         uiBackupActive;       /* backup mode 2=active 1=wait 0=off*/
    HB_BOOL           fTransActive;         /* transaction active */
    HB_BOOL           fTransForce;          /* to ignore un!locks during transaction */
    HB_BYTE *         szTransBuffer;        /* buffered transaction data */

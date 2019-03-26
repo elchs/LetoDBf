@@ -576,6 +576,55 @@ void leto_wUsLog( PUSERSTRU pUStru, int iMsgLen, const char * s, ... )
    }
 }
 
+HB_FUNC( LETO_PROCESSRUN )
+{
+   const char * szCmd = hb_parc( 1 );
+
+   if( szCmd )  /* command given */
+   {
+      HB_SIZE nStdOut, nStdErr, nLen;
+      char    szWD[ HB_PATH_MAX ];
+      char *  pStdOutBuf = NULL;
+      char *  pStdErrBuf = NULL;
+      char ** pStdOutPtr = &pStdOutBuf;
+      char ** pStdErrPtr = &pStdErrBuf;
+      char *  szData;
+      int     iResult;
+
+      nStdOut = nStdErr = 0;
+      hb_fsGetCWD( szWD, sizeof( szWD ) );
+      hb_fsSetCWD( s_pDataPath );
+      iResult = hb_fsProcessRun( szCmd, NULL, 0, pStdOutPtr, &nStdOut, pStdErrPtr, &nStdErr, HB_FALSE );
+      hb_fsSetCWD( szWD );
+
+      if( ! pStdOutBuf )
+         nStdOut = 0;
+      if( ! pStdErrBuf )
+         nStdErr = 0;
+
+      nLen = 12 + nStdOut + nStdErr;
+      szData = ( char * ) hb_xgrab( nLen );
+      HB_PUT_LE_UINT32( szData, ( HB_U32 ) iResult );
+      HB_PUT_LE_UINT32( szData + 4, ( HB_U32 ) nStdOut );
+      HB_PUT_LE_UINT32( szData + 8, ( HB_U32 ) nStdErr );
+      if( nStdOut )
+      {
+         memcpy( szData + 12, pStdOutBuf, nStdOut );
+         hb_xfree( pStdOutBuf );
+      }
+      if( nStdErr )
+      {
+         memcpy( szData + 12 + nStdOut, pStdErrBuf, nStdErr );
+         hb_xfree( pStdErrBuf );
+      }
+
+      hb_retclen( szData, nLen );
+      hb_xfree( szData );
+   }
+   else
+      hb_ret();
+}
+
 HB_FUNC( LETO_WUSLOG )
 {
    PUSERSTRU pUStru = letoGetUStru();
@@ -3382,7 +3431,7 @@ static void leto_CloseAll4Us( PUSERSTRU pUStru )
 }
 
 /* need HB_GC_LOCKU() */
-static void leto_SendBackupInfo( HB_BOOL bSetOn, int iUserStru )
+static void leto_SendBackupInfo( int iStatus, int iUserStru )
 {
    if( s_uiUsersCurr > 0 && s_bSendBackupInfo )
    {
@@ -3398,9 +3447,14 @@ static void leto_SendBackupInfo( HB_BOOL bSetOn, int iUserStru )
             if( strncmp( ( char * ) pUStru->szExename, "console", 7 ) &&
                 pUStru->hSocketErr != HB_NO_SOCKET )
             {
-               leto_SendAnswer2( pUStru, szErr3, 4, HB_FALSE, bSetOn ? 3211 : 3210 );
+               leto_SendAnswer2( pUStru, szErr3, 4, HB_FALSE, iStatus );
                if( s_iDebugMode > 0 )
-                  leto_wUsLog( pUStru, -1, "INFO  send backup %s notice", ( bSetOn ? "start" : "stop" ) );
+               {
+
+                  leto_wUsLog( pUStru, -1, "INFO  send backup %s notice",
+                                            ( iStatus == LETO_CLIENT_LOCKON ? "start" :
+                                              ( iStatus == LETO_CLIENT_LOCKWAIT ? "wait" : "stop" ) ) );
+               }
             }
             if( ++uiChecked >= s_uiUsersCurr )
                break;
@@ -3409,6 +3463,60 @@ static void leto_SendBackupInfo( HB_BOOL bSetOn, int iUserStru )
          pUStru++;
       }
    }
+}
+
+/* need HB_GC_LOCKU() */
+static HB_BOOL leto_IsAnyWaiting( void )
+{
+   HB_BOOL bOutstanding = HB_FALSE;
+
+   if( s_uiUsersCurr > 0 && s_bSendBackupInfo )
+   {
+      PUSERSTRU pUStru = s_users;
+      HB_USHORT uiChecked = 0;
+      HB_USHORT uiLoop = 0;
+
+      while( uiLoop < s_uiUsersAlloc )
+      {
+         if( pUStru->iUserStru )
+         {
+            if( pUStru->bNeedRestoreLock )
+            {
+               bOutstanding = HB_TRUE;
+               break;
+            }
+            if( ++uiChecked >= s_uiUsersCurr )
+               break;
+         }
+         uiLoop++;
+         pUStru++;
+      }
+   }
+
+   return bOutstanding;
+}
+
+static void leto_ServerUnlock( PUSERSTRU pUStru )
+{
+   int iMilliSecs = 21000;
+   int iMilliDelay = 50;
+
+   HB_GC_LOCKU();
+
+   leto_SendBackupInfo( LETO_CLIENT_LOCKWAIT, pUStru->iUserStru );
+   hb_idleSleep( 0.05 );
+
+   while( leto_IsAnyWaiting() && iMilliSecs > 0 )
+   {
+      if( iMilliSecs == 20000 )
+         iMilliDelay *= 5;
+      hb_idleSleep( iMilliDelay / 1000 );
+      iMilliSecs -= iMilliDelay;
+   }
+   s_iUserLock = -1;
+   leto_SendBackupInfo( LETO_CLIENT_LOCKOFF, pUStru->iUserStru );
+
+   HB_GC_UNLOCKU();
 }
 
 /* elch ToDo ? -- not in the very initial 3 s phase, when thread3 try to establish error socket */
@@ -3444,6 +3552,8 @@ void leto_CloseUS( PUSERSTRU pUStru )
       pUStru->pBufCrypt = NULL;
       pUStru->ulBufCryptLen = 0;
    }
+   if( pUStru->iUserStru == s_iUserLock )
+      leto_ServerUnlock( pUStru );
 
    if( pUStru->hSocketErr != HB_NO_SOCKET )
       hb_socketShutdown( pUStru->hSocketErr, HB_SOCKET_SHUT_RDWR );
@@ -3471,12 +3581,6 @@ void leto_CloseUS( PUSERSTRU pUStru )
    }
 
    HB_GC_LOCKU();
-
-   if( pUStru->iUserStru == s_iUserLock )
-   {
-      s_iUserLock = -1;
-      leto_SendBackupInfo( HB_FALSE, pUStru->iUserStru );
-   }
 
    if( pUStru->pBuffer )
    {
@@ -5403,7 +5507,7 @@ static _HB_INLINE_ HB_BOOL leto_IsServerLock( PUSERSTRU pUStru )  /* not really 
    HB_BOOL bRet;
 
    //HB_GC_LOCKU();
-   bRet = ( s_iUserLock > 0 && s_iUserLock != pUStru->iUserStru );
+   bRet = ( s_iUserLock > 0 && ( s_iUserLock != pUStru->iUserStru && ! pUStru->bNeedRestoreLock ) );
    //HB_GC_UNLOCKU();
 
    return bRet;
@@ -5626,45 +5730,41 @@ static HB_BOOL leto_IsAnyLocked( void )
    return bRet;
 }
 
-/* need HB_GC_LOCKU() */
-static void leto_TryLock( int iSecs, int iUserStru )
+static void leto_ServerTryLock( int iMilliSecs, int iUserStru )
 {
+   HB_GC_LOCKU();
+
    s_iUserLock = iUserStru;
-   leto_SendBackupInfo( HB_TRUE, iUserStru );
-   while( iSecs > 0 && leto_IsAnyLocked() )
+   leto_SendBackupInfo( LETO_CLIENT_LOCKON, iUserStru );
+
+   while( iMilliSecs > 0 && leto_IsAnyLocked() )
    {
-      hb_idleSleep( 1.0 );
-      iSecs--;
+      hb_idleSleep( 0.25 );
+      iMilliSecs -= 250;
    }
 
    if( leto_IsAnyLocked() )
       s_iUserLock = -1;
    else if( s_bHardCommit )
       hb_rddFlushAll();
+
+   HB_GC_UNLOCKU();
 }
 
 HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs )
 {
    HB_BOOL bRet = ( s_iUserLock >= 0 );
 
-   if( pUStru )
+   if( pUStru )  /* also used to only query the status */
    {
-      HB_GC_LOCKU();
-      if( bLock )
-      {
-         if( s_iUserLock < 0 )
-            leto_TryLock( iSecs, pUStru->iUserStru );
-      }
-      else  /* unlock if we are the locking user or the console */
-      {
-         if( s_iUserLock >= 0 && ( ! strncmp( ( char * ) pUStru->szExename, "console", 7 ) || ! leto_IsServerLock( pUStru ) ) )
-         {
-            s_iUserLock = -1;
-            leto_SendBackupInfo( HB_FALSE, pUStru->iUserStru );
-         }
-      }
+      if( bLock && ! bRet )
+         leto_ServerTryLock( iSecs * 1000, pUStru->iUserStru );
+
+      if( ! bLock && bRet &&  /* console or the user who locked */
+          ( ! strncmp( ( char * ) pUStru->szExename, "console", 7 ) || ! leto_IsServerLock( pUStru ) ) )
+         leto_ServerUnlock( pUStru );
+
       bRet = ( s_iUserLock >= 0 );
-      HB_GC_UNLOCKU();
    }
 
    return bRet;

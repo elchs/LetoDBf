@@ -2,6 +2,32 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-03-26 14:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; * rebuild server AND client to use changes about topic backup, aka
+    * server locking --also the console got a new menu entry: 'Lock locking'
+
+  * source/client/letomgmn.c
+  * source/server/letofunc.c
+  * source/server/server.prg
+    + iResult := leto_ProcessRun( cCommand,, [@cStdOut], [@cStdErr] )
+      as a hb_ProcessRun(), but running at server at DataPath work-directory
+      and storing outputs into cStdout/ cStderr if passed by [@] reference
+      ; note that it *maybe* need a OS dependend prefixe, like
+        for Windows: "cmd -c 'cCommand' "
+        for Unix:    "/bin/bash -c 'cCommand' "
+
+  * include/funcleto.h
+  * include/letocl.h
+  * include/srvleto.h
+  * source/client/letocl.c
+  * source/server/letoacc.c
+  * source/server/letofunc.c
+    * use #define's instead fixed value for locking control 'error' number
+    % refine the delay needed to wait, that all applications have restored
+      their locks before proceeding: now three messages are send to client,
+      sparing the uncertain fixed delay
+    * rename leto_TryLock() to leto_ServerTryLock()
+
 2019-03-25 00:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * ChangeLog.txt
     ! wrong filename: srvleto.h; correct file funcleto.h was uploaded

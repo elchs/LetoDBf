@@ -557,7 +557,7 @@ HB_FUNC( LETO_MEMOREAD )
       {
          const char * ptr;
 
-         if( ( ptr = LetoMemoRead( pConnection, szFile, ( unsigned long * ) &ulMemoLen ) ) != NULL && ulMemoLen )
+         if( ( ptr = LetoMemoRead( pConnection, szFile, ( HB_ULONG * ) &ulMemoLen ) ) != NULL && ulMemoLen )
             hb_retclen( ptr, ulMemoLen );
          else
             hb_retc( "" );
@@ -585,7 +585,7 @@ HB_FUNC( LETO_FILEREAD )  /* ( cFile, 0 [ nStart ], 0 == all [ nLen ], @cBuf ) *
          HB_ULONG ulStart = HB_ISNUM( 2 ) && hb_parnl( 2 ) > 0 ? hb_parnl( 2 ) : 0;
          HB_ULONG ulLen = HB_ISNUM( 3 ) && hb_parnl( 3 ) > 0 ? hb_parnl( 3 ) : 0;
 
-         if( ( ptr = LetoFileRead( pConnection, szFile, ulStart, ( unsigned long * ) &ulLen ) ) != NULL )
+         if( ( ptr = LetoFileRead( pConnection, szFile, ulStart, ( HB_ULONG * ) &ulLen ) ) != NULL )
          {
             hb_storclen( ptr, ulLen, 4 );
             hb_retnl( ulLen );
@@ -2103,9 +2103,9 @@ HB_FUNC( LETO_VARSET )  // ToDo hb_parc(1) and 2 need AllTrim
 
 static PHB_ITEM Leto_VarGet( LETOCONNECTION * pCurrentConn, const char * szGroup, const char * szVar )
 {
-   unsigned long ulLen = 0;
-   const char *  pData;
-   PHB_ITEM      pValue = NULL;
+   HB_ULONG     ulLen = 0;
+   const char * pData;
+   PHB_ITEM     pValue = NULL;
 
    if( ( pData = LetoVarGet( pCurrentConn, szGroup, szVar, &ulLen ) ) != NULL )
    {
@@ -2671,6 +2671,61 @@ HB_FUNC( LETO_UDF )
       leto_udp( HB_FALSE, NULL );
    else
       hb_ret();
+}
+
+HB_FUNC( LETO_PROCESSRUN )
+{
+   LETOCONNECTION * pConnection = letoGetCurrConn();
+   
+   if( pConnection && hb_parclen( 1 ) > 0 )
+   {
+      PHB_ITEM  pParam = hb_itemArrayNew( 1 );
+      LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
+      HB_BOOL fSuccess;
+
+      hb_arraySetC( pParam, 1, hb_parc( 1 ) );
+      fSuccess = LetoUdf( pConnection, pArea->pTable, HB_FALSE, "LETO_PROCESSRUN", &pParam );
+
+      if( fSuccess )
+      {
+         /* returned binary string: HB_I32 result, HB_U32 stdout_len, HB_U32 stderr_len, stdout, stderr */
+         const char * szResult = hb_itemGetCPtr( pParam );
+         HB_SIZE      nLen = hb_itemGetCLen( pParam );
+         HB_U32       ulLenStdOut, ulLenStdErr;
+
+         if( szResult && nLen >= 4 )
+            hb_retni( ( HB_I32 ) HB_GET_LE_UINT32( szResult ) );
+         if( nLen >= 12 )
+         {
+            ulLenStdOut = HB_GET_LE_UINT32( szResult + 4 );
+            ulLenStdErr = HB_GET_LE_UINT32( szResult + 8 );
+         }
+         else
+            ulLenStdOut = ulLenStdErr = 0;
+         
+         if( hb_param( 3, HB_IT_BYREF ) )
+         {
+            if( ulLenStdOut > 0 )
+               hb_storclen( szResult + 12, ulLenStdOut, 3 );
+            else
+               hb_storc( NULL, 3 );
+         }
+         if( hb_param( 4, HB_IT_BYREF ) )
+         {
+            if( ulLenStdErr > 0 )
+               hb_storclen( szResult + 12 + ulLenStdOut, ulLenStdErr, 4 );
+            else
+               hb_storc( NULL, 4 );
+         }
+
+         hb_itemRelease( pParam );
+      }
+      else
+      {
+         hb_itemRelease( pParam );
+         hb_ret();
+      }
+   }
 }
 
 /* Leto_FTS( [ cSearch[, lCaseInsensitive, [ lNoMemos ] ] ] ) */

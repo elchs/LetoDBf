@@ -187,7 +187,7 @@ typedef struct
    char              szLetoAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];  /* server internal alias: 7 + 1 or No_save_WA: 63 + 1 */
    HB_U32            uiCrc;                    /* hash value for szTable speed search */
    HB_ULONG          ulAreas;                  /* Number of references, 1 for s_bNoSaveWA */
-   HB_USHORT         uiRecordLen;
+   HB_USHORT         uiRecordLen;              /* includes deleted flag */
    HB_USHORT         uiFields;                 /* number of fields per record */
    HB_USHORT         uiIndexCount;             /* index count opend by [all] users */
    LETO_LIST         LocksList;                /* List of records locked */
@@ -280,6 +280,7 @@ typedef struct
    HB_ULONG          ulUdfAreaID;             /* active workarea-id when the UDF started */
    HB_BYTE           uSrvLock;                /* 0 or type of server 'lock for e.g. replication' mode */
    HB_BOOL           bGCCollect;              /* true if this thread is designated to do GC */
+   HB_BOOL           bNeedRestoreLock;        /* true allows to apply locks ( to restore ) even server is still locked */
    HB_MAXINT *       pOpenHandles;            /* list of files opened by Leto_Fopen()/ Leto_FCreate() */
    HB_ULONG          ulOpenHandles;           /* number of open file handles */
 } USERSTRU, * PUSERSTRU;                      /* 544 */
