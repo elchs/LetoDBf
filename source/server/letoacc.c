@@ -80,8 +80,11 @@ extern HB_BOOL leto_CheckPass( int iType );
 extern void leto_wUsLog( PUSERSTRU pUStru, int n, const char* s, ... );
 
 
-HB_BOOL leto_ConnectIsLock( void )
+/* 0 = query, > 0 = lock, < 0 = unlock */
+HB_BOOL leto_ConnectIsLock( int iLock )
 {
+   if( iLock != 0 )
+      s_fLockConnect = iLock > 0 ? HB_TRUE : HB_FALSE;
    return s_fLockConnect;
 }
 

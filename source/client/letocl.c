@@ -416,9 +416,9 @@ static PHB_ITEM leto_cloneError( PHB_ITEM pSourceError )
    return pDestError;
 }
 
-#if ! defined( __LETO_C_API__ )
+#if ! defined( __LETO_C_API__ ) && ! defined( LETO_NO_MT )
 
-static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode );
+static HB_ERRCODE leto_BackupStart( HB_BOOL fClose );
 
 static void leto_BackupStop( HB_BOOL fOff )
 {
@@ -444,24 +444,29 @@ HB_ERRCODE delayedError( void )
       s_pError = NULL;
       HB_GC_UNLOCKE();
 
-#if ! defined( __LETO_C_API__ )
+#if ! defined( __LETO_C_API__ ) && ! defined( LETO_NO_MT )
       if( pError )
       {
          errCode = hb_errGetGenCode( pError );
          if( errCode == LETO_CLIENT_LOCKON || errCode == LETO_CLIENT_LOCKWAIT || errCode == LETO_CLIENT_LOCKOFF )
          {
+            HB_ERRCODE errSubCode = hb_errGetSubCode( pError );
+
+            hb_errRelease( pError );
+            pError = NULL;
+
             if( errCode == LETO_CLIENT_LOCKON )
-               errCode = leto_BackupStart( errCode );
+               errCode = leto_BackupStart( ( errSubCode == ( HB_ERRCODE ) -4 ) );
             else
             {
                leto_BackupStop( ( errCode == LETO_CLIENT_LOCKOFF ) );
                errCode = 0;
             }
-            hb_errRelease( pError );
-            pError = NULL;
             if( errCode )
                hb_vmRequestQuit();
          }
+         else
+            errCode = 0;
       }
 #endif
 
@@ -487,10 +492,10 @@ HB_ERRCODE delayedError( void )
       return 0;
 }
 
-#if ! defined( __LETO_C_API__ )
+#if ! defined( __LETO_C_API__ ) && ! defined( LETO_NO_MT )
 
-extern PHB_ITEM leto_SaveLocks( LETOCONNECTION * pConnection );
-extern HB_ERRCODE leto_RestoreLocks( LETOCONNECTION * pConnection );
+extern PHB_ITEM leto_SaveWAEnv( LETOCONNECTION * pConnection, HB_BOOL fClose );
+extern HB_ERRCODE leto_RestoreWAEnv( LETOCONNECTION * pConnection );
 
 static void leto_BackupBox( int iTop, int iLeft, int iBottom, int iRight )
 {
@@ -526,14 +531,16 @@ static HB_ERRCODE leto_InfoLocks( LETOCONNECTION * pConnection, HB_BOOL bSaved )
    return errCode;
 }
 
-static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode )
+static HB_ERRCODE leto_BackupStart( HB_BOOL fClose )
 {
    LETOCONNECTION * pConnection = letoGetCurrConn();
+   HB_ERRCODE       errCode = LETO_CLIENT_LOCKON;
 
    if( pConnection )
    {
       HB_SIZE  nSize;
       PHB_ITEM pSavedLocks;
+      char     szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
       int      iYMiddle = ( ( hb_gtMaxRow() + 1 ) / 2 );
       int      iXMiddle = ( ( hb_gtMaxCol() + 1 ) / 2 );
       int      iTop = iYMiddle - 2;
@@ -543,6 +550,7 @@ static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode )
       int      iEventMask = hb_setGetEventMask();
       int      iOldY, iOldX;
       int      iInkey;
+      int      iArea;
       char *   pBuffer;
 
       hb_gtGetPos( &iOldY, &iOldX );
@@ -550,41 +558,41 @@ static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode )
       pBuffer = hb_xgrab( nSize + 1 );
       hb_gtSave( iTop, iLeft, iBottom, iRight, pBuffer );
       leto_BackupBox( iTop, iLeft, iBottom, iRight );
-      pSavedLocks = leto_SaveLocks( pConnection );
-      if( pSavedLocks && hb_arrayLen( pSavedLocks ) )
-         leto_InfoLocks( pConnection, HB_TRUE );
+
+      strcpy( szDriver, pConnection->szDriver );
+      iArea = hb_rddGetCurrentWorkAreaNumber();
+      pSavedLocks = leto_SaveWAEnv( pConnection, fClose );
+      leto_InfoLocks( pConnection, HB_TRUE );
 
       pConnection->uiBackupActive = 2;
       while( pConnection->uiBackupActive > 1 )
       {
-         delayedError();
+         hb_releaseCPU();
          iInkey = hb_inkeyNext( iEventMask );
          if( iInkey == K_ESC )
             break;
          else if( iInkey )
             hb_inkey( HB_FALSE, 0, iEventMask );
-         if( hb_inkeyNext( iEventMask ) )
-            continue;
-         hb_idleSleep( 0.1 );
+         else
+            hb_releaseCPU();
+         hb_releaseCPU();
+         delayedError();
       }
 
       if( pConnection->uiBackupActive < 2 )
       {
          if( pSavedLocks )
          {
-            if( leto_RestoreLocks( pConnection ) == HB_SUCCESS )
+            if( leto_RestoreWAEnv( pConnection ) == HB_SUCCESS )
             {
-               leto_InfoLocks( pConnection, HB_FALSE );
                errCode = 0;
+               pSavedLocks = NULL;  /* already released */
             }
-            else /* unprobable ! fail to restore locks ==> QUIT */
-               hb_itemRelease( pSavedLocks );
          }
          else
             errCode = 0;
-   #ifdef LETO_CLIENTLOG
-      leto_clientlog( NULL, 0, "leto_BackupStart( %d )", errCode == HB_SUCCESS ? 1 : 0 );
-   #endif
+
+         leto_InfoLocks( pConnection, HB_FALSE );
          /* wait before proceeding for others with outstanding locks to restore */
          while( ! errCode && pConnection->uiBackupActive )
          {
@@ -593,7 +601,12 @@ static HB_ERRCODE leto_BackupStart( HB_ERRCODE errCode )
             if( iInkey == K_ESC )
                break;
          }
+
+         strcpy( pConnection->szDriver, szDriver );
+         hb_rddSelectWorkAreaNumber( iArea );
       }
+
+      hb_itemRelease( pSavedLocks );
       hb_gtRest( iTop, iLeft, iBottom, iRight, pBuffer );
       hb_gtSetPos( iOldY, iOldX );
       hb_xfree( pBuffer );
@@ -978,6 +991,16 @@ static void leto_RecvFirst( LETOCONNECTION * pConnection, const char * szPass )
             ptr++;
          if( *ptr )
             sscanf( ptr, "%u.%u", &pConnection->uiMajorVer, &pConnection->uiMinorVer );
+      }
+      else if( ( ptr = strchr( pConnection->szBuffer, ':' ) ) != NULL && ptr - pConnection->szBuffer == 4 )
+      {
+         ptr = pConnection->szBuffer + 1;
+         if( ! strncmp( ptr, "LCK", 3 ) )
+            pConnection->iConnectRes = LETO_ERR_LOCKED;
+         else if( ! strncmp( ptr, "ERR", 3 ) )
+            pConnection->iConnectRes = LETO_ERR_MANY_CONN;
+         else
+            pConnection->iConnectRes = LETO_ERR_PROTO;
       }
       else
          pConnection->iConnectRes = LETO_ERR_PROTO;
@@ -2291,6 +2314,10 @@ void LetoDbFreeTag( LETOTAGINFO * pTagInfo )
       hb_xfree( pTagInfo->KeyExpr );
    if( pTagInfo->ForExpr )
       hb_xfree( pTagInfo->ForExpr );
+   if( pTagInfo->WhileExpr )
+      hb_xfree( pTagInfo->WhileExpr );
+   if( pTagInfo->UseIndex )
+      hb_xfree( pTagInfo->UseIndex );
    if( pTagInfo->pTopScopeAsString )
       hb_xfree( pTagInfo->pTopScopeAsString );
    if( pTagInfo->pBottomScopeAsString )
@@ -2473,6 +2500,29 @@ const char * leto_ParseTagInfo( LETOTABLE * pTable, const char * pBuffer )
    pTable->uiOrders = uiOrders;
 
    return ptr;
+}
+
+void leto_AddTagInfo( LETOTABLE * pTable, const char * szTag, unsigned int uiFlags, const char * szWhile, const char * szUseIndex )
+{
+   LETOTAGINFO * pTagInfo = pTable->pTagInfo;
+
+   while( pTagInfo )
+   {
+      if( ! strcmp( szTag, pTagInfo->TagName ) )
+      {
+         if( szWhile )
+            pTagInfo->WhileExpr = hb_strdup( szWhile );
+         if( szUseIndex )
+            pTagInfo->UseIndex = hb_strdup( szUseIndex );
+         pTagInfo->uiFlags = uiFlags;
+#ifdef LETO_CLIENTLOG
+         leto_clientlog( NULL, 0, "leto_AddTagInfo() registered order %s with flags %d", pTagInfo->TagName, uiFlags );
+#endif
+         break;
+
+      }
+      pTagInfo = pTagInfo->pNext;
+   }
 }
 
 void leto_SetUpdated( LETOTABLE * pTable, HB_USHORT uiUpdated )
@@ -3252,10 +3302,6 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
          ptr = leto_firstchar( pConnection );
          if( ! strncmp( ptr, "ACC", 3 ) )
             pConnection->iConnectRes = LETO_ERR_ACCESS;
-         else if( ! strncmp( ptr, "LCK", 3 ) )
-            pConnection->iConnectRes = LETO_ERR_LOCKED;
-         else if( ! strncmp( ptr, "ERR", 3 ) )
-            pConnection->iConnectRes = LETO_ERR_MANY_CONN;
          else
          {
             char * pName = strchr( ptr, ';' );
@@ -3886,6 +3932,7 @@ LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile
    pTable->uiConnection = pConnection->iConnection;
    pTable->iBufRefreshTime = pConnection->iBufRefreshTime;
    pTable->fShared = pTable->fReadonly = pTable->fEncrypted = HB_FALSE;
+   pTable->fTemporary = fTemporary;
    pTable->fMemIO = strstr( szFile, "mem:" ) != NULL;
 
    pTable->pLocksPos = NULL;
@@ -4106,7 +4153,6 @@ HB_ERRCODE LetoDbCloseTable( LETOTABLE * pTable )
       pConnection->iError = 1031;
       return HB_FAILURE;
    }
-
    if( pTable->hTable )
    {
       char szData[ 32 ];
@@ -5199,6 +5245,7 @@ HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const 
    char          szData[ LETO_IDXINFOBLOCK ];
    unsigned long ulLen;
    const char *  ptr;
+   char *        pUseIndex = NULL;
 
    if( ! ( uiFlags & ( LETO_INDEX_REST | LETO_INDEX_CUST | LETO_INDEX_FILT ) )
        && ( ! szFor || ! *szFor ) && ( ! szWhile || ! *szWhile ) && ! ulNext )
@@ -5224,7 +5271,10 @@ HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const 
                     ( uiFlags & LETO_INDEX_EXCL ) ? 'T' : 'F',
                     ( uiFlags & LETO_INDEX_FILT ) ? 'T' : 'F' );
    if( ( uiFlags & LETO_INDEX_USEI ) && pTable->pTagCurrent )
+   {
       ulLen += eprintf( szData + ulLen, "%s;", pTable->pTagCurrent->TagName );
+      pUseIndex = hb_strdup( pTable->pTagCurrent->TagName );
+   }
 
    if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) || *pConnection->szBuffer != '+' )
       return 1;
@@ -5249,10 +5299,16 @@ HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const 
    }
 
    ptr = leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
+   if( pTable->fTemporary )
+      uiFlags |= LETO_INDEX_TEMP;
+   if( szTag && ( szWhile || uiFlags ) )
+      leto_AddTagInfo( pTable, szTag, uiFlags, szWhile, pUseIndex );
    leto_ParseRecord( pConnection, pTable, ptr );
    pTable->ptrBuf = NULL;
    if( pTable->fAutoRefresh )
       pTable->llCentiSec = leto_MilliSec();
+   if( pUseIndex )
+      hb_xfree( pUseIndex );
 
    return 0;
 }
@@ -6508,7 +6564,6 @@ HB_BOOL LetoUdf( LETOCONNECTION * pConnection, LETOTABLE * pTable, HB_BOOL fInTh
 
       ulMemSize += nSize + 42;
       szData = ( char * ) hb_xgrab( ulMemSize );
-
       if( fLetoArea )  /* valid LETOAREA pArea */
          hb_snprintf( szData, ulMemSize, "%c;%lu;%c;%c;%lu;%s;%c;%" HB_PFS "u;", LETOCMD_udf_dbf, pTable->hTable,
                       fInThread ? '9' : '1', ( char ) ( ( hb_setGetDeleted() ) ? 0x41 : 0x40 ),

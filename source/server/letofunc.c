@@ -185,6 +185,7 @@ extern void leto_acc_release( void );
 extern HB_BOOL leto_acc_find( PUSERSTRU pUStru, const char * szPass );
 extern void leto_acc_setPath( const char * szPath );
 extern void leto_ToggleZip( PUSERSTRU pUStru, char * szData );
+extern HB_BOOL leto_ConnectIsLock( int iLock );
 
 extern void leto_SendError( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
@@ -3447,7 +3448,11 @@ static void leto_SendBackupInfo( int iStatus, int iUserStru )
             if( strncmp( ( char * ) pUStru->szExename, "console", 7 ) &&
                 pUStru->hSocketErr != HB_NO_SOCKET )
             {
-               leto_SendAnswer2( pUStru, szErr3, 4, HB_FALSE, iStatus );
+#if defined( HB_OS_WIN )  /* szErr4 == with WA close action */
+               leto_SendAnswer2( pUStru, szErr4, 4, HB_FALSE, iStatus );
+#else
+               leto_SendAnswer2( pUStru, szErr1, 4, HB_FALSE, iStatus );
+#endif
                if( s_iDebugMode > 0 )
                {
 
@@ -3466,7 +3471,38 @@ static void leto_SendBackupInfo( int iStatus, int iUserStru )
 }
 
 /* need HB_GC_LOCKU() */
-static HB_BOOL leto_IsAnyWaiting( void )
+static HB_BOOL leto_IsAllWithSocket( int iUserStru )
+{
+   HB_BOOL bFine = HB_TRUE;
+
+   if( s_uiUsersCurr > 0 && s_bSendBackupInfo )
+   {
+      PUSERSTRU pUStru = s_users;
+      HB_USHORT uiChecked = 0;
+      HB_USHORT uiLoop = 0;
+
+      while( uiLoop < s_uiUsersAlloc )
+      {
+         if( pUStru->iUserStru )
+         {
+            if( pUStru->iUserStru != iUserStru && pUStru->hSocketErr == HB_NO_SOCKET )
+            {
+               bFine = HB_FALSE;
+               break;
+            }
+            if( ++uiChecked >= s_uiUsersCurr )
+               break;
+         }
+         uiLoop++;
+         pUStru++;
+      }
+   }
+
+   return bFine;
+}
+
+/* need HB_GC_LOCKU() */
+static HB_BOOL leto_IsAnyWaiting( HB_BOOL bUnlock, int iUserStru )
 {
    HB_BOOL bOutstanding = HB_FALSE;
 
@@ -3480,7 +3516,8 @@ static HB_BOOL leto_IsAnyWaiting( void )
       {
          if( pUStru->iUserStru )
          {
-            if( pUStru->bNeedRestoreLock )
+            if( pUStru->iUserStru != iUserStru &&
+                ( bUnlock ? pUStru->bNeedRestoreLock : ! pUStru->bNeedRestoreLock ) )
             {
                bOutstanding = HB_TRUE;
                break;
@@ -3506,7 +3543,7 @@ static void leto_ServerUnlock( PUSERSTRU pUStru )
    leto_SendBackupInfo( LETO_CLIENT_LOCKWAIT, pUStru->iUserStru );
    hb_idleSleep( 0.05 );
 
-   while( leto_IsAnyWaiting() && iMilliSecs > 0 )
+   while( leto_IsAnyWaiting( HB_TRUE, pUStru->iUserStru ) && iMilliSecs > 0 )
    {
       if( iMilliSecs == 20000 )
          iMilliDelay *= 5;
@@ -3514,6 +3551,7 @@ static void leto_ServerUnlock( PUSERSTRU pUStru )
       iMilliSecs -= iMilliDelay;
    }
    s_iUserLock = -1;
+   leto_ConnectIsLock( -1 );
    leto_SendBackupInfo( LETO_CLIENT_LOCKOFF, pUStru->iUserStru );
 
    HB_GC_UNLOCKU();
@@ -3527,11 +3565,6 @@ void leto_CloseUS( PUSERSTRU pUStru )
    {
       hb_xfree( pUStru->szHbError );
       pUStru->szHbError = NULL;
-   }
-   if( pUStru->pSendBuffer )
-   {
-      hb_xfree( pUStru->pSendBuffer );
-      pUStru->pSendBuffer = NULL;
    }
    if( pUStru->szVersion )
    {
@@ -3586,6 +3619,13 @@ void leto_CloseUS( PUSERSTRU pUStru )
    {
       hb_xfree( pUStru->pBuffer );
       pUStru->pBuffer = NULL;
+      pUStru->ulBufferLen = 0;
+   }
+   if( pUStru->pSendBuffer )
+   {
+      hb_xfree( pUStru->pSendBuffer );
+      pUStru->pSendBuffer = NULL;
+      pUStru->ulSndBufLen = 0;
    }
 
    if( s_iDebugMode > 0 )
@@ -5730,23 +5770,43 @@ static HB_BOOL leto_IsAnyLocked( void )
    return bRet;
 }
 
-static void leto_ServerTryLock( int iMilliSecs, int iUserStru )
+static void leto_ServerTryLock( PUSERSTRU pUStru, int iMilliSecs )
 {
+   int iUserStru = pUStru->iUserStru;
+
    HB_GC_LOCKU();
 
-   s_iUserLock = iUserStru;
-   leto_SendBackupInfo( LETO_CLIENT_LOCKON, iUserStru );
-
-   while( iMilliSecs > 0 && leto_IsAnyLocked() )
+   leto_ConnectIsLock( 1 );  /* shortly forbid new connections */
+   if( ! leto_IsAllWithSocket( iUserStru ) )
    {
-      hb_idleSleep( 0.25 );
-      iMilliSecs -= 250;
+      hb_idleSleep( 0.25 );  /* minor more time to established */
+      if( ! leto_IsAllWithSocket( iUserStru ) )
+      {
+         leto_ConnectIsLock( -1 );
+         HB_GC_LOCKU();
+
+         return;
+      }
    }
 
-   if( leto_IsAnyLocked() )
-      s_iUserLock = -1;
-   else if( s_bHardCommit )
-      hb_rddFlushAll();
+   leto_SendBackupInfo( LETO_CLIENT_LOCKON, iUserStru );
+   while( iMilliSecs > 0 && leto_IsAnyWaiting( HB_FALSE, iUserStru ) )
+   {
+      hb_idleSleep( 0.1 );
+      iMilliSecs -= 100;
+   }
+
+   if( leto_IsAnyWaiting( HB_FALSE, iUserStru ) || leto_IsAnyLocked() )
+   {
+      HB_GC_UNLOCKU();
+
+      leto_ServerUnlock( pUStru );
+      leto_ConnectIsLock( -1 );
+
+      return;
+   }
+   else  /* success to lock server */
+      s_iUserLock = iUserStru;
 
    HB_GC_UNLOCKU();
 }
@@ -5758,7 +5818,7 @@ HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs )
    if( pUStru )  /* also used to only query the status */
    {
       if( bLock && ! bRet )
-         leto_ServerTryLock( iSecs * 1000, pUStru->iUserStru );
+         leto_ServerTryLock( pUStru, iSecs * 1000 );
 
       if( ! bLock && bRet &&  /* console or the user who locked */
           ( ! strncmp( ( char * ) pUStru->szExename, "console", 7 ) || ! leto_IsServerLock( pUStru ) ) )
@@ -7845,7 +7905,7 @@ static HB_BOOL leto_dbEvalJoinFor( PHB_ITEM pJoins, AREAP pArea )
             {
                SELF_GOTO( pJoinArea, 0 );
                bResult = HB_FALSE;
-               bEof = HB_TRUE;
+               bJoinEof = HB_TRUE;
             }
             else
                SELF_EOF( pJoinArea, &bJoinEof );
@@ -8505,7 +8565,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
             break;
          if( bValid && pEvalInfo->dbsci.itmCobFor )  /* FOR */
             bValid = hb_itemGetL( hb_vmEvalBlockV( pEvalInfo->dbsci.itmCobFor, 2, pProces, pEvalut ) );
-         if( bValid )  /* try to lock joined WAs before the master WA */
+         if( bValid && pEvalInfo->dbsci.lpstrFor )  /* try to lock joined WAs before the master WA */
          {
             if( ! leto_dbEvalJoinLock( pUStru, pEvalInfo->dbsci.lpstrFor, ! bStay, iLockTime ) )
             {
@@ -12519,7 +12579,7 @@ static void leto_Filter( PUSERSTRU pUStru, char * szData )
          if( pAStru->itmFltOptimized )
          {
             if( s_iDebugMode > 10 )
-               leto_wUsLog( pUStru, -1, "DEBUG leto_Filter! [ ForceOpt(%d) ] accepted <%s>", bForce, szFilter);
+               leto_wUsLog( pUStru, -1, "DEBUG leto_Filter! [ ForceOpt(%d) ] accepted: %s", bForce, szFilter);
             leto_SendAnswer( pUStru, "++++", 4 );
             if( s_bNoSaveWA && ! pAStru->pTStru->bMemIO )
                leto_SetFilter( pAStru, pArea, pUStru );
@@ -16322,61 +16382,40 @@ static void leto_CreateIndex( PUSERSTRU pUStru, char * szRawData )
          if( *szFor || *szWhile || ulRecNo || ulNext || ulRecord ||
              bDescend || bAll || bRest || bAdditive || bCustom || bTemporary || bExclusive || bFilter || bUseCur )
          {
-            //LPDBORDERCONDINFO lpdbOrdCondInfo;
             PHB_ITEM pItem = hb_itemNew( NULL );
 
-            lpdbOrdCondInfo = ( LPDBORDERCONDINFO ) hb_xgrab( sizeof( DBORDERCONDINFO ) );
+            lpdbOrdCondInfo = ( LPDBORDERCONDINFO ) hb_xgrabz( sizeof( DBORDERCONDINFO ) );
             if( *szFor )
             {
                lpdbOrdCondInfo->abFor = hb_strdup( szFor );
                lpdbOrdCondInfo->itmCobFor = leto_mkCodeBlock( pUStru, szFor, strlen( szFor ), HB_FALSE );
             }
-            else
-            {
-               lpdbOrdCondInfo->abFor = NULL;
-               lpdbOrdCondInfo->itmCobFor = NULL;
-            }
-            lpdbOrdCondInfo->fAll = bAll;
             if( *szWhile )
             {
                lpdbOrdCondInfo->abWhile = *szWhile ? hb_strdup( szWhile ) : NULL;
                lpdbOrdCondInfo->itmCobWhile = leto_mkCodeBlock( pUStru, szWhile, strlen( szWhile ), HB_FALSE );
             }
-            else
-            {
-               lpdbOrdCondInfo->abWhile = NULL;
-               lpdbOrdCondInfo->itmCobWhile = NULL;
-            }
-            /* do not use ->itmCobEval, lets create it by Harbour from string */
-            lpdbOrdCondInfo->itmCobEval = NULL;
-            lpdbOrdCondInfo->lStep = 0;
             if( ulRecNo )
             {
                hb_itemPutNL( pItem, ulRecNo );
                lpdbOrdCondInfo->itmStartRecID = hb_itemNew( pItem );
             }
-            else
-               lpdbOrdCondInfo->itmStartRecID = NULL;
             lpdbOrdCondInfo->lNextCount = ulNext;
             if( ulRecord )
             {
                hb_itemPutNL( pItem, ulRecord );
                lpdbOrdCondInfo->itmRecID = hb_itemNew( pItem );
             }
-            else
-               lpdbOrdCondInfo->itmRecID = NULL;
             lpdbOrdCondInfo->fRest = bRest;
             lpdbOrdCondInfo->fDescending = bDescend;
-            /* 12th parameter is always nil in CL5.3, in CL5.2 it's compound flag */
-            lpdbOrdCondInfo->fCompound = HB_FALSE;
             lpdbOrdCondInfo->fAdditive = bAdditive;
             lpdbOrdCondInfo->fUseCurrent = bUseCur;
             lpdbOrdCondInfo->fCustom = bCustom;
-            lpdbOrdCondInfo->fNoOptimize = HB_FALSE;  // determine if RDD supports it
             lpdbOrdCondInfo->fTemporary = bTemporary;
             lpdbOrdCondInfo->fExclusive = bExclusive;
             lpdbOrdCondInfo->fUseFilter = bFilter;
 
+            lpdbOrdCondInfo->fAll = bAll;
             if( lpdbOrdCondInfo->itmCobWhile )
                lpdbOrdCondInfo->fRest = HB_TRUE;
             if( lpdbOrdCondInfo->lNextCount || lpdbOrdCondInfo->itmRecID || lpdbOrdCondInfo->fRest ||
@@ -16388,7 +16427,6 @@ static void leto_CreateIndex( PUSERSTRU pUStru, char * szRawData )
                                        lpdbOrdCondInfo->fNoOptimize || lpdbOrdCondInfo->itmCobEval ||
                                        lpdbOrdCondInfo->fTemporary;
             lpdbOrdCondInfo->fScoped = ! lpdbOrdCondInfo->fAll;
-            lpdbOrdCondInfo->lpvCargo = NULL;
 
             errcode = SELF_ORDSETCOND( pArea, lpdbOrdCondInfo );
             hb_itemRelease( pItem );
@@ -16420,13 +16458,33 @@ static void leto_CreateIndex( PUSERSTRU pUStru, char * szRawData )
                bLocked = HB_TRUE;
             }
 
-            /* check if index Bag in use by other -- different check for s_bNoSaveWA */
             if( bTemporary || bExclusive )
             {
+               if( bTemporary )  /* hack to force temporary index order into seperate file */
+               {
+                  PHB_FILE pTmp = hb_fileCreateTemp( NULL, NULL, FC_NORMAL , szFileName );
+                  HB_SIZE  nTmpLen = strlen( szFileName );
+
+                  if( pTmp )
+                  {
+                     hb_fileClose( pTmp );
+                     hb_fileDelete( szFileName );
+                  }
+                  ptr3 = strrchr( szFileName, DEF_SEP );
+                  if( ! ptr3 )
+                     ptr3 = szFileName;
+                  while( *ptr3 && ( HB_SIZE ) ( ++ptr3 - szFileName ) < nTmpLen )
+                  {
+                     if( *ptr3 == '.' )
+                        break;
+                     else if( *ptr3 )
+                        *ptr3 = '?';
+                  }
+               }
                if( s_iDebugMode > 15 )
                   leto_wUsLog( pUStru, -1, "DEBUG leto_CreateIndex %s-index: %s", bExclusive ? "exclusive" : "temporary" , szFileName );
-               /* ToDo  filename wrong for temporary */
             }
+            /* check if index Bag in use by other -- different check for s_bNoSaveWA */
             else if( ! ( s_bNoSaveWA && ! pTStru->bMemIO ) )
             {
                HB_USHORT uo = 0;

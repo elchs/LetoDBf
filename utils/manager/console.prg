@@ -1340,6 +1340,7 @@ STATIC FUNCTION Administrate( nConnection )
       IIF( bRLocked, "L UNlock Locking", "L Lock   Locking" ),;
       "0 QUIT ! Console" }
  LOCAL cSave := SAVESCREEN( 1, 2, 2 + LEN( aMenu ), 19 )
+ LOCAL aSaveAlert
  LOCAL arr
  LOCAL lResize := .F.
 
@@ -1418,25 +1419,28 @@ STATIC FUNCTION Administrate( nConnection )
          CASE nMenu == 7
             changeRefresh()
          CASE nMenu == 8
-            TimedAlert( "LetoDBf server try to : " + IIF( bLocked, "unlock", "lock" ), 2, "W+/B" )
-            IF bLocked
-               bLocked := leto_LockConn( .F. )
-            ELSE
-               bLocked := leto_LockConn( .T. )
+            IF ! bRLocked
+               TimedAlert( "LetoDBf server try to : " + IIF( bLocked, "unlock", "lock" ), 1, "W+/B" )
+               IF bLocked
+                  bLocked := leto_LockConn( .F. )
+               ELSE
+                  bLocked := leto_LockConn( .T. )
+               ENDIF
+               TimedAlert( "LetoDBf server lock/ unlock: " + IIF( ! bLocked, "failed", "successful" ), 2,;
+                            IIF( bLocked,"W+/G", "W+/R" ) )
             ENDIF
-            TimedAlert( "LetoDBf server lock/ unlock: " + IIF( ! bLocked, "failed", "successful" ), 2,;
-                         IIF( bLocked,"W+/G", "W+/R" ) )
          CASE nMenu == 9
             ViewLogs( nConnection )
          CASE nMenu == 10
             ChangeDebug()
          CASE nMenu == 11
-            TimedAlert( "LetoDBf server try to : " + IIF( bRLocked, "unlock", "lock" ) + " locking", 2, "W+/B" )
+            aSaveAlert := TimedAlert( "LetoDBf server try to : " + IIF( bRLocked, "unlock", "lock" ) + " locking", 0, "W+/B" )
             IF bRLocked
                bRLocked := leto_LockLock( .F. )
             ELSE
                bRLocked := leto_LockLock( .T. )
             ENDIF
+            RESTSCREEN( aSaveAlert[ 1 ], aSaveAlert[ 2 ], aSaveAlert[ 3 ], aSaveAlert[ 4 ], aSaveAlert[ 5 ] )
             TimedAlert( "LetoDBf server lock/ unlock locking: " + IIF( ! bRLocked, "failed", "successful" ), 2,;
                          IIF( bRLocked,"W+/G", "W+/R" ) )
          CASE nMenu == 0
@@ -1459,7 +1463,7 @@ FUNCTION MyChoice( nStatus )  /* must be a public FUNCTION */
    IF nKey == K_LBUTTONUP
       mRow := MROW()
       mCol := MCOL()
-      IF mRow < 1 .OR. mRow > 12 .OR. mCol < 2 .AND. mCol > 19
+      IF mRow < 1 .OR. mRow > 13 .OR. mCol < 2 .AND. mCol > 19
          hb_keyPut( K_ESC )
       ENDIF
    ENDIF
@@ -1639,11 +1643,11 @@ STATIC FUNCTION TimedAlert( cText, nSec, cColor )
 
    @ nY1, nX1, nY2, nX2 BOX B_DOUBLE + " "
    @ nY1 + 2, nX1 + 2 SAY cText
-   DO WHILE Inkey( nSec ) >= K_MINMOUSE
-   ENDDO
-   RESTSCREEN( nY1, nX1, nY2, nX2, cSave )
+   IF nSec > 0
+      DO WHILE Inkey( nSec ) >= K_MINMOUSE
+      ENDDO
+      RESTSCREEN( nY1, nX1, nY2, nX2, cSave )
+   ENDIF
    SETCOLOR( oldcolor )
-RETURN .T.
-
-
+RETURN IIF( nSec > 0, .T., { nY1, nX1, nY2, nX2, cSave } )
 

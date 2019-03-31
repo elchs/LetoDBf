@@ -108,6 +108,9 @@
 #define DBI_AUTOREFRESH       1005
 #define DBI_CHILDPARENT       1006
 
+#define DBOI_TEMPORARY        1001
+#define DBOI_INTERNAL         1002
+
 /* server config options */
 #define LETOOPT_DATAPATH      1   // C
 #define LETOOPT_INDEXTYPE     2   // N

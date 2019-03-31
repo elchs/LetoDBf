@@ -2,6 +2,63 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-03-31 17:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; * rebuild server AND client (lib & apps) to use changes about backup-mode
+
+  * include/letocl.h
+  * include/rddleto.h
+  * include/rddleto.ch
+  * source/client/leto1.c
+  * source/client/letocl.c
+    ! wrong cause reported for a refused connection to a locked server, it
+      should be: LETO_ERR_LOCKED
+    * create a missing TAG name at client side as else server does, needed
+      to register index attribute (temporary...) in new leto_AddTagInfo()
+    * store original given filter expression *before* optimization, needed
+      to re-create a filter for a closed table after backup-mode.
+    * in case of server is running in Windows, in backup-mode close all
+      exclusive opened table, but not temporary nor such with temporary
+      index order which could not be rebuild ( e.g. partially orders )
+    + LetoDBf extensions: DBOI_TEMPORARY return .T. for temporary index,
+      DBOI_INTERNAL returns internal flags as integer ( experimental )
+    + try to implement DBOI_PARTIAL --> .T. for index with not all records
+    ! fix for old memory leak *when* DbSetFilter() was used only with text
+      expression, without CB; note: using "SET FILTER TO" fill in both
+
+  * source/server/leto_2.c
+  * source/server/letoacc.c
+  * source/server/letofunc.c
+    % hack to force temporary index order into seperate file, esp. out of
+      a production index by applying a generated temporary filename
+      ( create and [ immediate delete ] a temp file similar the RDD does )
+    * clean up in leto_CreateIndex() about lpdbOrdCondInfo
+    % improved strategy for 'lock locking': send a note to all clients and
+      wait that all have responded to be in backup-mode in given timespan.
+      If not, send 'backup-end' note to all -- else apply the final lock.
+      Also lock the server against new connections, as such new client not
+      in backup-mode will run into 'not allowed' actions very probably not
+      covered by client application, so better to refuse a new connection.
+      ; suggest: prepare applications to handle LETO_ERR_LOCKED during
+        Leto_Connect() by e.g. offering a loop to re-try to connect
+    ! fix a crash for auto-locking leto_dbEval(), wrongly checked for a
+      non-existent JOIN-array length
+
+  + tests/test_filt.prg
+    * adding a 'RELATION TO' test
+
+  - utils/backup/readme.txt
+  - utils/backup/readme_rus.txt
+  + utils/backup/srv_linux.ini
+  + utils/backup/srv_win.ini
+  * utils/backup/letobackup.hbp
+  * utils/backup/letobackup.prg
+
+  * utils/manager/console.prg
+    % show alert message for 'Lock locking' as long as its tried
+      ; you may not even see the alert box as fast it perhaps happens ;-)
+      ; note that 'Lock server' is about locking against new connections,
+        a subitem of 'Lock locking' and not choose-able after 'Lock locking'
+
 2019-03-26 22:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     ! tiny fix for new leto_ProcessRun() when called without an active WA,
@@ -14,12 +71,12 @@
   * source/client/letomgmn.c
   * source/server/letofunc.c
   * source/server/server.prg
-    + iResult := leto_ProcessRun( cCommand,, [@cStdOut], [@cStdErr] )
+    + nResult := leto_ProcessRun( cCommand,, [@cStdOut], [@cStdErr] )
       as a hb_ProcessRun(), but running at server at DataPath work-directory
       and storing outputs into cStdout/ cStderr if passed by [@] reference
       ; note that it *maybe* need a OS dependend prefixe, like
-        for Windows: "cmd -c 'cCommand' "
-        for Unix:    "/bin/bash -c 'cCommand' "
+        for Windows: 'cmd /C "cCommand"'
+        for Unix:    '/bin/bash -c "cCommand"'
 
   * include/funcleto.h
   * include/letocl.h

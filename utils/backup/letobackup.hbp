@@ -1,12 +1,19 @@
+-n
+-w3
+-q0
+-es0
+-mt
+-strip
 
--inc
+{!win}-static
+{win}-fullstatic
+{mingw64}-pic
 
--lrddleto
--i../../include
--o../../bin/letobackup
--w2
--gtxwc
-#-b
+{linux}-gtxwc
+{win}-gtwvt
+
+../../letodb.hbc
 
 letobackup.prg
 ../../source/common/common.prg
+

@@ -126,7 +126,7 @@ extern HB_USHORT leto_ActiveUser( void );
 extern HB_USHORT leto_MaxUsers( void );
 extern int iDebugMode( void );
 extern const char * leto_sDirBase( void );
-extern HB_BOOL leto_ConnectIsLock( void );
+extern HB_BOOL leto_ConnectIsLock( int iLock );
 
 extern PUSERSTRU letoGetsUStru( void );
 extern PUSERSTRU leto_InitUS( HB_SOCKET hSocket );
@@ -605,6 +605,7 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
 
    if( ! pUStru->bNoAnswer )
    {
+
       if( pUStru->ulSndBufLen < ulLen + LETO_MSGSIZE_LEN )
       {
          pUStru->ulSndBufLen = ulLen + LETO_MSGSIZE_LEN;
@@ -690,8 +691,11 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
       if( bDelayedError )
       {
          if( pUStru->ulBytesSend )
-            leto_wUsLog( pUStru, -1, "DEBUG delayed error send: %s",
-                         ( const char * ) ( pUStru->pSendBuffer + LETO_MSGSIZE_LEN ) );
+         {
+            if( iError != LETO_CLIENT_LOCKON && iError != LETO_CLIENT_LOCKWAIT && iError != LETO_CLIENT_LOCKOFF )
+               leto_wUsLog( pUStru, -1, "DEBUG delayed error send: %s",
+                            ( const char * ) ( pUStru->pSendBuffer + LETO_MSGSIZE_LEN ) );
+         }
          else
             leto_wUsLog( pUStru, 0, "ERROR could not send error message at extra socket !" );
       }
@@ -2243,7 +2247,7 @@ HB_FUNC( LETO_SERVER )
          continue;
 
       /* local connection can log-in into even into locked server */
-      if( leto_ConnectIsLock() && incoming != HB_NO_SOCKET && ! bExtraWait )
+      if( leto_ConnectIsLock( 0 ) && incoming != HB_NO_SOCKET && ! bExtraWait && ! bSocketErr )
       {
          char szMsg[ LETO_MSGSIZE_LEN + 15 + 1 ];
 
@@ -2256,6 +2260,9 @@ HB_FUNC( LETO_SERVER )
          leto_SockSend( incoming, szMsg, LETO_MSGSIZE_LEN + 15, NULL, 0 );
 #endif
          hb_vmLock();
+         if( iDebugMode() > 0 )
+            leto_writelog( NULL, -1, "INFO  server locked, notice send to %s:%d",
+                                     szAddr, hb_socketAddrGetPort( pSockAddr, uiLen ) );
 
          hb_socketClose( incoming );
       }

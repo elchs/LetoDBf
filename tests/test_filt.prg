@@ -45,7 +45,7 @@ Function Main( cPath )
 
    USE ( cPath + "test1" ) NEW
    IF ! NetErr() .AND. ! EMPTY( ALIAS() )
-      ? "File has been opened"
+      ? "File has been opened as", Iif( DBINFO( DBI_ISTEMPORARY ), "temporary", "persistent" ), "table"
    ELSE
       ? "ERROR opening database! -- press any key to quit"
       Inkey( 0 )
@@ -67,11 +67,18 @@ Function Main( cPath )
                  MINFO WITH STR( ii ) + STR( i )
       NEXT i
    NEXT ii
+   REPLACE MINFO WITH "AleXi-in the memo"
    ? LEN( aNames ) * 21, "Records has been added"
    INDEX ON NAME TAG NAME
    ? "INDEX KEY 1:", IndexKey( 1 )
+#ifdef RDDLETO_CH_
+   ?? ",", Iif( DBORDERINFO( DBOI_TEMPORARY ), "temporary", "persistent" )
+#endif
    INDEX ON NUM TAG NUM ADDITIVE
    ? "INDEX KEY 2:", IndexKey( 2 )
+#ifdef RDDLETO_CH_
+   ?? ",", Iif( DBORDERINFO( DBOI_TEMPORARY ), "temporary", "persistent" )
+#endif
    ? "File has been indexed; "
 
    ?? DBORDERINFO( DBOI_ORDERCOUNT )
@@ -126,9 +133,9 @@ Function Main( cPath )
    ?
 #ifndef __XHARBOUR__  /* -> RTE cause of missing filter sync */
    SET( _SET_FORCEOPT, .T. )
+   ? "with FORCEOPT = .T."
 #endif
    SET FILTER TO NUM >= nNumTop .AND. NUM <= nNumBot
-   ? "with FORCEOPT = .T."
    ? DbFilter()
    ? "--> optimized:", LETO_ISFLTOPTIM()
 
@@ -181,6 +188,46 @@ Function Main( cPath )
    ENDDO
    ? "count     ", i, Iif( i == 42, "- Ok","- Failure" )
 
+   SET FILTER TO LETO_FTS( cName, .T. )
+   ?
+   ? DbFilter(), "; '" + cName + "' $ NAME", " - optimized:", LETO_ISFLTOPTIM()
+   GO TOP
+   ? "go top    ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Alexander", "- Ok","- Failure" )
+
+   GO BOTTOM
+   ? "go bottom ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Sergey" .AND. LEFT( MINFO, 5 ) == "AleXi" , "- Ok","- Failure" )
+
+   SEEK "Petr"
+   ? "seek      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+
+   i := 0
+   GO TOP
+   DO WHILE ! EOF()
+      i++
+      SKIP
+   ENDDO
+   ? "count     ", i, Iif( i == 43, "- Ok","- Failure" )
+
+   SET FILTER TO LETO_FTS( "AleX", .T. )
+   ?
+   ? DbFilter(), "; '" + cName + "' $ NAME", " - optimized:", LETO_ISFLTOPTIM()
+   GO TOP
+   ? "go top    ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Alexander", "- Ok","- Failure" )
+
+   GO BOTTOM
+   ? "go bottom ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Sergey" .AND. LEFT( MINFO, 5 ) == "AleXi" , "- Ok","- Failure" )
+
+   SEEK "Petr"
+   ? "seek      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+
+   i := 0
+   GO TOP
+   DO WHILE ! EOF()
+      i++
+      SKIP
+   ENDDO
+   ? "count     ", i, Iif( i == 43, "- Ok","- Failure" )
+
    ?
    ? "Press any key to continue..."
    Inkey( 0 )
@@ -215,15 +262,52 @@ Function Main( cPath )
    ? "seek      ", NUM, NAME, DINFO, Iif( ALLTRIM( NAME ) == "Konstantin", "- Ok","- Failure" )
    SEEK "Petr"
    ? "seek      ", NUM, NAME, DINFO, Iif( EOF(), "- Ok","- Failure" )
+   SET SCOPE TO
 
    ?
    ? "Press any key to continue..."
    Inkey( 0 )
+
+   ? "Copy table to test2.dbf and open it ..."
+   COPY TO test2 FOR "e" $ test1->name
+   IF DBUSEAREA( .T.,, "test2",, .F. )
+      INDEX ON NAME TAG NAME
+      ? "INDEX KEY 1:", IndexKey( 1 )
+#ifdef RDDLETO_CH_
+      ?? ",", Iif( DBORDERINFO( DBOI_TEMPORARY ), "temporary", "persistent" )
+#endif
+      INDEX ON NUM TAG NUM TEMPORARY ADDITIVE
+      ? "INDEX KEY 2:", IndexKey( 2 )
+#ifdef RDDLETO_CH_
+      ?? ",", Iif( DBORDERINFO( DBOI_TEMPORARY ), "temporary", "persistent" )
+#endif
+      ORDSETFOCUS( "name" )
+
+      SELECT test1
+      SET RELATION TO name INTO test2
+      ? "Set relation on test1 ->", DBRELATION(), "INTO test2"
+      GO TOP
+      i := 0
+      ? "Checking relation is working:"
+      DO WHILE ! EOF()
+         IF "e" $ name
+            IF test1->name != test2->name
+               i++
+            ENDIF
+         ELSEIF ! test2->( EOF() )
+            i++
+         ENDIF
+         SKIP
+      ENDDO
+      ?? Iif( i == 0, "- Ok","- Failure" )
+   ENDIF
+
    dbCloseAll()
 
    ?
    ? "dropping test DBF: "
    ?? Iif( DbDrop( cPath + "test1" ), "- Ok","- Failure" )
+   ?? Iif( DbDrop( cPath + "test2" ), "- Ok","- Failure" )
 
    ?
    ? "Press any key to finish ..."

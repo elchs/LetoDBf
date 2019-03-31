@@ -120,6 +120,9 @@ typedef struct _LETOTAGINFO
    char *            TagName;
    char *            KeyExpr;
    char *            ForExpr;
+   char *            WhileExpr;
+   char *            UseIndex;
+   HB_U32            uiFlags;           
    HB_BOOL           fUniqueKey;
    HB_BOOL           fProduction;     /* CDX auto opened order[s] */
    unsigned char     cKeyType;
@@ -180,6 +183,7 @@ typedef struct _LETOTABLE
    signed char       BufDirection;
    unsigned long     lLastUpdate;       /* from dbf header: last update */
    int               iBufRefreshTime;   /* cache refresh time in 1/1000 sec */
+   HB_BOOL           fTemporary;        /* temporary file */
    HB_BOOL           fMemIO;            /* 'mem:' in filename */
    HB_BOOL           fAutoRefresh;      /* if true fetch autorefresh data from server if hotbuffer elapsed */
    HB_BOOL           fModStamp;         /* table with B_FT_MODTIME/ HB_FT_ROWVER fields */

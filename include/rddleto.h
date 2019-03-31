@@ -214,6 +214,7 @@ typedef struct _LETOAREA_
    char *      szDataFileName;         /* case sensitive name of data file */
    HB_BOOL     fTransRec;              /* active target WA for transition */
    HB_BOOL     fTemporary;             /* temporary table */
+   PHB_ITEM    abFilterText;           /* the non-optimized filter expression */
    PHB_ITEM    pWhoCares;
 
 } LETOAREA;
