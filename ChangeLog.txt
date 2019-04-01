@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-04-01 21:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    ! fix wrong mutex call in leto_ServerTryLock()
+    * add feedback ( in server letodbf.log ) which client is single thread
+
+  * rddleto.hbp
+  * rddletoaddon.hbp
+    * add '-mt' mutithread switch ( even it should not change something )
+
 2019-03-31 17:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; * rebuild server AND client (lib & apps) to use changes about backup-mode
 

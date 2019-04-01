@@ -3471,7 +3471,7 @@ static void leto_SendBackupInfo( int iStatus, int iUserStru )
 }
 
 /* need HB_GC_LOCKU() */
-static HB_BOOL leto_IsAllWithSocket( int iUserStru )
+static int leto_IsAllWithSocket( int iUserStru )
 {
    HB_BOOL bFine = HB_TRUE;
 
@@ -3487,6 +3487,7 @@ static HB_BOOL leto_IsAllWithSocket( int iUserStru )
          {
             if( pUStru->iUserStru != iUserStru && pUStru->hSocketErr == HB_NO_SOCKET )
             {
+               iUserStru = pUStru->iUserStru;
                bFine = HB_FALSE;
                break;
             }
@@ -3498,7 +3499,9 @@ static HB_BOOL leto_IsAllWithSocket( int iUserStru )
       }
    }
 
-   return bFine;
+   if( bFine )
+      iUserStru = 0;
+   return iUserStru;
 }
 
 /* need HB_GC_LOCKU() */
@@ -5772,18 +5775,21 @@ static HB_BOOL leto_IsAnyLocked( void )
 
 static void leto_ServerTryLock( PUSERSTRU pUStru, int iMilliSecs )
 {
-   int iUserStru = pUStru->iUserStru;
+   int iUserStru = pUStru->iUserStru, iUserSingle;
 
    HB_GC_LOCKU();
 
    leto_ConnectIsLock( 1 );  /* shortly forbid new connections */
-   if( ! leto_IsAllWithSocket( iUserStru ) )
+   if( ( iUserSingle = leto_IsAllWithSocket( iUserStru ) ) != 0 )
    {
       hb_idleSleep( 0.25 );  /* minor more time to established */
-      if( ! leto_IsAllWithSocket( iUserStru ) )
+      if( ( iUserSingle = leto_IsAllWithSocket( iUserStru ) ) != 0 ) 
       {
+         HB_GC_UNLOCKU();
+
          leto_ConnectIsLock( -1 );
-         HB_GC_LOCKU();
+         if( s_iDebugMode > 0 )
+            leto_writelog( NULL, -1, "DEBUG DEBUG connection %d sure not able for backup", iUserSingle - 1 );
 
          return;
       }

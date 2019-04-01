@@ -17,6 +17,7 @@
 -q0
 -es2
 -gc3
+-mt
 -strip
 -rebuild
 -inc-
