@@ -2,6 +2,28 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-04-02 19:04 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/rddsys.prg
+    + new optional options for '.ini' files used for automatic login:
+      "LockRetry" == delay between repeated tries to login to locked server;
+      "LockWait" == seconds in sum to wait for server unlocking,
+      where: "LockWait" = 0 == infinite, < 0 == do not retry and QUIT
+
+  * source/server/server.prg
+  * source/server/letofunc.c
+    * let the server behave as beforehand for 'lock LOCKING' by setting in
+      'letodb.ini': BACKUP_INFO = 0
+    ! fix and improve precision of waiting for successful locking server by
+      using a timer
+    - remove old and problematic UDF LETO_RECLOCKLIST()
+
+  * utils/manager/console.prg
+    * wait for a server lock shorter as console wait for a server response
+
+  * rddleto.hbp
+  * rddletoaddon.hbp
+    - revert last changes to add -mt
+
 2019-04-01 21:21 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     ! fix wrong mutex call in leto_ServerTryLock()
@@ -9,7 +31,7 @@
 
   * rddleto.hbp
   * rddletoaddon.hbp
-    * add '-mt' mutithread switch ( even it should not change something )
+    * add '-mt' multithread switch ( even it should not change something )
 
 2019-03-31 17:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; * rebuild server AND client (lib & apps) to use changes about backup-mode

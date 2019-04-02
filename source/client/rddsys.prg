@@ -110,6 +110,7 @@ INIT PROCEDURE LETO_CONNECTAUTO
    LOCAL cAppIni
    LOCAL nPort
    LOCAL nError
+   LOCAL nLockWait := 30, nLockRetry := 10
 
    hb_FNameSplit( hb_ProgName(), /* @cPath */, @cAppIni, /* cExt */ )
    cAppIni := hb_FNameMerge( /* cPath */, cAppIni, ".ini" )
@@ -150,18 +151,41 @@ INIT PROCEDURE LETO_CONNECTAUTO
          IF hb_HPos( hIni, "PATH_SEARCH" ) > 0
             Set( _SET_PATH, hb_HGet( hIni, "PATH_SEARCH" ) )
          ENDIF
-
-         OutStd( "connecting to LetoDBf " + cServer + " ..." )
-         nConnection := Leto_Connect( cServer, cUser, cPW, nTimeOut, nBufRefr )
-         IF nConnection < 0
-            OutErr( "LetoDBf connect failed of: " + leto_Connect_Err( .T. ) + HB_EOL() )
-            nError := leto_Connect_Err( .F. )
-            IF ! ( nError == LETO_ERR_ACCESS .OR. nError == LETO_ERR_LOGIN )
-               QUIT
+         IF hb_HPos( hIni, "LOCKWAIT" ) > 0
+            nLockWait := VAL( hb_HGet( hIni, "LOCKWAIT" ) )
+         ENDIF
+         IF hb_HPos( hIni, "LOCKRETRY" ) > 0
+            nLockRetry := VAL( hb_HGet( hIni, "LOCKRETRY" ) )
+            IF nLockRetry < 1
+               nLockRetry := 10
             ENDIF
          ENDIF
-      ELSE
+
          nConnection := -1
+         OutStd( "connecting to LetoDBf " + cServer + " ..." )
+         DO WHILE nConnection < 0
+            nConnection := Leto_Connect( cServer, cUser, cPW, nTimeOut, nBufRefr )
+            IF nConnection < 0
+               OutErr( " failed of: " + leto_Connect_Err( .T. ) + HB_EOL() )
+               nError := leto_Connect_Err( .F. )
+               IF nError == LETO_ERR_LOCKED
+                  IF nLockWait < 0
+                     QUIT
+                  ELSE  /* wait for server unlock */
+                     OutErr( "Next retry in " + hb_ntos( nLockRetry ) + " s, " +;
+                             hb_ntos( nLockWait ) + " seconds left for new tries ..." )
+                     hb_IdleSleep( nLockRetry )
+                     IF nLockWait > 0  /* 0 == infinite */
+                        nLockWait -= nLockRetry
+                     ENDIF
+                  ENDIF
+               ELSEIF nError == LETO_ERR_ACCESS .OR. nError == LETO_ERR_LOGIN
+                  EXIT
+               ELSE
+                  QUIT
+               ENDIF
+            ENDIF
+         ENDDO
       ENDIF
 
       cServer := hb_HGetDef( hIni, "SMB_SERVER", "" )

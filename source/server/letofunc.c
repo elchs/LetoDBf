@@ -3504,6 +3504,30 @@ static int leto_IsAllWithSocket( int iUserStru )
    return iUserStru;
 }
 
+static HB_BOOL leto_IsAnyLocked( void )
+{
+   PTABLESTRU pTStru;
+   HB_UINT    uiCount = 0, ui;
+   HB_BOOL    bRet = HB_FALSE;
+
+   HB_GC_LOCKT();
+
+   for( ui = 0, pTStru = s_tables; ui < s_uiTablesAlloc; pTStru++, ui++ )
+   {
+      if( pTStru->szTable && ( pTStru->pGlobe->bLocked || ( pTStru->LocksList.pItem ) ) && pTStru->bShared )
+      {
+         bRet = HB_TRUE;
+         break;
+      }
+      if( ++uiCount >= s_uiTablesCurr )
+         break;
+   }
+
+   HB_GC_UNLOCKT();
+
+   return bRet;
+}
+
 /* need HB_GC_LOCKU() */
 static HB_BOOL leto_IsAnyWaiting( HB_BOOL bUnlock, int iUserStru )
 {
@@ -3532,26 +3556,31 @@ static HB_BOOL leto_IsAnyWaiting( HB_BOOL bUnlock, int iUserStru )
          pUStru++;
       }
    }
+   else if( ! s_bSendBackupInfo && ! bUnlock )
+      bOutstanding = leto_IsAnyLocked();
 
    return bOutstanding;
 }
 
-static void leto_ServerUnlock( PUSERSTRU pUStru )
+static void leto_ServerUnlock( PUSERSTRU pUStru, int iMilliSecs )
 {
-   int iMilliSecs = 21000;
-   int iMilliDelay = 50;
+   HB_U64  llLastAct = leto_MilliSec();
+   HB_BOOL bIncrease = HB_FALSE;
+   int     iMilliDelay = 50;
 
    HB_GC_LOCKU();
 
    leto_SendBackupInfo( LETO_CLIENT_LOCKWAIT, pUStru->iUserStru );
    hb_idleSleep( 0.05 );
 
-   while( leto_IsAnyWaiting( HB_TRUE, pUStru->iUserStru ) && iMilliSecs > 0 )
+   while( ( int ) leto_MilliDiff( llLastAct ) < iMilliSecs && leto_IsAnyWaiting( HB_TRUE, pUStru->iUserStru ) )
    {
-      if( iMilliSecs == 20000 )
+      if( ! bIncrease && ( long ) leto_MilliDiff( llLastAct ) > 1000 )
+      {
          iMilliDelay *= 5;
+         bIncrease = HB_TRUE;
+      }
       hb_idleSleep( iMilliDelay / 1000 );
-      iMilliSecs -= iMilliDelay;
    }
    s_iUserLock = -1;
    leto_ConnectIsLock( -1 );
@@ -3589,7 +3618,7 @@ void leto_CloseUS( PUSERSTRU pUStru )
       pUStru->ulBufCryptLen = 0;
    }
    if( pUStru->iUserStru == s_iUserLock )
-      leto_ServerUnlock( pUStru );
+      leto_ServerUnlock( pUStru, 20000 );
 
    if( pUStru->hSocketErr != HB_NO_SOCKET )
       hb_socketShutdown( pUStru->hSocketErr, HB_SOCKET_SHUT_RDWR );
@@ -5749,41 +5778,19 @@ static void leto_RecUnlock( PAREASTRU pAStru, HB_ULONG ulRecNo )
    }
 }
 
-static HB_BOOL leto_IsAnyLocked( void )
-{
-   PTABLESTRU pTStru;
-   HB_UINT    uiCount = 0, ui;
-   HB_BOOL    bRet = HB_FALSE;
-
-   HB_GC_LOCKT();
-
-   for( ui = 0, pTStru = s_tables; ui < s_uiTablesAlloc; pTStru++, ui++ )
-   {
-      if( pTStru->szTable && ( pTStru->pGlobe->bLocked || ( pTStru->LocksList.pItem ) ) && pTStru->bShared )
-      {
-         bRet = HB_TRUE;
-         break;
-      }
-      if( ++uiCount >= s_uiTablesCurr )
-         break;
-   }
-
-   HB_GC_UNLOCKT();
-
-   return bRet;
-}
-
 static void leto_ServerTryLock( PUSERSTRU pUStru, int iMilliSecs )
 {
-   int iUserStru = pUStru->iUserStru, iUserSingle;
+   int    iUserStru = pUStru->iUserStru, iUserSingle;
+   HB_U64 llLastAct = leto_MilliSec();
 
    HB_GC_LOCKU();
 
-   leto_ConnectIsLock( 1 );  /* shortly forbid new connections */
-   if( ( iUserSingle = leto_IsAllWithSocket( iUserStru ) ) != 0 )
+   if( s_bSendBackupInfo )
+      leto_ConnectIsLock( 1 );  /* shortly forbid new connections */
+   if( s_bSendBackupInfo && ( iUserSingle = leto_IsAllWithSocket( iUserStru ) ) != 0 )
    {
       hb_idleSleep( 0.25 );  /* minor more time to established */
-      if( ( iUserSingle = leto_IsAllWithSocket( iUserStru ) ) != 0 ) 
+      if( ( iUserSingle = leto_IsAllWithSocket( iUserStru ) ) != 0 )
       {
          HB_GC_UNLOCKU();
 
@@ -5795,19 +5802,20 @@ static void leto_ServerTryLock( PUSERSTRU pUStru, int iMilliSecs )
       }
    }
 
-   leto_SendBackupInfo( LETO_CLIENT_LOCKON, iUserStru );
-   while( iMilliSecs > 0 && leto_IsAnyWaiting( HB_FALSE, iUserStru ) )
+   if( s_bSendBackupInfo )
+      leto_SendBackupInfo( LETO_CLIENT_LOCKON, iUserStru );
+   else
+      s_iUserLock = iUserStru;
+   while( ( int ) leto_MilliDiff( llLastAct ) < iMilliSecs && leto_IsAnyWaiting( HB_FALSE, iUserStru ) )
    {
       hb_idleSleep( 0.1 );
-      iMilliSecs -= 100;
    }
 
-   if( leto_IsAnyWaiting( HB_FALSE, iUserStru ) || leto_IsAnyLocked() )
+   if( leto_IsAnyWaiting( HB_FALSE, iUserStru ) )
    {
       HB_GC_UNLOCKU();
 
-      leto_ServerUnlock( pUStru );
-      leto_ConnectIsLock( -1 );
+      leto_ServerUnlock( pUStru, iMilliSecs );
 
       return;
    }
@@ -5828,7 +5836,7 @@ HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs )
 
       if( ! bLock && bRet &&  /* console or the user who locked */
           ( ! strncmp( ( char * ) pUStru->szExename, "console", 7 ) || ! leto_IsServerLock( pUStru ) ) )
-         leto_ServerUnlock( pUStru );
+         leto_ServerUnlock( pUStru, iSecs * 1000 );
 
       bRet = ( s_iUserLock >= 0 );
    }
@@ -5847,7 +5855,7 @@ HB_FUNC( LETO_TABLELOCK )
       PAREASTRU pAStru = pUStru->pCurAStru;
       HB_ULONG  ulSecs = s_bNoSaveWA && HB_ISNUM( 1 ) ? ( HB_ULONG ) ( hb_parnd( 2 ) * 1000 ) : 0;
 
-      if( pAStru && ! leto_IsServerLock( pUStru ) )
+      if( pAStru )
       {
          bRet = leto_TableLock( pAStru, ( int ) ulSecs );
          if( bRet )
@@ -5882,7 +5890,7 @@ HB_FUNC( LETO_RECLOCK )
 {
    PUSERSTRU pUStru = letoGetUStru();
 
-   if( pUStru->pCurAStru && ! leto_IsServerLock( pUStru ) )
+   if( pUStru->pCurAStru )
    {
       PAREASTRU pAStru = pUStru->pCurAStru;
       HB_ULONG  ulRecNo = 0;
@@ -5908,35 +5916,6 @@ HB_FUNC( LETO_RECLOCK )
       }
       else
          hb_retl( HB_FALSE );
-   }
-   else
-      hb_retl( HB_FALSE );
-}
-
-/* leto_udf() */
-HB_FUNC( LETO_RECLOCKLIST )
-{
-   PUSERSTRU pUStru = letoGetUStru();
-
-   if( pUStru->pCurAStru && ! pUStru->pCurAStru->bLocked && HB_ISARRAY( 1 ) && ! leto_IsServerLock( pUStru ) )
-   {
-      PAREASTRU pAStru = pUStru->pCurAStru;
-      PHB_ITEM  pArray = hb_param( 1, HB_IT_ARRAY );
-      HB_SIZE   nSize = hb_arrayLen( pArray ), n, n2;
-      int       iTimeOut = HB_ISNUM( 2 ) ? ( int ) ( hb_parnd( 2 ) * 1000 ) : 0 ;
-      HB_BOOL   bLocked = HB_TRUE;
-
-      for( n = 1; n <= nSize; ++n )
-      {
-         if( ! leto_RecLock( pUStru, pAStru, hb_arrayGetNL( pArray, n ), HB_FALSE, iTimeOut ) )
-         {
-            for( n2 = 1; n2 < n; ++n2 )
-               leto_RecUnlock( pAStru, hb_arrayGetNL( pArray, n2 ) );
-            bLocked = HB_FALSE;
-            break;
-         }
-      }
-      hb_retl( bLocked );
    }
    else
       hb_retl( HB_FALSE );

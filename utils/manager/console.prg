@@ -63,6 +63,8 @@
 #define CHR_FOOTSEP   CHR( 205 ) + CHR( 202 ) + CHR( 205 )
 #define CHR_COLSEP    " " + CHR( 186 ) + " "
 
+#define SRV_TIMEOUT   21
+
 REQUEST LETO
 REQUEST RDDInfo
 
@@ -163,7 +165,7 @@ FUNCTION Main( cAddress, cUser, cPasswd )
 
    ? "Connecting to " + cAddress
    /* LETO_CONNECT( cAddress, [ cUserName ], [ cPassword ], [ nTimeOut ], [ nBufRefreshTime ], [ lZombieCheck ] ) */
-   IF leto_Connect( cAddress, cUser, cPasswd, 21000, , .T. ) == -1
+   IF leto_Connect( cAddress, cUser, cPasswd, SRV_TIMEOUT * 1000, , .T. ) == -1
       TimedALERT( leto_Connect_Err( .T. ), 3 )
       RETURN Nil
    ELSE
@@ -1428,6 +1430,8 @@ STATIC FUNCTION Administrate( nConnection )
                ENDIF
                TimedAlert( "LetoDBf server lock/ unlock: " + IIF( ! bLocked, "failed", "successful" ), 2,;
                             IIF( bLocked,"W+/G", "W+/R" ) )
+            ELSE
+               TimedAlert( "LetoDBf server locked for locking, unlock not possible", 2, "W+/R" )
             ENDIF
          CASE nMenu == 9
             ViewLogs( nConnection )
@@ -1436,13 +1440,14 @@ STATIC FUNCTION Administrate( nConnection )
          CASE nMenu == 11
             aSaveAlert := TimedAlert( "LetoDBf server try to : " + IIF( bRLocked, "unlock", "lock" ) + " locking", 0, "W+/B" )
             IF bRLocked
-               bRLocked := leto_LockLock( .F. )
+               bRLocked := leto_LockLock( .F., SRV_TIMEOUT - 6 )
             ELSE
-               bRLocked := leto_LockLock( .T. )
+               bRLocked := leto_LockLock( .T., SRV_TIMEOUT - 6 )  /* to restore if failed will need some more seconds */
             ENDIF
             RESTSCREEN( aSaveAlert[ 1 ], aSaveAlert[ 2 ], aSaveAlert[ 3 ], aSaveAlert[ 4 ], aSaveAlert[ 5 ] )
             TimedAlert( "LetoDBf server lock/ unlock locking: " + IIF( ! bRLocked, "failed", "successful" ), 2,;
                          IIF( bRLocked,"W+/G", "W+/R" ) )
+            CLEAR TYPEAHEAD
          CASE nMenu == 0
             EXIT
          CASE nMenu == LEN( aMenu )
