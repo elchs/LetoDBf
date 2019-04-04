@@ -455,6 +455,9 @@ HB_ERRCODE delayedError( void )
             hb_errRelease( pError );
             pError = NULL;
 
+   #ifdef LETO_CLIENTLOG
+            leto_clientlog( NULL, 0, "delayedError( %d ) for backup", errCode );
+   #endif
             if( errCode == LETO_CLIENT_LOCKON )
                errCode = leto_BackupStart( ( errSubCode == ( HB_ERRCODE ) -4 ) );
             else
@@ -2916,6 +2919,8 @@ static HB_THREAD_STARTFUNC( leto_elch )
    int              nfds = ( int ) hSocket;
 #ifdef LETO_CLIENTLOG
    unsigned int     uiConnection = pConnection->iConnection;
+
+   leto_clientlog( NULL, 0, "DEBUG thread leto_elch( %u ) started", uiConnection );
 #endif
 
    /* without HVM ! */
@@ -3027,7 +3032,7 @@ static HB_THREAD_STARTFUNC( leto_elch )
          }
          else if( *ptr == '-' )  /* should be an error */
          {
-            int    iError = 0;
+            int    iError = 0, iErrorCode = 0;
             char * pTmp, * pTmp2;
             char * pp[ 9 ];
             int    i, iCount = 0;
@@ -3080,7 +3085,10 @@ static HB_THREAD_STARTFUNC( leto_elch )
 
                   case 2:
                      if( pp[ i ] )
-                        hb_errPutGenCode( s_pError, atoi( pp[ i ] ) );
+                     {
+                        iErrorCode = atoi( pp[ i ] );
+                        hb_errPutGenCode( s_pError, iErrorCode );
+                     }
                      break;
 
                   case 3:
@@ -3122,12 +3130,16 @@ static HB_THREAD_STARTFUNC( leto_elch )
             {
                hb_errRelease( s_pError );
                s_pError = NULL;
-#ifdef LETO_CLIENTLOG
-               leto_clientlog( NULL, 0, "%s -- %d\n", "non valid error send (%d) ...", iError );
-#endif
             }
 
             HB_GC_UNLOCKE();
+
+#ifdef LETO_CLIENTLOG
+            if( ! iError )
+               leto_clientlog( NULL, 0, "invalid error received : %d (%d)", iError, iErrorCode );
+            else
+               leto_clientlog( NULL, 0, "valid error received : %d (%d)", iError, iErrorCode );
+#endif
          }
       }
    }

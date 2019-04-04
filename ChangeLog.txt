@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-04-04 23:24 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/server/letofunc.c
+    % HB_BOOL ==> void leto_TableUnlock(); [ called by leto_CloseArea() ]
+      leto_RecUnlock( ..., pArea );        [ called by leto_Unlock() ]
+      ; nice cleanup after above changes
+    + erase old production [ same named ] index along creating a new table
+
+  * include/letocl.h
+    * minor few debug feedback about delayed error
+
 2019-04-02 19:04 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/rddsys.prg
     + new optional options for '.ini' files used for automatic login:

@@ -3135,19 +3135,9 @@ static HB_BOOL leto_TableLock( PAREASTRU pAStru, int iTimeOut )
 }
 
 /* unlock all record locks of *one* connection and also maybe a file lock */
-static HB_BOOL leto_TableUnlock( PAREASTRU pAStru, HB_BOOL bOnlyRecLocks, AREAP pArea )
+static void leto_TableUnlock( PAREASTRU pAStru, HB_BOOL bOnlyRecLocks, AREAP pArea )
 {
-   if( pArea == NULL )
-   {
-      pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
-      if( ! pArea )  /* should never happen */
-      {
-         leto_writelog( NULL, -1, "ERROR leto_TableUnlock() bSaveNoWA missing area! %s", pAStru->szAlias );
-         return HB_FALSE;
-      }
-   }
-
-   if( pAStru->pTStru->bShared )
+   if( pArea && pAStru->pTStru->bShared )
    {
       if( s_bNoSaveWA && ! pAStru->pTStru->bMemIO )
       {
@@ -3155,7 +3145,8 @@ static HB_BOOL leto_TableUnlock( PAREASTRU pAStru, HB_BOOL bOnlyRecLocks, AREAP 
          if( ! bOnlyRecLocks )
          {
             SELF_UNLOCK( pArea, NULL );
-            pAStru->pTStru->pGlobe->bLocked = pAStru->bLocked = HB_FALSE;
+            if( pAStru->bLocked )
+               pAStru->pTStru->pGlobe->bLocked = pAStru->bLocked = HB_FALSE;
             if( pAStru->pTStru->LocksList.pItem )
             {
                letoListLock( &pAStru->pTStru->LocksList );
@@ -3225,8 +3216,6 @@ static HB_BOOL leto_TableUnlock( PAREASTRU pAStru, HB_BOOL bOnlyRecLocks, AREAP 
          }
       }
    }
-
-   return HB_TRUE;
 }
 
 /* HB_GC_LOCKT() moved into this from callers */
@@ -3287,10 +3276,11 @@ static HB_BOOL leto_CloseArea( PUSERSTRU pUStru, PAREASTRU pAStru )
    }
    else
    {
+      AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
       LETOTAG *  pTag, * pTagNext;
       PINDEXSTRU pIStru;
 
-      leto_TableUnlock( pAStru, HB_FALSE, NULL );
+      leto_TableUnlock( pAStru, HB_FALSE, pArea );
 
       pTag = pAStru->pTag;
       while( pTag )
@@ -3533,31 +3523,34 @@ static HB_BOOL leto_IsAnyWaiting( HB_BOOL bUnlock, int iUserStru )
 {
    HB_BOOL bOutstanding = HB_FALSE;
 
-   if( s_uiUsersCurr > 0 && s_bSendBackupInfo )
+   if( s_uiUsersCurr > 0 )
    {
-      PUSERSTRU pUStru = s_users;
-      HB_USHORT uiChecked = 0;
-      HB_USHORT uiLoop = 0;
-
-      while( uiLoop < s_uiUsersAlloc )
+      if( s_bSendBackupInfo )
       {
-         if( pUStru->iUserStru )
+         PUSERSTRU pUStru = s_users;
+         HB_USHORT uiChecked = 0;
+         HB_USHORT uiLoop = 0;
+
+         while( uiLoop < s_uiUsersAlloc )
          {
-            if( pUStru->iUserStru != iUserStru &&
-                ( bUnlock ? pUStru->bNeedRestoreLock : ! pUStru->bNeedRestoreLock ) )
+            if( pUStru->iUserStru )
             {
-               bOutstanding = HB_TRUE;
-               break;
+               if( pUStru->iUserStru != iUserStru &&
+                   ( bUnlock ? pUStru->bNeedRestoreLock : ! pUStru->bNeedRestoreLock ) )
+               {
+                  bOutstanding = HB_TRUE;
+                  break;
+               }
+               if( ++uiChecked >= s_uiUsersCurr )
+                  break;
             }
-            if( ++uiChecked >= s_uiUsersCurr )
-               break;
+            uiLoop++;
+            pUStru++;
          }
-         uiLoop++;
-         pUStru++;
       }
+      else if( ! bUnlock )
+         bOutstanding = leto_IsAnyLocked();
    }
-   else if( ! s_bSendBackupInfo && ! bUnlock )
-      bOutstanding = leto_IsAnyLocked();
 
    return bOutstanding;
 }
@@ -5734,7 +5727,7 @@ static HB_BOOL leto_RecLock( PUSERSTRU pUStru, PAREASTRU pAStru, HB_ULONG ulRecN
    }
 }
 
-static void leto_RecUnlock( PAREASTRU pAStru, HB_ULONG ulRecNo )
+static void leto_RecUnlock( PAREASTRU pAStru, HB_ULONG ulRecNo, AREAP pArea )
 {
    PTABLESTRU pTStru = pAStru->pTStru;
 
@@ -5744,11 +5737,9 @@ static void leto_RecUnlock( PAREASTRU pAStru, HB_ULONG ulRecNo )
       /* Simply unlock the record with the standard RDD method */
       if( pAStru->pTStru->bShared || ! pAStru->bLocked )
       {
-         AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
          PHB_ITEM pItem = hb_itemPutNL( NULL, ulRecNo );
 
-         if( pArea )
-            SELF_UNLOCK( pArea, pItem );
+         SELF_UNLOCK( pArea, pItem );
          hb_itemRelease( pItem );
 
          letoDelRecFromListTS( &pTStru->LocksList, ulRecNo );
@@ -5763,13 +5754,9 @@ static void leto_RecUnlock( PAREASTRU pAStru, HB_ULONG ulRecNo )
          /* if we work in ShareTables mode, unlock with the standard RDD method */
          if( s_bShareTables && pTStru->bShared && ! pTStru->bMemIO )
          {
-            AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
             PHB_ITEM pItem = hb_itemPutNL( NULL, ulRecNo );
 
-            if( pArea )
-               SELF_UNLOCK( pArea, pItem );
-            else
-               leto_writelog( NULL, 0, "ERROR leto_RecUnlock() no workarea " );
+            SELF_UNLOCK( pArea, pItem );
             hb_itemRelease( pItem );
          }
 
@@ -5873,12 +5860,13 @@ HB_FUNC( LETO_TABLEUNLOCK )
 
    if( pUStru->pCurAStru )
    {
+      AREAP     pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
       PAREASTRU pAStru = pUStru->pCurAStru;
 
-      if( pAStru )
+      if( pArea && pAStru )
       {
          bRet = ! pAStru->pTStru->bShared || pAStru->bLocked ? HB_TRUE : HB_FALSE;
-         leto_TableUnlock( pAStru, HB_FALSE, NULL );  /* also record locks */
+         leto_TableUnlock( pAStru, HB_FALSE, pArea );  /* also record locks */
          pAStru->pTStru->ulFlags = 0;
       }
    }
@@ -5926,25 +5914,21 @@ HB_FUNC( LETO_RECUNLOCK )
 {
    HB_BOOL   bRet   = HB_FALSE;
    PUSERSTRU pUStru = letoGetUStru();
+   AREAP     pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
 
-   if( pUStru->pCurAStru )
+   if( pArea && pUStru->pCurAStru )
    {
       HB_ULONG ulRecNo = 0;
 
       if( HB_ISNUM( 1 ) )
          ulRecNo = hb_parnl( 1 );
       else
-      {
-         AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+         SELF_RECNO( pArea, &ulRecNo );
 
-         if( pArea )
-            SELF_RECNO( pArea, &ulRecNo );
-      }
-
-      if( ulRecNo )
+      if( ulRecNo > 0 )
       {
          bRet = leto_IsRecLocked( pUStru->pCurAStru, ulRecNo );
-         leto_RecUnlock( pUStru->pCurAStru, ulRecNo );
+         leto_RecUnlock( pUStru->pCurAStru, ulRecNo, pArea );
       }
    }
    hb_retl( bRet );
@@ -6033,26 +6017,24 @@ static void leto_Lock( PUSERSTRU pUStru, char * szData )
 
 static void leto_Unlock( PUSERSTRU pUStru, char * szData )
 {
+   AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    HB_ULONG ulRecNo = 0;
 
    if( *szData == 'r' && ( ulRecNo = strtoul( szData + ( *( szData + 1 ) == ';' ? 2 : 1 ), NULL, 10 ) ) == 0 )
       leto_SendAnswer2( pUStru, szErr2, 4, HB_FALSE, 1000 );
-   else if( ! pUStru->pCurAStru )
+   else if( ! pArea || ! pUStru->pCurAStru )
       leto_SendAnswer2( pUStru, szErr2, 4, HB_FALSE, 1000 );
    else
    {
-      int iRes = 0;
-
       switch( *szData )
       {
          case 'r':  /* Delete record from the area/ table locks lists */
-            leto_RecUnlock( pUStru->pCurAStru, ulRecNo );
+            leto_RecUnlock( pUStru->pCurAStru, ulRecNo, pArea );
             if( ! pUStru->pCurAStru->pTStru->bModStamp )
-               leto_SendAnswer2( pUStru, szOk, 4, ! iRes, iRes );
+               leto_SendAnswer2( pUStru, szOk, 4, HB_TRUE, 0 );
             else
             {
                HB_ULONG ulLen;
-               AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
                char *   szData1 = leto_recWithAlloc( pArea, pUStru, pUStru->pCurAStru, &ulLen );
 
                if( szData1 )
@@ -6066,21 +6048,15 @@ static void leto_Unlock( PUSERSTRU pUStru, char * szData )
             break;
 
          case 'f':  /* Unlock table */
-            iRes = leto_TableUnlock( pUStru->pCurAStru, HB_FALSE, NULL ) ? 0 : 1021;  /* also record locks */
+            leto_TableUnlock( pUStru->pCurAStru, HB_FALSE, pArea );  /* also record locks */
             if( ! pUStru->pCurAStru->pTStru->bModStamp )
-            {
-               if( ! iRes )
-                  leto_SendAnswer2( pUStru, szOk, 4, ! iRes, iRes );
-               else
-                  leto_SendAnswer2( pUStru, szErr4, 4, HB_FALSE, 1021 );
-            }
+               leto_SendAnswer2( pUStru, szOk, 4, HB_TRUE, 0 );
             else
             {
                HB_ULONG ulLen;
-               AREAP    pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
                char *   szData1 = leto_recWithAlloc( pArea, pUStru, pUStru->pCurAStru, &ulLen );
 
-               if( szData1 && ! iRes )
+               if( szData1 )
                {
                   leto_SendAnswer( pUStru, szData1, ulLen );
                   hb_xfree( szData1 );
@@ -6628,6 +6604,7 @@ static void leto_UpdateRec( PUSERSTRU pUStru, const char * szData, HB_BOOL bAppe
       leto_SendAnswer( pUStru, pData, ulLen ? ulLen : strlen( pData ) );
    else
       leto_SendAnswer2( pUStru, pData, ulLen ? ulLen : strlen( pData ), ! iRes, iRes < 1000 ? iRes + 1000 : iRes );
+
    if( szData2 )
       hb_xfree( szData2 );
 }
@@ -15592,6 +15569,37 @@ static void leto_CreateTable( PUSERSTRU pUStru, char * szRawData )
             {
                if( bTemporary || bTempTable )
                   ( s_tables + iTableStru )->bTemporary = HB_TRUE;
+#ifndef __HARBOUR30__
+               else if( leto_ProdSupport( szDriver ) )  /* existing old production index to drop ? */
+               {
+                  char szProdIndex[ HB_PATH_MAX ];
+
+                  if( bTemporary || bTempTable )
+                     ( s_tables + iTableStru )->bTemporary = HB_TRUE;
+
+                  strcpy( szProdIndex, szFile );
+                  ptr = strrchr( szProdIndex, '.' );
+                  if( ptr )
+                  {
+                     char szEraseIndex[ HB_PATH_MAX ];
+                     char szExt[ HB_MAX_FILE_EXT + 1 ];
+
+                     leto_RddiGetValue( szDriver, RDDI_ORDBAGEXT, szExt );
+                     strcpy( ptr, szExt );
+                     hb_xfree( szExt );
+                     leto_DataPath( szProdIndex, szEraseIndex );
+                     if( hb_fileExists( szEraseIndex, NULL ) )
+                     {
+                        HB_BOOL bIsDeleted = hb_fileDelete( szEraseIndex );
+
+                        if( s_iDebugMode > 0 )
+                        leto_wUsLog( pUStru, -1, "DEBUG leto_CreateTable %s %s to drop old index: %s",
+                                                    szFile, bIsDeleted ? "success" : "FAIL", szProdIndex );
+                     }
+                  }
+               }
+#endif
+
                HB_GC_UNLOCKT();
                bUnlocked = HB_TRUE;
                if( ! ulSelectID )
