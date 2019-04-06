@@ -75,7 +75,7 @@ static HB_BOOL   s_fLockConnect = HB_FALSE;
 extern int iDebugMode( void );
 extern int leto_GetParam( char * szData, ... );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
-extern HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs );
+extern HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs, int iDelay );
 extern HB_BOOL leto_CheckPass( int iType );
 extern void leto_wUsLog( PUSERSTRU pUStru, int n, const char* s, ... );
 
@@ -898,8 +898,11 @@ void leto_Admin( PUSERSTRU pUStru, char * szData )
 
             if( *pp1 != '?' )
             {
+               int iWait = pp2 ? atoi( pp2 ) : 1;
+               int iDelay = pp3 ? atoi( pp3 ) : 0;
+
                bLock = ( *pp1 == 'T' );
-               bLock = leto_ServerLock( pUStru, bLock, atoi( pp2 ) );
+               bLock = leto_ServerLock( pUStru, bLock, iWait, iDelay );
                if( *pp1 == 'T' )
                   pData = bLock ? szOk : szErr4;
                else
@@ -907,7 +910,7 @@ void leto_Admin( PUSERSTRU pUStru, char * szData )
             }
             else
             {
-               bLock = leto_ServerLock( NULL, HB_FALSE, 0 );
+               bLock = leto_ServerLock( NULL, HB_FALSE, 0, 0 );
                pData = bLock ? szOk : szErr4;
             }
          }

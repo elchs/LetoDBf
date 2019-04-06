@@ -4,7 +4,7 @@
  * Copyright 2013 Alexander S. Kresin <alex / at / kresin.ru>
  * www - http://www.kresin.ru
  *
- *           2015-18 Rolf 'elch' Beckmann
+ *           2015-19 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -418,7 +418,7 @@ static PHB_ITEM leto_cloneError( PHB_ITEM pSourceError )
 
 #if ! defined( __LETO_C_API__ ) && ! defined( LETO_NO_MT )
 
-static HB_ERRCODE leto_BackupStart( HB_BOOL fClose );
+static HB_ERRCODE leto_BackupStart( HB_BOOL fClose, int iDelay );
 
 static void leto_BackupStop( HB_BOOL fOff )
 {
@@ -456,17 +456,22 @@ HB_ERRCODE delayedError( void )
             pError = NULL;
 
    #ifdef LETO_CLIENTLOG
-            leto_clientlog( NULL, 0, "delayedError( %d ) for backup", errCode );
+            leto_clientlog( NULL, 0, "delayedError( %d ) for backup [%d]", errCode, errSubCode );
    #endif
             if( errCode == LETO_CLIENT_LOCKON )
-               errCode = leto_BackupStart( ( errSubCode == ( HB_ERRCODE ) -4 ) );
+            {
+               int     iDelay = ( errSubCode * -1 ) / 10;
+               HB_BOOL fClose = ( errSubCode % 10 == ( HB_ERRCODE ) -4 );
+
+               errCode = leto_BackupStart( fClose, iDelay );
+            }
             else
             {
                leto_BackupStop( ( errCode == LETO_CLIENT_LOCKOFF ) );
                errCode = 0;
             }
             if( errCode )
-               hb_vmRequestQuit();
+               hb_vmQuit();
          }
          else
             errCode = 0;
@@ -481,10 +486,7 @@ HB_ERRCODE delayedError( void )
             errCode = hb_errGetSubCode( pError );
          hb_errRelease( pError );
          if( uiAction == E_BREAK )
-         {
-            hb_vmRequestQuit();
-            /* ToDo wake up error thread ? */
-         }
+            hb_vmQuit();
 #ifdef LETO_CLIENTLOG
          leto_clientlog( NULL, 0, "delayedError( %d )", uiAction );
 #endif
@@ -500,20 +502,20 @@ HB_ERRCODE delayedError( void )
 extern PHB_ITEM leto_SaveWAEnv( LETOCONNECTION * pConnection, HB_BOOL fClose );
 extern HB_ERRCODE leto_RestoreWAEnv( LETOCONNECTION * pConnection );
 
-static void leto_BackupBox( int iTop, int iLeft, int iBottom, int iRight )
+static void leto_BackupBox( int iTop, int iLeft, int iBottom, int iRight, HB_BOOL fWait )
 {
    char szOldColor[ HB_CLRSTR_LEN ];
 
    hb_gtGetColorStr( szOldColor );
 
-   hb_gtSetColorStr( "W+/R" );
+   hb_gtSetColorStr( fWait ? "W+/G" : "W+/R" );
    hb_gtBoxD( iTop, iLeft, iBottom, iRight );
    hb_gtScroll( iTop + 1, iLeft + 1, iBottom - 1, iRight - 1, 0, 0 );
-   hb_gtSetColorStr( "G+/R" );
+   hb_gtSetColorStr( fWait ? "B/G" : "G+/R" );
    hb_gtWriteAt( iTop + 1, iLeft + 2, "BACK-UP", 7 );
    hb_gtWriteAt( iTop + 2, iLeft + 2, "WAITING", 7 );
    hb_gtSetColorStr( "B/G" );
-   hb_gtWriteAt( iTop + 3, iLeft + 1, "ESC->QUIT", 9 );
+   hb_gtWriteAt( iTop + 3, iLeft + 1, fWait ? "ESC-> GO " : "ESC->QUIT", 9 );
    hb_gtSetPos( iTop + 3, iLeft + 2 );
 
    hb_gtSetColorStr( szOldColor );
@@ -534,7 +536,7 @@ static HB_ERRCODE leto_InfoLocks( LETOCONNECTION * pConnection, HB_BOOL bSaved )
    return errCode;
 }
 
-static HB_ERRCODE leto_BackupStart( HB_BOOL fClose )
+static HB_ERRCODE leto_BackupStart( HB_BOOL fClose, int iDelay )
 {
    LETOCONNECTION * pConnection = letoGetCurrConn();
    HB_ERRCODE       errCode = LETO_CLIENT_LOCKON;
@@ -543,6 +545,8 @@ static HB_ERRCODE leto_BackupStart( HB_BOOL fClose )
    {
       HB_SIZE  nSize;
       PHB_ITEM pSavedLocks;
+      HB_BOOL  fContinueWork = HB_FALSE;
+      HB_U64   llLastAct = iDelay > 0 ? leto_MilliSec() : 0;
       char     szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
       int      iYMiddle = ( ( hb_gtMaxRow() + 1 ) / 2 );
       int      iXMiddle = ( ( hb_gtMaxCol() + 1 ) / 2 );
@@ -560,7 +564,33 @@ static HB_ERRCODE leto_BackupStart( HB_BOOL fClose )
       hb_gtRectSize( iTop, iLeft, iBottom, iRight, &nSize );
       pBuffer = hb_xgrab( nSize + 1 );
       hb_gtSave( iTop, iLeft, iBottom, iRight, pBuffer );
-      leto_BackupBox( iTop, iLeft, iBottom, iRight );
+      leto_BackupBox( iTop, iLeft, iBottom, iRight, ( iDelay > 0 ) );
+      while( iDelay > 0 )
+      {
+         hb_releaseCPU();
+         iInkey = hb_inkeyNext( iEventMask );
+         if( iInkey != 0 )
+            hb_inkey( HB_FALSE, 0, iEventMask );
+         if( iInkey == K_ESC )
+         {
+            fContinueWork = HB_TRUE;
+            break;
+         }
+         else
+            hb_releaseCPU();
+         if( ( int ) ( leto_MilliDiff( llLastAct ) / 1000 ) >= iDelay )
+            break;
+      }
+      if( fContinueWork )
+      {
+         hb_gtRest( iTop, iLeft, iBottom, iRight, pBuffer );
+         hb_gtSetPos( iOldY, iOldX );
+         hb_xfree( pBuffer );
+
+         return 0;
+      }
+      else if( iDelay > 0 )
+         leto_BackupBox( iTop, iLeft, iBottom, iRight, HB_FALSE );
 
       strcpy( szDriver, pConnection->szDriver );
       iArea = hb_rddGetCurrentWorkAreaNumber();
@@ -572,10 +602,10 @@ static HB_ERRCODE leto_BackupStart( HB_BOOL fClose )
       {
          hb_releaseCPU();
          iInkey = hb_inkeyNext( iEventMask );
+         if( iInkey != 0 )
+            hb_inkey( HB_FALSE, 0, iEventMask );
          if( iInkey == K_ESC )
             break;
-         else if( iInkey )
-            hb_inkey( HB_FALSE, 0, iEventMask );
          else
             hb_releaseCPU();
          hb_releaseCPU();
@@ -3032,7 +3062,12 @@ static HB_THREAD_STARTFUNC( leto_elch )
          }
          else if( *ptr == '-' )  /* should be an error */
          {
-            int    iError = 0, iErrorCode = 0;
+            int    iError = 0;
+#ifdef LETO_CLIENTLOG
+            int    iErrorCode = 0;
+#else
+            int    iErrorCode;
+#endif
             char * pTmp, * pTmp2;
             char * pp[ 9 ];
             int    i, iCount = 0;

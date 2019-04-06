@@ -2,7 +2,7 @@
  * Harbour Leto management functions
  *
  * Copyright 2008 Pavel Tsarenko <tpe2 / at / mail.ru>
- *           2015-18 Rolf 'elch' Beckmann
+ *           2015-19 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1799,11 +1799,14 @@ HB_FUNC( LETO_LOCKLOCK )
 
    if( pConnection )
    {
-      HB_USHORT uiSecs = HB_ISNUM( 2 ) ? ( HB_USHORT ) hb_parni( 2 ) : 30;
-      char      szData[ 24 ];
+      HB_USHORT uiSecs = HB_ISNUM( 2 ) ?  ( HB_USHORT ) HB_MAX( 0, hb_parni( 2 ) ) : 30;
+      HB_USHORT uiWait = HB_ISNUM( 3 ) ?  ( HB_USHORT ) HB_MAX( 0, hb_parni( 3 ) ) : 15;
+      char      szData[ 36 ];
 
-      hb_snprintf( szData, 24, "%c;lockl;%c;%d;", LETOCMD_admin,
-                   HB_ISLOG( 1 ) ? ( hb_parl( 1 ) ? 'T' : 'F' ) : '?', uiSecs );
+      uiWait = HB_MIN( 99, uiWait );
+      uiWait = HB_MIN( uiSecs - 5, uiWait );
+      hb_snprintf( szData, 36, "%c;lockl;%c;%d;%d;", LETOCMD_admin,
+                   HB_ISLOG( 1 ) ? ( hb_parl( 1 ) ? 'T' : 'F' ) : '?', uiSecs, uiWait );
       if( leto_DataSendRecv( pConnection, szData, 0 ) )
       {
          hb_retl( *( leto_firstchar( pConnection ) ) == '+' );
@@ -2676,7 +2679,7 @@ HB_FUNC( LETO_UDF )
 HB_FUNC( LETO_PROCESSRUN )
 {
    LETOCONNECTION * pConnection = letoGetCurrConn();
-   
+
    if( pConnection && hb_parclen( 1 ) > 0 )
    {
       PHB_ITEM  pParam = hb_itemArrayNew( 1 );
@@ -2702,7 +2705,7 @@ HB_FUNC( LETO_PROCESSRUN )
          }
          else
             ulLenStdOut = ulLenStdErr = 0;
-         
+
          if( hb_param( 3, HB_IT_BYREF ) )
          {
             if( ulLenStdOut > 0 )

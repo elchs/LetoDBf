@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-04-06 11:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  source/server/letoacc.c
+  * source/server/letofunc.c
+    ! fix an left over hb_xfree() from last upload in leto_CreateTable()
+    * create note-file: 'backup.tsk' for 3rd-party during active backup
+    * add a possible timespan that a client can reject a backup
+    % narrow user mutex, so a connection can log-off during server lock-try
+
+  * source/client/letocl.c
+  * source/client/letomgmn.c
+    * add a possible reject-timespan in backup-note
+
 2019-04-04 23:24 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/server/letofunc.c
     % HB_BOOL ==> void leto_TableUnlock(); [ called by leto_CloseArea() ]
