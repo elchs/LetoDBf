@@ -2,6 +2,14 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-04-06 13:44 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * utils/manager/console.prg
+    * add third argument to leto_LockLock() call
+      ; generally console waits SRV_TIMEOUT (21 s) for response from server
+        to decide if server is down --> quit.
+        Based on that value, console waits 15 s for successful lock locking,
+        where clients are given 10 s to reject a locking request.
+
 2019-04-06 11:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   source/server/letoacc.c
   * source/server/letofunc.c

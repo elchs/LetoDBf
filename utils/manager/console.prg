@@ -1442,7 +1442,8 @@ STATIC FUNCTION Administrate( nConnection )
             IF bRLocked
                bRLocked := leto_LockLock( .F., SRV_TIMEOUT - 6 )
             ELSE
-               bRLocked := leto_LockLock( .T., SRV_TIMEOUT - 6 )  /* to restore if failed will need some more seconds */
+               /* client to restore if failed for all to lock will need some more seconds */
+               bRLocked := leto_LockLock( .T., SRV_TIMEOUT - 6, SRV_TIMEOUT - 11 )
             ENDIF
             RESTSCREEN( aSaveAlert[ 1 ], aSaveAlert[ 2 ], aSaveAlert[ 3 ], aSaveAlert[ 4 ], aSaveAlert[ 5 ] )
             TimedAlert( "LetoDBf server lock/ unlock locking: " + IIF( ! bRLocked, "failed", "successful" ), 2,;
