@@ -119,6 +119,7 @@ static HB_BOOL   s_bPass4D = HB_FALSE;
 static HB_BOOL   s_bSMBServer = HB_FALSE;
 static char      s_szServerID[ HB_PATH_MAX ] = { 0 };
 static HB_BOOL   s_bSendBackupInfo = HB_TRUE;
+static HB_BOOL   s_bServerLockTry = HB_FALSE;
 
 
 /* LOG files quick mutex -- also used by s_pDB */
@@ -174,7 +175,7 @@ static HB_CRITICAL_NEW( s_TStruMtx );    /* also used for s_uiIndexCurr */
 extern HB_U64 leto_Statistics( int iEntry );
 extern int leto_ExitGlobal( HB_BOOL fExit );
 extern void leto_SrvShutDown( unsigned int uiWait );
-extern void leto_SrvSetPort( int iPort, const char * szAddrSpace, HB_BOOL bCryptTraf );
+extern void leto_SrvSetPort( int iPort, const char * szAddrSpace, HB_BOOL bCryptTraf, const char * szBackupInfo );
 
 extern char * leto_memoread( const char * szFilename, HB_ULONG * pulLen );
 extern HB_BOOL leto_fileread( const char * szFilename, char * pBuffer, const HB_ULONG ulStart, HB_ULONG * ulLen );
@@ -3505,7 +3506,8 @@ static int leto_IsAllWithSocket( int iUserStru )
       {
          if( pUStru->iUserStru )
          {
-            if( pUStru->iUserStru != iUserStru && pUStru->hSocketErr == HB_NO_SOCKET )
+            if( pUStru->iUserStru != iUserStru && strncmp( ( char * ) pUStru->szExename, "console", 7 ) &&
+                pUStru->hSocketErr == HB_NO_SOCKET )
             {
                iUserStru = pUStru->iUserStru;
                bFine = HB_FALSE;
@@ -3548,6 +3550,43 @@ static HB_BOOL leto_IsAnyLocked( void )
    return bRet;
 }
 
+static HB_BOOL leto_IsAnyRefused( void )
+{
+   HB_BOOL bRefused = HB_FALSE;
+
+   HB_GC_LOCKU();
+
+   if( s_uiUsersCurr > 0 )
+   {
+      if( s_bSendBackupInfo )
+      {
+         PUSERSTRU pUStru = s_users;
+         HB_USHORT uiChecked = 0;
+         HB_USHORT uiLoop = 0;
+
+         while( uiLoop < s_uiUsersAlloc )
+         {
+            if( pUStru->iUserStru )
+            {
+               if( pUStru->bHaveUrgentTask )
+               {
+                  pUStru->bHaveUrgentTask = HB_FALSE;
+                  bRefused = HB_TRUE;
+               }
+               if( ++uiChecked >= s_uiUsersCurr )
+                  break;
+            }
+            uiLoop++;
+            pUStru++;
+         }
+      }
+   }
+
+   HB_GC_UNLOCKU();
+
+   return bRefused;
+}
+
 static HB_BOOL leto_IsAnyWaiting( HB_BOOL bUnlock, int iUserStru )
 {
    HB_BOOL bOutstanding = HB_FALSE;
@@ -3566,7 +3605,7 @@ static HB_BOOL leto_IsAnyWaiting( HB_BOOL bUnlock, int iUserStru )
          {
             if( pUStru->iUserStru )
             {
-               if( pUStru->iUserStru != iUserStru &&
+               if( pUStru->iUserStru != iUserStru && strncmp( ( char * ) pUStru->szExename, "console", 7 ) &&
                    ( bUnlock ? pUStru->bNeedRestoreLock : ! pUStru->bNeedRestoreLock ) )
                {
                   bOutstanding = HB_TRUE;
@@ -3961,6 +4000,9 @@ void leto_CloseAllSocket()
       {
          if( pUStru->hSocketErr != HB_NO_SOCKET )
          {
+            /* a last Bye! wink for waiting clients */
+            if( s_iUserLock >= 0 && s_bSendBackupInfo && s_iUserLock != pUStru->iUserStru )
+               leto_SendAnswer2( pUStru, szErr1, 4, HB_FALSE, LETO_CLIENT_LOCKOFF );
             if( hb_socketShutdown( pUStru->hSocketErr, HB_SOCKET_SHUT_RDWR ) != 0 )
                leto_writelog( NULL, 0, "DEBUG cannot send shutdown to err socket..." );
          }
@@ -4101,6 +4143,7 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
    const char * szAddrSpace = hb_parclen( 3 ) ? hb_parc( 3 ) : NULL;
    const char * szServerID = hb_parclen( 4 ) ? hb_parc( 4 ) : NULL;
    HB_BOOL      bCryptTraf = hb_parldef( 5, HB_FALSE );
+   const char * szBackupInfo = hb_parclen( 6 ) ? hb_parc( 6 ) : NULL;
 
    if( ! s_users )
    {
@@ -4131,7 +4174,7 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
       if( szServerID && *szServerID )
          hb_strncpy( s_szServerID, szServerID, HB_PATH_MAX - 1 );
 
-      leto_SrvSetPort( iPort, szAddrSpace, bCryptTraf );
+      leto_SrvSetPort( iPort, szAddrSpace, bCryptTraf, szBackupInfo );
 
       leto_writelog( NULL, -1, "INFO: %s %s (%s), will run at %s%s:%d ( internal also used :%d )",
                      LETO_RELEASE_STRING, LETO_VERSION_STRING, szDate , strlen( szAddr ) ? "IP " : "port ", szAddr, iPort, iPort + 1 );
@@ -5801,6 +5844,15 @@ static void leto_ServerTryLock( PUSERSTRU pUStru, int iMilliSecs, int iDelaySecs
 
    HB_GC_LOCKU();
 
+   if( ! s_bServerLockTry )
+      s_bServerLockTry = HB_TRUE;
+   else
+   {
+      HB_GC_UNLOCKU();
+
+      return;
+   }
+
    if( s_bSendBackupInfo )
       leto_ConnectIsLock( 1 );  /* shortly forbid new connections */
    if( s_bSendBackupInfo && ( iUserSingle = leto_IsAllWithSocket( iUserStru ) ) != 0 )
@@ -5826,17 +5878,22 @@ static void leto_ServerTryLock( PUSERSTRU pUStru, int iMilliSecs, int iDelaySecs
       s_iUserLock = iUserStru;
    while( ( int ) leto_MilliDiff( llLastAct ) < iMilliSecs && leto_IsAnyWaiting( HB_FALSE, iUserStru ) )
    {
+      if( leto_IsAnyRefused() )
+         break;
       hb_idleSleep( 0.1 );
    }
 
    if( leto_IsAnyWaiting( HB_FALSE, iUserStru ) )
    {
       leto_ServerUnlock( pUStru, iMilliSecs );
-
-      return;
+      leto_IsAnyRefused();
    }
    else  /* success to lock server */
       s_iUserLock = iUserStru;
+
+   HB_GC_LOCKU();
+   s_bServerLockTry = HB_FALSE;
+   HB_GC_UNLOCKU();
 }
 
 HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs, int iDelaySecs )
@@ -9765,7 +9822,10 @@ static int leto_Memo( PUSERSTRU pUStru, char * szData, TRANSACTSTRU * pTA, AREAP
       if( ( ! ulRecNo && ! pTA ) || ! uiField )
       {
          pData = szErr2;
-         iRes = 3;
+         if( ! uiField )
+            iRes = 3;
+         else
+            iRes = 5;  /* after failed dbappend for a locked server */
       }
 
       switch( *szData )
@@ -9867,7 +9927,7 @@ static int leto_Memo( PUSERSTRU pUStru, char * szData, TRANSACTSTRU * pTA, AREAP
       if( ! bPut )
          leto_SendAnswer( pUStru, pData, ulLen );
       else
-         leto_SendAnswer2( pUStru, pData, ulLen, ! iRes, 1021 + iRes );
+         leto_SendAnswer2( pUStru, pData, ulLen, iRes == 5 ? HB_TRUE : ! iRes, 1021 + iRes );
       /* sync pos */
       if( pUStru->ulBufCryptLen > LETO_SENDRECV_BUFFSIZE )
       {

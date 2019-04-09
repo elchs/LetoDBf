@@ -332,7 +332,7 @@ PROCEDURE StartServer()
    ENDIF
    leto_InitSet()
    leto_HrbLoad()
-   leto_CreateData( oApp:cAddr, oApp:nPort, oApp:cAddrSpace, oApp:cServer, oApp:lCryptTraffic )
+   leto_CreateData( oApp:cAddr, oApp:nPort, oApp:cAddrSpace, oApp:cServer, oApp:lCryptTraffic, oApp:cBackupInfo )
 
    IF ! leto_Server( oApp:nPort, oApp:cAddr, oApp:nTimeOut, oApp:nZombieCheck, oApp:cBCService, oApp:cBCInterface, oApp:nBCPort )
       WrLog( "Socket error " + hb_socketErrorString( hb_socketGetError() ) )
@@ -467,6 +467,7 @@ CLASS HApp
    DATA cAddrSpace
    DATA cSvcName      INIT "LetoDBf_Service"
    DATA lBackupInfo   INIT .T.
+   DATA cBackupInfo   INIT "BACK-UP,WAITING,ESC-> GO ,ESC->QUIT"
 
    METHOD New()
 
@@ -698,7 +699,14 @@ METHOD New() CLASS HApp
                   ENDIF
                   EXIT
                CASE "BACKUP_INFO"
-                  ::lBackupInfo := ( cValue == '1' )
+                  cTmp := LEFT( AllTrim( cValue ), 255 )
+                  IF LEN( cTmp ) > 2
+                     ::lBackupInfo := .T.
+                     ::cBackupInfo := StrTran( cTmp, ";", "," )
+                  ELSE
+                     ::lBackupInfo := .F.
+                     ::cBackupInfo := ""
+                  ENDIF
                   EXIT
                ENDSWITCH
 

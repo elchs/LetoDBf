@@ -110,6 +110,7 @@ static char      s_szUDPService[ HB_PATH_MAX ] = { 0 };
 static char      s_UDPServer[ HB_PATH_MAX ] = { 0 };
 static char      s_szAddrSpace[ HB_PATH_MAX ] = { 0 };
 static HB_BOOL   s_bCryptTraf = HB_FALSE;
+static char      s_szBackupInfo[ HB_PATH_MAX ] = { 0 };
 
 /* command description table */
 static const char * s_szCmdSetDesc[ LETOCMD_SETLEN ] = { 0 };
@@ -147,12 +148,14 @@ extern void leto_CommandSetInit( void );
 extern void leto_setTimeout( HB_ULONG iTimeOut );
 
 
-void leto_SrvSetPort( int iPort, const char * szAddrSpace, HB_BOOL bCryptTraf )
+void leto_SrvSetPort( int iPort, const char * szAddrSpace, HB_BOOL bCryptTraf, const char * szBackupInfo )
 {
    s_iServerPort = iPort;
    if( szAddrSpace && *szAddrSpace )
       hb_strncpy( s_szAddrSpace, szAddrSpace, HB_PATH_MAX - 1 );
    s_bCryptTraf = bCryptTraf;
+   if( szBackupInfo )
+      hb_strncpy( s_szBackupInfo, szBackupInfo, HB_PATH_MAX - 1 );
 }
 
 HB_U64 leto_Statistics( int iEntry )
@@ -665,7 +668,8 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
                           iError == 1000 ? EG_SYNTAX : iError,
                           atoi( szData ),
                           leto_CmdToHuman( *pUStru->pBuffer ),
-                          szOperation,
+                          ( iError == LETO_CLIENT_LOCKON || iError == LETO_CLIENT_LOCKWAIT ) ?
+                             s_szBackupInfo : szOperation,
                           hb_fsOsError(),
                           EF_CANRETRY | EF_CANDEFAULT );
          HB_PUT_LE_UINT32( ( char * ) pUStru->pSendBuffer, ulLen );

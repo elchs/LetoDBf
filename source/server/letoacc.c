@@ -75,6 +75,7 @@ static HB_BOOL   s_fLockConnect = HB_FALSE;
 extern int iDebugMode( void );
 extern int leto_GetParam( char * szData, ... );
 extern void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen );
+extern void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB_BOOL bAllFine, int iError );
 extern HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs, int iDelay );
 extern HB_BOOL leto_CheckPass( int iType );
 extern void leto_wUsLog( PUSERSTRU pUStru, int n, const char* s, ... );
@@ -916,13 +917,21 @@ void leto_Admin( PUSERSTRU pUStru, char * szData )
          }
          else if( ! strncmp( szData, "locks", 5 ) )
          {
-            if( *pp1 == 'T' || *pp1 == 'F' )
+            if( *pp1 == 'X' )
+            {
+               pUStru->bHaveUrgentTask = HB_TRUE;
+               pData = szOk;
+            }
+            else if( *pp1 == 'T' || *pp1 == 'F' )
             {
                pUStru->bNeedRestoreLock = ( *pp1 == 'T' );
                pData = szOk;
             }
             else
                pData = szErr4;
+
+            leto_SendAnswer2( pUStru, pData, 4, HB_TRUE, 1000 );
+            return;
          }
          else
             pData = szErr3;

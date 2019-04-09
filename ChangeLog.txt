@@ -2,6 +2,37 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-04-09 14:14 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; * rebuild server AND client (lib & apps) to use changes about backup-mode
+
+  * source/client/leto1.c
+    * missing NetErr() flag for a failed DbAppend()
+
+  * source/client/letocl.c
+    % refinements for topic backup-mode:
+      when one client refuse to go into backup-mode, immediate stop trying
+      to lock the server for all clients;
+      display configurable content in the backup-box send by server;
+      send optimized feedback to server in internal leto_InfoLocks()
+    ! missing hb_xfree() for pSavedLocks, done now in leto_ReleaseWAEnv()
+    ! add exit(0) after hb_vmQuit() to avoid crash
+
+  * include/srvleto.h
+  * source/server/leto_2.c
+  * source/server/letoacc.c
+  * source/server/letofunc.c
+  * source/server/server.prg
+    * changed config option BACKUP_INFO: logical --> max 255-char string;
+      it now contain a comma <,> seperated list of textlines to be shown in
+      backup-box at client, default: BACK-UP,WAITING,ESC-> GO ,ESC->QUIT
+      ; the last two lines used to differ the refuse-able backup-request
+      ; a string < 3 char, i.e.: 'no' to activate old style leto_LockLock()
+    * transfer BACKUP_INFO string to clients
+    * unlock clients when server is shut down ;-)
+    * prevent server against simultaneous locking from multiple clients
+    + new internal leto_IsAnyRefused() to clear bHaveUrgentTask flag
+    % optimized call for 'locks' option in leto_Admin()
+
 2019-04-06 13:44 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * utils/manager/console.prg
     * add third argument to leto_LockLock() call

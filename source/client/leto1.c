@@ -849,7 +849,10 @@ static HB_ERRCODE letoAppend( LETOAREAP pArea, HB_BOOL fUnLockAll )
    }
 
    if( LetoDbAppend( pTable, fUnLockAll ) )
+   {
+      hb_rddSetNetErr( HB_TRUE );
       return HB_FAILURE;
+   }
 
    if( pTable->ulRecNo )  /* ! pConnection->fTransActive */
    {

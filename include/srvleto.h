@@ -281,6 +281,7 @@ typedef struct
    HB_BYTE           uSrvLock;                /* 0 or type of server 'lock for e.g. replication' mode */
    HB_BOOL           bGCCollect;              /* true if this thread is designated to do GC */
    HB_BOOL           bNeedRestoreLock;        /* true allows to apply locks ( to restore ) even server is still locked */
+   HB_BOOL           bHaveUrgentTask;         /* flag is set by client when backup-mode was refused, cleared by server */
    HB_MAXINT *       pOpenHandles;            /* list of files opened by Leto_Fopen()/ Leto_FCreate() */
    HB_ULONG          ulOpenHandles;           /* number of open file handles */
 } USERSTRU, * PUSERSTRU;                      /* 544 */
