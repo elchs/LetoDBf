@@ -79,7 +79,10 @@ extern void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ul
 extern HB_BOOL leto_ServerLock( PUSERSTRU pUStru, HB_BOOL bLock, int iSecs, int iDelay );
 extern HB_BOOL leto_CheckPass( int iType );
 extern void leto_wUsLog( PUSERSTRU pUStru, int n, const char* s, ... );
-
+extern HB_BOOL leto_ActionSwitch( PUSERSTRU pUStru, HB_BOOL bLock );
+extern void leto_ActionReplay( PUSERSTRU pUStru, const char * szFile, const char * szActions, HB_MAXUINT nUp, HB_MAXUINT nTo, int iExclude, char * pResult );
+extern void leto_ActionRequest( PUSERSTRU pUStru, HB_FOFFSET fOffSet, HB_BOOL bSwitch );
+extern void leto_ActionAuditRequest( PUSERSTRU pUStru, HB_BOOL bActivate );
 
 /* 0 = query, > 0 = lock, < 0 = unlock */
 HB_BOOL leto_ConnectIsLock( int iLock )
@@ -932,6 +935,51 @@ void leto_Admin( PUSERSTRU pUStru, char * szData )
 
             leto_SendAnswer2( pUStru, pData, 4, HB_TRUE, 1000 );
             return;
+         }
+         else if( ! strncmp( szData, "replay", 6 ) )
+         {
+            char         szResult[ 64 ] = { 0 };
+            const char * szFile = *pp1 ? pp1 : NULL;
+            const char * szActions = *pp2 ? pp2 : NULL;
+            int          iExclude = -1;
+            HB_ULONG     ulUp, ulTo;
+            char *       ptr;
+
+            ulUp = strtoul( pp3, &ptr, 10 );
+            ulTo = strtoul( ++ptr, &ptr, 10 );
+            ptr++;
+            if( HB_ISDIGIT( *ptr ) )
+               iExclude = strtoul( ptr, NULL, 10 );
+            leto_ActionReplay( pUStru, szFile, szActions, ulUp, ulTo, iExclude, szResult );
+
+            leto_SendAnswer( pUStru, szResult, strlen( szResult ) );
+            return;
+         }
+         else if( ! strncmp( szData, "action", 6 ) )
+         {
+            if( *pp1 == 'X' )  /* Leto_LogToggle */
+            {
+               if( leto_ActionSwitch( pUStru, HB_TRUE ) )
+                  pData = szOk;
+               else
+                  pData = szErr4;
+            }
+            else if( *pp1 == 'R' || *pp1 == 'T' )  /* Leto_LogRequest */
+            {
+               int        iTestOffset = atoi( pp2 );
+               HB_FOFFSET fOffSet = ( HB_FOFFSET ) strtoul( pp2, NULL, 10 );
+
+               fOffSet = iTestOffset < 0 ? ( HB_FOFFSET ) -1 : fOffSet;
+               leto_ActionRequest( pUStru, fOffSet, ( *pp1 == 'T' ) );
+               return;  /* answer is send there */
+            }
+            else if( *pp1 == 'A' )  /* Leto_LogRequest */
+            {
+               leto_ActionAuditRequest( pUStru, ( *pp2 == 'T' ) );
+               return;  /* answer is send there */
+            }
+            else
+               pData = szErr4;
          }
          else
             pData = szErr3;

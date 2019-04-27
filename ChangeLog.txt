@@ -2,6 +2,75 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-04-27 09:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * include/srvleto.h
+  * source/server/letoacc.c
+  * source/server/letofunc.c
+  * source/server/server.prg
+    ! fix two since long existing, unnoted and happening 'on occasion':
+      # Leto_FileWrite() [ send internal also a pp3 param for server ]
+      # internal leto_InitGlobe() [ wrong search for a free struct ]
+    * move internal functions leto_DataPath()/ leto_DirMake() upwards
+    * make leto_Drop((), leto_Trans(), leto_Memo() and the part about
+      OrdDestroy() in leto_Ordfunc() respecting flag: ->bBeQuiet
+      [ indicates an UDF is calling them --> no network answer send ]
+    % resolve some DBFAREAP bindings to call SELF_INFO()/ use pTStru items
+    % optimize buffer usage (less times alloc/free) for leto_[De]CryptText()
+    % extend feedback for doubled TAGnames with BAGname [leto_IndexesInfo()]
+    + leto_ActionProtocol(), leto_ActionReplay(), leto_ActionRequest() plus
+      help funtions for them: create, replay and handle out data-change log
+      ; please note that the new function group is not used by default,
+        activated with a new config option and before using and relying!
+        on them in production environment best to intense! test them
+    + leto_ActionAudit(), leto_ActionAuditFile(), leto_ActionAuditRequest()
+      to create and handle a human readable audit log about data changes
+      ; a first suggest, form may change on welcomed other suggests
+
+  * include/funcleto.h
+  * source/client/leto1.c
+    * 3 compiler warnings
+    * harden LETO_SET() to verify SET() is linked into
+  * source/client/letocl.c
+  * source/server/leto_2.c
+    * add handling of LETO_CLIENT_SHUTOFF to quit application when shutdown
+      by console
+    % close all SHARED and EXCLUSIVE ( but no temporary ) tables,
+      if user is given no complain timeout for Leto_LockLock(,,0)
+      ; a careful ! acting admin can then do administrative tasks
+    % add in leto_BackupStart() a tiny delay in recepting inkey, to avoid
+      a just too late typed ESC to complain against backup-mode, then
+      leading to an unwanted QUIT of application
+    * fix: LetoFileWrite() to send a third param to server
+
+  * source/client/rddsys.prg
+    * add request for SET
+
+  * source/server/letoacc.c
+  * source/client/letomgmn.c
+    + LETO_LOGTOGGLE() to start a new data-change log
+    + LETO_LOGREPLAY( cFile, cExcludeAction, ... );
+    + LETO_LOGREQUEST( nOffSet, nToggle, bAuditOnOff )
+      a) request for ( a block of ) data-change log
+      b) 3rd param true/ false to start/ stop audit data-change log
+    * add boolean third param to Leto_MgLog() to erase log after fetching
+
+  * source/server/server.prg
+    + new config option 'DATA_LOGFILE' to activate data-change log;
+
+  * utils/backup/srv_linux.ini
+  * utils/backup/srv_win.ini
+  * utils/backup/letobackup.prg
+    * modify to use the new-style Leto_LockLock() with complain-timeout
+      and multiple tries to lock the server
+
+  + utils/manager/replicat.hpb
+  + utils/manager/replicat.prg
+    * experimental test application to replicate data-change log to another
+      or the same server (intended to be used together with a data-snapshot)
+
+  * Readme.txt
+    * documenting news
+
 2019-04-09 14:14 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; * rebuild server AND client (lib & apps) to use changes about backup-mode
 

@@ -8093,7 +8093,7 @@ static PHB_ITEM leto_FieldBlockVerify( JOINAREASTRU pMArea, JOINAREASTRU pSArea,
             fMasterField = HB_TRUE;
             uiTstField = hb_rddFieldIndex( pMArea.pArea, szField );
          }
-         else if( ! pSArea.szAlias || ! pSArea.szAlias[ 0 ] )  /* all WA */
+         else if( ! pSArea.szAlias[ 0 ] )  /* all WA */
          {
             LETOCONNECTION * pConnection;
 
@@ -8256,7 +8256,7 @@ HB_FUNC( LETO_DBJOIN )
       SELF_ALIAS( pMArea.pArea, pMArea.szAlias );
       SELF_RECNO( pMArea.pArea, &pMArea.ulRecNo );
 
-      if( pSArea.szAlias && pSArea.szAlias[ 0 ] )
+      if( pSArea.szAlias[ 0 ] )
       {
          hb_rddGetAliasNumber( pSArea.szAlias, &pSArea.iArea );
          if( pSArea.iArea )
@@ -8619,7 +8619,7 @@ HB_FUNC( LETO_DBUPDATE )  /* candidate for RDDI_AUTOLOCK ;-) */
       SELF_ALIAS( pMArea.pArea, pMArea.szAlias );
       SELF_RECNO( pMArea.pArea, &pMArea.ulRecNo );
 
-      if( pSArea.szAlias && pSArea.szAlias[ 0 ] )
+      if( pSArea.szAlias[ 0 ] )
       {
          hb_rddGetAliasNumber( pSArea.szAlias, &pSArea.iArea );
          if( pSArea.iArea )
@@ -9420,6 +9420,9 @@ HB_FUNC( LETO_SET )
          PHB_ITEM pSet = hb_param( 2, HB_IT_ANY );
          PHB_ITEM pExtra = hb_param( 3, HB_IT_ANY );
 
+         if( ! pDo )
+            return;
+
          hb_vmPushDynSym( pDo );
          hb_vmPushNil();
          hb_vmPushNumInt( setId );
@@ -9619,8 +9622,8 @@ static HB_ERRCODE leto_doSaveLocks( AREAP pArea, void * p )
       SELF_FLUSH( pArea );  /* saves outstanding changes */
 
       if( fToClose )  /* close exclusive, but not MemIO nor Temporary */
-         fToClose = ( ! pTable->fShared && ! pTable->fMemIO &&
-                      ( ! pTable->fTemporary || leto_TableHaveTempOrder( pTable ) ) );
+         fToClose = ( ( ! pTable->fShared || pConnection->iDebugMode ) &&
+                      ! pTable->fMemIO && ( ! pTable->fTemporary || leto_TableHaveTempOrder( pTable ) ) );
       if( fFLocked || ulLocksMax || fToClose )
       {
          pLocks = hb_itemArrayNew( 6 );

@@ -1510,12 +1510,17 @@ HB_FUNC( LETO_MGLOG )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
 
-   if( pCurrentConn && HB_ISNUM( 1 ) )
+   if( pCurrentConn )
    {
       char     szData[ 32 ];
+      int      iConnection = pCurrentConn->iConnection;
       HB_ULONG ulLen;
+      HB_BOOL  fErase = hb_parl( 3 );
 
-      ulLen = eprintf( szData, "%c;07;%d;%d;", LETOCMD_mgmt, hb_parni( 1 ), HB_ISNUM( 2 ) ? hb_parni( 2 ) : 0 );
+      if( HB_ISNUM( 1 ) && hb_parni( 1 ) >= 0 )
+         iConnection = hb_parni( 1 );
+      ulLen = eprintf( szData, "%c;07;%d;%d;%c;",
+                               LETOCMD_mgmt, iConnection, HB_ISNUM( 2 ) ? hb_parni( 2 ) : 0, fErase ? 'T' : 'F' );
       ulLen = ( HB_ULONG ) leto_DataSendRecv( pCurrentConn, szData, ulLen );
       if( ulLen )
       {
@@ -1817,6 +1822,107 @@ HB_FUNC( LETO_LOCKLOCK )
    hb_retl( HB_FALSE );
 }
 
+HB_FUNC( LETO_LOGTOGGLE )
+{
+   LETOCONNECTION * pConnection = letoGetCurrConn();
+
+   if( pConnection )
+   {
+      char szData[ 36 ];
+
+      hb_snprintf( szData, 36, "%c;action;%c;", LETOCMD_admin, 'X' );
+      if( leto_DataSendRecv( pConnection, szData, 0 ) )
+      {
+         hb_retl( *( leto_firstchar( pConnection ) ) == '+' );
+         return;
+      }
+   }
+
+   hb_retl( HB_FALSE );
+}
+
+/* best done as solely user with a locked server -- szActions letters: +*ARMCDIOST */
+HB_FUNC( LETO_LOGREPLAY )
+{
+   LETOCONNECTION * pConnection = letoGetCurrConn();
+
+   if( pConnection )
+   {
+      char         szData[ HB_PATH_MAX * 2 ];
+      const char * szFile = hb_parclen( 1 ) ? hb_parc( 1 ) : "";
+      const char * szActions = ( hb_parclen( 2 ) && hb_parclen( 2 ) <= 10 ) ? hb_parc( 2 ) : "";
+      HB_MAXINT    iUp = ( HB_ISNUM( 3 ) && hb_parni( 3 ) > 0 ) ? hb_parni( 3 ) : 0;
+      HB_MAXINT    iTo = ( HB_ISNUM( 4 ) && hb_parni( 4 ) > 0 ) ? hb_parni( 4 ) : 0;
+      int          iEx = ( HB_ISNUM( 5 ) && hb_parni( 5 ) > 0 ) ? hb_parni( 5 ) : -1;
+
+      hb_rddCloseAll();
+      hb_snprintf( szData, 36, "%c;replay;%s;%s;%" HB_PFS "d;%" HB_PFS "d;%d;", LETOCMD_admin, szFile, szActions, iUp, iTo, iEx );
+      if( leto_DataSendRecv( pConnection, szData, 0 ) )
+      {
+         hb_retnd( atof( pConnection->szBuffer ) );
+         return;
+      }
+   }
+
+   hb_retni( -1 );
+}
+
+HB_FUNC( LETO_LOGREQUEST )
+{
+   LETOCONNECTION * pConnection = letoGetCurrConn();
+
+   if( pConnection )
+   {
+      char szData[ 36 ];
+
+      if( ! HB_ISLOG( 3 ) )
+      {
+         HB_LONG lOffset = HB_ISNUM( 1 ) ? HB_MAX( -1, hb_parni( 1 ) ) : -1;
+         HB_BOOL bToggle = hb_parldef( 2, 0 );
+
+         if( lOffset > 0 )
+            lOffset = 0;
+         hb_snprintf( szData, 36, "%c;action;%c;%ld;", LETOCMD_admin,  bToggle ? 'T' : 'R', lOffset );
+         if( leto_DataSendRecv( pConnection, szData, 0 ) )
+         {
+            if( ! memcmp( pConnection->szBuffer, "+T;", 3 ) )
+            {
+               HB_ULONG     ulLen;
+               const char * ptr = leto_DecryptText( pConnection, &ulLen, pConnection->szBuffer + 3 );
+
+               if( ulLen )
+               {
+                  hb_retclen( ptr, ulLen );
+                  return;
+               }
+            }
+         }
+      }
+      else
+      {
+         HB_BOOL fAudit = hb_parl( 3 );
+         HB_ULONG ulLen;
+
+         hb_snprintf( szData, 36, "%c;action;%c;%c;", LETOCMD_admin, 'A', fAudit ? 'T' : 'F' );
+         ulLen = leto_DataSendRecv( pConnection, szData, 0 );
+         if( ulLen )
+         {
+            if( fAudit )
+            {
+               hb_retl( *pConnection->szBuffer == '+' );
+               return;
+            }
+            else if( *pConnection->szBuffer == '+' )
+            {
+               hb_retclen( pConnection->szBuffer + 1, ulLen - 1 );
+               return;
+            }
+         }
+      }
+   }
+
+   hb_retc_null();
+}
 
 HB_FUNC( LETO_STRTOHEX )
 {

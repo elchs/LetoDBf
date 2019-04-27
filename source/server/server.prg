@@ -325,7 +325,7 @@ PROCEDURE StartServer()
          oApp:nMaxVars, oApp:nMaxVarSize, oApp:nCacheRecords, oApp:nTables_max, oApp:nUsers_max,;
          oApp:nDebugMode, oApp:lOptimize, oApp:nAutOrder, oApp:nMemoType, oApp:lForceOpt, oApp:nBigLock,;
          oApp:lUDFEnabled, oApp:nMemoBlkSize, oApp:lLower, oApp:cTrigger, oApp:lHardCommit,;
-         oApp:lSMBServer, oApp:cSMBPath, oApp:lBackupInfo )
+         oApp:lSMBServer, oApp:cSMBPath, oApp:lBackupInfo, oApp:cDataLogFile )
 
    IF oApp:nDebugMode > 1
       WrLog( "LetoDBf Server at port " + ALLTRIM( STR( oApp:nPort ) ) + " try to start ..." )
@@ -468,6 +468,7 @@ CLASS HApp
    DATA cSvcName      INIT "LetoDBf_Service"
    DATA lBackupInfo   INIT .T.
    DATA cBackupInfo   INIT "BACK-UP,WAITING,ESC-> GO ,ESC->QUIT"
+   DATA cDataLogFile  INIT ""
 
    METHOD New()
 
@@ -707,6 +708,10 @@ METHOD New() CLASS HApp
                      ::lBackupInfo := .F.
                      ::cBackupInfo := ""
                   ENDIF
+                  EXIT
+               CASE "DATA_LOGFILE"
+                  cTmp := LEFT( AllTrim( cValue ), 255 )
+                  ::cDataLogFile := cTmp
                   EXIT
                ENDSWITCH
 

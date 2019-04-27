@@ -490,8 +490,14 @@ HB_ERRCODE delayedError( void )
 
       if( pError )
       {
-         HB_USHORT uiAction = hb_errLaunch( pError );
+         HB_USHORT uiAction;
 
+         if( hb_errGetGenCode( pError ) == LETO_CLIENT_SHUTOFF )  /* shut-down by management */
+         {
+            hb_vmQuit();
+            exit( 0 );
+         }
+         uiAction = hb_errLaunch( pError );
          if( ! ( uiAction == E_RETRY || uiAction == E_DEFAULT ) )
             errCode = hb_errGetSubCode( pError );
          hb_errRelease( pError );
@@ -590,7 +596,7 @@ static HB_ERRCODE leto_BackupStart( HB_BOOL fClose, int iDelay, PHB_ITEM pMsgLin
    {
       HB_SIZE  nSize;
       PHB_ITEM pSavedLocks = NULL;
-      HB_BOOL  fContinueWork = HB_FALSE;
+      HB_BOOL  fContinueWork = HB_FALSE, fWaitForEsc = HB_FALSE;
       HB_U64   llLastAct = iDelay > 0 ? leto_MilliSec() : 0;
       char     szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
       int      iYMiddle = ( ( hb_gtMaxRow() + 1 ) / 2 );
@@ -632,7 +638,7 @@ static HB_ERRCODE leto_BackupStart( HB_BOOL fClose, int iDelay, PHB_ITEM pMsgLin
 
       hb_gtGetPos( &iOldY, &iOldX );
       hb_gtRectSize( iTop, iLeft, iBottom, iRight, &nSize );
-      pBuffer = hb_xgrab( nSize + 1 );
+      pBuffer = ( char * ) hb_xgrab( nSize + 1 );
       hb_gtSave( iTop, iLeft, iBottom, iRight, pBuffer );
       leto_BackupBox( iTop, iLeft, iBottom, iRight, ( iDelay > 0 ), pMsgLines );
       while( iDelay > 0 )
@@ -674,22 +680,38 @@ static HB_ERRCODE leto_BackupStart( HB_BOOL fClose, int iDelay, PHB_ITEM pMsgLin
       iArea = hb_rddGetCurrentWorkAreaNumber();
       if( ! fContinueWork )
       {
+         if( ! iDelay )
+         {
+            fClose = HB_TRUE;
+            pConnection->iDebugMode = 1;
+         }
          pSavedLocks = leto_SaveWAEnv( pConnection, fClose );
          leto_InfoLocks( pConnection, 'T' );
          pConnection->uiBackupActive = 2;
+         pConnection->iDebugMode = 0;
       }
 
       iInkey = 0;
+      llLastAct = leto_MilliSec();
       while( pConnection->uiBackupActive > 1 )
       {
          hb_releaseCPU();
-         iInkey = hb_inkeyNext( iEventMask );
-         if( iInkey != 0 )
-            hb_inkey( HB_FALSE, 0, iEventMask );
-         if( iInkey == K_ESC )
-            break;
+         /* avoid a shortly too late typed K_ESC to complain */
+         if( leto_MilliDiff( llLastAct ) > 999 )
+         {
+            if( ! fWaitForEsc )
+            {
+                fWaitForEsc = HB_TRUE;
+                hb_inkey( HB_FALSE, 0, iEventMask );
+            }
+            iInkey = hb_inkeyNext( iEventMask );
+            if( iInkey != 0 )
+               hb_inkey( HB_FALSE, 0, iEventMask );
+         }
          else
             hb_releaseCPU();
+         if( iInkey == K_ESC )
+            break;
          hb_releaseCPU();
          delayedError();
       }
@@ -6312,7 +6334,7 @@ HB_BOOL LetoFileWrite( LETOCONNECTION * pConnection, const char * szFile, const 
    pData = pConnection->pBufCrypt;
 
    pConnection->iError = 0;
-   ulRes = eprintf( pData, "%c;14;%s;%lu;", LETOCMD_file, szFile, ulStart );
+   ulRes = eprintf( pData, "%c;14;%s;%lu;%lu;", LETOCMD_file, szFile, ulStart, ulLen );
    ulRes += leto_CryptText( pConnection, szValue, ulLen, ulRes );
    pData = pConnection->pBufCrypt;
 

@@ -136,7 +136,7 @@ extern void leto_CloseUS( PUSERSTRU pUStru );
 extern HB_BOOL leto_ParseCommand( PUSERSTRU pUStru );
 extern PUSERSTRU leto_FindUserStru( HB_THREAD_ID hThreadID );
 extern void leto_wUsLog( PUSERSTRU pUStru, int n, const char * s, ... );
-extern HB_BOOL leto_wUsLogDelete( PUSERSTRU pUStru );
+extern HB_BOOL leto_wUsLogDelete( int iUserStru );
 extern void leto_CloseAllSocket( void );
 extern void leto_ForceCloseAllSocket( void );
 extern int leto_PingForZombies( long lTimeInactive );
@@ -667,7 +667,7 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
                           HB_ERR_SS_DBCMD,
                           iError == 1000 ? EG_SYNTAX : iError,
                           atoi( szData ),
-                          leto_CmdToHuman( *pUStru->pBuffer ),
+                          iError != LETO_CLIENT_SHUTOFF ? leto_CmdToHuman( *pUStru->pBuffer ) : "shut_off",
                           ( iError == LETO_CLIENT_LOCKON || iError == LETO_CLIENT_LOCKWAIT ) ?
                              s_szBackupInfo : szOperation,
                           hb_fsOsError(),
@@ -1553,7 +1553,7 @@ static HB_THREAD_STARTFUNC( thread2 )
 
    hb_vmThreadInit( NULL );
    leto_initSet();
-   leto_wUsLogDelete( pUStru );
+   leto_wUsLogDelete( pUStru->iUserStru );
 
    /* prepare and send initial answer for fresh connect */
    {

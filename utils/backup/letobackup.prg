@@ -70,21 +70,27 @@ FUNCTION Main( cIniFile )
 
    LOCAL cAddress, cUser, cPasswd
    LOCAL cAppIni, aIni, aOpt, cPort
-   LOCAL nWaitLock, cLocalPath
+   LOCAL nWaitLock, nWaitDelay, nRetryLock, nRetryDelay
+   LOCAL cLocalPath
    LOCAL cArcCmd, cArcFile, cExtraCmd, cLogFile
    LOCAL hRepl, cIncMask, cExcMask, aIncMask, aExcMask, cOneMask, cTmp, cRes
    LOCAL n1, n2, n3
+   LOCAL nRow, nCol
    LOCAL nResult, cStdOut, cStdErr
    LOCAL lLocked := .F.
    LOCAL lShared := .F., lThirdParty := .F., lTrustThird := .T.
    LOCAL lSuccess := .T.
 
    AltD()
+   ? hb_datetime(year(date()),month(date()),day(date()),hb_hour(hb_datetime()),hb_minute(hb_datetime()),hb_sec(hb_datetime())+120 )
 
    hb_default( @cAddress,   "//127.0.0.1:2812/" )
    hb_default( @cUser,      "" )
    hb_default( @cPasswd,    "" )
    hb_default( @nWaitLock,  30 )
+   hb_default( @nWaitDelay, 20 )
+   hb_default( @nRetryLock, 5 )
+   hb_default( @nRetryDelay,120 )
    hb_default( @cArcFile,   "letoback.tar.gz" )
    hb_default( @cArcCmd,    "" )
    hb_default( @cExtraCmd,  "" )
@@ -118,8 +124,8 @@ FUNCTION Main( cIniFile )
 #endif
       ELSEIF File( "letodb.ini" )
          cAppIni := "letodb.ini"
-      ELSEIF ! EMPTY( cIniFile ) .AND. FILE( cIniFile + IIF( ! ".ini" $ cIniFile, ".ini", "" )  )
-         cAppIni := cIniFile + IIF( ! ".ini" $ cIniFile, ".ini", "" )
+      ELSEIF ! EMPTY( cIniFile ) .AND. FILE( cIniFile + IIF( RIGHT( cIniFile, 4 ) != ".ini", ".ini", "" ) )
+         cAppIni := cIniFile + IIF( RIGHT( cIniFile, 4 ) != ".ini", ".ini", "" )
       ELSE
          Alert( "Error: missing configuration ( '.ini' file not found )" )
          QUIT
@@ -146,7 +152,13 @@ FUNCTION Main( cIniFile )
          ELSEIF aOpt[ 1 ] == "MASKEXCLUDE"
             cExcMask := aOpt[ 2 ]
          ELSEIF aOpt[ 1 ] == "LOCKWAIT"  /* 0 to disable */
-            nWaitLock := Val( aOpt[ 2 ] )
+            nWaitLock := MAX( 0, Val( aOpt[ 2 ] ) )
+         ELSEIF aOpt[ 1 ] == "LOCKDELAY"
+            nWaitDelay := MIN( nWaitLock - 3, Val( aOpt[ 2 ] ) )
+         ELSEIF aOpt[ 1 ] == "RETRYLOCK"
+            nRetryLock := MAX( 1, Val( aOpt[ 2 ] ) )
+         ELSEIF aOpt[ 1 ] == "RETRYDELAY"
+            nRetryDelay := MAX( nWaitLock, Val( aOpt[ 2 ] ) )
          ELSEIF aOpt[ 1 ] == "LOGFILE"
             cLogFile := aOpt[ 2 ]
          ELSEIF aOpt[ 1 ] == "THIRDPARTY"
@@ -163,6 +175,7 @@ FUNCTION Main( cIniFile )
       NEXT
    ENDIF
 
+   /* prepare include/ exclude list into arrays a[Inc|Exc]Mask */
    IF EMPTY( cIncMask )
       cIncMask := DEF_PATTERN
    ENDIF
@@ -173,8 +186,9 @@ FUNCTION Main( cIniFile )
    cExcMask := PrepareMaskList( cExcMask, @aExcMask )
 
 
+   /* login to server if not already done by auto-login */
    ErrorLevel( 2 )  /* connection problem */
-   IF EMPTY( Leto_GetCurrentConnection() )  /* not done by auto-login */
+   IF EMPTY( Leto_GetCurrentConnection() )
 
       IF LEFT( cAddress, 2 ) != "//" .AND. ! ":" $ cAddress .AND. ! EMPTY( cPort )
          cAddress := "//" + cAddress + IF( ! EMPTY( cPort ), ":" + cPort, "" )
@@ -212,12 +226,35 @@ FUNCTION Main( cIniFile )
       ErrorLevel( 3 )  /* server locking problem */
 
       LogIt( "Trying to lock server, please wait ..." )
-      n1 = Seconds()
-      lLocked := leto_LockLock( .T., nWaitLock )
-      LogIt( iif( lLocked, "Success", "Failure" ) + " after " + hb_ntos( Seconds() - n1 ) + " seconds" )
-      IF ! lLocked
-         lSuccess := .F.
-      ENDIF
+      DO WHILE nRetryLock > 0
+         n1 = Seconds()
+         lLocked := leto_LockLock( .T., nWaitLock, nWaitDelay )
+         LogIt( iif( lLocked, "Success", "Failure" ) + " after " + hb_ntos( Seconds() - n1 ) + " seconds" +;
+                iif( nRetryLock > 0, ", retry in: " + hb_ntos( nRetryDelay ), "" ) )
+         IF ! lLocked
+            lSuccess := .F.
+         ELSE
+            EXIT
+         ENDIF
+         nRetryLock -= 1
+         IF nRetryLock > 0
+            lSuccess := .T.
+            n1 := Seconds()
+            nRow := ROW()
+            nCol := COL() - LEN( hb_ntos( nRetryDelay ) )
+            SET CURSOR OFF
+            DO WHILE Seconds() - n1 < nRetryDelay
+               SetPos( nRow, nCol )
+               ?? hb_ntos( INT( nRetryDelay - ( Seconds() - n1 ) ) ) + SPACE( 5 )
+               IF INKEY( 1 ) == K_ESC
+                  lSuccess := .F.
+                  nRetryLock := 0
+                  EXIT
+               ENDIF
+            ENDDO
+            SET CURSOR ON
+         ENDIF
+      ENDDO
    ENDIF
 
    IF LSuccess
@@ -245,7 +282,7 @@ FUNCTION Main( cIniFile )
       ENDIF
    ENDIF
 
-   /* preparing the archivate command, fill in place holders */
+   /* preparing the archivate command, fill wildcards with values */
    IF lSuccess .AND. ! EMPTY( cArcCmd )
       hRepl := { => }
       hRepl[ "%dst%" ]  := cOutDir
@@ -305,6 +342,8 @@ FUNCTION Main( cIniFile )
       IF nResult != 0
          lSuccess := .F.
       ELSE
+         /* if data-change logging for server is activated: rename old log to let a new created */
+         Leto_LogToggle()
          ErrorLevel( 0 )
       ENDIF
 

@@ -147,6 +147,7 @@ typedef struct
    HB_BOOL           bClear;                   /* temporary help var for OrdListClear() */
    HB_BOOL           bProduction;              /* CDX autoopened production order */
    HB_BOOL           bShared;                  /* temporary private index order */
+   HB_BOOL           bTemporary;               /* temporary|exclusive|memIO index-order */
    char              cKeyType;                 /* type of expression */
 } INDEXSTRU, * PINDEXSTRU;                     /* 64 */
 
