@@ -157,6 +157,6 @@
    #xtranslate RENAMEFILE( <x>, <y> )        => LETO_FRENAME( <x>, <y> )
 #endif
 
-#include letofile_additional.ch
+#include "letofile_additional.ch"
 
 #endif /* LETOFILE_CH_ */
