@@ -2,6 +2,72 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-05-09 15:25 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  ; changes relate to the C-API and should not disturb the RDD activity,
+    except a serious change of record lock registration moved into letocl.c
+
+  * include/letocl.h
+  * include/rddleto.h
+    * add self defines to prevent double usage
+    * move _LETOTAGEXTRAINFO from rddleto.h into letocl.h
+    * add new C-API prototypes to letocl.h
+
+  * source/client/leto1.c
+    * add in letoFieldInfo() a query to server about DBS_BLOB_LEN;
+      it returns content length of a memo field
+    ; formerly static funcs leto_[Add|Del]RecLock() moved into letocl.c, so
+      lock registration not only done in RDD methods letoLock()/letoUnlock()
+    * record lock registration now in LetoDbAppend()/ LetoDbRecLock(),
+      de-registration in LetoDbRecUnLock() *plus* for the update+unlock
+      shortcut in letoRawLock();
+
+  * source/client/letocl.c
+    ; following change also effects the RDD
+    * move into from leto1.c:  leto_AddRecLock()/ leto_DelRecLock() to be
+      covered also by the C-API;
+      same done for letoCreateAlias(() --> LetoDbCreateAlias() to be useable
+      from C-API in LetoDbCreateTable()/ LetoDbOpenTable()
+    * exclude usage of extra taginfo for C-API
+    * remove in leto_Recv() calls to hb_vmLock()/ hb_vmUnlock()
+    * add leto_strdup() & leto_strncpy to replace Harbour versions
+    * add a bunch of: if( pTable->uiUpdated ) to automatize record updates
+      send to server, beforehand only done by the overlaying RDD methods
+    * use in LetoDbRec[Un]Lock() the active RecNo if '0' is given in C-API
+    - LetoGetCmdItem(), LetoFindCmdItem(): dissolved using simple strchr()
+    * change: LetoDbGetField() callee is responsible to allocate enough
+      RAM for field content; amount is transmitted by reference to return
+      finally used; in case amount is not enough for full content, a
+      HB_FAILURE is returned and the buffer filled as much possible
+    + DllMain() for C-API DLL in Windows
+    + LetoDbAlias() to query the ALIAS of a table
+      LetoDbFieldPos() to convert field-name to field-pos [lastly needed]
+      LetoDbFieldNameLength() to determine RDD capability [actually fix 10]
+      LetoDbGetFieldLen() field content length of memofields
+      LetoDbFieldInfo() return comma separated: name, type, len, dec
+      LetoDbOrdCount()/ LetoDbOrdFocus() to handle index orders
+      LetoDb[Set|Clear]Relation() to handle *optimized* relations
+    - LetoDbBof()/ LetoDbEof --> replaced by:
+    + LetoDbAreaFlags() covering BOF, EOF, FOUND
+
+  * source/client/letomgmn.c
+    ! fix MinGw warning for 32bit Windows about two HB_PFS in
+      LETO_LOGREPLAY(); use HB_ULONG instead in format mask
+    * dissolve removed LetoGetCmdItem() in LETO_MGGETTIME()
+
+  * source/common/common_c.c
+    * exclude PRG functions for C-API
+    % tiny optimize for eprintf
+
+  * * source/server/letofunc.c
+    * new DBS_BLOB_LEN answer for client
+
+  * tests/c_lang/test1.c
+  * tests/c_lang/test_dbf.c
+    * new length param for LetoDbGetField()
+    * replace removed LetoGetCmdItem()
+
+  * apileto.hbp
+
 2019-04-27 09:42 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * include/srvleto.h
   * source/server/letoacc.c

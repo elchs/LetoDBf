@@ -13,7 +13,7 @@
    #define _EOL_  "\n"
 #endif
 
-void main( int argc, char *argv[] )
+int main( int argc, char *argv[] )
 {
    LETOCONNECTION * pConnection;
    int  iPort;
@@ -25,7 +25,7 @@ void main( int argc, char *argv[] )
    printf( "Connecting to %s:%d ..." _EOL_, szAddr, iPort );
    if( ( pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, 0 ) ) != NULL )
    {
-      const char * ptr;
+      const char * ptr, * ptrEnd;
       char         szData[ 64 ];
       PHB_ITEM     pItem = hb_itemNew( NULL );  /* at least empty item, or hb_itemArrayNew( 0 ) */
 
@@ -33,14 +33,14 @@ void main( int argc, char *argv[] )
       printf( "%s" _EOL_, LetoGetServerVer( pConnection ) );
       if( ( ptr = LetoMgGetInfo( pConnection ) ) != NULL && *( ptr - 1 ) == '+' )
       {
-         ptr = LetoGetCmdItem( ptr, szData ); ptr ++;
+         ptrEnd = strchr( ptr, ';' ); memcpy( szData, ptr, ptrEnd - ptr ); szData[ ptrEnd - ptr ] = '\0'; ptr = ptrEnd + 1;
          printf( "Users current:  %s\t\t", szData );
-         ptr = LetoGetCmdItem( ptr, szData ); ptr ++;
+         ptrEnd = strchr( ptr, ';' ); memcpy( szData, ptr, ptrEnd - ptr ); szData[ ptrEnd - ptr ] = '\0'; ptr = ptrEnd + 1;
          printf( "max: %s" _EOL_, szData );
 
-         ptr = LetoGetCmdItem( ptr, szData ); ptr ++;
+         ptrEnd = strchr( ptr, ';' ); memcpy( szData, ptr, ptrEnd - ptr ); szData[ ptrEnd - ptr ] = '\0'; ptr = ptrEnd + 1;
          printf( "Tables current: %s\t\t", szData );
-         LetoGetCmdItem( ptr, szData );
+         ptrEnd = strchr( ptr, ';' ); memcpy( szData, ptr, ptrEnd - ptr ); szData[ ptrEnd - ptr ] = '\0';
          printf( "max: %s" _EOL_, szData );
       }
 

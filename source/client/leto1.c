@@ -755,55 +755,6 @@ static HB_ERRCODE letoAddField( LETOAREAP pArea, LPDBFIELDINFO pFieldInfo )
    return SUPER_ADDFIELD( ( AREAP ) pArea, pFieldInfo );
 }
 
-static void leto_AddRecLock( LETOTABLE * pTable, HB_ULONG ulRecNo )
-{
-   HB_ULONG ulPos = 0;
-
-   /* [re-]allocate locks array for the table */
-   if( ! pTable->pLocksPos )
-   {
-      pTable->ulLocksAlloc = 64;
-      pTable->pLocksPos = ( HB_ULONG * ) hb_xgrab( sizeof( HB_ULONG ) * pTable->ulLocksAlloc );
-      pTable->ulLocksMax = 0;
-   }
-   else if( pTable->ulLocksMax == pTable->ulLocksAlloc )
-   {
-      pTable->pLocksPos = ( HB_ULONG * ) hb_xrealloc( pTable->pLocksPos, sizeof( HB_ULONG ) * ( pTable->ulLocksAlloc + 64 ) );
-      pTable->ulLocksAlloc += 64;
-   }
-
-   /* search if already registered */
-   while( ulPos < pTable->ulLocksMax )
-   {
-      if( pTable->pLocksPos[ ulPos ] == ulRecNo )
-         break;
-      ulPos++;
-   }
-
-   if( ulPos == pTable->ulLocksMax )
-      pTable->pLocksPos[ pTable->ulLocksMax++ ] = ulRecNo;
-}
-
-static void leto_DelRecLock( LETOTABLE * pTable, HB_ULONG ulRecNo )
-{
-   HB_ULONG ulPos;
-
-   for( ulPos = 0; ulPos < pTable->ulLocksMax; ulPos++ )
-   {
-      if( pTable->pLocksPos[ ulPos ] == ulRecNo )
-      {
-         pTable->ulLocksMax--;
-         if( ulPos < pTable->ulLocksMax )
-         {
-            HB_ULONG * pList = pTable->pLocksPos + ulPos;
-
-            memmove( pList, pList + 1, ( pTable->ulLocksMax - ulPos ) * sizeof( HB_ULONG ) );
-         }
-         break;
-      }
-   }
-}
-
 static HB_ERRCODE leto_IsRelationed( AREAP pArea, void * p )
 {
    if( leto_CheckAreaConn( pArea, ( LETOCONNECTION * ) p ) )
@@ -854,13 +805,6 @@ static HB_ERRCODE letoAppend( LETOAREAP pArea, HB_BOOL fUnLockAll )
       return HB_FAILURE;
    }
 
-   if( pTable->ulRecNo )  /* ! pConnection->fTransActive */
-   {
-      if( fUnLockAll )
-         pTable->ulLocksMax = 0;
-      leto_AddRecLock( pTable, pTable->ulRecNo );
-   }
-
    if( pArea->area.lpdbRelations )
       return SELF_SYNCCHILDREN( ( AREAP ) pArea );
    return HB_SUCCESS;
@@ -908,6 +852,7 @@ static HB_ERRCODE letoDeleted( LETOAREAP pArea, HB_BOOL * pDeleted )
 static HB_ERRCODE letoFieldInfo( LETOAREAP pArea, HB_USHORT uiIndex, HB_USHORT uiType, PHB_ITEM pItem )
 {
    LETOTABLE * pTable = pArea->pTable;
+   LETOFIELD * pField;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoFieldInfo(%p, %hu, %hu, %p)", pArea, uiIndex, uiType, pItem ) );
 
@@ -915,10 +860,27 @@ static HB_ERRCODE letoFieldInfo( LETOAREAP pArea, HB_USHORT uiIndex, HB_USHORT u
       return HB_FAILURE;
 
 #ifndef __HARBOUR30__
-   if( pTable->fHaveAutoinc && ( uiType == DBS_COUNTER || uiType == DBS_STEP ) )
+   pField = pTable->pFields + uiIndex - 1;
+   if( uiType == DBS_BLOB_LEN && ( pField->uiType == HB_FT_MEMO || pField->uiType == HB_FT_BLOB ||
+                                   pField->uiType == HB_FT_PICTURE || pField->uiType == HB_FT_OLE ) )
    {
-      LETOFIELD * pField = pTable->pFields + uiIndex - 1;
+      LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+      char         szData[ 42 ];
+      HB_ULONG     ulLen = eprintf( szData, "%c;%lu;%d;%d;", LETOCMD_dbi, pTable->hTable, DBS_BLOB_LEN, uiIndex );
 
+      if( leto_SendRecv( pConnection, pArea, szData, ulLen, 0 ) )
+      {
+         if( *pConnection->szBuffer == '+' )
+         {
+            hb_itemPutNL( pItem, strtoul( pConnection->szBuffer + 1, NULL, 10 ) );
+            return HB_SUCCESS;
+         }
+      }
+      hb_itemClear( pItem );
+      return HB_FAILURE;
+   }
+   else if( pTable->fHaveAutoinc && ( uiType == DBS_COUNTER || uiType == DBS_STEP ) )
+   {
       if( pField->uiType == HB_FT_AUTOINC || pField->uiType == HB_FT_ROWVER ||
           ( pField->uiFlags & HB_FF_AUTOINC ) )
       {
@@ -942,18 +904,18 @@ static HB_ERRCODE letoFieldInfo( LETOAREAP pArea, HB_USHORT uiIndex, HB_USHORT u
          {
             ptr = pConnection->szBuffer;
             if( *ptr++ == '+' )
+            {
                hb_itemPutNL( pItem, strtoul( ptr, NULL, 10 ) );
-            else
-               ulLen = 0;
+               return HB_SUCCESS;
+            }
          }
-
-         if( ulLen )
-            return HB_SUCCESS;
       }
       hb_itemClear( pItem );
       return HB_FAILURE;
    }
    else
+#else
+   HB_SYMBOL_UNUSED( pField );
 #endif
       return SUPER_FIELDINFO( &pArea->area, uiIndex, uiType, pItem );
 }
@@ -2246,51 +2208,6 @@ static void letoCreateAliasWA( char * szAlias )
    eprintf( szAlias, "TmpWA%d", iArea );
 }
 
-static void letoCreateAlias( const char * szFile, char * szAlias )
-{
-   const char * ptrBeg, * ptrEnd, *ptrWin;
-
-   ptrEnd = strrchr( szFile, '.' );
-   if( ! ptrEnd || ( ptrEnd > szFile && *( ptrEnd - 1 ) == '.' ) )  /* .. */
-       ptrEnd = szFile + strlen( szFile );
-
-   ptrBeg = strchr( szFile, ':' );
-   if( ptrBeg )  /* mem:... */
-   {
-      const char * ptrTmp;
-
-      ptrBeg++;
-      ptrTmp = strrchr( szFile, '/' );
-      ptrWin = strrchr( szFile, '\\' );
-      if( ptrWin )
-      {
-         if( ( ! ptrTmp || ptrWin > ptrTmp ) )
-            ptrTmp = ptrWin;
-      }
-      if( ptrTmp )
-      {
-         if( ++ptrTmp > ptrBeg )
-            ptrBeg = ptrTmp;
-      }
-   }
-   else
-   {
-      ptrBeg = strrchr( szFile, '/' );
-      ptrWin = strrchr( szFile, '\\' );
-      if( ptrWin )
-      {
-         if( ! ptrBeg || ptrWin > ptrBeg )
-            ptrBeg = ptrWin;
-      }
-      if( ! ptrBeg )
-         ptrBeg = szFile;
-      else
-         ptrBeg++;
-   }
-
-   hb_strncpyUpper( szAlias, ptrBeg, HB_MIN( ptrEnd - ptrBeg, HB_RDD_MAX_ALIAS_LEN ) );
-}
-
 static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
 {
    LETOCONNECTION * pConnection;
@@ -2470,7 +2387,7 @@ static HB_ERRCODE letoCreate( LETOAREAP pArea, LPDBOPENINFO pCreateInfo )
          if( pCreateInfo->atomAlias || ! *szFile )
             letoCreateAliasWA( szAlias );
          else
-            letoCreateAlias( szFile, szAlias );
+            LetoDbCreateAlias( szFile, szAlias );
          pCreateInfo->atomAlias = szAlias;
       }
 
@@ -2858,7 +2775,7 @@ static HB_ERRCODE letoInfo( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pItem )
             return HB_FAILURE;
 
          ptr = leto_firstchar( pConnection );
-         if( ( ptr2 = LetoFindCmdItem( ptr ) ) != NULL )
+         if( ( ptr2 = ptr ? strchr( ptr, ';' ) : NULL ) != NULL )
             hb_itemPutCL( pItem, ptr, ptr2 - ptr );
          break;
       }
@@ -2981,7 +2898,7 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
    pArea->szDataFileName = hb_strdup( szFile );
    if( ( ! pOpenInfo->atomAlias || ! *pOpenInfo->atomAlias ) && *szFile )  /* create a missing Alias */
    {
-      letoCreateAlias( szFile, szAlias );
+      LetoDbCreateAlias( szFile, szAlias );
       pOpenInfo->atomAlias = szAlias;
    }
 
@@ -5438,6 +5355,8 @@ static HB_ERRCODE letoRawLock( LETOAREAP pArea, HB_USHORT uiAction, HB_ULONG ulR
          {
             if( ulRecNo == pTable->ulRecNo )
                pTable->fRecLocked = HB_FALSE;
+            if( ulRecNo && pTable->pLocksPos )
+               leto_DelRecLock( pTable, ulRecNo );
             return HB_SUCCESS;
          }
          else /* FILE_UNLOCK */
@@ -5542,8 +5461,6 @@ static HB_ERRCODE letoLock( LETOAREAP pArea, LPDBLOCKINFO pLockInfo )
    }
 
    pLockInfo->fResult = SELF_RAWLOCK( ( AREAP ) pArea, uiAction, ulRecNo ) == HB_SUCCESS ? HB_TRUE : HB_FALSE;
-   if( pLockInfo->fResult && ( pLockInfo->uiMethod == DBLM_EXCLUSIVE || pLockInfo->uiMethod == DBLM_MULTIPLE ) )
-      leto_AddRecLock( pTable, ulRecNo );
 
    return HB_SUCCESS;
 }
@@ -5565,8 +5482,6 @@ static HB_ERRCODE letoUnLock( LETOAREAP pArea, PHB_ITEM pRecNo )
       return HB_SUCCESS;
 
    errCode = SELF_RAWLOCK( ( AREAP ) pArea, ( ulRecNo ) ? REC_UNLOCK : FILE_UNLOCK, ulRecNo );
-   if( errCode == HB_SUCCESS && ulRecNo && pTable->pLocksPos )
-      leto_DelRecLock( pTable, ulRecNo );
 
    return errCode;
 }

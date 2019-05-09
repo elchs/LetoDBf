@@ -45,6 +45,9 @@
  *
  */
 
+#ifndef LETOCL_H_
+#define LETOCL_H_
+
 #include "hbdefs.h"
 #include "hbsocket.h"
 #ifndef __XHARBOUR__
@@ -88,6 +91,7 @@
    #define LETO_DOPCODE_LEN         7
 #endif
 
+
 HB_EXTERN_BEGIN
 
 typedef struct _CDPSTRU
@@ -114,6 +118,16 @@ typedef struct _LETOFIELD
    HB_USHORT         uiFlags;
 } LETOFIELD;                           /* 20 */
 
+typedef struct _LETOTAGEXTRAINFO
+{
+   PHB_ITEM   pKeyItem;
+   PHB_ITEM   pTopScope;
+   PHB_ITEM   pBottomScope;
+   HB_USHORT  uiFCount;                /* index fields count */
+   HB_USHORT * puiFields;               /* index fields array */
+
+} LETOTAGEXTRAINFO;
+
 typedef struct _LETOTAGINFO
 {
    char *            BagName;
@@ -122,7 +136,7 @@ typedef struct _LETOTAGINFO
    char *            ForExpr;
    char *            WhileExpr;
    char *            UseIndex;
-   HB_U32            uiFlags;           
+   HB_U32            uiFlags;
    HB_BOOL           fUniqueKey;
    HB_BOOL           fProduction;     /* CDX auto opened order[s] */
    unsigned char     cKeyType;
@@ -141,14 +155,15 @@ typedef struct _LETOTAGINFO
    struct _LETOTAGINFO * pNext;
 } LETOTAGINFO;                        /* 112 */
 
-
 typedef struct _LETOTABLE
 {
    unsigned long     hTable;            /* workarea */
    unsigned int      uiDriver;          /* 0 for CDX, 1 for NTX */
    char              szDriver[ HB_RDD_MAX_DRIVERNAME_LEN + 1 ];
+   char              szAlias[ HB_RDD_MAX_ALIAS_LEN + 1 ];
    unsigned int      uiConnection;
    HB_USHORT         uiFieldExtent;     /* number of fields per record */
+   HB_USHORT         uiFieldNameLength; /* length of field namens */
    LETOFIELD *       pFields;           /* pointer to the fields */
    HB_USHORT         uiUpdated;         /* table update state: appended/ changed/ deleted records */
    unsigned char *   pFieldUpd;         /* pointer to updated fields array */
@@ -287,8 +302,7 @@ extern HB_EXPORT void LetoInit( void );
 extern HB_EXPORT void LetoExit( unsigned int uiFull );
 extern HB_EXPORT HB_ERRCODE LetoSet( LETOCONNECTION * pConnection, int iCommand, const char * szCommand );
 extern HB_EXPORT int LetoGetConnectRes( void );
-extern HB_EXPORT const char * LetoGetCmdItem( const char * ptr, char * szDest );
-extern HB_EXPORT const char * LetoFindCmdItem( const char * ptr );
+extern HB_EXPORT int leto_Connect( const char * szAddress, const char * szUser, const char * szPass, int iTimeOut, int iRefr, HB_BOOL fZombieCheck );
 extern HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
 extern HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
 extern HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection );
@@ -332,18 +346,29 @@ extern HB_EXPORT HB_ERRCODE LetoDbZap( LETOTABLE * pTable );
 extern HB_EXPORT HB_ERRCODE LetoDbReindex( LETOTABLE * pTable );
 
 /* additional pure C access API */
-extern HB_EXPORT unsigned int LetoDbBof( LETOTABLE * pTable );
-extern HB_EXPORT unsigned int LetoDbEof( LETOTABLE * pTable );
-extern HB_EXPORT unsigned int LetoDbGetField( LETOTABLE * pTable, HB_USHORT uiIndex, char ** szRet, unsigned long * ulLen );
+extern HB_EXPORT LETOCONNECTION * LetoConnection( unsigned int uiConnection, LETOTABLE * pTable );
+extern HB_EXPORT unsigned int LetoConnectionInfo( LETOCONNECTION * pConnection, unsigned int * iError, unsigned int * iZipLevel, char * szVersion );
+extern HB_EXPORT unsigned int LetoDbSetRelation( LETOTABLE * pTable, HB_USHORT uiChildArea, const char * szRelation );
+extern HB_EXPORT unsigned int LetoDbClearRelation( LETOTABLE * pTable );
+extern HB_EXPORT unsigned int LetoDbOrdCount( LETOTABLE * pTable, unsigned int * iOrdCount );
+extern HB_EXPORT unsigned int LetoDbOrdFocus( LETOTABLE * pTable, char * szOrdInfo, unsigned int * iInfoLen );
+extern HB_EXPORT unsigned int LetoDbAreaFlags( LETOTABLE * pTable, unsigned int * uiFlags );
+extern HB_EXPORT unsigned int LetoDbGetField( LETOTABLE * pTable, HB_USHORT uiIndex, char * szRet, unsigned long * ulLen );
+extern HB_EXPORT unsigned int LetoDbGetFieldLen( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned long * ulContentLen );
 extern HB_EXPORT unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, const char * szValue, unsigned long ulLen );
+extern HB_EXPORT unsigned int LetoDbAlias( LETOTABLE * pTable, char * szAlias );
 extern HB_EXPORT unsigned int LetoDbRecNo( LETOTABLE * pTable, unsigned long * ulRecNo );
 extern HB_EXPORT unsigned int LetoDbFieldCount( LETOTABLE * pTable, unsigned int * uiCount );
 extern HB_EXPORT unsigned int LetoDbFieldName( LETOTABLE * pTable, HB_USHORT uiIndex, char * szName );
+extern HB_EXPORT unsigned int LetoDbFieldNameLength( LETOTABLE * pTable, unsigned int * uiLength );
+extern HB_EXPORT unsigned int LetoDbFieldPos( LETOTABLE * pTable, const char * szField, unsigned int * uiIndex );
+extern HB_EXPORT unsigned int LetoDbFieldInfo( LETOTABLE * pTable, HB_USHORT uiIndex, char * szInfoList );
 extern HB_EXPORT unsigned int LetoDbFieldType( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiType );
 extern HB_EXPORT unsigned int LetoDbFieldLen( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiLen );
 extern HB_EXPORT unsigned int LetoDbFieldDec( LETOTABLE * pTable, HB_USHORT uiIndex, unsigned int * uiDec );
 extern HB_EXPORT void LetoFreeStr( char * szStr );
 extern HB_EXPORT void LetoSetAddress( int argc, char * argv[], char * szAddr, int * iPort );
+extern HB_EXPORT unsigned int LetoVarGetC( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, char * szValue, unsigned long * pulLen );
 
 long leto_DataSendRecv( LETOCONNECTION * pConnection, const char * sData, unsigned long ulLen );
 unsigned long leto_SendRecv2( LETOCONNECTION * pConnection, const char * szData, unsigned long ulLen, int iErr );
@@ -358,6 +383,8 @@ void leto_BeautifyPath( char * szPath, const char cReplace );
 HB_BOOL leto_getIpFromPath( const char * sSource, char * szAddr, int * piPort, char * szPath );
 void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMax );
 int leto_Connect( const char * szAddress, const char * szUser, const char * szPass, int iTimeOut, int iRefr, HB_BOOL fZombieCheck );
+void LetoDbCreateAlias( const char * szFile, char * szAlias );
+void leto_DelRecLock( LETOTABLE * pTable, HB_ULONG ulRecNo );
 
 const char * leto_DecryptText( LETOCONNECTION * pConnection, unsigned long * pulLen, char * ptr );
 HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead );
@@ -421,11 +448,22 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
 #endif
 
 #if defined( __LETO_C_API__ )
+   extern HB_EXPORT void LetoSetGetSoftSeek( unsigned int * iSet );
+   extern HB_EXPORT void LetoSetGetDeleted( unsigned int * iSet );
+   extern HB_EXPORT void LetoSetGetExclusive( unsigned int * iSet );
+   extern HB_EXPORT void LetoSetGetAutOpen( unsigned int * iSet );
+   extern HB_EXPORT void LetoSetGetAutOrder( unsigned int * iSet );
+   extern HB_EXPORT void LetoSetGetDateFormat( char * pSet );
+   extern HB_EXPORT void LetoSetGetEpoch( unsigned int * iSet );
+   extern HB_EXPORT void LetoSetGetDefault( char * pSet );
+   extern HB_EXPORT void LetoSetGetPath( char * pSet );
+   extern HB_EXPORT void LetoSetGetCodepage( char * pSet );
+
    extern HB_EXPORT void LetoSetSetSoftseek( HB_BOOL fSet );
    extern HB_EXPORT void LetoSetSetDeleted( HB_BOOL fSet );
    extern HB_EXPORT void LetoSetSetExclusive( HB_BOOL fSet );
    extern HB_EXPORT void LetoSetSetAutOpen( HB_BOOL fSet );
-   extern HB_EXPORT void LetoSetSetAutOrder( HB_UCHAR uSet );
+   extern HB_EXPORT void LetoSetSetAutOrder( int iSet );
    extern HB_EXPORT void LetoSetSetDateFormat( const char * pSet );
    extern HB_EXPORT void LetoSetSetEpoch( HB_SIZE nSet );
    extern HB_EXPORT void LetoSetSetDefault( const char * pSet );
@@ -433,3 +471,6 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
 #endif
 
 HB_EXTERN_END
+
+#endif  /* LETOCL_H_ */
+

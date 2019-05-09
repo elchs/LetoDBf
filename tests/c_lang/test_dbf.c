@@ -11,27 +11,29 @@
 
 static void printRec( LETOTABLE * pTable )
 {
-   unsigned long ulRecNo, ulLen = 64;
-   char *        szRet = hb_xgrab( ulLen );
+   unsigned long ulRecNo, ulAlloc = 256, ulLen;
+   char *        szRet = hb_xgrab( ulAlloc );
    const char *  pText;
 
    LetoDbRecNo( pTable, &ulRecNo );
-   LetoDbGetField( pTable, 1, &szRet, &ulLen );
+   ulLen = ulAlloc;
+   LetoDbGetField( pTable, 1, szRet, &ulLen );
    printf( "N: %lu, %s", ulRecNo, szRet );
-   ulLen = 64;
 
-   LetoDbGetField( pTable, 2, &szRet, &ulLen );
+   ulLen = ulAlloc;
+   LetoDbGetField( pTable, 2, szRet, &ulLen );
    printf( " %s", szRet );
 
-   LetoDbGetField( pTable, 3, &szRet, NULL );
+   ulLen = ulAlloc;
+   LetoDbGetField( pTable, 3, szRet, &ulLen );
    printf( " %s", szRet );
 
-   ulLen = 64;
-   LetoDbGetField( pTable, 4, &szRet, &ulLen );
+   ulLen = ulAlloc;
+   LetoDbGetField( pTable, 4, szRet, &ulLen );
    printf( " %s", szRet );
 
-   ulLen = 64;
-   LetoDbGetField( pTable, 5, &szRet, &ulLen );
+   ulLen = ulAlloc;
+   LetoDbGetField( pTable, 5, szRet, &ulLen );
    printf( " %s", szRet );
 
    /* alternative */

@@ -14850,6 +14850,30 @@ static void leto_Info( PUSERSTRU pUStru, char * szData )
             hb_itemRelease( pItem );
             break;
          }
+
+         case DBS_BLOB_LEN:
+         {
+            PHB_ITEM     pItem = hb_itemNew( NULL );
+            HB_USHORT    uiField = ( HB_USHORT ) atoi( pp1 );
+            HB_ERRCODE   errCode;
+
+            errCode = SELF_FIELDINFO( pArea, uiField, DBS_BLOB_LEN, pItem );
+            if( errCode == HB_SUCCESS && HB_IS_NUMERIC( pItem ) )
+            {
+               char     szData1[ 32 ];
+               HB_ULONG ulLen;
+
+               szData1[ 0 ] = '+';
+               ulLen = 1 + ultostr( hb_itemGetNInt( pItem ), szData1 + 1 );
+               szData1[ ulLen++ ] = ';';
+               szData1[ ulLen ] = '\0';
+               leto_SendAnswer( pUStru, szData1, ulLen );
+            }
+            else
+               leto_SendAnswer( pUStru, szErr4, 4 );
+            hb_itemRelease( pItem );
+            break;
+         }
 #endif
 
          default:

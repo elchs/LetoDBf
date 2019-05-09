@@ -1187,6 +1187,11 @@ HB_FUNC( LETO_MILLISEC )
    hb_retnll( leto_MilliSec() );
 }
 
+static const char * LetoFindCmdItem( const char * ptr )
+{
+   return ptr ? strchr( ptr, ';' ) : NULL;
+}
+
 HB_FUNC( LETO_MGGETINFO )
 {
    LETOCONNECTION * pCurrentConn = letoGetCurrConn();
@@ -1579,38 +1584,33 @@ HB_FUNC( LETO_MGGETTIME )
    if( pCurrentConn )
    {
       const char * ptr = LetoMgGetTime( pCurrentConn );
+      const char * ptrEnd;
 
       if( ptr && *( ptr - 1 ) == '+' )
       {
-         PHB_ITEM pTmp;
-         PHB_ITEM aInfo;
-         char     szData[ 32 ];
-         int      i;
+         PHB_ITEM pTmp = NULL;
+         PHB_ITEM aInfo = hb_itemArrayNew( 3 );
+         HB_ULONG ulDate;
+         int      i, iOvf;
 
-         aInfo = hb_itemArrayNew( 3 );
          for( i = 1; i <= 3; i++ )
          {
-            if( ( ptr = LetoGetCmdItem( ptr, szData ) ) == NULL )
-            {
-               hb_itemReturnRelease( aInfo );
-               return;
-            }
-            ptr++;
+            ptrEnd = strchr( ptr, ';' );
+            if( ! ptrEnd )
+               break;
+            hb_itemPutCL( pTmp, ptr, ptrEnd - ptr );
+            ptr = ptrEnd + 1;
             if( i == 1 )
             {
-               int      iOvf;
-               HB_ULONG ulDate = ( HB_ULONG ) hb_strValInt( szData, &iOvf );
-
-               pTmp = hb_itemPutDL( NULL, ulDate );
+               ulDate = ( HB_ULONG ) hb_strValInt( hb_itemGetCPtr( pTmp ), &iOvf );
+               pTmp = hb_itemPutDL( pTmp, ulDate );
             }
             else
-            {
-               pTmp = hb_itemPutND( NULL, hb_strVal( szData, 10 ) );
-            }
+               pTmp = hb_itemPutND( pTmp, hb_strVal( hb_itemGetCPtr( pTmp ), 10 ) );
             hb_itemArrayPut( aInfo, i, pTmp );
-            hb_itemRelease( pTmp );
          }
 
+         hb_itemRelease( pTmp );
          hb_itemReturnRelease( aInfo );
       }
    }
@@ -1851,12 +1851,12 @@ HB_FUNC( LETO_LOGREPLAY )
       char         szData[ HB_PATH_MAX * 2 ];
       const char * szFile = hb_parclen( 1 ) ? hb_parc( 1 ) : "";
       const char * szActions = ( hb_parclen( 2 ) && hb_parclen( 2 ) <= 10 ) ? hb_parc( 2 ) : "";
-      HB_MAXINT    iUp = ( HB_ISNUM( 3 ) && hb_parni( 3 ) > 0 ) ? hb_parni( 3 ) : 0;
-      HB_MAXINT    iTo = ( HB_ISNUM( 4 ) && hb_parni( 4 ) > 0 ) ? hb_parni( 4 ) : 0;
+      HB_ULONG     ulUp = ( HB_ISNUM( 3 ) && hb_parnl( 3 ) > 0 ) ? ( HB_ULONG ) hb_parnl( 3 ) : 0;
+      HB_ULONG     ulTo = ( HB_ISNUM( 4 ) && hb_parnl( 4 ) > 0 ) ? ( HB_ULONG ) hb_parnl( 4 ) : 0;
       int          iEx = ( HB_ISNUM( 5 ) && hb_parni( 5 ) > 0 ) ? hb_parni( 5 ) : -1;
 
       hb_rddCloseAll();
-      hb_snprintf( szData, 36, "%c;replay;%s;%s;%" HB_PFS "d;%" HB_PFS "d;%d;", LETOCMD_admin, szFile, szActions, iUp, iTo, iEx );
+      hb_snprintf( szData, 36, "%c;replay;%s;%s;%lu;%lu;%d;", LETOCMD_admin, szFile, szActions, ulUp, ulTo, iEx );
       if( leto_DataSendRecv( pConnection, szData, 0 ) )
       {
          hb_retnd( atof( pConnection->szBuffer ) );

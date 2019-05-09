@@ -549,6 +549,8 @@ void leto_hexchar2byte( const char * ptri, int iLen, char * ptro )
    }
 }
 
+#if ! defined( __LETO_C_API__ )
+
 HB_FUNC( LETO_BVALUE )
 {
 #if defined( HB_ARCH_64BIT )
@@ -628,6 +630,8 @@ HB_FUNC( LETO_SSEARCH )
    hb_retl( bFound );
 }
 
+#endif  /* ! __LETO_C_API__  */
+
 /* convert unsigned long to zero terminated string, returns length */
 /* special version with fixed base 10 -- high technics, less divisions ;-) */
 HB_UINT ultostr( HB_U64 ulValue, char * ptr )
@@ -665,6 +669,7 @@ int eprintf( char * d, const char * fmt, ... )
    va_list      ap;
    const char * p;
    HB_I64       lValue;
+   HB_U64       uValue;
 
    va_start( ap, fmt );
    for( ; *fmt; )
@@ -689,7 +694,7 @@ int eprintf( char * d, const char * fmt, ... )
                if( *fmt == 'l' )
                {
                   if( *++fmt == 'u' )
-                     lValue = va_arg( ap, unsigned long );
+                     uValue = va_arg( ap, unsigned long );
                   else
                   {
                      lValue = va_arg( ap, long );
@@ -698,12 +703,13 @@ int eprintf( char * d, const char * fmt, ... )
                         *d++ = '-';
                         lValue *= -1;
                      }
+                     uValue = lValue;
                   }
                }
                else
                {
                   if( *fmt == 'u' )
-                     lValue = va_arg( ap, unsigned int );
+                     uValue = va_arg( ap, unsigned int );
                   else
                   {
                      lValue = va_arg( ap, int );
@@ -712,24 +718,25 @@ int eprintf( char * d, const char * fmt, ... )
                         *d++ = '-';
                         lValue *= -1;
                      }
+                     uValue = lValue;
                   }
                }
 
                /* a copy of ultostr(), without '\0' termination; value is ensured to be positive */
-               if( lValue < 10 )
-                  *d++ = ( char ) ( '0' + lValue );
+               if( uValue < 10 )
+                  *d++ = ( char ) ( '0' + uValue );
                else
                {
-                  HB_I64  lRemain;
+                  HB_U64  uRemain;
                   HB_UINT uiCount;
                   char    buf[ 21 ];
                   char *  ptrr = buf + 20;
 
                   do
                   {
-                     *--ptrr = ( char ) ( '0' + ( lValue - 10 * ( lRemain = lValue / 10 ) ) );
+                     *--ptrr = ( char ) ( '0' + ( uValue - 10 * ( uRemain = uValue / 10 ) ) );
                   }
-                  while( ( lValue = lRemain ) > 0 );
+                  while( ( uValue = uRemain ) > 0 );
 
                   uiCount = buf + 20 - ptrr;
                   memcpy( d, ptrr, uiCount );
@@ -747,6 +754,8 @@ int eprintf( char * d, const char * fmt, ... )
 
    return ( d - dst );
 }
+
+#if ! defined( __LETO_C_API__ )
 
 HB_FUNC( LETO_ISVALIDIP4 )
 {
@@ -817,3 +826,4 @@ HB_FUNC( LETO_BROADCASTIP )
    hb_retclen_buffer( szBroadcast, nPosBC );
 }
 
+#endif  /* ! __LETO_C_API__  */

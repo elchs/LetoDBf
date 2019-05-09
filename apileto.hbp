@@ -7,19 +7,27 @@
 {!bcc}-env:__LZ4=yes
 -env:__PMURHASH=yes
 
--cflag=-D__LETO_C_API__=1
--cflag=-DLETO_NO_MT=1
--cflag=-DLETO_NO_THREAD=1
-
 -olib/leto
 
-# static lib
+-cflag=-D__LETO_C_API__=1
+
+# need single threaded
+-cflag=-DLETO_NO_MT=1
+-cflag=-DLETO_NO_THREAD=1
+-st
+
+# static lib flags
 -hblib
+-nodefgt
 
-# shared lib, .dll or .so -- outcomment above, remove '#' in next 2 lines
+# dynamic lib flags ( .dll | .so -- outcomment static flags )
 #-hbdynvm
-#-shared
+#-cflag=-DLETO_DYNLIB=1
+#-gtnul
 
+
+# executable must provide HB
+#-shared
 
 -n
 -w3
@@ -29,7 +37,6 @@
 -strip
 -rebuild
 -inc-
--nodefgt
 
 -iinclude
 {__LZ4}-isource/3rd/lz4/lib
@@ -42,12 +49,12 @@
 -cflag={clang}-pedantic
 # to avoid spin locks
 #-cflag={win}-DHB_HELGRIND_FRIENDLY=1
+#-cflag=-DLETO_CLIENTLOG=1
 {__PMURHASH}-cflag=-DUSE_PMURHASH=1
 {__BM}-cflag=-D__BM=1
 {__LZ4}-cflag=-DUSE_LZ4=1
 
 source/client/letocl.c
-{__BM}source/client/letobmcl.prg
 
 source/common/blowfish.c
 source/common/common_c.c

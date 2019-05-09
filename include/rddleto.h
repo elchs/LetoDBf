@@ -44,6 +44,10 @@
  *
  */
 
+#ifndef RDDLETO_H_
+#define RDDLETO_H_
+
+
 #include "hbapi.h"
 #include "hbapiitm.h"
 #include "hbapierr.h"
@@ -162,7 +166,7 @@
 #endif
 
 #ifdef __HARBOUR30__
-   #define HB_SERIALIZE_NUMSIZE   HB_TRUE
+   #define HB_SERIALIZE_NUMSIZE   0x01
 #else
    #include "hbserial.ch"
 #endif
@@ -173,22 +177,12 @@
 #endif
 
 #ifndef RDDI_CONNECT
-   #define RDDI_CONNECT     61 
-   #define RDDI_DISCONNECT  62 
+   #define RDDI_CONNECT     61
+   #define RDDI_DISCONNECT  62
 #endif
 
 
 HB_EXTERN_BEGIN
-
-typedef struct _LETOTAGEXTRAINFO
-{
-   PHB_ITEM   pKeyItem;
-   PHB_ITEM   pTopScope;
-   PHB_ITEM   pBottomScope;
-   HB_USHORT  uiFCount;                /* index fields count */
-   HB_USHORT * puiFields;               /* index fields array */
-
-} LETOTAGEXTRAINFO;
 
 /*
  *  LETO WORKAREA
@@ -223,3 +217,4 @@ typedef LETOAREA * LETOAREAP;
 
 HB_EXTERN_END
 
+#endif  /* RDDLETO_H_ */
