@@ -1522,8 +1522,10 @@ HB_FUNC( LETO_MGLOG )
       HB_ULONG ulLen;
       HB_BOOL  fErase = hb_parl( 3 );
 
-      if( HB_ISNUM( 1 ) && hb_parni( 1 ) >= 0 )
+      if( HB_ISNUM( 1 ) && hb_parni( 1 ) >= -1 )
          iConnection = hb_parni( 1 );
+      if( iConnection < 0 )
+         fErase = HB_FALSE;
       ulLen = eprintf( szData, "%c;07;%d;%d;%c;",
                                LETOCMD_mgmt, iConnection, HB_ISNUM( 2 ) ? hb_parni( 2 ) : 0, fErase ? 'T' : 'F' );
       ulLen = ( HB_ULONG ) leto_DataSendRecv( pCurrentConn, szData, ulLen );

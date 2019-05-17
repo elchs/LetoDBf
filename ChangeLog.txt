@@ -2,6 +2,11 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2019-05-17 21:51 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
+  * source/client/letomgmn.c
+    ! fix for LETO_MGLOG(): accept values >= -1 [ -1 == server letodbf.log ]
+      thanks Ash for reporting
+
 2019-05-09 15:25 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   ; changes relate to the C-API and should not disturb the RDD activity,
     except a serious change of record lock registration moved into letocl.c
