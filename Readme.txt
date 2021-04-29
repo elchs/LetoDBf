@@ -477,11 +477,17 @@ A. Internals
                                     ONLY increase value in case of problems, to trace what happened at server,
                                     and the actions from client. Each connection will get an own log file with
                                     connection-ID as file extension; new created when a connection starts.
-      HardCommit = 0           -    if 0, SET HARDCOMMIT OFF, this is now DEFAULT.
-                                    It is recommended for UNSTABLE running server to set it to <1>,
-                                    which means that each change at data tables are immedeate written to
-                                    harddrive bypassing the OS cache.
-                                    Expect significant reduced performance with setting '1'.
+      HardCommit = 0           -    Harbour extension for server, DON'T USE -- Default: SET HARDCOMMIT OFF[ 0 ]
+                                    It may be an experience only for UNSTABLE server to set it to <1>,
+                                    which means that data changes are forced far as possible by flushing file buffers
+                                    to 'write_through' the OS cache to permanent storage - alongside significant
+                                    performance decrease.  Check for journaling filesystems or improve dedicated
+                                    server hardware as LetoDBf commonly is NOT cause for such need.
+                                    'SET HARDCOMMIT' setting at *client' side application is ignored, as any pending
+                                    data changes are immediately send to server with skip/ unlock/ close action.
+                                    To update server with client side changes of locked records *without* such action
+                                    use DbCommit[All]() function at special places where really needed.
+                                    ( further related: chapter 7.3 DBI_BUFREFRESHTIME/ DBI_AUTOREFRESH )
       ForceOpt = 0             -    _SET_FORCEOPT setting
       Allow_Udf = 0            -    security setting, DEFAULT is ! NOT ! to allow the use of
                                     loaded UserDefinedFunction for remote execution at server.
