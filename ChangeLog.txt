@@ -2,6 +2,18 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2021-04-29 22:51 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  ; missed the ChangeLog file itself
+  ; THANKS to Aleksander Czajczynski; i'm pleased to have a look for
+    changes -- but will keep RDDI_REFRESHCOUNT default setting as
+    it means a significant (server side) overhead if *not* needed.
+  ; Thanks Ash
+
+2021-04-29 22:27 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  ; technically have only-read-only access to Harbour groups .. ;(
+  * Readme.txt
+    * update note about HARDCOMMIT at server/ client side
+
 2019-05-17 21:51 UTC+0100 Rolf 'elch' Beckmann (elchs users.noreply.github.com)
   * source/client/letomgmn.c
     ! fix for LETO_MGLOG(): accept values >= -1 [ -1 == server letodbf.log ]
