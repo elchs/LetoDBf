@@ -28,7 +28,7 @@
 {!win}-static
 {win}-fullstatic
 -nodefgt
--obin/letodb
+-obin/letodbService
 -iinclude
 {__LZ4}-isource/3rd/lz4/lib
 -n
