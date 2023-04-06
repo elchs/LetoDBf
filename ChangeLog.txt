@@ -2,6 +2,30 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-04-06 12:02 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  * source/3rd/lz4/lib/lz4.c
+  * source/server/letofunc.c
+    * 'void' missing in func declaration without argument; clang v16 warning
+    - remove unused var: uiOrder in leto_Ordfunc()
+
+  * make_b32.bat
+  * makefile.bc
+    * add a warning for xHarbour users in hurry without reading the Readme.txt
+      and without looking into these files ... ;-)
+
+  * /bin/letodb.ini
+    + add Crypt_Traffic in default ini;
+      recommended to be set to 1 in case of server usage over non-local network
+
+  * source/server/errint.c
+  * source/server/leto_2.c
+    * add info about active index order in case of server crash
+    + new leto_errServerCrash(),
+      used in hb_errInternal() to only close a specific connection,
+      not to crash the whole server in case of serious index integrity;
+      need to be tested in a real scenario ...
+      ; response to older report by Mauricio about error 9201
+
 2021-04-29 22:51 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   ; missed the ChangeLog file itself
   ; THANKS to Aleksander Czajczynski; i'm pleased to have a look for
