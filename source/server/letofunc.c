@@ -4117,7 +4117,7 @@ int leto_PingForZombies( long lTimeInactive )
 }
 
 /* maybe better not MT safe -- only called by main thread, and connection may have locked */
-void leto_CloseAllSocket()
+void leto_CloseAllSocket( void )
 {
    PUSERSTRU pUStru;
    int       iUserStru = 0;
@@ -4164,7 +4164,7 @@ void leto_CloseAllSocket()
    /* HB_GC_UNLOCKG(); */
 }
 
-void leto_ForceCloseAllSocket()
+void leto_ForceCloseAllSocket( void )
 {
    PUSERSTRU pUStru;
    int       iUserStru = 0;
@@ -7584,7 +7584,8 @@ static void leto_Skip( PUSERSTRU pUStru, char * szData )
                      if( pArea->fBof )
                         break;
                   }
-                  ulLenRec = leto_rec( pUStru, pAStru, pArea, szData1 + 1 + ulLenAll, &ulRelPos );
+                  /* don't use optimized calulation for DBO_POSITION in case of optimized filter */
+                  ulLenRec = leto_rec( pUStru, pAStru, pArea, szData1 + 1 + ulLenAll, ! pAStru->itmFltOptimized ? &ulRelPos : NULL );
                   if( ! ulLenRec )
                   {
                      pData = szErr2;
@@ -10335,7 +10336,6 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
          HB_BOOL    bDelete = HB_FALSE;
          LETOTAG *  pTag, * pTag1, * pTagPrev = NULL;
          PINDEXSTRU pIStru = NULL;
-         HB_USHORT  uiOrder = 0;
 
          HB_GC_LOCKT();
 
@@ -10396,7 +10396,6 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
                break;
             pTagPrev = pTag;
             pTag = pTag->pNext;
-            uiOrder++;
          }
          if( pData == NULL )
             pData = szOk;
@@ -11815,7 +11814,7 @@ static void leto_Mgmt( PUSERSTRU pUStru, char * szData )
 
          case '8':   /* LETO_MGID */
          {
-            char szMyId[ 16 ];
+            char szMyId[ 32 ];
 
             sprintf( szMyId, "%s;%d;", szOk, pUStru->iUserStru - 1 );
             leto_SendAnswer( pUStru, szMyId, strlen( szMyId ) );
@@ -18481,7 +18480,7 @@ static void leto_StopServer( PUSERSTRU pUStru, char * szData )
 }
 
 /* two groups of commands: with and without workarea preload -- loaded with server start */
-void leto_CommandSetInit()
+void leto_CommandSetInit( void )
 {
    /* @ A - Z */
    s_cmdSet[ LETOCMD_admin   - LETOCMD_OFFSET ] = leto_Admin;

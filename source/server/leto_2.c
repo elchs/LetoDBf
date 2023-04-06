@@ -246,6 +246,28 @@ static const char * leto_CmdToHuman( const char szLetoCmd )
       return s_szCmdSetDesc[ iCmd ];
 }
 
+HB_BOOL leto_errServerCrash( HB_ULONG ulIntCode )
+{
+   HB_BOOL   fLetServerCrash = HB_TRUE;
+   PUSERSTRU pUStru = leto_FindUserStru( HB_THREAD_SELF() );
+
+   if( pUStru )
+   {
+      /* for serious index integrity corruption close only specific connection without answer,
+         the client application possible may hung up when waiting for answer */
+      /* ToDo: better to close all connections using that index */
+      if( ulIntCode == 9201 )
+      {
+         fLetServerCrash = HB_FALSE;
+
+         pUStru->bCloseConnection = HB_TRUE;
+         pUStru->bNoAnswer = HB_TRUE;
+      }
+   }
+
+   return fLetServerCrash;
+}
+
 void leto_errInternal( HB_ULONG ulIntCode, const char * szText, const char * szPar1, const char * szPar2 )
 {
    FILE *     hLog;
@@ -256,11 +278,11 @@ void leto_errInternal( HB_ULONG ulIntCode, const char * szText, const char * szP
    char       buffer[ 8192 ];
    HB_USHORT  uiLine;
 
-   leto_writelog( NULL, 0, "!!!!! leto_errInternal !!!!!" );
+   leto_writelog( NULL, 0, "!!!!! leto_errInternal -> letodbf_crash.log !!!!!" );
 
    pUStru = leto_FindUserStru( HB_THREAD_SELF() );
    strcpy( sFileDef, leto_sDirBase() );
-   strcpy( sFileDef + strlen( sFileDef ), "letodb_crashf.log" );
+   strcpy( sFileDef + strlen( sFileDef ), "letodbf_crash.log" );
 
    hLog = hb_fopen( sFileDef, "a+" );
    if( hLog )
@@ -285,7 +307,11 @@ void leto_errInternal( HB_ULONG ulIntCode, const char * szText, const char * szP
          if( pUStru->pBuffer )
             fprintf( hLog, "Command: %s <%s>\n", leto_CmdToHuman( *pUStru->pBuffer ), ( char * ) pUStru->pBuffer );
          if( pUStru->pCurAStru && pUStru->pCurAStru->pTStru )
-            fprintf( hLog, "Table: %s\n", pUStru->pCurAStru->pTStru->szTable );
+         {
+            fprintf( hLog, "Table  : %s\n", pUStru->pCurAStru->pTStru->szTable );
+            if( pUStru->pCurAStru->pTagCurrent )
+               fprintf( hLog, "Index  : %s\n", pUStru->pCurAStru->pTagCurrent->szTagName );
+         }
       }
 
       buffer[ 0 ] = '\0';
@@ -1041,7 +1067,7 @@ static HB_THREAD_STARTFUNC( udpsvc )
                else if( s_UDPServer[ 0 ] )  /* Uhura started for specific interface - add that IP address */
                {
                   iLenAddr = strlen( s_UDPServer );
-                  strncpy( szTmp + iLenCmp, s_UDPServer, iLenAddr );
+                  strcpy( szTmp + iLenCmp, s_UDPServer );
                   if( s_iServerPort != LETO_DEFAULT_PORT )
                      iLenAddr += sprintf( szTmp + iLenCmp + iLenAddr, ":%d", s_iServerPort );
                }

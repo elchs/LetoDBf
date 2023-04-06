@@ -5,6 +5,9 @@ REM
 rem SET PATH=C:\BCC55\BIN;F:\hbcc\bin
 rem SET HB_PATH=F:\hbcc
 
+if not "%1" == "full"  echo "ATTENTION: building the C-API lib without given param: full"
+if "%HB_PATH%." == "." echo "ATTENTION: adapt HB_PATH in this batch file"
+
 @echo off
 if "%1" == "clean" goto CLEAN
 if "%1" == "CLEAN" goto CLEAN

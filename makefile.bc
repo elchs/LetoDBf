@@ -4,10 +4,10 @@
 
 .AUTODEPEND
 
-# uncomment this line if you want to build letodb with xharbour
+# uncomment next line if you want to build letodb with xharbour
 # XHARBOUR = yes
 
-# uncomment this line if you want to build letodb with BMDBF* support
+# uncomment next line if you want to build letodb with BMDBF* support
 # __BM = yes
 
 #SRV_MODE = __WIN_SERVICE__

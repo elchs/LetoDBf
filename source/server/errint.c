@@ -53,6 +53,7 @@
 static HB_BOOL s_bErrHandlerRun = 0;
 
 extern void leto_errInternal( HB_ULONG ulIntCode, const char * szText, const char * szPar1, const char * szPar2 );
+extern HB_BOOL leto_errServerCrash( HB_ULONG ulIntCode );
 
 /* NOTE: Use as minimal calls from here, as possible.
          Don't allocate memory from this function. [vszakats] */
@@ -68,7 +69,7 @@ static void hb_errInternalRaw( HB_ERRCODE ulIntCode, const char * szText, const 
 
    if( ! s_bErrHandlerRun )
    {
-      s_bErrHandlerRun = 1;
+      s_bErrHandlerRun++;
       leto_errInternal( ( HB_ULONG ) ulIntCode, szText, szPar1, szPar2 );
    }
    else
@@ -76,6 +77,7 @@ static void hb_errInternalRaw( HB_ERRCODE ulIntCode, const char * szText, const 
       FILE * hLog;
       hLog = hb_fopen( "letodbf_crash.log", "a+" );
 
+      s_bErrHandlerRun++;
       if( hLog )
       {
          fprintf( hLog, "Unrecoverable error %lu: ", ( HB_ULONG ) ulIntCode );
@@ -86,13 +88,14 @@ static void hb_errInternalRaw( HB_ERRCODE ulIntCode, const char * szText, const 
    }
 }
 
-#if defined( __clang__ )
-void __attribute__((noreturn)) hb_errInternal( HB_ERRCODE ulIntCode, const char * szText, const char * szPar1, const char * szPar2 )
-#else
 void hb_errInternal( HB_ERRCODE ulIntCode, const char * szText, const char * szPar1, const char * szPar2 )
-#endif
 {
    hb_errInternalRaw( ulIntCode, szText, szPar1, szPar2 );
+   if( ! leto_errServerCrash( ulIntCode ) && s_bErrHandlerRun == 1 )
+   {
+      s_bErrHandlerRun = 0;
+      return;
+   }
 
    /* release console settings */
    hb_conRelease();
