@@ -188,8 +188,21 @@ Function Main( cPath )
    leto_fErase( "test1.txt" )
    ?
 
+#ifndef __XHARBOUR__
+   IF LETO_UDFEXIST( "LETO_GETAPPOPTIONS" )
+      ? "Test of working error-message (RTE) from server"
+      ? "You should see a RTE after next key ! - ! CHOOSE <RETRY> TO CONTINUE"
+      ? "Press any key to continue ..."
+      Inkey( 0 )
+
+      /* option 42 writes an entry in the log file at server and produces an RTE for application */
+      LETO_UDF( "LETO_GETAPPOPTIONS", 42 )
+   ELSE
+      ? "No RTE error test possible ..." 
+   ENDIF
+#endif
+
    ? "Press any key to finish..."
    Inkey( 0 )
 
 Return Nil
-

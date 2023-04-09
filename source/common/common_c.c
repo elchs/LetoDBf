@@ -61,6 +61,7 @@
 
 #if defined( HB_OS_UNIX )
    #include <unistd.h>
+   #include <sys/time.h>
    #include <time.h>
    #include <stdio.h>
    #include <stdlib.h>

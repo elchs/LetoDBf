@@ -558,9 +558,10 @@ static HB_USHORT leto_KeyToStr( LETOAREAP pArea, char * szKey, char cType, PHB_I
 #else
          if( pArea->area.cdPage != HB_CDP_PAGE() )
          {
-            char * pBuff = hb_cdpnDup( hb_itemGetCPtr( pKey ), ( HB_SIZE * ) &uiKeyLen, HB_CDP_PAGE(), pArea->area.cdPage );
+            HB_SIZE nCdpLen = ( HB_SIZE ) uiKeyLen;
+            char * pBuff = hb_cdpnDup( hb_itemGetCPtr( pKey ), &nCdpLen, HB_CDP_PAGE(), pArea->area.cdPage );
 
-            memcpy( szKey, pBuff, uiKeyLen );
+            memcpy( szKey, pBuff, nCdpLen );
             hb_xfree( pBuff );
          }
          else
@@ -5746,11 +5747,11 @@ LETOCONNECTION * leto_getConnection( const char * szAddress )
    return pConnection;
 }
 
-static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int uiConnect, PHB_ITEM pItem )
+static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulConnect, PHB_ITEM pItem )
 {
-   LETOCONNECTION * pConnection = ( uiConnect > 0 && uiConnect <= letoGetConnCount() ) ?
-                                    letoGetConnPool( uiConnect - 1 ) : letoGetCurrConn();
-   HB_TRACE( HB_TR_DEBUG, ( "letoRddInfo(%p, %hu, %d, %p)", pRDD, uiIndex, uiConnect, pItem ) );
+   LETOCONNECTION * pConnection = ( ulConnect > 0 && ulConnect <= letoGetConnCount() ) ?
+                                    letoGetConnPool( ulConnect - 1 ) : letoGetCurrConn();
+   HB_TRACE( HB_TR_DEBUG, ( "letoRddInfo(%p, %hu, %lu, %p)", pRDD, uiIndex, ulConnect, pItem ) );
 
    switch( uiIndex )
    {
@@ -6072,11 +6073,12 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
       case RDDI_REFRESHCOUNT:
          if( pConnection )
          {
-            HB_BOOL fSet = HB_IS_LOGICAL( pItem );
+            HB_BOOL fSet = pConnection->fRefreshCount;
 
-            hb_itemPutL( pItem, pConnection->fRefreshCount );
-            if( fSet )
+            if( HB_IS_LOGICAL( pItem ) )
                pConnection->fRefreshCount = hb_itemGetL( pItem );
+
+            hb_itemPutL( pItem, fSet );
          }
          else
             hb_itemPutL( pItem, HB_TRUE );
@@ -6132,7 +6134,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, unsigned int u
          break;
 
       default:
-         return SUPER_RDDINFO( pRDD, uiIndex, uiConnect, pItem );
+         return SUPER_RDDINFO( pRDD, uiIndex, ulConnect, pItem );
    }
 
    return HB_SUCCESS;
@@ -8735,7 +8737,6 @@ HB_FUNC( LETO_DBUPDATE )  /* candidate for RDDI_AUTOLOCK ;-) */
    hb_vmDestroyBlockOrMacro( pKeyBlock );
    hb_vmDestroyBlockOrMacro( pBlocks );
 }
-
 
 /* calls HB_DBCREATETEMP( [<cAlias>], <aStruct>, [<cRDD>], [<cCdp>], [<nConnection>] ) */
 static void hb_DbCreateTemp( const char * szAlias, PHB_ITEM pStruct, const char * szRDD, const char * szCdp, HB_ULONG ulConnection )

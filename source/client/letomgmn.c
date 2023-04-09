@@ -1811,7 +1811,7 @@ HB_FUNC( LETO_LOCKLOCK )
       char      szData[ 36 ];
 
       uiWait = HB_MIN( 99, uiWait );
-      uiWait = HB_MIN( uiSecs - 5, uiWait );
+      uiWait = HB_MIN( HB_MAX( 0, uiSecs - 5 ), uiWait );
       hb_snprintf( szData, 36, "%c;lockl;%c;%d;%d;", LETOCMD_admin,
                    HB_ISLOG( 1 ) ? ( hb_parl( 1 ) ? 'T' : 'F' ) : '?', uiSecs, uiWait );
       if( leto_DataSendRecv( pConnection, szData, 0 ) )

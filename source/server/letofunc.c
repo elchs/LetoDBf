@@ -3718,7 +3718,77 @@ static HB_BOOL leto_IsAnyRefused( void )
    return bRefused;
 }
 
-static HB_BOOL leto_IsAnyWaiting( HB_BOOL bUnlock, int iUserStru )
+static HB_BOOL LetoMgKillUser( int iUser )
+{
+   PUSERSTRU pUStru1;
+   HB_BOOL   bOk = HB_FALSE;
+
+   if( iUser >= 0 && iUser < s_uiUsersAlloc )
+   {
+      //HB_GC_LOCKU();
+
+      pUStru1 = s_users + iUser;
+      hb_threadEnterCriticalSection( &pUStru1->pMutex );
+      if( pUStru1->iUserStru && pUStru1->hSocket != HB_NO_SOCKET )
+      {
+         /* send an error to let an RTE appear for possible sleeping app */
+         if( pUStru1->iUserStru && pUStru1->hSocketErr != HB_NO_SOCKET )
+            leto_SendAnswer2( pUStru1, szErr1, 4, HB_FALSE, LETO_CLIENT_SHUTOFF );
+
+         if( hb_socketShutdown( pUStru1->hSocket, HB_SOCKET_SHUT_RDWR ) == 0 )
+         {
+            if( pUStru1->hSockPipe[ 1 ] != FS_ERROR )
+            {
+               const char cToPipe[ 1 ] = { ' ' };
+
+               hb_fsPipeWrite( pUStru1->hSockPipe[ 1 ], cToPipe, 1, 0 );
+            }
+#if defined( HB_OS_WIN )
+               else
+               {
+                  hb_socketClose( pUStru1->hSocket );
+                  pUStru1->bCloseConnection = HB_TRUE;
+               }
+#endif
+         }
+         else  /* above wakes up thread with 'bad' socket to let it close All4Us */
+         {
+            if( pUStru1->hSocketErr )
+            {
+               hb_socketClose( pUStru1->hSocketErr );
+               pUStru1->hSocketErr = HB_NO_SOCKET;
+            }
+
+            hb_socketClose( pUStru1->hSocket );
+            pUStru1->hSocket = HB_NO_SOCKET;
+            if( pUStru1->zstream )
+            {
+#ifdef USE_LZ4
+               hb_lz4netClose( ( PHB_LZ4NET ) pUStru1->zstream );
+#else
+               hb_znetClose( pUStru1->zstream );
+#endif
+               pUStru1->zstream = NULL;
+            }
+            leto_CloseAll4Us( pUStru1 );  /* ToDo - verify elch */
+         }
+         pUStru1->bCloseConnection = HB_TRUE;
+         bOk = HB_TRUE;
+      }
+      else  /* a headless UDF */
+      {
+         pUStru1->bCloseConnection = HB_TRUE;
+         bOk = HB_TRUE;
+      }
+
+      hb_threadLeaveCriticalSection( &pUStru1->pMutex );
+      //HB_GC_UNLOCKU();
+   }
+
+   return bOk;
+}
+
+static HB_BOOL leto_IsAnyWaiting( HB_BOOL bUnlock, int iUserStru, int iLog )
 {
    HB_BOOL bOutstanding = HB_FALSE;
 
@@ -3740,7 +3810,20 @@ static HB_BOOL leto_IsAnyWaiting( HB_BOOL bUnlock, int iUserStru )
                    ( bUnlock ? pUStru->bNeedRestoreLock : ! pUStru->bNeedRestoreLock ) )
                {
                   bOutstanding = HB_TRUE;
-                  break;
+                  if( iLog )
+                  {
+                     if( iLog > 1 )
+                     {
+                        leto_writelog( NULL, -1, "DEBUG connection %d - %s: %s killed for backup mode",
+                                       pUStru->iUserStru, pUStru->szAddr,
+                                       LetoMgKillUser( pUStru->iUserStru ) ? "successful" : "FAIL to be");
+                     }
+                     else
+                        leto_writelog( NULL, -1, "DEBUG connection %d - %s refused backup mode",
+                                       pUStru->iUserStru, pUStru->szAddr );
+                  }
+                  else
+                     break;
                }
                if( ++uiChecked >= s_uiUsersCurr )
                   break;
@@ -3767,7 +3850,7 @@ static void leto_ServerUnlock( PUSERSTRU pUStru, int iMilliSecs )
    leto_SendBackupInfo( LETO_CLIENT_LOCKWAIT, pUStru->iUserStru, 0 );
    hb_idleSleep( 0.05 );
 
-   while( ( int ) leto_MilliDiff( llLastAct ) < iMilliSecs && leto_IsAnyWaiting( HB_TRUE, pUStru->iUserStru ) )
+   while( ( int ) leto_MilliDiff( llLastAct ) < iMilliSecs && leto_IsAnyWaiting( HB_TRUE, pUStru->iUserStru, 0 ) )
    {
       if( ! bIncrease && ( long ) leto_MilliDiff( llLastAct ) > 1000 )
       {
@@ -4323,6 +4406,12 @@ HB_FUNC( LETO_CREATEDATA )  /* during server startup */
                      ( s_pDataPath ? s_pDataPath : "" ), s_bShareTables, s_bNoSaveWA, s_uiTablesAlloc );
       leto_writelog( NULL, -1, "INFO: LoginPassword=%d, CacheRecords=%d, LockExtended=%d, Max Users=%d",
                      s_bPass4L, s_uiCacheRecords, s_uiLockExtended, s_uiUsersAlloc );
+#ifdef USE_LZ4
+      leto_writelog( NULL, -1, "INFO: Encrypted LZ4 traffic=%c", bCryptTraf ? 'Y' : 'N'  );
+#else
+      leto_writelog( NULL, -1, "INFO: Encrypted zLib traffic=%c", bCryptTraf ? 'Y' : 'N'  );
+#endif
+
       if( s_bProtocol )
          leto_writelog( NULL, -1, "INFO: Data changes logged into %s", s_szServerLog );
    }
@@ -6199,14 +6288,17 @@ static void leto_ServerTryLock( PUSERSTRU pUStru, int iMilliSecs, int iDelaySecs
       leto_SendBackupInfo( LETO_CLIENT_LOCKON, iUserStru, iDelaySecs );
    else
       s_iUserLock = iUserStru;
-   while( ( int ) leto_MilliDiff( llLastAct ) < iMilliSecs && leto_IsAnyWaiting( HB_FALSE, iUserStru ) )
+   while( ( int ) leto_MilliDiff( llLastAct ) < iMilliSecs && leto_IsAnyWaiting( HB_FALSE, iUserStru, 0 ) )
    {
       if( leto_IsAnyRefused() )
          break;
       hb_idleSleep( 0.1 );
    }
 
-   if( leto_IsAnyWaiting( HB_FALSE, iUserStru ) )
+   if( leto_IsAnyWaiting( HB_FALSE, iUserStru, 0 ) && ! iDelaySecs )
+       leto_IsAnyWaiting( HB_FALSE, iUserStru, 2 );
+
+   if( leto_IsAnyWaiting( HB_FALSE, iUserStru, 1 ) )
    {
       leto_ServerUnlock( pUStru, iMilliSecs );
       leto_IsAnyRefused();
@@ -15258,6 +15350,7 @@ static void leto_OpenTable( PUSERSTRU pUStru, char * szRawData )
          strcpy( ptr, s_pDataPath );
          ptr += strlen( ptr );
          *ptr++ = DEF_SEP;
+         *ptr = '\0';
       }
       strcpy( szFile, ptr2 );
 
@@ -15928,6 +16021,7 @@ static void leto_CreateTable( PUSERSTRU pUStru, char * szRawData )
          strcpy( ptr, s_pDataPath );
          ptr += strlen( ptr );
          *ptr++ = DEF_SEP;
+         *ptr = '\0';
       }
       strcpy( szFile, ptr2 );
 
@@ -16551,6 +16645,7 @@ static void leto_OpenIndex( PUSERSTRU pUStru, char * szRawData )
          strcpy( ptr, s_pDataPath );
          ptr += s_uiDataPathLen;
          *ptr++ = DEF_SEP;
+         *ptr = '\0';
       }
 
       /* add relative path_to_table if raw index filename given without path */
@@ -16867,6 +16962,7 @@ static void leto_CreateIndex( PUSERSTRU pUStru, char * szRawData )
          strcpy( ptr, s_pDataPath );
          ptr += s_uiDataPathLen;
          *ptr++ = DEF_SEP;
+         *ptr = '\0';
       }
 
       /* add relative path_to_table if raw index filename given without path */

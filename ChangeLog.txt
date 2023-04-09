@@ -2,6 +2,55 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-04-09 22:33 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  * ChangeLog.txt
+
+  * include/srvleto.h
+  * source/common/common.c
+    * adding sys/time.h and time.h for unix's, suggested by A. Czajczynski
+
+  * source/server/leto_2.c
+    * fix!: add crompression/ encrytion in leto_SendAnswer2() for LZ4
+      for the first socket - and disabling it for the second one for zLib usage
+      ; second socket (rare, commonly none) traffic is ever plain, maybe
+        work for future to be ever encrypted;
+      ; very THANKS Aleksander for pointing at the right place
+    * add char [P|C|X] for log-file about traffic type (debug level 15-20)
+
+  * source/server/letofunc.c
+    * added null termination for filenames in leto_Open|Create -table & -index
+      ; from fork by Aleksander Czajczynski - THANKS !
+    * add info in letodbf.log when server demands encryption
+      ; application can't switch back to plain traffic with LETO_TOGGLEZIP(-1)
+
+  * tests/test_file.prg
+    + add a test for RTE send from server, relies on executing an UDF at server
+      ; it depends on working second socket, nothing happens without 
+      ; test needs UDF allowed at server - not needed for real case scenario
+
+  * source/client/leto1.c
+  * source/client/letocl.c
+    * letoRddInfo() param type 'unsigned int uiConnect' => 'HB_ULONG ulConnect'
+      to equal Harbour prototypes
+    * changed casting in Leto_KeyToStr()
+      ; from old issue report by Aleksander Czajczynski, sorry for the delay
+    * fix for RDDI_REFRESHCOUNT, dito from Aleksander
+    * fix LetoDbCreateAlias() ALIAS with trailing file extension by Aleksander
+
+  * rddleto.hbp
+  * rddletoaddon.hbp
+    + added outcommented switch to force single threaded/ socket communication
+      ; LETO_NO_THREAD for special use scenario, means far! less performance
+
+  * source/client/letomgmn.c
+  * source/server/letofunc.c
+    * ensure in LETO_LOCKLOCK() delay value cannot get negative
+    * add to kill connections rarely hindering to lock server for backup when
+      zero delaytime given to veto against backup [ leto_LockLock( ,,0 ) ]
+      ; works commonly in a break of a second when there were no-win apps ;-(
+    + new function LetoMgKillUser() for above, plus
+    * modified leto_IsAnyWaiting() for above
+
 2023-04-06 12:02 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   * source/3rd/lz4/lib/lz4.c
   * source/server/letofunc.c

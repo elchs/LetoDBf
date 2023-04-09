@@ -30,6 +30,10 @@
 # remove '#' for special actions to fix concurrency with a Samba server
 #-cflag=-DLETO_SMBSERVER=1
 
+# next two lines to force single threaded communication with a single socket
+#-cflag=-DLETO_NO_THREAD=1
+#-prgflag=-DLETO_NO_THREAD=1
+
 # CPP flags to pacify 'modern' new C-compiler
 #-cflag=-Wno-c++11-long-long
 #-cflag=-Wno-old-style-cast

@@ -704,17 +704,33 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
       }
       else
       {
+         /* Client lib must be compiled with LETO_NO_THREAD to let such application expect answers at the *first* socket, 
+          * else these would screw up the communication. For this scenario these must be compressed/ encrypted according the settings,
+          * for LZ4 beforehand and for zLib internally in leto_SockSend(). Thanks A. Czajczynski for pointing out this was missing.
+          * Communication over *second* socket for the very rarely, anyhow only few bytes, esp. delayed errors, is done plain! */
+#ifdef USE_LZ4
+         if( ! pUStru->zstream )  /* no compress or encrypt */
+         {
+            HB_PUT_LE_UINT32( ( char * ) pUStru->pSendBuffer, ulLen );
+            memcpy( ( char * ) pUStru->pSendBuffer + LETO_MSGSIZE_LEN, szData, ulLen );
+            ulLen += LETO_MSGSIZE_LEN;
+            pUStru->pSendBuffer[ ulLen ] = '\0';
+         }
+         else  /* at least compress, plus possible encrypt; result into pUStru->pSendBuffer */
+            ulLen = hb_lz4netEncrypt( ( PHB_LZ4NET ) pUStru->zstream, ( char ** ) &pUStru->pSendBuffer, ulLen, &pUStru->ulSndBufLen, szData );
+#else
          HB_PUT_LE_UINT32( ( char * ) pUStru->pSendBuffer, ulLen );
          memcpy( ( char * ) pUStru->pSendBuffer + LETO_MSGSIZE_LEN, szData, ulLen );
          ulLen += LETO_MSGSIZE_LEN;
          pUStru->pSendBuffer[ ulLen ] = '\0';
+#endif
       }
 
       hb_vmUnlock();
 #ifdef USE_LZ4
       pUStru->ulBytesSend = leto_SockSend( hSocket, ( char * ) pUStru->pSendBuffer, ulLen, 0 );
 #else
-      pUStru->ulBytesSend = leto_SockSend( hSocket, ( char * ) pUStru->pSendBuffer, ulLen, pUStru->zstream, 0 );
+      pUStru->ulBytesSend = leto_SockSend( hSocket, ( char * ) pUStru->pSendBuffer, ulLen, bDelayedError ? NULL : pUStru->zstream, 0 );
 #endif
       hb_vmLock();
 
@@ -731,8 +747,8 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
       }
       else if( iDebugMode() >= 15 )
       {
-         if( iDebugMode() <= 20 )
-            leto_wUsLog( pUStru, -1, "DEBUG leto_SendAnswer2() %lu bytes", ulLen );
+         if( iDebugMode() <= 20 )  /* P=plain  C=compressed  X=encrypted */ 
+            leto_wUsLog( pUStru, -1, "DEBUG leto_SendAnswer2() %lu bytes %c", ulLen, ! pUStru->zstream ? 'P' : ( pUStru->bZipCrypt ? 'X': 'C' ) );
          else
             leto_wUsLog( pUStru, ( ( ulLen > 2048 ) ? 1024 : ulLen ), ( char * ) pUStru->pSendBuffer );
       }
@@ -757,8 +773,8 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
 
    if( iDebugMode() >= 15 )  /* debug feedback */
    {
-      if( iDebugMode() <= 20 )
-         leto_wUsLog( pUStru, -1, "DEBUG leto_SendAnswer() %lu bytes", ulLen );
+      if( iDebugMode() <= 20 )  /* P=plain  C=compressed  X=encrypted */
+         leto_wUsLog( pUStru, -1, "DEBUG leto_SendAnswer() %lu bytes %c", ulLen, ! pUStru->zstream ? 'P' : ( pUStru->bZipCrypt ? 'X': 'C' ) );
       else
          leto_wUsLog( pUStru, ( ( ulLen > 2048 ) ? 1024 : ulLen ), szData );
    }
@@ -789,6 +805,7 @@ void leto_SendAnswer( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen )
       HB_PUT_LE_UINT32( pUStru->pSendBuffer, ulLen );
       memcpy( pUStru->pSendBuffer + LETO_MSGSIZE_LEN, szData, ulLen );
       ulLen += LETO_MSGSIZE_LEN;
+      pUStru->pSendBuffer[ ulLen ] = '\0';
       pUStru->ulBytesSend = leto_SockSend( pUStru->hSocket, ( const char * ) pUStru->pSendBuffer, ulLen, pUStru->zstream, 0 );
 #endif
    }

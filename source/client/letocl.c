@@ -3507,7 +3507,7 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
             leto_random_block( szRandomPW, 31, 42 );
             LetoToggleZip( pConnection, iLevel, szRandomPW );
 #ifdef LETO_CLIENTLOG
-            if( LetoToggleZip( pConnection, -2, NULL ) == iLevel )
+            if( pConnection->iZipRecord == iLevel )
                leto_clientlog( NULL, 0, "CRYPT : server demanded network encryption, activated" );
             else
                leto_clientlog( NULL, 0, "CRYPT : FAIL to enable server demanded network encryption" );
@@ -4158,7 +4158,8 @@ void LetoDbCreateAlias( const char * szFile, char * szAlias )
 
    /* convert to upper case */
    ptr = szAlias;
-   ptrEnd = ptr + HB_RDD_MAX_ALIAS_LEN;
+   ptrEnd = ptr + ( ( ( ptrEnd - ptrBeg ) < ( HB_RDD_MAX_ALIAS_LEN ) ) ?
+                      ( ptrEnd - ptrBeg ) : ( HB_RDD_MAX_ALIAS_LEN ) );
    while( ptr < ptrEnd )
    {
       if( *ptrBeg >= 'a' && *ptrBeg <= 'z' )
@@ -4169,7 +4170,7 @@ void LetoDbCreateAlias( const char * szFile, char * szAlias )
             break;
       }
    }
-   szAlias[ HB_RDD_MAX_ALIAS_LEN ] = '\0';
+   *ptr = '\0';
 }
 
 LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile, const char * szAlias,
