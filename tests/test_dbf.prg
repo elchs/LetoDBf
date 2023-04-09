@@ -13,6 +13,7 @@ Function Main( cPath )
                   "Konstantin", "Vladimir", "Nikolay", "Andrey", "Dmitry", "Sergey" }
  LOCAL i, aStru, aServerDriver
  LOCAL nPort := 2812
+ LOCAL cTmp
  FIELD NAME, NUM, INFO, DINFO, MINFO, TINFO
 
    ALTD()
@@ -206,6 +207,46 @@ Function Main( cPath )
 
    SKIP
    ? "skip  ", NUM, NAME, DINFO, Iif( Eof(), "- Ok","- Failure" )
+
+   SET SCOPE TO
+   ? "Press any key to continue..."
+   Inkey( 0 )
+
+   i := 0
+   cTmp := "E"
+   DbGoTop()
+   LOCATE FOR cTmp $ UPPER( name )
+   ?
+   ? "LOCATE FOR cTmp $ UPPER( name )"
+   ? "non optimized LOCATE because local var in expression -> at client ..."
+
+   DO WHILE FOUND()
+      ? NAME, "'E'$UPPER(name)",  Iif( "E" $ UPPER( NAME ), " - Ok", "- Failure" )
+      IF "E" $ UPPER( NAME )
+         i++
+      ENDIF
+      CONTINUE
+   ENDDO
+   ? "expected 7 records located ", Iif( i == 7, "- Ok !", "- Failure !!!" )
+   ?
+
+   i := 0
+   DbGoTop()
+   LOCATE FOR "E" $ UPPER( name )
+   ?
+   ? "LOCATE FOR 'E' $ UPPER( name )"
+   ? "optimized LOCATE as expression evaluable at server -> at server ..."
+   ?
+
+   DO WHILE FOUND()
+      ? NAME, "'E'$UPPER(name)",  Iif( "E" $ UPPER( NAME ), " - Ok", "- Failure" )
+      IF "E" $ UPPER( NAME )
+         i++
+      ENDIF
+      CONTINUE
+   ENDDO
+   ? "expected 7 records located ", Iif( i == 7, "- Ok !", "- Failure !!!" )
+   ?
 
    dbCloseAll()
 

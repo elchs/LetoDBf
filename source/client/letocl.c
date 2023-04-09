@@ -5278,6 +5278,41 @@ HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHORT uiKeyLe
    return 0;
 }
 
+HB_ERRCODE LetoDbLocate( LETOTABLE * pTable, HB_BOOL fContinue, const char * szFor, const char * szWhile,
+                         HB_LONG lNext, HB_LONG lRecNo, HB_LONG lRest )
+{
+   LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+
+   if( pTable->uiUpdated )
+      LetoDbPutRecord( pTable );
+   if( pConnection )
+   {
+      HB_ULONG ulLen = ( szFor ? strlen( szFor ) : 0 ) + ( szWhile ? strlen( szWhile ) : 0 ) + 64;
+      char *   szData = ( char * ) hb_xgrab( ulLen );
+
+      if( ! fContinue )
+         ulLen = eprintf( szData, "%c;%lu;F;%s;%s;%ld;%ld;%ld;", LETOCMD_locate, pTable->hTable,
+                                                                 szFor, szWhile, lNext, lRecNo, lRest );
+      else
+         ulLen = eprintf( szData, "%c;%lu;T;", LETOCMD_locate, pTable->hTable ); 
+
+      if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) )
+         return 1;
+
+      if( strncmp( pConnection->szBuffer, "-00", 3 ) )
+      {
+         leto_ParseRecord( pConnection, pTable, leto_firstchar( pConnection ) );
+         pTable->ptrBuf = NULL;
+         if( pTable->fAutoRefresh )
+            pTable->llCentiSec = leto_MilliSec();
+
+         return *pConnection->szBuffer == '+' ? 0 : 1;
+      }
+   }
+
+   return 1;
+}
+
 HB_ERRCODE LetoDbClearFilter( LETOTABLE * pTable )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );

@@ -227,6 +227,7 @@ static void leto_CommandDescInit( void )
    s_szCmdSetDesc[ LETOCMD_skip    - LETOCMD_OFFSET ] = "skip";
    s_szCmdSetDesc[ LETOCMD_sort    - LETOCMD_OFFSET ] = "sort";
    s_szCmdSetDesc[ LETOCMD_seek    - LETOCMD_OFFSET ] = "seek";
+   s_szCmdSetDesc[ LETOCMD_locate  - LETOCMD_OFFSET ] = "locate";
    s_szCmdSetDesc[ LETOCMD_sum     - LETOCMD_OFFSET ] = "sum";
    s_szCmdSetDesc[ LETOCMD_trans   - LETOCMD_OFFSET ] = "transition";
    s_szCmdSetDesc[ LETOCMD_unlock  - LETOCMD_OFFSET ] = "unlock";

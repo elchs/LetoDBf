@@ -333,6 +333,7 @@ extern HB_EXPORT HB_ERRCODE LetoDbEval( LETOTABLE * pTable, const char * szBlock
 extern HB_EXPORT HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const char * szTag, const char * szKey, unsigned int uiFlags, const char * szFor, const char * szWhile, unsigned long ulNext );
 extern HB_EXPORT HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagName, unsigned int uiOrder );
 extern HB_EXPORT HB_ERRCODE LetoDbSeek( LETOTABLE * pTable, const char * szKey, HB_USHORT uiKeyLen, HB_BOOL fSoftSeek, HB_BOOL fFindLast );
+extern HB_EXPORT HB_ERRCODE LetoDbLocate( LETOTABLE * pTable, HB_BOOL fContinue, const char * szFor, const char * szWhile, HB_LONG lNext, HB_LONG lRecNo, HB_LONG lRest );
 extern HB_EXPORT HB_ERRCODE LetoDbClearFilter( LETOTABLE * pTable );
 extern HB_EXPORT HB_ERRCODE LetoDbSetFilter( LETOTABLE * pTable, const char * szFilter, HB_BOOL fForceOpt );
 extern HB_EXPORT HB_ERRCODE LetoDbCommit( LETOTABLE * pTable );

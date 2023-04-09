@@ -121,7 +121,7 @@
 #define LETOCMD_rcou       'y'
 #define LETOCMD_zap        'z'
 #define LETOCMD_trans      '{'
-
+#define LETOCMD_locate     '}'
 
 /* - sub command values -  */
 

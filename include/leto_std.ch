@@ -54,6 +54,10 @@
 
 #define LETO_DBEVAL_USE  1
 
+#command LOCATE [FOR <for>] [WHILE <while>] [NEXT <next>] ;
+                [RECORD <rec>] [<rest:REST>] [ALL] => ;
+         Leto_dbLocate( { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.> )
+
 #command COPY [TO <(f)>] [FIELDS <fields,...>] ;
               [FOR <for>] [WHILE <while>] [NEXT <next>] ;
               [RECORD <rec>] [<rest:REST>] [ALL] [VIA <rdd>] [CODEPAGE <cp>] => ;

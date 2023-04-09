@@ -2,6 +2,24 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-04-09 23:01 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  * ChangeLog.txt
+
+  * include/cmdleto.h
+  * include/letostd.ch
+  * include/letocl.h
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/leto_2.c
+  * source/server/letofunc.c
+  * tests/leto_dbf.prg
+  * utils/manager/console.prg
+    + implementing server side LOCATE command
+      ; note: __dbLocate() is not handled by leto_std.ch -> non optimized,
+        as it misses the possibility to handle literal FOR/ WHILE conditions
+    * moving static leto_RelOptimized() upwards in leto1.c
+    * adding a test for [non-]optimized LOCATE in leto_dbf.prg
+
 2023-04-09 22:33 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   * ChangeLog.txt
 

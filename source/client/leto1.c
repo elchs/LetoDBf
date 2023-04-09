@@ -5311,7 +5311,83 @@ static HB_ERRCODE letoSetFilter( LETOAREAP pArea, LPDBFILTERINFO pFilterInfo )
 #define letoSetLocate  NULL
 #define letoSetScope   NULL
 #define letoSkipScope  NULL
-#define letoLocate     NULL
+
+static HB_BOOL leto_RelOptimized( LETOAREAP pArea )
+{
+   LPDBRELINFO lpDbRel = ( ( AREAP ) pArea )->lpdbRelations;
+   HB_BOOL     fOptimized = HB_TRUE;
+
+   if( ! ( ! pArea->area.dbfi.fFilter || pArea->area.dbfi.fOptimized ) )
+      fOptimized = HB_FALSE;
+   while( lpDbRel && fOptimized )
+   {
+      if( ! lpDbRel->isOptimized )
+         fOptimized = HB_FALSE;
+      else
+         fOptimized = leto_RelOptimized( ( LETOAREAP ) lpDbRel->lpaChild );
+      lpDbRel = lpDbRel->lpdbriNext;
+   }
+
+   return fOptimized;
+}
+
+static HB_ERRCODE letoLocate( LETOAREAP pArea, HB_BOOL fContinue )
+{
+   LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
+   LETOTABLE * pTable = pArea->pTable;
+   HB_BOOL     fOptimizeAble = pConnection->uiServerMode >= 3 && pArea->area.dbsi.lpstrFor;
+   HB_ERRCODE  errCode;
+
+   HB_TRACE( HB_TR_DEBUG, ( "letoLocate(%p, %d, %d)", pArea, fContinue, fOptimizeAble ) );
+
+   if( pTable->uiUpdated )
+      leto_PutRec( pArea );
+
+   if( ! fContinue && fOptimizeAble )
+      fOptimizeAble = leto_RelOptimized( pArea );
+#if 1
+   if( ! fOptimizeAble || ( fContinue && ! pArea->area.dbsi.fOptimized ) )
+      errCode = SUPER_LOCATE( ( AREAP ) pArea, fContinue );
+   else if( fContinue )
+   {
+      errCode = LetoDbLocate( pArea->pTable, fContinue, NULL, NULL, -1, -1, -1 );
+      if( strncmp( pConnection->szBuffer, "-00", 3 ) )  /* should not happen */
+      {
+         leto_SetAreaFlags( pArea );
+         if( pArea->area.lpdbRelations )
+            errCode = SELF_SYNCCHILDREN( ( AREAP ) pArea );
+      }
+   }
+#else
+   if( ! fOptimizeAble || fContinue )  /* continue done by SKIP using skipbuffer */
+      errCode = SUPER_LOCATE( ( AREAP ) pArea, fContinue );
+#endif
+   else
+   {
+      HB_LONG lNext  = ! pArea->area.dbsi.lNext ? -1 : hb_itemGetNL( pArea->area.dbsi.lNext );
+      HB_LONG lRecNo = ! pArea->area.dbsi.itmRecID ? -1 : hb_itemGetNL( pArea->area.dbsi.itmRecID );
+      HB_LONG lRest  = ! pArea->area.dbsi.fRest ? -1 : ( hb_itemGetLX( pArea->area.dbsi.fRest ) ? 1 : 0 );
+
+      errCode = LetoDbLocate( pArea->pTable, fContinue, hb_itemGetCPtr( pArea->area.dbsi.lpstrFor ),
+                              hb_itemGetCPtr( pArea->area.dbsi.lpstrWhile ), lNext, lRecNo, lRest );
+
+      if( ! strncmp( pConnection->szBuffer, "-00", 3 ) )  /* CB fail at server ... */
+      {
+         pArea->area.dbsi.fOptimized = HB_FALSE;
+         errCode = SUPER_LOCATE( ( AREAP ) pArea, fContinue );
+      }
+      else
+      {
+         pArea->area.dbsi.fOptimized = HB_TRUE;
+         leto_SetAreaFlags( pArea );
+         if( pArea->area.lpdbRelations )
+            errCode = SELF_SYNCCHILDREN( ( AREAP ) pArea );
+      }
+   }
+
+   return errCode;
+}
+
 #define letoCompile    NULL
 #define letoError      NULL
 #define letoEvalBlock  NULL
@@ -6782,25 +6858,6 @@ static HB_BOOL leto_LockValidate( LETOAREAP pArea, char * szBlock, HB_SIZE nLen 
       commonError( pArea, EG_ARG, EDBCMD_BADPARAMETER, 0, NULL, 0, "Unresolved Locking in Expression" );
 
    return ! nCount ? HB_TRUE : HB_FALSE;
-}
-
-static HB_BOOL leto_RelOptimized( LETOAREAP pArea )
-{
-   LPDBRELINFO lpDbRel = ( ( AREAP ) pArea )->lpdbRelations;
-   HB_BOOL     fOptimized = HB_TRUE;
-
-   if( ! ( ! pArea->area.dbfi.fFilter || pArea->area.dbfi.fOptimized ) )
-      fOptimized = HB_FALSE;
-   while( lpDbRel && fOptimized )
-   {
-      if( ! lpDbRel->isOptimized )
-         fOptimized = HB_FALSE;
-      else
-         fOptimized = leto_RelOptimized( ( LETOAREAP ) lpDbRel->lpaChild );
-      lpDbRel = lpDbRel->lpdbriNext;
-   }
-
-   return fOptimized;
 }
 
 HB_FUNC( LETO_DBEVALTEST )
@@ -8736,6 +8793,33 @@ HB_FUNC( LETO_DBUPDATE )  /* candidate for RDDI_AUTOLOCK ;-) */
 
    hb_vmDestroyBlockOrMacro( pKeyBlock );
    hb_vmDestroyBlockOrMacro( pBlocks );
+}
+
+HB_FUNC( LETO_DBLOCATE )
+{
+   AREAP pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+
+   if( pArea )
+   {
+      DBSCOPEINFO dbScopeInfo;
+
+      memset( &dbScopeInfo, 0, sizeof( dbScopeInfo ) );
+      dbScopeInfo.itmCobFor   = leto_param( 1, 1, HB_IT_BLOCK );
+      dbScopeInfo.lpstrFor    = leto_param( 1, 2, HB_IT_STRING );
+      dbScopeInfo.itmCobWhile = leto_param( 2, 1, HB_IT_BLOCK );
+      dbScopeInfo.lpstrWhile  = leto_param( 2, 2, HB_IT_STRING );
+      dbScopeInfo.lNext       = hb_param( 3, HB_IT_NUMERIC );
+      dbScopeInfo.itmRecID    = hb_param( 4, HB_IT_NUMERIC );
+      dbScopeInfo.fRest       = hb_param( 5, HB_IT_LOGICAL );
+
+      dbScopeInfo.fIgnoreFilter     = HB_TRUE;
+      dbScopeInfo.fIncludeDeleted   = HB_TRUE;
+
+      if( SELF_SETLOCATE( pArea, &dbScopeInfo ) == HB_SUCCESS )
+         SELF_LOCATE( pArea, HB_FALSE );
+   }
+   else
+      commonError( ( LETOAREAP ) pArea, EG_ARG, EDBCMD_BADPARAMETER, 0, NULL, 0, "LETO_DBLOCATE" );
 }
 
 /* calls HB_DBCREATETEMP( [<cAlias>], <aStruct>, [<cRDD>], [<cCdp>], [<nConnection>] ) */

@@ -7788,6 +7788,100 @@ static PHB_ITEM leto_mkCodeBlock( PUSERSTRU pUStru, const char * szExp, HB_ULONG
    return pBlock;
 }
 
+static void leto_Locate( PUSERSTRU pUStru, char * szData )
+{
+   AREAP   pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_BOOL bContinue = *szData == 'T' ? HB_TRUE : HB_FALSE;
+   char *  ptr1, * ptr2, * ptr3, * ptr4, * ptr5;
+   int     nParam = leto_GetParam( szData, &ptr1, &ptr2, &ptr3, &ptr4, &ptr5, NULL );
+
+   if( ! pArea || ( ! bContinue && nParam < 5 ) )
+      leto_SendAnswer( pUStru, szErr2, 4 );
+   else
+   {
+      HB_BOOL bSuccess = HB_TRUE, bFail = HB_TRUE;
+
+      if( ! bContinue )
+      {
+         DBSCOPEINFO dbScopeInfo;
+         PHB_ITEM    itmCobFor, itmCobWhile, lNext, lRecNo, fRest;
+
+         itmCobFor = itmCobWhile = lNext = lRecNo = fRest = NULL;
+
+         hb_xvmSeqBegin();
+
+         if( *ptr1 )
+            itmCobFor = leto_mkCodeBlock( pUStru, ptr1, strlen( ptr1 ), HB_FALSE );
+         if( *ptr2 )
+            itmCobWhile = leto_mkCodeBlock( pUStru, ptr2, strlen( ptr2 ), HB_FALSE );
+
+         hb_xvmSeqEnd();
+
+         if( pUStru->iHbError )
+            bSuccess = HB_FALSE;
+         if( bSuccess )
+         {
+            int iTmp;
+
+            if( ( iTmp = atoi( ptr3 ) ) >= 0 )
+               lNext = hb_itemPutNL( NULL, iTmp );
+            if( ( iTmp = atoi( ptr4 ) ) >= 0 )
+               lRecNo = hb_itemPutNL( NULL, iTmp );
+            if( ( iTmp = atoi( ptr5 ) ) >= 0 )
+               fRest = hb_itemPutL( NULL, iTmp > 0 ? HB_TRUE : HB_FALSE );
+
+            memset( &dbScopeInfo, 0, sizeof( dbScopeInfo ) );
+            dbScopeInfo.itmCobFor   = itmCobFor;
+            dbScopeInfo.itmCobWhile = itmCobWhile;
+            dbScopeInfo.lNext       = lNext;
+            dbScopeInfo.itmRecID    = lRecNo;
+            dbScopeInfo.fRest       = fRest;
+
+            dbScopeInfo.fIgnoreFilter     = HB_TRUE;
+            dbScopeInfo.fIncludeDeleted   = HB_TRUE;
+            dbScopeInfo.fOptimized        = HB_TRUE;
+
+            bSuccess = SELF_SETLOCATE( pArea, &dbScopeInfo ) == HB_SUCCESS;
+         }
+
+         hb_itemRelease( itmCobFor );
+         hb_itemRelease( itmCobWhile );
+         hb_itemRelease( lNext );
+         hb_itemRelease( lRecNo );
+         hb_itemRelease( fRest );
+      }
+
+      if( bSuccess )
+      {
+         PAREASTRU pAStru = pUStru->pCurAStru;
+         char *    szData = NULL;
+         HB_ULONG  ulLen;
+
+         hb_xvmSeqBegin();
+         bSuccess = SELF_LOCATE( pArea, bContinue ) == HB_SUCCESS;
+         hb_xvmSeqEnd();
+
+         if( ! pUStru->iHbError )
+         {
+            bFail = HB_FALSE;
+            szData = leto_recWithAlloc( pArea, pUStru, pAStru, &ulLen );
+         }
+         if( szData )
+         {
+            if( ! bSuccess )
+               *szData = '-';
+            leto_SendAnswer( pUStru, szData, ulLen );
+            hb_xfree( szData );
+         }
+      }
+      if( bFail )
+      {
+         leto_SendAnswer( pUStru, szErr4, 4 );
+         SELF_CLEARLOCATE( pArea );
+      }
+   }
+}
+
 static HB_BOOL leto_dbEvalJoinRel( AREAP pArea, AREAP pJoined )
 {
    HB_BOOL bForbidden = HB_FALSE;
@@ -9696,7 +9790,10 @@ HB_FUNC( LETO_DBLOCATE )
       if( ! dbScopeInfo.itmCobWhile && dbScopeInfo.lpstrWhile )
          dbScopeInfo.itmCobWhile = leto_mkCodeBlock( pUStru, hb_itemGetCPtr( dbScopeInfo.lpstrWhile ),
                                                              hb_itemGetCLen( dbScopeInfo.lpstrWhile ), HB_FALSE );
-      if( SELF_SETLOCATE( pArea, &dbScopeInfo ) == HB_SUCCESS )
+
+      hb_xvmSeqEnd();
+
+      if( ! pUStru->iHbError && SELF_SETLOCATE( pArea, &dbScopeInfo ) == HB_SUCCESS )
       {
          HB_BOOL bFound = HB_FALSE;
 
@@ -9705,8 +9802,6 @@ HB_FUNC( LETO_DBLOCATE )
          if( bFound )
             SELF_RECNO( pArea, &ulRecNo );
       }
-
-      hb_xvmSeqEnd();
    }
 
    hb_retnl( ulRecNo );
@@ -18624,6 +18719,7 @@ void leto_CommandSetInit( void )
    s_cmdSet[ LETOCMD_skip    - LETOCMD_OFFSET ] = leto_Skip;
    s_cmdSet[ LETOCMD_sort    - LETOCMD_OFFSET ] = leto_TransSort;
    s_cmdSet[ LETOCMD_seek    - LETOCMD_OFFSET ] = leto_Seek;
+   s_cmdSet[ LETOCMD_locate  - LETOCMD_OFFSET ] = leto_Locate;
    s_cmdSet[ LETOCMD_sum     - LETOCMD_OFFSET ] = leto_Sum;
    s_cmdSet[ LETOCMD_trans   - LETOCMD_OFFSET ] = leto_TransNoSort;
    s_cmdSet[ LETOCMD_unlock  - LETOCMD_OFFSET ] = leto_Unlock;

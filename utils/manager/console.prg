@@ -719,6 +719,8 @@ STATIC FUNCTION ActionDecode( cAction )
          cHaveDone := "scope    "
       CASE cCode == LETOCMD_seek
          cHaveDone := "seek     "
+      CASE cCode == LETOCMD_locate
+         cHaveDone := "locate   "
       CASE cCode == LETOCMD_flush
          cHaveDone := "dbcommit "
       CASE cCode == LETOCMD_goto
