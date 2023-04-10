@@ -2,6 +2,16 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-04-10 02:42 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  * ChangeLog.txt
+
+  * include/srvleto.h
+  * source/client/letocl.c
+  * source/server/leto_2.c
+  * source/server/letoacc.c
+  * source/server/letofunc.c
+    * some left over compiler warnings about type/ signed mismatches
+
 2023-04-09 23:01 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   * ChangeLog.txt
 

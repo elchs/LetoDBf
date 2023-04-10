@@ -306,7 +306,7 @@ static void leto_acc_read( const char * szFilename )
       leto_cryptReset( HB_TRUE );
       ptr = pBuffer;
 
-      while( *ptr )
+      while( ptr && *ptr )
       {
          if( *ptr >= '?' )
             uiUsers++;
@@ -323,7 +323,7 @@ static void leto_acc_read( const char * szFilename )
       ptr = pBuffer;
       uiUsers = 0;
 
-      while( *ptr )
+      while( ptr && *ptr )
       {
          if( *ptr < '?' )
             ptr = strchr( ptr, '\n' );

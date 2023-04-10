@@ -247,7 +247,7 @@ typedef struct
    char *            szDateFormat;
    unsigned int      uiEpoch;
    HB_BOOL           bDeleted;                /* value to spare unnecessary leto_setSetDeleted() calls */
-   char              szAccess[ 2 ];
+   HB_BYTE           szAccess[ 2 ];
    char              cDopcode[ LETO_DOPCODE_LEN + 1 ];   /* random bytes > 0 flexible mixed into LETO_PASSWORD */
    HB_BOOL           bLastAct;                /* temporary value, internal used as replace for void return value */
    HB_U64            llLastAct;               /* seconds ago of last activity */

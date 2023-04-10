@@ -4869,7 +4869,7 @@ static void leto_ActionProtocol( PUSERSTRU pUStru, PAREASTRU pAStru, const char 
    PTABLESTRU pTStru = pAStru ? pAStru->pTStru : NULL;
    HB_SIZE    nIndex = 0, nLen;
    LETOTAG *  pTag;
-   char *     ptr;
+   HB_BYTE *  ptr;
    const char * pSrc;
 
    if( pTStru && ( pTStru->bTemporary || pTStru->bMemIO ) )
@@ -4893,7 +4893,7 @@ static void leto_ActionProtocol( PUSERSTRU pUStru, PAREASTRU pAStru, const char 
       pUStru->ulSndBufLen = nLen;
       pUStru->pSendBuffer = ( HB_BYTE * ) hb_xrealloc( pUStru->pSendBuffer, pUStru->ulSndBufLen + 1 );
    }
-   ptr = ( char * ) pUStru->pSendBuffer + LETO_MSGSIZE_LEN;
+   ptr = pUStru->pSendBuffer + LETO_MSGSIZE_LEN;
 
    *ptr++ = 0xEF;
    if( pTStru )
@@ -4957,8 +4957,8 @@ static void leto_ActionProtocol( PUSERSTRU pUStru, PAREASTRU pAStru, const char 
    }
 
    /* length, before a safety marker '0xEF' */
-   nLen = ptr - ( char * ) pUStru->pSendBuffer;
-   ptr = ( char * ) pUStru->pSendBuffer;
+   nLen = ptr - pUStru->pSendBuffer;
+   ptr = pUStru->pSendBuffer;
    HB_PUT_LE_UINT32( ptr, nLen - LETO_MSGSIZE_LEN + nDataLen );
 
    HB_GC_LOCKG();

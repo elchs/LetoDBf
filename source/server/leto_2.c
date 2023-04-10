@@ -1050,7 +1050,7 @@ static HB_THREAD_STARTFUNC( udpsvc )
          {
             /* extract one service identifier out of list */
             iLenCmp = HB_MIN( ptr2 - ptr, 127 );
-            strncpy( szServiceName, ptr, iLenCmp );
+            memcpy( szServiceName, ptr, iLenCmp );
             szServiceName[ iLenCmp ] = '\0';
 
             /* IP address option in szServiceName ? -> separate it */

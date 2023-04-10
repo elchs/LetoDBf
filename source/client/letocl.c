@@ -3559,7 +3559,7 @@ void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int 
                      pConnection->szDriver[ ptr2 - ( pName + 2 ) ] = '\0';
                      pConnection->uiDriver = ( strstr( pConnection->szDriver, "NTX" ) != NULL ) ? 1 : 0;
 
-                     sscanf( ptr2, "%u;%u;%u;%u;%d;%u;%u",
+                     sscanf( ptr2, "%u;%u;%u;%u;%u;%u;%u",
                              &uiMemoType, &uiMemoBlocksize, &uiLockScheme,
                              &uiServerPort, &uiAutOrder, &uiSrvMode, &uiLowerCase );
 
@@ -4241,7 +4241,7 @@ LETOTABLE * LetoDbCreateTable( LETOCONNECTION * pConnection, const char * szFile
       unsigned int  ui;
 
       if( ptr[ 4 ] == ':' )
-         sscanf( ptr + 5, "%u-%u-", &ui, &pConnection->iError );
+         sscanf( ptr + 5, "%u-%d-", &ui, &pConnection->iError );
       else
          pConnection->iError = 1021;
 
@@ -4399,7 +4399,7 @@ LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, 
          {
             unsigned int uErr, uOsErr;
 
-            sscanf( ptr + 5, "%u-%u-%u-", &uErr, &pConnection->iError, &uOsErr );
+            sscanf( ptr + 5, "%u-%d-%u-", &uErr, &pConnection->iError, &uOsErr );
             if( uOsErr == 5 || uOsErr == 16 )
                pCallerConn->iError = EDBF_SHARED;
          }
@@ -4426,7 +4426,7 @@ LETOTABLE * LetoDbOpenTable( LETOCONNECTION * pConnection, const char * szFile, 
       {
          unsigned int uErr, uOsErr;
 
-         sscanf( ptr + 5, "%u-%u-%u-", &uErr, &pConnection->iError, &uOsErr );
+         sscanf( ptr + 5, "%u-%d-%u-", &uErr, &pConnection->iError, &uOsErr );
 #ifdef LETO_SMBSERVER
          if( ( uOsErr == 5 || uOsErr == 16 ) && ! fShared )
             pConnection->iError = EDBF_SHARED;
@@ -5652,7 +5652,7 @@ HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
             unsigned int uErr;
 
             if( ptr[ 4 ] == ':' )
-               sscanf( ptr + 5, "%u-%u-", &uErr, &pConnection->iError );
+               sscanf( ptr + 5, "%u-%d-", &uErr, &pConnection->iError );
             else
                pConnection->iError = 1021;
          }
@@ -5671,7 +5671,7 @@ HB_ERRCODE LetoDbPutRecord( LETOTABLE * pTable )
          unsigned int uErr;
 
          if( ptr[ 4 ] == ':' )
-            sscanf( ptr + 5, "%u-%u-", &uErr, &pConnection->iError );
+            sscanf( ptr + 5, "%u-%d-", &uErr, &pConnection->iError );
          else
             pConnection->iError = 1021;
          iRet = 1;
