@@ -1909,6 +1909,11 @@ void leto_BeautifyPath( char * szPath, const char cReplace )
       memmove( szPath, ptr + 2, iLen - 1 );  /* including '\0' */
       iLen -= 2;
    }
+   if( *ptr == '.' && ( ptr[ 1 ] == '/' || ptr[ 1 ] == '\\' ) )
+   {
+      memmove( szPath, ptr + 2, iLen - 1 );  /* including '\0' */
+      iLen -= 2;
+   }
 
    if( *ptr == '/' || *ptr == '\\' )
    {
@@ -2555,7 +2560,9 @@ static void leto_ClearTagInfos( LETOTABLE * pTable )
       pTagInfo = pTagNext;
    }
 
+   pTable->uiOrders = 0;
    pTable->pTagInfo = NULL;
+   pTable->pTagCurrent = NULL;
 }
 
 static unsigned int leto_checkLockError( LETOCONNECTION * pConnection )
@@ -4894,7 +4901,7 @@ unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, const char *
          memset( ptr, ' ', pField->uiLen - ulLen );
       }
    }
-   else if( ulLen == pField->uiLen && ( pField->uiType == HB_FT_INTEGER || pField->uiType == HB_FT_AUTOINC ) )
+   else if( ( HB_USHORT ) ulLen == pField->uiLen && ( pField->uiType == HB_FT_INTEGER || pField->uiType == HB_FT_AUTOINC ) )
       memcpy( ptr, szValue, ulLen );
 
    pTable->uiUpdated |= LETO_FLAG_UPD_CHANGE;
@@ -4906,6 +4913,9 @@ unsigned int LetoDbPutField( LETOTABLE * pTable, HB_USHORT uiIndex, const char *
 /* unused */
 unsigned int LetoDbRecNo( LETOTABLE * pTable, unsigned long * ulRecNo )
 {
+   if( ! pTable )
+      return 1;
+
    *ulRecNo = pTable->ulRecNo;
    return 0;
 }
@@ -5294,10 +5304,14 @@ HB_ERRCODE LetoDbLocate( LETOTABLE * pTable, HB_BOOL fContinue, const char * szF
          ulLen = eprintf( szData, "%c;%lu;F;%s;%s;%ld;%ld;%ld;", LETOCMD_locate, pTable->hTable,
                                                                  szFor, szWhile, lNext, lRecNo, lRest );
       else
-         ulLen = eprintf( szData, "%c;%lu;T;", LETOCMD_locate, pTable->hTable ); 
+         ulLen = eprintf( szData, "%c;%lu;T;", LETOCMD_locate, pTable->hTable );
 
       if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) )
+      {
+         hb_xfree( szData );
          return 1;
+      }
+      hb_xfree( szData );
 
       if( strncmp( pConnection->szBuffer, "-00", 3 ) )
       {
@@ -6492,10 +6506,10 @@ unsigned int LetoVarGetC( LETOCONNECTION * pConnection, const char * szGroup, co
 
    if( szRaw && ulAlloc )
    {
-      memcpy( szValue, szRaw, HB_MIN( ulAlloc, *pulLen ) );
-      szValue[ HB_MIN( ulAlloc, *pulLen + 1 ) ] = '\0';
+      memcpy( szValue, szRaw, HB_MIN( ulAlloc, *pulLen + 2 ) );
+      szValue[ HB_MIN( ulAlloc, *pulLen + 3 ) ] = '\0';
 
-      if( *pulLen + 1 >= ulAlloc )
+      if( *pulLen + 3 <= ulAlloc )
          return 0;
    }
 

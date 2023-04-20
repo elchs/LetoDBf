@@ -121,7 +121,7 @@ static HB_ERRCODE commonError( LETOAREAP pArea, HB_ERRCODE uiGenCode, HB_ERRCODE
 {
    HB_ERRCODE errCode = HB_SUCCESS;
 
-   HB_TRACE( HB_TR_DEBUG, ( "commonError(%p, %d, %d, %d, '%s', %d, %s)", pArea, uiGenCode, uiSubCode, uiOsCode, szFileName, uiFlags, szOperation ) );
+   HB_TRACE( HB_TR_DEBUG, ( "commonError(%p, %d, %d, %d, '%s', %d, %s)", ( void * ) pArea, uiGenCode, uiSubCode, uiOsCode, szFileName, uiFlags, szOperation ) );
 
    if( hb_vmRequestQuery() == 0 )  /* avoid more errormessages, we want to quit */
    {
@@ -1431,7 +1431,11 @@ static HB_ERRCODE letoPutValue( LETOAREAP pArea, HB_USHORT uiIndex, PHB_ITEM pIt
          break;
 
       case HB_FT_DATE:
+#if defined ( __XHARBOUR__ )  /* keep it as was, slightly different item API */
          if( HB_IS_DATE( pItem ) )
+#else
+         if( HB_IS_DATETIME( pItem ) )
+#endif
          {
             if( pField->uiLen == 3 )
             {
@@ -4564,7 +4568,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
             break;
          }
 
-         if( pTagInfo && pTagInfo->ulKeyCount && uiIndex != DBOI_KEYCOUNTRAW )
+         if( pTagInfo && pTagInfo->ulKeyCount && uiIndex != DBOI_KEYCOUNTRAW && pTagInfo->uiFlags & LETO_INDEX_ALL)
             ul = pTagInfo->ulKeyCount;
          else if( pTagInfo )
          {
@@ -4576,7 +4580,8 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
                return HB_FAILURE;
 
             ul = strtoul( leto_firstchar( pConnection ), NULL, 10 );
-            pTagInfo->ulKeyCount = ul;
+            if( pTagInfo->uiFlags & LETO_INDEX_ALL )
+               pTagInfo->ulKeyCount = ul;
          }
          hb_itemPutNL( pOrderInfo->itmResult, ul );
 
@@ -4804,15 +4809,18 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
                           hb_itemGetNL( pOrderInfo->itmNewVal ) : 1 );
          lRet = leto_SendRecv( pConnection, pArea, szData, ulLen, 1021 );
          if( ! lRet )
+         {
+            pOrderInfo->itmResult = hb_itemPutL( pOrderInfo->itmResult, HB_FALSE );
             return HB_FAILURE;
+         }
 
-         pOrderInfo->itmResult = hb_itemPutL( pOrderInfo->itmResult, lRet );
          leto_ParseRecord( pConnection, pArea->pTable, leto_firstchar( pConnection ) );
          leto_SetAreaFlags( pArea );
          pTable->ptrBuf = NULL;
          if( pTable->fAutoRefresh )
             pTable->llCentiSec = leto_MilliSec();
 
+         pOrderInfo->itmResult = hb_itemPutL( pOrderInfo->itmResult, ! pArea->area.fEof && ! pArea->area.fBof );
          if( pArea->area.lpdbRelations )
             return SELF_SYNCCHILDREN( ( AREAP ) pArea );
          break;
@@ -5044,29 +5052,72 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
       case DBOI_KEYDELETE:
       {
          char *    ptr;
-         PHB_ITEM  pItem = pOrderInfo->itmNewVal ? pOrderInfo->itmNewVal : leto_KeyEval( pArea, pTagInfo );
-         char      cType;
          char *    pData = szData + 4;
-         HB_USHORT uiKeyLen;
          HB_ULONG  ulLen;
 
+         pOrderInfo->itmResult = hb_itemPutL( pOrderInfo->itmResult, HB_FALSE );
+         if( ! pTagInfo || ! pTagInfo->fCustom )  /* need a custom index to work with */
+            return HB_FAILURE;
+
          ulLen = eprintf( pData, "%c;%lu;%d;%s;%lu;", LETOCMD_dboi, pTable->hTable, uiIndex,
-                  ( pTagInfo ) ? pTagInfo->TagName : "", pTable->ulRecNo );
+                                  pTagInfo->TagName, pTable->ulRecNo );
 
-         if( pItem && ( cType = leto_ItemType( pItem ) ) == pTagInfo->cKeyType )
+         if( pOrderInfo->itmNewVal )  /* NTX RDD seem to not respect */
          {
-            char szKey[ LETO_MAX_KEY + 1 ];
+            char cType = leto_ItemType( pOrderInfo->itmNewVal );
 
-            uiKeyLen = leto_KeyToStr( pArea, szKey, cType, pItem, pTagInfo->uiKeySize );
-            leto_AddKeyToBuf( pData, szKey, uiKeyLen, ( unsigned long * ) &ulLen );
+            if( cType == pTagInfo->cKeyType )
+            {
+               char szKey[ LETO_MAX_KEY + 1 ];
+               HB_USHORT uiKeyLen = leto_KeyToStr( pArea, szKey, cType, pOrderInfo->itmNewVal, pTagInfo->uiKeySize );
+
+               leto_AddKeyToBuf( pData, szKey, uiKeyLen, ( unsigned long * ) &ulLen );
+            }
+            else if( ! ( cType == 'U' ) )
+               return HB_FAILURE;
          }
-         else
-            *( pData + ulLen ) = '\0';
 
          if( ! leto_SendRecv( pConnection, pArea, pData, ulLen, 1021 ) )
             return HB_FAILURE;
          ptr = leto_firstchar( pConnection );
          pOrderInfo->itmResult = hb_itemPutL( pOrderInfo->itmResult, *ptr == 'T' );
+         break;
+      }
+
+      case DBOI_RELKEYPOS:
+      {
+         char *   ptr;
+         char     szDbl[ 21 ] = { 0 };
+         HB_ULONG ulLen;
+
+         /* user values outside range: 0 <> 1 allowed */
+         if( pOrderInfo->itmNewVal && HB_IS_NUMERIC( pOrderInfo->itmNewVal ) )
+            hb_itemStrBuf( szDbl, pOrderInfo->itmNewVal, 18, 16 );
+         hb_itemPutND( pOrderInfo->itmResult, 0.0 );
+
+         ulLen = eprintf( szData, "%c;%lu;%d;%s;%lu;%s;", LETOCMD_dboi, pTable->hTable, uiIndex,
+                                  pTagInfo ?  pTagInfo->TagName : "", pTable->ulRecNo, szDbl );
+         if( ! leto_SendRecv( pConnection, pArea, szData, ulLen, 1021 ) )
+            return HB_FAILURE;
+
+         ptr = leto_firstchar( pConnection );
+         if( *ptr == 'T' )  /* at least the position value */
+         {
+            hb_itemPutND( pOrderInfo->itmResult, strtod( ptr + 2, &ptr ) );
+            if( szDbl[ 0 ] && ptr && *( ++ptr ) )  /* record data for NEW positon */
+            {
+               leto_ParseRecord( pConnection, pArea->pTable, ptr );
+               leto_SetAreaFlags( pArea );
+               pTable->ptrBuf = NULL;
+               if( pTable->fAutoRefresh )
+                  pTable->llCentiSec = leto_MilliSec();
+               if( pArea->area.lpdbRelations )
+                  return SELF_SYNCCHILDREN( ( AREAP ) pArea );
+            }
+         }
+         else
+            return HB_FAILURE;
+
          break;
       }
 
@@ -6157,7 +6208,7 @@ static HB_ERRCODE letoRddInfo( LPRDDNODE pRDD, HB_USHORT uiIndex, HB_ULONG ulCon
             hb_itemPutL( pItem, fSet );
          }
          else
-            hb_itemPutL( pItem, HB_TRUE );
+            hb_itemPutL( pItem, HB_FALSE );
          break;
 
       case RDDI_BUFKEYNO:
@@ -9414,7 +9465,8 @@ HB_FUNC( LETO_SET )
    else
    {
       if( setId != HB_SET_SOFTSEEK && setId != HB_SET_DELETED &&
-          setId != HB_SET_AUTOPEN && setId != HB_SET_AUTORDER )
+          setId != HB_SET_AUTOPEN && setId != HB_SET_AUTORDER &&
+          setId != HB_SET_EXACT )
       {
          PHB_DYNS pDo = hb_dynsymFind( "SET" );
          PHB_ITEM pSet = hb_param( 2, HB_IT_ANY );
@@ -9469,7 +9521,7 @@ HB_FUNC( LETO_SET )
       }
    }
 
-   /* up here we come only for below 4 settings */
+   /* up here we come only for below 5 settings */
    pItem = hb_itemNew( NULL );
    if( fSet )
       pNewItem = hb_itemNew( NULL );
@@ -9506,6 +9558,14 @@ HB_FUNC( LETO_SET )
             fSet = HB_FALSE;
          if( fSet )
             hb_itemPutNI( pNewItem, iNewSet );
+         break;
+
+      case HB_SET_EXACT:
+         hb_itemPutNI( pItem, hb_setGetExact() );
+         if( fSet && fNewSet == hb_itemGetL( pItem ) )
+            fSet = HB_FALSE;
+         if( fSet )
+            hb_itemPutL( pNewItem, fNewSet );
          break;
 
       default:

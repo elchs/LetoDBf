@@ -695,6 +695,15 @@ HB_FUNC( LETO_DEFAULTDRIVER )
    hb_retc( leto_Driver( s_uiDriverDef ) );
 }
 
+/* from Harbour DBINFO.CH
+ * #define DB_DBFLOCK_DEFAULT         0
+ * #define DB_DBFLOCK_[CLIPPER|CLIP]  1   * default Cl*pper locking scheme
+ * #define DB_DBFLOCK_[COMIX|CL53]    2   * COMIX and CL53 DBFCDX hyper locking scheme
+ * #define DB_DBFLOCK_VFP             3   * [V]FP, CL52 DBFCDX, SIx3 SIXCDX, CDXLOCK.OBJ
+ * #define DB_DBFLOCK_[HB32|CL53EXT]  4   * Harbour hyper locking scheme for 32-bit file API
+ * #define DB_DBFLOCK_HB64            5   * Harbour hyper locking scheme for 64-bit file API
+ * #define DB_DBFLOCK_CLIPPER2        6   * extended Cl*pper locking scheme NTXLOCK2.OBJ
+*/
 static int leto_lockScheme( int iIndexType )
 {
    int iLockScheme;
@@ -709,6 +718,8 @@ static int leto_lockScheme( int iIndexType )
 #endif
       else if( s_uiLockExtended == DB_DBFLOCK_HB64 )
          iLockScheme = DB_DBFLOCK_HB64;
+      else if( s_uiLockExtended == DB_DBFLOCK_VFP )
+         iLockScheme = DB_DBFLOCK_VFP;
       else if( s_uiLockExtended != DB_DBFLOCK_COMIX )
          iLockScheme = DB_DBFLOCK_HB32;
       else
@@ -15072,8 +15083,11 @@ static void leto_OrderInfo( PUSERSTRU pUStru, char * szData )
 {
    AREAP        pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    char       * pOrder, * pOrdPar;
-   const char * pData;
+   const char * pData = NULL;
    char         szData1[ 20 ];
+   char       * szData2 = NULL;
+   HB_ULONG     ulLen = 0;
+   /* no modifying '\0' inserting leto_GetParam() check for (diverse, binary) arguments behind pOrdPar */
    int          nParam = leto_GetParam( szData, &pOrder, &pOrdPar, NULL );
 
    if( nParam < 2 || ! pArea )
@@ -15082,14 +15096,16 @@ static void leto_OrderInfo( PUSERSTRU pUStru, char * szData )
    {
       HB_USHORT uiCommand = ( HB_USHORT ) atoi( szData );
 
-      if( ! uiCommand || ! *pOrder )
+      if( ! uiCommand || ( ! *pOrder && uiCommand != DBOI_RELKEYPOS ) )
          pData = szErr3;
       else
       {
          DBORDERINFO pOrderInfo;
 
          memset( &pOrderInfo, 0, sizeof( DBORDERINFO ) );
+         /* numerical given order is translated at client to TAGname (also for NTX) -- empty == no active order */
          pOrderInfo.itmOrder = hb_itemPutC( NULL, pOrder );
+
          switch( uiCommand )
          {
             case DBOI_ISMULTITAG:
@@ -15103,20 +15119,48 @@ static void leto_OrderInfo( PUSERSTRU pUStru, char * szData )
                   pOrderInfo.itmNewVal = hb_itemPutL( NULL, ( pOrdPar[ 0 ] == 'T' ) );
                break;
 
+            case DBOI_RELKEYPOS:  /* non CL53 extension, works on active order, respects filter/scope  */
+               pOrderInfo.itmResult = hb_itemPutND( NULL, 0.0 );
+               if( nParam > 2 && pOrdPar[ 0 ] )  /* active recno at client */
+               {
+                  const char * pOrdKey = pOrdPar + strlen( pOrdPar ) + 1;
+
+                  leto_GotoIf( pArea, strtoul( pOrdPar, NULL, 10 ) );
+                  /*`index order needed for new pos to set */
+                  if( pOrderInfo.itmOrder && hb_itemGetCLen( pOrderInfo.itmOrder ) && *pOrdKey && *pOrdKey != ';' )
+                     pOrderInfo.itmNewVal = hb_itemPutND( NULL, strtod( pOrdKey, NULL ) );
+               }
+               else
+                  pData = szErr2;
+               break;
+
             case DBOI_KEYADD:
             case DBOI_KEYDELETE:
             {
                HB_UCHAR     uKeyLen;
                const char * pOrdKey;
+               HB_ULONG     ulRecno;
 
-               if( leto_GotoIf( pArea, strtoul( pOrdPar, NULL, 10 ) ) == HB_SUCCESS )
+               /* wants the bagname, get it for wanted custom ! order */
+               pOrderInfo.itmResult = hb_itemPutC( NULL, NULL );
+               SELF_ORDINFO( pArea, DBOI_BAGNAME, &pOrderInfo );
+               pOrderInfo.atomBagName = hb_itemPutC( NULL, hb_itemGetCPtr( pOrderInfo.itmResult ) );
+
+               pOrderInfo.itmResult = hb_itemPutL( pOrderInfo.itmResult, HB_FALSE );
+               ulRecno = strtoul( pOrdPar, NULL, 10 );
+               if( leto_GotoIf( pArea, ulRecno ) == HB_SUCCESS )
                {
-                  pOrdKey = pOrdPar + strlen( pOrdPar ) + 1;       /* binary data */
-                  uKeyLen = ( ( ( HB_UCHAR ) *pOrdKey++ ) & 0xFF );
+                  pOrdKey = pOrdPar + strlen( pOrdPar ) + 1;       /* binary data with possible ';' */
+                  uKeyLen = ( ( ( HB_UCHAR ) *pOrdKey++ ) & 0xFF );  /* may be the terminating '\0' */
                   if( uKeyLen )
                      pOrderInfo.itmNewVal = leto_KeyToItem( pArea, pOrdKey, uKeyLen, pOrder, '\0' );
+                  if( s_iDebugMode > 20 )
+                     leto_wUsLog( pUStru, -1, "DEBUG key '%s' into bag: '%s' for order: '%s' with value-len: %u for recno: %lu",
+                                              ( uiCommand == DBOI_KEYADD ) ? "add" : "del", hb_itemGetCPtr( pOrderInfo.atomBagName ),
+                                                hb_itemGetCPtr( pOrderInfo.itmOrder ), uKeyLen, ulRecno );
                }
-
+               else
+                  pData = szErr4;
                break;
             }
 
@@ -15127,24 +15171,77 @@ static void leto_OrderInfo( PUSERSTRU pUStru, char * szData )
          }
 
          hb_xvmSeqBegin();
-         SELF_ORDINFO( pArea, uiCommand, &pOrderInfo );
+         if( pData || SELF_ORDINFO( pArea, uiCommand, &pOrderInfo ) != HB_SUCCESS )
+         {
+             hb_itemRelease( pOrderInfo.itmResult );
+             pOrderInfo.itmResult = NULL;
+         }
          hb_xvmSeqEnd();
 
-         if( pUStru->iHbError )
-            pOrderInfo.itmResult = hb_itemPutL( pOrderInfo.itmResult, HB_FALSE );
-
          szData1[ 0 ] = '+';
-         szData1[ 1 ] = hb_itemGetL( pOrderInfo.itmResult ) ? 'T' : 'F';
+         if( pUStru->iHbError || ! pOrderInfo.itmResult )
+            szData1[ 1 ] = 'F';
+         else
+            szData1[ 1 ] = 'T';
          szData1[ 2 ] = ';';
          szData1[ 3 ] = '\0';
+         pData = szData1;
+
+         if( uiCommand != DBOI_RELKEYPOS )
+         {
+            if( szData1[ 1 ] == 'T'&& pOrderInfo.itmResult && hb_itemType( pOrderInfo.itmResult ) & HB_IT_LOGICAL )
+               szData1[ 1 ] = hb_itemGetL( pOrderInfo.itmResult ) ? 'T' : 'F';
+         }
+         else
+         {
+            if( szData1[ 1 ] == 'T' )
+            {
+               HB_BOOL  fNewPos = pOrderInfo.itmNewVal ? HB_TRUE : HB_FALSE;
+               HB_ULONG ulRecLen = leto_recLen( pUStru->pCurAStru->pTStru );
+
+               if( ulRecLen )
+               {
+                  szData2 = ( char * ) hb_xgrab( 3 + 21 + ulRecLen + 1 );
+
+                  memcpy( szData2, szData1, 3 );
+                  /* when new positioned, relKeyPos in itemNewVal for some RDD is empty
+                     or mismatches to wanted double value: -> once again without new position ) */
+                  if( fNewPos && ! pArea->fEof )  /* LetoDBf extension */
+                  {
+                     hb_itemRelease( pOrderInfo.itmNewVal );
+                     pOrderInfo.itmNewVal = NULL;
+                     SELF_ORDINFO( pArea, DBOI_RELKEYPOS, &pOrderInfo );
+                  }
+
+                  if( pArea->fEof )  /* LetoDBf extension: 0 -> 1 */
+                     pOrderInfo.itmResult = hb_itemPutND( pOrderInfo.itmResult, 1.0 );
+                  hb_itemStrBuf( szData2 + 3, pOrderInfo.itmResult, 18, 16 );
+                  ulLen = strlen( szData2 );
+                  szData2[ ulLen++ ] = ';';
+
+                  if( fNewPos )  /* add record data & WA flags */
+                     ulLen += leto_rec( pUStru, pUStru->pCurAStru, pArea, szData2 + ulLen, NULL );
+                  szData2[ ulLen ] = '\0';
+
+                  pData = szData2;
+               }
+               else  /* should not happen */
+                  pData = szErr4;
+            }
+         }
          hb_itemRelease( pOrderInfo.itmResult );
          if( pOrderInfo.itmNewVal )
             hb_itemRelease( pOrderInfo.itmNewVal );
-         pData = szData1;
+         if( pOrderInfo.itmOrder )
+            hb_itemRelease( pOrderInfo.itmOrder );
+         if( pOrderInfo.atomBagName )
+            hb_itemRelease( pOrderInfo.atomBagName );
       }
    }
 
-   leto_SendAnswer( pUStru, pData, strlen( pData ) );
+   leto_SendAnswer( pUStru, pData, ulLen ? ulLen : strlen( pData ) );
+   if( szData2 )
+      hb_xfree( szData2 );
 }
 
 static void leto_Pong( PUSERSTRU pUStru, char * szData )

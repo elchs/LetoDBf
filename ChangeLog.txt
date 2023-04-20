@@ -2,6 +2,36 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-04-20 10:00 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  * ChangeLog.txt
+
+  * source/client/leto1.c
+    ! fix dbOrderInfo( DBOI_SKIPUNIQUE ) in letoOrderInfo()
+      returned .T. for any case
+    * change to HB_DATETIME ( extends HB_DATE ) in letoPutValue()
+      ; this remains to only HB_IS_DATE for xHb users
+    + implement harbour function: OrdkeyRelpos()
+      ; it's a Harbour extension, working on (needed) active ! index order
+      ; improved versus Harbour: it returns correct value after position change
+        e.g.: OrdkeyRelpos( 0,42 ) -> 0.5 -- and for EOF(): 1.0
+    ! fix for DBOI_KEYADD/ DBOI_KEYDEL at client
+    + add transmit of HB_SET_EXACT setting to server in Leto_Set()
+
+  * source/client/letocl.c
+    * remove a filename leading [unix alike] './' leto_BeautifyPath()
+    * better clearance in leto_ClearTagInfos()
+    * C-API: single compiler type warning in LetoDbPutField() for ulLen
+      fix when no table in LetoDbRecNo()
+      increment length in *pulLen with 2 in LetoVarGetC()
+    ! missing hb_xfree() in LetoDbLocate()
+      trailing blank char in line
+
+  * source/server/letofunc.c
+    ! fix to apply in leto_lockScheme() locking type 3
+      ; was never applied, but instead Harbour default used
+    + implement harbour function: OrdkeyRelpos(), server side
+    ! fix for DBOI_KEYADD/ DBOI_KEYDEL at server
+
 2023-04-10 02:42 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   * ChangeLog.txt
 
