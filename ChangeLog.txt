@@ -2,6 +2,29 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-04-20 10:21 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  * ChangeLog.txt
+
+  * include/leto_std.ch
+    * fixing and changing rules for COUNT/ SUM / AVERAGE to use new variable
+      type at server/ arguments for leto_dbEval() as array
+
+  * source/client/letomgmn.c
+    ! fix in LETO_VARINCR()/ LETO_VARDECR() to accept negative increment
+
+  * source/client/leto1.c
+  * source/server/letofunc.c
+    * changes in LETO_DBEVAL() to use of arrays for codeblock arguments
+      ; the literal expressions are needed to build the CB at server
+
+  * source/server/letovars.c
+    + implement the usage of connection specific server variables
+      ; the var-group name 'my' is translated internally at server to 'my_x'
+        with x == connection; these cannot disturb others and represent 
+        personal vars to the application
+    * default apply attribute LETO_VCREAT, LETO_VOWN to above private var
+      ; this will delete them automatically after application ended
+
 2023-04-20 10:00 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   * ChangeLog.txt
 

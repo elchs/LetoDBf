@@ -6931,16 +6931,24 @@ HB_FUNC( LETO_DBEVALTEST )
    hb_retl( fOptimized );
 }
 
-/* leto_DbEval( cbBlock[, cbFor, cbWhile, nNext, nRec, lRest, lResultArr, lNeedLock, lBackward, lStay, cJoin ] ) */
 HB_FUNC( LETO_DBEVAL )
 {
    LETOCONNECTION * pConnection = NULL;
+   PHB_ITEM         pBlock = ! HB_ISARRAY( 1 ) ? hb_param( 1, HB_IT_BLOCK ) :
+                             ( ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 1 ), 1 ) ) & HB_IT_BLOCK ) ?
+                                 hb_arrayGetItemPtr( hb_stackItemFromBase( 1 ), 1 ) : NULL );
+   PHB_ITEM         pFor =   ! HB_ISARRAY( 2 ) ? hb_param( 2, HB_IT_BLOCK ) :
+                             ( ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 1 ) ) & HB_IT_BLOCK ) ?
+                                 hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 1 ) : NULL );
+   PHB_ITEM         pWhile = ! HB_ISARRAY( 3 ) ? hb_param( 3, HB_IT_BLOCK ) :
+                             ( ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 3 ), 1 ) ) & HB_IT_BLOCK ) ?
+                                 hb_arrayGetItemPtr( hb_stackItemFromBase( 3 ), 1 ) : NULL );
+   const char *     szBlk = ! HB_ISARRAY( 1 ) ? hb_parc( 1 ) : hb_arrayGetCPtr( hb_stackItemFromBase( 1 ), 2 );
    const char *     szFor = ! HB_ISARRAY( 2 ) ? hb_parc( 2 ) : hb_arrayGetCPtr( hb_stackItemFromBase( 2 ), 2 );
    const char *     szWhile = ! HB_ISARRAY( 3 ) ? hb_parc( 3 ) : hb_arrayGetCPtr( hb_stackItemFromBase( 3 ), 2 );
    const char *     szJoin = hb_parclen( 11 ) ? hb_parc( 11 ) : NULL;
    const char *     szJoinAlias = NULL;
    LETOAREAP pArea = ( LETOAREAP ) hb_rddGetCurrentWorkAreaPointer();
-   HB_BOOL   fOptimized = HB_FALSE;
    HB_LONG   lNext = hb_parnldef( 4, -1 );
    HB_ULONG  ulRecNo = hb_parnldef( 5, 0 );  /* -1, if given checked later */
    HB_BOOL   fRest = hb_parldef( 6, hb_param( 3, HB_IT_BLOCK | HB_IT_STRING ) || lNext >= 0 ? HB_TRUE : HB_FALSE );
@@ -6949,15 +6957,19 @@ HB_FUNC( LETO_DBEVAL )
    HB_BOOL   fBackward = hb_parldef( 9, HB_FALSE );
    HB_BOOL   fStay = hb_parldef( 10, HB_TRUE );
    HB_BOOL   fValid = pArea ? HB_TRUE : HB_FALSE;
+   HB_BOOL   fOptimized = HB_FALSE;
+   HB_BOOL   fLocal = HB_FALSE;
    PHB_ITEM  pRefresh = NULL;
    HB_ULONG  ulLastRecNo = 0;
    char *    szBlock = NULL;
    char *    szForOpt = NULL, * szWhileOpt = NULL;
    PHB_ITEM  pForVar = NULL, pWhileVar = NULL;
 
-   HB_TRACE( HB_TR_DEBUG, ( "LETO_DBEVAL(%s, %s, %s, %ld, %ld, %d, %d, %d)",  hb_parc( 1 ), szFor, szWhile,
-                            lNext, HB_ISNUM( 5 ) ? ( HB_LONG ) ulRecNo : -1, ( int ) fRest, ( int ) fResultAsArr, ( int ) fNeedLock ) );
+   HB_TRACE( HB_TR_DEBUG, ( "LETO_DBEVAL(%s, %s, %s, %ld, %ld, %d, %d, %d)",  szBlk, szFor, szWhile,
+                            lNext, HB_ISNUM( 5 ) ? ( HB_LONG ) ulRecNo : -1, fRest ? 1 : 0, ( int ) fResultAsArr, ( int ) fNeedLock ) );
 
+   if( szBlk && ! *szBlk )
+      szBlk = NULL;
    if( szFor && ! *szFor )
       szFor = NULL;
    if( szWhile && ! *szWhile )
@@ -6965,11 +6977,21 @@ HB_FUNC( LETO_DBEVAL )
    if( szJoin && szJoin[ strlen( szJoin ) - 1 ] != ';' )
       szJoin = NULL;
 
+   if( ! ( pBlock || szBlk ) )
+      fValid = HB_FALSE;
+
    if( fValid && leto_CheckArea( pArea ) && pArea->pTable )
       pConnection = letoGetConnPool( pArea->pTable->uiConnection );
+   else
+      fLocal = HB_TRUE;  /* non Leto WA */
 
-   if( fValid && hb_parclen( 1 ) && ( szFor || ! HB_ISBLOCK( 2 ) ) && ( szWhile || ! HB_ISBLOCK( 3 ) ) &&
-       leto_CheckArea( pArea ) )
+   // if( ! fLocal && ( pBlock && ! szBlk ) || ( pFor && ! szFor ) || ( pWile && ! szWhile ) )
+   //   fLocal = HB_TRUE;   /* missing literal expression */
+
+   HB_TRACE( HB_TR_DEBUG, ( "LETO_DBEVAL( after pretest 1 block: %s, fvalid %d, foptimized %d, flocal %d )",
+                            pBlock ? "{||..]" : "njet", ( int ) fValid, ( int ) fOptimized, ( int ) fLocal ) );
+
+   if( fValid && ! fLocal )
    {
       /* none or optimized filter, none or all optimzed relations */
       if( ! ( ! pArea->area.dbfi.fFilter || pArea->area.dbfi.fOptimized ) )
@@ -7031,23 +7053,21 @@ HB_FUNC( LETO_DBEVAL )
          }
       }
    }
-   if( fValid && ! ( hb_parclen( 1 ) || HB_ISBLOCK( 1 ) ) )
-      fValid = HB_FALSE;
 
-   if( fValid )  /* WA & first param */
+   if( fValid && ! fLocal )  /* WA & first param */
    {
       SELF_RECNO( ( AREAP ) pArea, &ulLastRecNo );
 
-      if( hb_parclen( 1 ) )
+      if( szBlk )
       {
-         HB_SIZE      nBlockSize = HB_MAX( HB_PATH_MAX, hb_parclen( 1 ) + 8 + ( ( hb_parclen( 1 ) / 8 ) * 10 ) );
+         HB_SIZE      nBlockSize = HB_MAX( HB_PATH_MAX, strlen( szBlk ) + 8 + ( ( strlen( szBlk ) / 8 ) * 10 ) );
          char         szSearch[ 16 ] = { 'F', 'I', 'E', 'L', 'D', 'P', 'U', 'T', '(', '\'', 0 };
          const char * ptr, * ptr2;
 
          szBlock = ( char * ) hb_xgrabz( nBlockSize );
-         strcpy( szBlock, hb_parc( 1 ) );
+         strcpy( szBlock, szBlk );
          /* translate Harbour lock functions to LetoDBf variant & verify unlock */
-         fValid = leto_LockValidate( pArea, szBlock, hb_parclen( 1 ) );
+         fValid = leto_LockValidate( pArea, szBlock, strlen( szBlock ) );
 
          if( fValid && fOptimized && fNeedLock )  /* collect ALIAS of WA to refresh */
          {
@@ -7264,6 +7284,9 @@ HB_FUNC( LETO_DBEVAL )
       }
    }
 
+   HB_TRACE( HB_TR_DEBUG, ( "LETO_DBEVAL( after pretes3 1 block: %s, fvalid %d, foptimized %d, flocal %d )",
+                            pBlock ? "{||..]" : "njet", ( int ) fValid, ( int ) fOptimized, ( int ) fLocal ) );
+
    if( fValid && fOptimized )
    {
       PHB_ITEM pParams = NULL;
@@ -7343,42 +7366,43 @@ HB_FUNC( LETO_DBEVAL )
    else if( fValid )  /* but not optimized */
    {
       DBEVALINFO  pEvalInfo;
-      LETOTABLE * pTable = pArea->pTable;
       AREAP       pRawArea = ( AREAP ) pArea;
-      PHB_ITEM    pBlock = NULL, pFor = NULL, pWhile = NULL;
-      PHB_ITEM    pNext = NULL, pRec = NULL, pRest = NULL;
-      HB_BYTE     uOldSrvMode = pConnection ? pConnection->uSrvLock : 0;
+      PHB_ITEM    pCBlock = NULL, pCFor = NULL, pCWhile = NULL;
+      HB_BYTE     uOldSrvMode;
 
       memset( &pEvalInfo, 0, sizeof( pEvalInfo ) );
-      if( szBlock )
-         pEvalInfo.itmBlock = pBlock = leto_mkCodeBlock( szBlock, strlen( szBlock ) );
-      else
-         pEvalInfo.itmBlock = hb_param( 1, HB_IT_BLOCK );
-      if( HB_ISBLOCK( 2 ) )
-         pEvalInfo.dbsci.itmCobFor = hb_param( 2, HB_IT_BLOCK );
-      else if( HB_ISARRAY( 2 ) && ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 1 ) ) & HB_IT_BLOCK ) )
-         pEvalInfo.dbsci.itmCobFor = hb_arrayGetItemPtr( hb_stackItemFromBase( 2 ), 1 );
+      if( ( fLocal || ! szBlk ) && pBlock )
+         pEvalInfo.itmBlock = pBlock;
+      else if( szBlk )
+         pEvalInfo.itmBlock = pCBlock = leto_mkCodeBlock( szBlk, strlen( szBlk ) );
+      if( ( fLocal || ! szFor ) && pFor )
+         pEvalInfo.dbsci.itmCobFor = pFor;
       else if( szFor )
-         pEvalInfo.dbsci.itmCobFor = pFor = leto_mkCodeBlock( szFor, strlen( szFor ) );
-      if( HB_ISBLOCK( 3 ) )
-         pEvalInfo.dbsci.itmCobWhile = hb_param( 3, HB_IT_BLOCK );
-      else if( HB_ISARRAY( 3 ) && ( hb_itemType( hb_arrayGetItemPtr( hb_stackItemFromBase( 3 ), 1 ) ) & HB_IT_BLOCK ) )
-         pEvalInfo.dbsci.itmCobWhile = hb_arrayGetItemPtr( hb_stackItemFromBase( 3 ), 1 );
+         pEvalInfo.dbsci.itmCobFor = pCFor = leto_mkCodeBlock( szFor, strlen( szFor ) );
+      if( ( fLocal || ! szWhile ) && pWhile )
+         pEvalInfo.dbsci.itmCobWhile = pWhile;
       else if( szWhile )
-         pEvalInfo.dbsci.itmCobWhile = pWhile = leto_mkCodeBlock( szWhile, strlen( szWhile ) );
+         pEvalInfo.dbsci.itmCobWhile = pCWhile = leto_mkCodeBlock( szWhile, strlen( szWhile ) );
 
-      if( HB_ISNUM( 4 ) )
-         pNext = hb_itemPutNL( pNext, lNext );
-      pEvalInfo.dbsci.lNext = pNext;
-      if( HB_ISNUM( 5 ) )
-         pRec = hb_itemPutNL( pRec, ulRecNo );
-      pEvalInfo.dbsci.itmRecID = pRec;
-      if( HB_ISLOG( 6 ) )
-         pRest = hb_itemPutL( pRest, fRest );
-      pEvalInfo.dbsci.fRest = pRest;
-      pEvalInfo.dbsci.fOptimized = HB_FALSE;
+      pEvalInfo.dbsci.lNext = hb_param( 4, HB_IT_NUMERIC );
+      pEvalInfo.dbsci.itmRecID = hb_param( 5, HB_IT_NUMERIC );
+      pEvalInfo.dbsci.fRest = hb_param( 6, HB_IT_LOGICAL );
+      // pEvalInfo.dbsci.fOptimized = HB_FALSE;
       pEvalInfo.dbsci.fBackward = fBackward;
 
+      if( fLocal )
+      {
+         HB_TRACE( HB_TR_DEBUG, ( "LETO_DBEVAL( local version  %s, %s, %s, )",
+                                   pBlock ? "{||..}" : szBlk, pFor ? "{||..}" : szFor, pWhile ? "{||..}" : szWhile ) );
+
+         SELF_DBEVAL( pRawArea, &pEvalInfo );
+         hb_itemRelease( pCBlock );
+         hb_itemRelease( pFor );
+         hb_itemRelease( pWhile );
+         return;
+      }
+
+      uOldSrvMode = pConnection ? pConnection->uSrvLock : 0;
       if( pRawArea->valResult )
          hb_vmDestroyBlockOrMacro( pRawArea->valResult );
       if( fResultAsArr && leto_CheckArea( pArea ) )
@@ -7388,9 +7412,9 @@ HB_FUNC( LETO_DBEVAL )
 
       if( fNeedLock && leto_CheckArea( pArea ) )
       {
-         if( pTable->fReadonly )
+         if( pArea->pTable->fReadonly )
             fValid = HB_FALSE;
-         else if( ! ( pTable->fFLocked || ! pTable->fShared ) )
+         else if( ! ( pArea->pTable->fFLocked || ! pArea->pTable->fShared ) )
          {
             if( ! ( uOldSrvMode & 0x01 ) )  /* RDDI_AUTOLOCK */
                fValid = HB_FALSE;
@@ -7440,12 +7464,12 @@ HB_FUNC( LETO_DBEVAL )
       if( ! fStay || ! fValid )
          SELF_GOTO( pRawArea, ulLastRecNo );
 
-      hb_itemRelease( pBlock );
+      hb_itemRelease( pCBlock );
       hb_itemRelease( pFor );
       hb_itemRelease( pWhile );
-      hb_itemRelease( pNext );
-      hb_itemRelease( pRec );
-      hb_itemRelease( pRest );
+      // hb_itemRelease( pNext );
+      // hb_itemRelease( pRec );
+      // hb_itemRelease( pRest );
    }
    else
       commonError( ( LETOAREAP ) pArea, EG_ARG, EDBCMD_BADPARAMETER, 0, NULL, 0, "LETO_DBEVAL" );

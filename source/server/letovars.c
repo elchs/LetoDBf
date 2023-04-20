@@ -4,7 +4,7 @@
  * Copyright 2010 Alexander S. Kresin <alex / at / belacy.belgorod.su>
  *
  * modification/ enhancement/ thread safetiness etc. ..
- *           2016 Rolf 'elch' Beckmann
+ *           2016, 2023 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,6 +51,9 @@
 
 #define VARGROUPS_ALLOC  10
 #define VARS_ALLOC       10
+#define VARSOWN_GROUP    "my"
+#define VARSOWN_MASK     "%s_%d"
+#define VARSOWN_LEN      12  /* alloc for group-name */
 
 #define LETOVAR_LOG      '1'
 #define LETOVAR_NUM      '2'
@@ -442,6 +445,7 @@ static _HB_INLINE_ HB_BOOL leto_var_accessdeny( PUSERSTRU pUStru, LETO_VAR * pIt
           ( pItem->uiUser != pUStru->iUserStru );
 }
 
+/* main entry point for client requests */
 void leto_Variables( PUSERSTRU pUStru, char * szData )
 {
    char * pVarGroup, * pVar, * pp3;
@@ -456,6 +460,20 @@ void leto_Variables( PUSERSTRU pUStru, char * szData )
       HB_USHORT        uiItem;
       HB_ULONG         ulLen;
       char *           pData = NULL;
+      char             cUserGroup[ VARSOWN_LEN ];
+
+      if( ! ( *szData == LETOSUB_list ) )
+      {
+         if( *szData == LETOSUB_set || *szData == LETOSUB_inc || *szData == LETOSUB_dec )
+            *( pp3 + 1 ) |= LETO_VCREAT;
+         if( ! pVarGroup || ! leto_stricmp( pVarGroup, VARSOWN_GROUP ) )
+         {
+            eprintf( cUserGroup, VARSOWN_MASK, VARSOWN_GROUP, pUStru->iUserStru );
+            pVarGroup = cUserGroup;
+            if( *szData == LETOSUB_set || *szData == LETOSUB_inc || *szData == LETOSUB_dec )
+               *( pp3 + 1 ) |= LETO_VOWN;
+         }
+      }
 
       HB_GC_LOCKV();
 
@@ -901,8 +919,15 @@ HB_FUNC( LETO_VARGET )
 {
    PUSERSTRU    pUStru = letoGetsUStru();
    const char * pVarGroup = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
+   char         cUserGroup[ VARSOWN_LEN ] = { 0 };
    const char * pVar = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
    LETO_VAR *   pItem;
+
+   if( ! pVarGroup || ! leto_stricmp( pVarGroup, VARSOWN_GROUP ) )
+   {
+      eprintf( cUserGroup, VARSOWN_MASK, VARSOWN_GROUP, pUStru->iUserStru );
+      pVarGroup = cUserGroup;
+   }
 
    HB_GC_LOCKV();
 
@@ -930,8 +955,15 @@ HB_FUNC( LETO_VARGETSAVE )
 {
    PUSERSTRU    pUStru = letoGetsUStru();
    const char * pVarGroup = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
+   char         cUserGroup[ VARSOWN_LEN ] = { 0 };
    const char * pVar = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
    LETO_VAR *   pItem;
+
+   if( ! pVarGroup || ! leto_stricmp( pVarGroup, VARSOWN_GROUP ) )
+   {
+      eprintf( cUserGroup, VARSOWN_MASK, VARSOWN_GROUP, pUStru->iUserStru );
+      pVarGroup = cUserGroup;
+   }
 
    HB_GC_LOCKV();
 
@@ -961,14 +993,22 @@ HB_FUNC( LETO_VARSET )
 {
    PUSERSTRU    pUStru = letoGetsUStru();
    const char * pVarGroup = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
+   char         cUserGroup[ VARSOWN_LEN ] = { 0 };
    const char * pVar = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
+   char         cFlag1 = HB_ISNUM( 4 ) ? ( char ) hb_parni( 4 ) | LETO_VCREAT : LETO_VCREAT;
    LETO_VAR *   pItem = NULL;
+
+   if( ! pVarGroup || ! leto_stricmp( pVarGroup, VARSOWN_GROUP ) )
+   {
+      eprintf( cUserGroup, VARSOWN_MASK, VARSOWN_GROUP, pUStru->iUserStru );
+      pVarGroup = cUserGroup;
+      cFlag1 |= LETO_VOWN;
+   }
 
    if( pVarGroup && pVar )
    {
       LETO_VARGROUPS * pGroup = NULL;
       HB_USHORT        uiItem = 0;
-      char             cFlag1 = HB_ISNUM( 4 ) ? ( char ) hb_parni( 4 ) : 0;
 
       HB_GC_LOCKV();
 
@@ -1037,18 +1077,23 @@ static void leto_var_incdec( HB_BOOL fInc )
 {
    PUSERSTRU    pUStru = letoGetsUStru();
    const char * pVarGroup = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
+   char         cUserGroup[ VARSOWN_LEN ] = { 0 };
    const char * pVar = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
+   char         cFlag1 = HB_ISNUM( 3 ) ? ( char ) hb_parni( 3 ) | LETO_VCREAT : LETO_VCREAT;
    LETO_VAR *   pItem = NULL;
+
+   if( ! pVarGroup || ! leto_stricmp( pVarGroup, VARSOWN_GROUP ) )
+   {
+      eprintf( cUserGroup, VARSOWN_MASK, VARSOWN_GROUP, pUStru->iUserStru );
+      pVarGroup = cUserGroup;
+      cFlag1 |= LETO_VOWN;
+   }
 
    if( pVarGroup && pVar )
    {
       LETO_VARGROUPS * pGroup = NULL;
       HB_USHORT        uiItem = 0;
-      char             cFlag1 = HB_ISNUM( 3 ) ? ( char ) hb_parni( 3 ) : 0;
-      double           dIncrement = hb_parnd( 4 );
-
-      if( ! HB_ISNUM( 4 ) )
-         dIncrement = 1.0;
+      double           dIncrement = HB_ISNUM( 4 ) ? hb_parnd( 4 ) : ( fInc ? 1.0 : -1.0 );
 
       HB_GC_LOCKV();
 
@@ -1059,13 +1104,19 @@ static void leto_var_incdec( HB_BOOL fInc )
          if( pItem )
          {
             pItem->type = LETOVAR_NUM;
-            if( ( HB_IS_INTEGER( hb_param( 4, HB_IT_ANY ) ) || HB_IS_LONG( hb_param( 4, HB_IT_ANY ) ) ) )
-               pItem->item.asLong.value = hb_parnl( 4 );
+            if( hb_pcount() < 4 || HB_IS_NIL( hb_param( 4, HB_IT_ANY ) ) || HB_IS_INTEGER( hb_param( 4, HB_IT_NUMERIC ) ) || HB_IS_LONG( hb_param( 4, HB_IT_NUMERIC ) ) )
+               pItem->item.asLong.value = ( long ) dIncrement;
             else
             {
-               pItem->item.asDouble.value = hb_parnd( 4 );
-               hb_itemGetNLen( hb_param( 4, HB_IT_NUMERIC ), &pItem->item.asDouble.length,
-                                                             &pItem->item.asDouble.decimals );
+               pItem->item.asDouble.value = dIncrement;
+               if( HB_ISNUM( 4 ) )
+                  hb_itemGetNLen( hb_param( 4, HB_IT_NUMERIC ), &pItem->item.asDouble.length,
+                                                                &pItem->item.asDouble.decimals );
+               else
+               {
+                  pItem->item.asDouble.length = 3;
+                  pItem->item.asDouble.decimals = 1;
+               }
             }
             leto_SetVarCache( pItem );
             hb_itemReturnRelease( leto_var_ret( pItem ) );
@@ -1117,9 +1168,16 @@ HB_FUNC( LETO_VARDEL )
 {
    PUSERSTRU    pUStru = letoGetsUStru();
    const char * pVarGroup = hb_parclen( 1 ) ? hb_parc( 1 ) : NULL;
+   char         cUserGroup[ VARSOWN_LEN ] = { 0 };
    const char * pVar = hb_parclen( 2 ) ? hb_parc( 2 ) : NULL;
    LETO_VAR *   pItem = NULL;
    HB_BOOL      bRet = HB_FALSE;
+
+   if( ! pVarGroup || ! leto_stricmp( pVarGroup, VARSOWN_GROUP ) )
+   {
+      eprintf( cUserGroup, VARSOWN_MASK, VARSOWN_GROUP, pUStru->iUserStru );
+      pVarGroup = cUserGroup;
+   }
 
    if( pVarGroup )
    {

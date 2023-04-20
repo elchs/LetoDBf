@@ -142,40 +142,45 @@
          leto_dbEval( "{|n| dbRecall(), n }", { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>,, .T., <.descend.>, .T. )
 #command RECALL =>  dbRecall()
 
-#command COUNT [[INTO][TO] <v>] ;
-               [FOR <for>] [WHILE <while>] [NEXT <next>] ;
+/* WARNING, magical pre-processor rules ;-)
+ * using leto_VarIncr() as private var type '3' ( LETO_VCREAT | LETO_VOWN ), plus connection specific var group "my" [ -> 'my_xxx' ]
+ * codeblock arguments are passed as array with first item the Harbour CB for non LETO WA, second item is the Leto literal expression */
+
+#command COUNT [TO <v>] [FOR <for>] [WHILE <while>] [NEXT <next>] ;
                [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] => ;
-         [ <v> := ];
-         leto_dbEval( "{|n| n }", { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>,, .F., <.descend.> )
+         <v> := 0; leto_dbEval( { {|| <v> := <v> + 1 }, "{|| Leto_VarIncr( 'My', '"+#<v>+"', 3 )}" },;
+                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, .F., .F., <.descend.>, .F. );;
+         [ <v> := Leto_VarGetSave( "My", #<v> , <v> )];;
+         Leto_VarDel( "My", #<v> )
 
 
-/* using leto_VarIncr() as private auto-create-delete '3' ( LETO_VCREAT | LETO_VOWN )
- * optional 'ON <result>' executed additional for array-values in <cVar>, i.e.: 'ON RecNo()' */
 #command SUM [ <x1>[, <xN>]  TO  <v1> [, <vN>]] [ON <result>] ;
              [FOR <for>] [WHILE <while>] [NEXT <next>] ;
-             [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] ;
-             [INTO <cVar>] => ;
-         [ <cVar> := ];
-         Leto_dbEval( "{|| Leto_VarIncr( 'MySUM', '"+#<v1>+"', 3, "+<"x1">+" )"[+", Leto_VarIncr( 'MySUM', '"+#<vN>+"', 3, "+<"xN">+" )"][+", "+<"result">]+" }",;
-                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <.cVar.>, .F., <.descend.> );;
-         <v1> := Leto_VarGetSave( "MySUM", #<v1> , 0 );;
-         [ <vN> := Leto_VarGetSave( "MySUM", #<vN>, 0 ) ; ];
-         Leto_VarDel( "MySUM", #<v1> );;
-         [ Leto_VarDel( "MySUM", #<vN> ) ]
+             [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] => ;
+         <v1> :=[ <vN> :=] 0 ;;
+         Leto_dbEval( { {|| <v1> := <v1> + <x1>[, <vN> := <vN> + <xN>] },;
+                        "{|| Leto_VarIncr( 'My', '"+#<v1>+"', 3, "+<"x1">+" )"[+", Leto_VarIncr( 'My', '"+#<vN>+"', 3, "+<"xN">+" )"][+", "+<"result">]+" }" },;
+                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, .F., .F., <.descend.>, .F. );;
+         <v1> := Leto_VarGetSave( "My", #<v1> , <v1> );;
+         [ <vN> := Leto_VarGetSave( "My", #<vN>, <vN> ) ; ];
+         Leto_VarDel( "My", #<v1> );;
+         [ Leto_VarDel( "My", #<vN> ) ]
 
 #command AVERAGE [ <x1> [, <xN>]  TO  <v1>[, <vN>]] [ON <result>] ;
                  [FOR <for>] [WHILE <while>] [NEXT <next>] ;
-                 [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] ;
-                 [INTO <cVar>]  => ;
-         [ <cVar> := ];
-         Leto_dbEval( "{|nRec| Leto_VarSet( 'MyAVG','__AVG', nRec, 3 ), Leto_VarIncr( 'MyAVG', '"+#<v1>+"', 3, "+<"x1">+" )"[+", Leto_VarIncr( 'MyAVG', '"+#<vN>+"', 3, "+<"xN">+" )"][+", "+<"result">]+" }", ;
-                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, <.cVar.>, .F., <.descend.> );;
-         <v1> := Leto_VarGetSave( "MyAVG",#<v1>, 0 ) / Leto_VarGetSave( "MyAVG", "__AVG", 1 );;
-         [ <vN> := Leto_VarGetSave( "MyAVG",#<vN>, 0 ) / Leto_VarGetSave( "MyAVG", "__AVG", 1 ) ; ];
-         Leto_VarDel( "MyAVG", #<v1> );;
-         [ Leto_VarDel( "MyAVG", #<vN> ) ; ];
-         Leto_VarDel( "MySUM", '__AVG' )
-
+                 [RECORD <rec>] [<rest:REST>] [ALL] [<descend:DESC,DESCENDING>] => ;
+         __Avg := <v1> :=[ <vN> :=] 0;;
+         Leto_dbEval( { {|| __Avg := __Avg + 1, <v1> := <v1> + <x1>[, <vN> := <vN> + <xN>] },;
+                        "{|z| Leto_VarIncr( 'My','__AVG', 3, 1 ), Leto_VarIncr( 'My', '"+#<v1>+"', 3, "+<"x1">+" )";
+                           [+", Leto_VarIncr( 'My', '"+#<vN>+"', 3, "+<"xN">+" )"][+", "+<"result">]+" }" },;
+                      { <{for}>, <"for"> }, { <{while}>, <"while"> }, <next>, <rec>, <.rest.>, .F., .F., <.descend.>, .F. );;
+         __Avg := Leto_VarGetSave( "My", "__AVG", __AVG );;
+         <v1> := Leto_VarGetSave( "My",#<v1>, <v1> );;
+            [ <vN> := Leto_VarGetSave( "My",#<vN>, <vN> ); ];
+         Leto_VarDel( "My", #<v1> );;
+            [ Leto_VarDel( "My", #<vN> ); ];
+         Leto_VarDel( "My", '__AVG' );;
+         <v1> := <v1> / __Avg[ ; <vN> := <vN> / __Avg];;
 
 #if 1
 #command SELECT [<all:*>] [ <x1> [AS <v1>] [, <xN> [AS <vN>] ]] ;
