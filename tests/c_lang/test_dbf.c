@@ -13,7 +13,6 @@ static void printRec( LETOTABLE * pTable )
 {
    unsigned long ulRecNo, ulAlloc = 256, ulLen;
    char *        szRet = hb_xgrab( ulAlloc );
-   const char *  pText;
 
    LetoDbRecNo( pTable, &ulRecNo );
    ulLen = ulAlloc;
@@ -56,21 +55,21 @@ int main( int argc, char *argv[] )
    printf( "Connecting to %s:%d ..." _EOL_, szAddr, iPort );
    if( ( pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, 0 ) ) != NULL )
    {
-      char * ptr, szData[ 64 ];
       LETOTABLE * pTable;
 
       printf( "Connected!" _EOL_ );
       printf( "%s" _EOL_, LetoGetServerVer( pConnection ) );
       printf( "Compression level: %d" _EOL_, LetoToggleZip( pConnection, 1, NULL ) );
 
-      pTable = LetoDbCreateTable( pConnection, "test1", "TEST1",
+      pTable = LetoDbCreateTable( pConnection, "testCApi", "TEST1",
                                   "NAME;C;10;0;NUM;N;4;0;INFO;C;32;0;DINFO;D;8;0;MINFO;M;10;0;",
                                   1, NULL, HB_FALSE );
       if( pTable )
       {
-         unsigned int ui, uiFields, uiRet;
-         unsigned long ulRecCount, ulRecNo;
+         unsigned int ui, uiFields, uiIndex, uiRet;
+         unsigned long ulRecCount;
          char szRet[ 64 ];
+         char szOrdInfo[ 512 ];
          char * pNames[] = { "Petr", "Ivan", "Alexander", "Pavel", "Alexey", "Fedor",
                              "Rolf", "Vladimir", "Nikolay", "Andrey", "Dmitry", "Sergey" };
 
@@ -149,12 +148,78 @@ int main( int argc, char *argv[] )
          else
             printf( "error" _EOL_ );
          printf( "Index creating (NUM) - " );
-         if( ! LetoDbOrderCreate( pTable, NULL, "NUM", "Str(NUM,4)", 0, NULL, NULL, 0 ) )
+         if( ! LetoDbOrderCreate( pTable, NULL, "NUM", "NUM", 0, NULL, NULL, 0 ) )
             printf( "Ok" _EOL_ );
          else
             printf( "error" _EOL_ );
+         printf( "Index creating DTOS(DINFO) - " );
+         if( ! LetoDbOrderCreate( pTable, NULL, "DATE", "DTOS(DINFO)", 0, NULL, NULL, 0 ) )
+            printf( "Ok" _EOL_ );
+         else
+            printf( "error" _EOL_ );
+         printf( "Index creating UPPER(NAME) in extra bag - " );
+         if( ! LetoDbOrderCreate( pTable, "testex", "UNAME", "UPPER(NAME)", LETO_INDEX_ADD, NULL, NULL, 0 ) )
+            printf( "Ok" _EOL_ );
+         else
+            printf( "error" _EOL_ );
+         printf( "4 index orders active - " );
+         LetoDbOrdCount( pTable, &uiIndex );
+         if( uiIndex == 3 )
+            printf( "Ok" _EOL_ );
+         else
+            printf( "error" _EOL_ );
+         printf( "active order 'DATE'   - %s" _EOL_, pTable->pTagCurrent ? pTable->pTagCurrent->TagName : "" );
 
-         LetoDbOrderFocus( pTable, "NAME", 0 );
+
+         LetoDbOrdInfo( pTable, HB_FALSE, szOrdInfo, sizeof( szOrdInfo ) );
+         printf( "Order Infos: %s "_EOL_, szOrdInfo );
+
+         LetoDbOrderDestroy( pTable, "NUM", "testCApi" );
+         LetoDbOrdCount( pTable, &uiIndex );
+         if( uiIndex == 3 )
+            printf( "Order 'NUM' destroyed from list" _EOL_ );
+         LetoDbOrdInfo( pTable, HB_FALSE, szOrdInfo, sizeof( szOrdInfo ) );
+         printf( "Order Infos: %s "_EOL_, szOrdInfo );
+
+         LetoDbOrderListDelete( pTable, "testex" );
+         LetoDbOrdCount( pTable, &uiIndex );
+         if( uiIndex == 2 )
+            printf( "Order 'UNAME' removed from list" _EOL_ );
+         LetoDbOrdInfo( pTable, HB_FALSE, szOrdInfo, sizeof( szOrdInfo ) );
+         printf( "Order Infos: %s "_EOL_, szOrdInfo );
+
+         LetoDbOrderListClear( pTable );
+         LetoDbOrdCount( pTable, &uiIndex );
+         if( ! uiIndex )
+            printf( "all Orders closed !" _EOL_ );
+         LetoDbOrdInfo( pTable, HB_FALSE, szOrdInfo, sizeof( szOrdInfo ) );
+         printf( "Order Infos: %s "_EOL_, szOrdInfo );
+
+         LetoDbOrderListAdd( pTable, "testCApi" );
+         LetoDbOrderListAdd( pTable, "testex" );
+         LetoDbOrdCount( pTable, &uiIndex );
+         if( uiIndex == 3 )
+            printf( "%s production index + 'testex' re-opened" _EOL_, "testCApi" );
+         LetoDbOrdInfo( pTable, HB_FALSE, szOrdInfo, sizeof( szOrdInfo ) );
+         printf( "Order Infos: %s "_EOL_, szOrdInfo );
+
+         LetoDbOrderDestroy( pTable, "UNAME", NULL );
+         LetoDbOrdCount( pTable, &uiIndex );
+         if( uiIndex == 2 )
+            printf( "Order UNAME in testex destroyed " _EOL_ );
+         LetoDbOrdInfo( pTable, HB_FALSE, szOrdInfo, sizeof( szOrdInfo ) );
+         printf( "Order Infos: %s "_EOL_, szOrdInfo );
+
+         LetoDbOrderFocus( pTable, "DATE", 0 );
+         printf( "%s is active order " _EOL_,  LetoDbOrder( pTable, 0 ) );
+         LetoDbOrdInfo( pTable, HB_FALSE, szOrdInfo, sizeof( szOrdInfo ) );
+         printf( "Order Infos: %s "_EOL_, szOrdInfo );
+
+         LetoDbOrderFocus( pTable, NULL, 1 );
+         printf( "%s is active order " _EOL_,  LetoDbOrder( pTable, 0 ) );
+         LetoDbOrdInfo( pTable, HB_FALSE, szOrdInfo, sizeof( szOrdInfo ) );
+         printf( "Order Infos: %s "_EOL_, szOrdInfo );
+
          printf( "Go Top - " _EOL_ );
          LetoDbGoTop( pTable );
          printRec( pTable );
@@ -167,11 +232,19 @@ int main( int argc, char *argv[] )
          LetoDbSeek( pTable, "Niko", 0, 1, 0 );
          printRec( pTable );
 
-         printf( _EOL_ "Close table - " _EOL_ );
+         printf( _EOL_ "Close table - " );
          if( ! LetoDbCloseTable( pTable ) )
             printf( "Ok" _EOL_ );
          else
             printf( "error" _EOL_ );
+
+         printf( "Drop index & table %s - ", "testCApi" );   /* Harbour does not drop both at once */
+         if( ! LetoDbDrop( pConnection, "", "testCApi" ) &&  /* index */
+             ! LetoDbDrop( pConnection, "testCApi", "" ) )   /* table */
+            printf( "Ok" _EOL_ );
+         else
+            printf( "error" _EOL_ );
+
       }
       else
          printf( "Can not create the test1.dbf" _EOL_ );

@@ -5889,22 +5889,7 @@ HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const 
 
    /* close all index order, re-register the orders reported by server after creating the new order */
    if( pTable->pTagInfo )
-   {
-      LETOTAGINFO * pTag, * pTagNext;
-
-      pTag = pTable->pTagInfo;
-      do
-      {
-         pTagNext = pTag->pNext;
-         LetoDbFreeTag( pTag );
-         pTag = pTagNext;
-      }
-      while( pTag );
-
-      pTable->uiOrders = 0;
-      pTable->pTagInfo = NULL;
-      pTable->pTagCurrent = NULL;
-   }
+      leto_ClearTagInfos( pTable );
 
    ptr = leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
    if( pTable->fTemporary )
@@ -5921,14 +5906,143 @@ HB_ERRCODE LetoDbOrderCreate( LETOTABLE * pTable, const char * szBagName, const 
    return 0;
 }
 
+HB_ERRCODE LetoDbOrderDestroy( LETOTABLE * pTable, const char * szTagName, const char * szBagName )
+{
+   LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+   char          szTag[ LETO_MAX_TAGNAME + 1 ];
+   char          szData[ HB_PATH_MAX ];
+   unsigned long ulLen;
+
+   if( ! szTagName || ! *szTagName )
+      return HB_FAILURE;
+   if( pTable->uiUpdated )
+      LetoDbPutRecord( pTable );
+
+   leto_strncpy( szTag, szTagName, LETO_MAX_TAGNAME );
+   ulLen = eprintf( szData, "%c;%lu;13;%s;%s;", LETOCMD_ord, pTable->hTable, szTag, szBagName );
+   ulLen = leto_SendRecv( pConnection, szData, ulLen, 0 );
+   if( ! ulLen || *pConnection->szBuffer != '+' )
+      return HB_FAILURE;
+
+   leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
+   pTable->ptrBuf = NULL;
+
+   return HB_SUCCESS;
+}
+
+HB_ERRCODE LetoDbOrderListAdd( LETOTABLE * pTable, const char * szIFileName )
+{
+   LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+   unsigned long ulLen;
+   char          szData[ HB_PATH_MAX + 16 ];
+   char          szBagName[ HB_PATH_MAX ];
+   const char *  ptr;
+
+   if( ! szIFileName || ! *szIFileName )
+      return HB_FAILURE;
+   if( pTable->uiUpdated )
+      LetoDbPutRecord( pTable );
+
+   leto_strncpy( szBagName, szIFileName, HB_PATH_MAX - 1 );
+   leto_BeautifyPath( szBagName, 0 );
+
+   ulLen = eprintf( szData, "%c;%lu;%s;", LETOCMD_open_i, pTable->hTable, szBagName );
+   ulLen = leto_SendRecv( pConnection, szData, ulLen, 0 );
+   if( ! ulLen || *pConnection->szBuffer != '+' )
+      return HB_FAILURE;
+
+   ptr = leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
+   if( ulLen >= 4 && ulLen - 4 > ( unsigned long ) ( ptr - pConnection->szBuffer ) )
+   {
+      leto_ParseRecord( pConnection, pTable, ptr );
+      if( pTable->fAutoRefresh )
+         pTable->llCentiSec = leto_MilliSec();
+   }
+   pTable->ptrBuf = NULL;
+
+   return HB_SUCCESS;
+}
+
+HB_ERRCODE LetoDbOrderListDelete( LETOTABLE * pTable, const char * szIFileName )
+{
+   LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+   char          szData[ HB_PATH_MAX + 16 ];
+   char          szBagName[ HB_PATH_MAX ];
+   unsigned long ulLen;
+
+   if( ! szIFileName || ! *szIFileName )
+      return HB_FAILURE;
+   if( pTable->uiUpdated )
+      LetoDbPutRecord( pTable );
+
+   leto_strncpy( szBagName, szIFileName, HB_PATH_MAX - 1 );
+   leto_BeautifyPath( szBagName, 0 );
+
+   ulLen = eprintf( szData, "%c;%lu;10;%s;", LETOCMD_ord, pTable->hTable, szBagName );
+   ulLen = leto_SendRecv( pConnection, szData, ulLen, 0 );
+   if( ! ulLen || *pConnection->szBuffer != '+' )
+      return HB_FAILURE;
+
+   leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
+   pTable->ptrBuf = NULL;
+
+   return HB_SUCCESS;
+}
+
+HB_ERRCODE LetoDbOrderListClear( LETOTABLE * pTable )
+{
+   LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
+
+   if( pTable->uiUpdated )
+      LetoDbPutRecord( pTable );
+
+   if( pTable->pTagInfo )
+   {
+      char          szData[ 32 ];
+      unsigned long ulLen;
+
+      ulLen = eprintf( szData, "%c;%lu;04;", LETOCMD_ord, pTable->hTable );
+      if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) || *pConnection->szBuffer != '+' )
+         return HB_FAILURE;
+      leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
+      pTable->ptrBuf = NULL;
+   }
+
+   return HB_SUCCESS;
+}
+
+/* unused */
+const char * LetoDbOrder( LETOTABLE * pTable, unsigned int uiNameKeyTagBag )
+{
+   if( pTable && pTable->pTagCurrent )
+   {
+      switch( uiNameKeyTagBag )
+      {
+         case 0:
+            return pTable->pTagCurrent->TagName;
+         case 1:
+            return pTable->pTagCurrent->KeyExpr;
+         case 2:
+            return pTable->pTagCurrent->TagName;
+         case 3:
+            return pTable->pTagCurrent->BagName;
+      }
+   }
+
+   return "";
+}
+
 /* note: szTagName must be converted to UPPER case by caller */
 HB_ERRCODE LetoDbOrderFocus( LETOTABLE * pTable, const char * szTagName, unsigned int uiOrder )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-   LETOTAGINFO * pTagInfo = pTable->pTagInfo;
+   LETOTAGINFO * pTagInfo;
    char          szData[ 42 + LETO_MAX_TAGNAME ];
    unsigned long ulLen;
 
+   if( ! pTable )
+      return 1;
+   pTagInfo = pTable->pTagInfo;
    if( pTable->pTagCurrent )
       pTable->pTagCurrent->ulKeyNo = pTable->pTagCurrent->ulKeyCount = 0;  /* leto_ClearTagBuf( pTable->pTagCurrent ); */
 
@@ -5994,38 +6108,51 @@ unsigned int LetoDbOrdCount( LETOTABLE * pTable, unsigned int * iOrdCount )
 }
 
 /* unused */
-unsigned int LetoDbOrdFocus( LETOTABLE * pTable, char * szOrdInfo, unsigned int * iListLen )
+unsigned int LetoDbOrdInfo( LETOTABLE * pTable, HB_BOOL fActive, char * szOrdInfo, unsigned int uiAlloc )
 {
    LETOTAGINFO * pTag;
+   int           iNew, iRes = 0; // , iListLen = sizeof( szOrdInfo );
    char *        ptr;
-   int           iCurrent;
+   unsigned int  iCurrent = 0, iMax = 0;
+   char          cTmpInfo[ LETO_MAX_TAGNAME + LETO_MAX_KEY + 4 + 13 ];
 
-   if( ! pTable || ! szOrdInfo || ! iListLen )
+   if( ! pTable || ! szOrdInfo || uiAlloc < 13 )
       return 1;
 
    ptr = szOrdInfo;
-   if( ! pTable->pTagCurrent )
+   pTag = pTable->pTagInfo;
+   while( pTag )
    {
-      *ptr++ = '0';
-      *ptr++ = ';';
-      *iListLen = 2;
+      iMax++;
+      if( pTag == pTable->pTagCurrent )
+         iCurrent = iMax;
+      pTag = pTag->pNext;
    }
-   else
+   ptr += eprintf( ptr, "%u;%u;", iCurrent, iMax );
+
+   iMax = 0;
+   pTag = pTable->pTagInfo;
+   while( pTag )
    {
-      iCurrent = 1;
-      pTag = pTable->pTagInfo;
-      while( pTag )
+      iMax++;
+      if( ! fActive || iCurrent == iMax )
       {
-         if( pTag == pTable->pTagCurrent )
+         iNew = eprintf( cTmpInfo, "%s;%c;%s;", pTag->TagName, pTag->cKeyType, pTag->KeyExpr );
+         if( iNew + 1 + ( ptr - szOrdInfo ) <= uiAlloc )
+         {
+            memcpy( ptr, cTmpInfo, iNew + 1 );  /* incl. '\0' */
+            ptr += iNew;
+         }
+         else
+         {
+            iRes = 1;
             break;
-         iCurrent++;
-         pTag = pTag->pNext;
+         }
       }
-
-      *iListLen = eprintf( ptr, "%u;%s;%c;%s", iCurrent, pTag->TagName, pTag->cKeyType, pTag->KeyExpr );
+      pTag = pTag->pNext;
    }
 
-   return 0;
+   return iRes;
 }
 
 HB_ERRCODE LetoDbIsRecLocked( LETOTABLE * pTable, unsigned long ulRecNo, unsigned int * uiRes )
@@ -6491,26 +6618,60 @@ const char * LetoVarGet( LETOCONNECTION * pConnection, const char * szGroup, con
             *pulLen = ( HB_ULONG ) uiRes - 3;
          return ptr;
       }
-      else
-         return NULL;
    }
 
    return NULL;
 }
 
 /* unused */
-unsigned int LetoVarGetC( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, char * szValue, unsigned long * pulLen )
+unsigned int LetoVarGetC( LETOCONNECTION * pConnection, const char * szGroup, const char * szVar, void * xValue, unsigned long * pulLen )
 {
-   unsigned long ulAlloc = pulLen ? *pulLen : 0;
-   const char *  szRaw = LetoVarGet( pConnection, szGroup, szVar, pulLen );
+   unsigned long ulLen;
+   const char *  szRaw = LetoVarGet( pConnection, szGroup, szVar, &ulLen );
 
-   if( szRaw && ulAlloc )
+   if( szRaw )
    {
-      memcpy( szValue, szRaw, HB_MIN( ulAlloc, *pulLen + 2 ) );
-      szValue[ HB_MIN( ulAlloc, *pulLen + 3 ) ] = '\0';
+      switch( szRaw[ 0 ] )
+      {
+         case LETOVAR_STR:
+         {
+            /* one in reserve for temination */
+            unsigned long ulAlloc = ( pulLen && *pulLen ) ? *pulLen - 1 : 0;
+            unsigned long ulToDo = HB_MIN( ulAlloc ? ulAlloc - 1 : 0, ulLen );
 
-      if( *pulLen + 3 <= ulAlloc )
-         return 0;
+            if( ulToDo )
+            {
+               /* there are 2 bytes length leading */
+               memcpy( ( char * ) xValue, szRaw + 2, ulToDo );
+               ( ( char * ) xValue )[ ulToDo ] = '\0';
+               if( pulLen )
+                  *pulLen = ulToDo;
+            }
+            if( ! ulToDo || ulToDo + 1 > ulAlloc )
+               return 0;
+            break;
+         }
+
+         case LETOVAR_NUM:
+            if( strstr( szRaw + 2, "." ) )
+               *( (  double * ) xValue ) = strtod( szRaw + 2, NULL );
+            else
+               *( ( long * ) xValue ) = strtol( szRaw + 2, NULL, 0 );
+            break;
+
+         case LETOVAR_DAT:
+            /* *( ( long * ) xValue ) = hb_dateEncStr( szRaw + 2 ); */
+            memcpy( ( char * ) xValue, szRaw + 2, 8 );
+            ( ( char * ) xValue )[ 8 ] = '\0';
+            break;
+
+         case LETOVAR_LOG:
+            *( ( int * ) xValue ) = atoi( szRaw + 2 );
+            break;
+
+         default:  /* LETOVAR_ARR is HB specific with any (mixed) types */
+            return 0;
+      }
    }
 
    return 1;
@@ -6598,8 +6759,6 @@ int LetoVarDel( LETOCONNECTION * pConnection, const char * szGroup, const char *
 
       if( *( ptr - 1 ) == '+' )
          return 1;
-      else
-         return 0;
    }
 
    return 0;

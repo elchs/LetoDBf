@@ -10,7 +10,7 @@
    #define _EOL_  "\n"
 #endif
 
-void main( int argc, char *argv[] )
+int main( int argc, char *argv[] )
 {
    LETOCONNECTION * pConnection;
    int iPort;
@@ -22,9 +22,13 @@ void main( int argc, char *argv[] )
    printf( "Connecting to %s:%d ..." _EOL_, szAddr, iPort );
    if( ( pConnection = LetoConnectionNew( szAddr, iPort, NULL, NULL, 0, 0 ) ) != NULL )
    {
-      const char * ptr;
-      char         szData[ 64 ];
-      int          iRes;
+      const char *  ptr;
+      char          szData[ 256 ], szDate[ 9 ];
+      unsigned long ulLen;
+      int           iRes;
+      long          lData = 0;
+      double        dData = 0.0;
+      HB_BOOL       fData = HB_FALSE;
 
       printf( "Connected!" _EOL_ );
       printf( "%s\r\n", LetoGetServerVer( pConnection ) );
@@ -73,16 +77,31 @@ void main( int argc, char *argv[] )
       else
          printf( "Err( %d )" _EOL_, LetoGetError() );
 
+      printf( "Adding 'var_date' containing: '20230102' to [main] [Ok] " );
+      iRes = LetoVarSet( pConnection, "main", "var_date",  LETOVAR_DAT, "20230102", 0, LETO_VCREAT + LETO_VOWN, NULL );
+      if( iRes )
+         printf( "Ok" _EOL_ );
+      else
+         printf( "Err( %d )" _EOL_, LetoGetError() );
 
       /* retrieve vars */
+      printf( _EOL_ );
+
       ptr = LetoVarGet( pConnection, "main", "var_int", NULL );
-      printf( "\r\nvar_int = [100] %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
+      printf( "var_int = [100] %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
+      iRes = LetoVarGetC( pConnection, "main", "var_int", &lData, NULL );
 
       ptr = LetoVarGet( pConnection, "main", "var_dec", NULL );
-      printf( "\r\nvar_dev = [123.345] %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
+      printf( "var_dec = [123.345] %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
+      iRes = LetoVarGetC( pConnection, "main", "var_dec", &dData, NULL );
+
+      printf( "LetoVarGetC into long: %ld, double: %f " _EOL_, lData, dData );
 
       ptr = LetoVarGet( pConnection, "main", "var_char", NULL );
       printf( "var_char = (Just a test;) %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
+      ulLen = 256;
+      iRes = LetoVarGetC( pConnection, "main", "var_char", szData, &ulLen );
+      printf( "var_char = (Just a test;) %s  (len: %lu)" _EOL_, szData, ulLen );
 
       ptr = LetoVarGet( pConnection, "main", "var_binary", NULL );
       if( ptr && *( ptr + 2 ) == '\0' && *( ptr + 3 ) == ';' &&
@@ -92,19 +111,36 @@ void main( int argc, char *argv[] )
       else
          printf( "var_binary != CHR(0);CHR(1);CHR(0) %s" _EOL_, "Err" );
 
+      ulLen = 256;
+      iRes = LetoVarGetC( pConnection, "main", "var_binary", szData, &ulLen );
+      ptr = szData;
+      if( iRes && *( ptr + 2 ) == '\0' && *( ptr + 3 ) == ';' &&
+                  *( ptr + 4 ) == '\1' && *( ptr + 5 ) == ';' &&
+                  ulLen == 5 )
+         printf( "var_binary = CHR(0);CHR(1);CHR(0) %s  (len: %lu)" _EOL_, "Ok", ulLen );
+      else
+         printf( "var_binary != CHR(0);CHR(1);CHR(0) %s  (len: %lu)" _EOL_, "Err", ulLen );
+
       ptr = LetoVarGet( pConnection, "main", "var_log", NULL );
-      printf( "var_log = [1] %s" _EOL_, ( ptr ) ? ptr + 2 : "Err" );
+      iRes = LetoVarGetC( pConnection, "main", "var_log", &fData, NULL );
+      printf( "var_log = [1] %s true: %s" _EOL_, ( ptr ? ptr + 2 : "Err" ), fData ? "true" : "false" );
+
+      ptr = LetoVarGet( pConnection, "main", "var_date", NULL );
+      /* min length 9 must be ensured ! */
+      iRes = LetoVarGetC( pConnection, "main", "var_date", szDate, NULL );
+      printf( "var_date = (20230102) %s  (%s)" _EOL_, ptr + 2, szDate );
 
 
       /* delete vars */
-      printf( "\r\nDelete var_char [Ok] " );
+      printf( _EOL_ );
+      printf( "Delete var_char [Ok] " );
       iRes = LetoVarDel( pConnection, "main", "var_char" );
       if( iRes )
          printf( "Ok" _EOL_ );
       else
          printf( "Err( %d )" _EOL_, LetoGetError() );
 
-      printf( "\r\nDelete var_binary [Ok] " );
+      printf( "Delete var_binary [Ok] " );
       iRes = LetoVarDel( pConnection, "main", "var_binary" );
       if( iRes )
          printf( "Ok" _EOL_ );
@@ -127,6 +163,13 @@ void main( int argc, char *argv[] )
 
       printf( "Delete var_dec [Ok] " );
       iRes = LetoVarDel( pConnection, "main", "var_dec" );
+      if( iRes )
+         printf( "Ok" _EOL_ );
+      else
+         printf( "Err( %d )" _EOL_, LetoGetError() );
+
+      printf( "Delete var_date [Ok] " );
+      iRes = LetoVarDel( pConnection, "main", "var_date" );
       if( iRes )
          printf( "Ok" _EOL_ );
       else

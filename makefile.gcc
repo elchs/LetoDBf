@@ -1,0 +1,53 @@
+# Building of libleto.a for C-api access
+# assumes an installed Harbour in /usr -- or set HB_PATH
+
+ifeq ($(HB_PATH),)
+HRB_DIR = /usr
+# HRB_DIR = ..
+else
+HRB_DIR = $(HB_PATH)
+endif
+
+
+HRB_LIBS= -lhbvmmt -lhbrtl -lhbcpage -lhblang -lhbrdd -lhbrtl -lhbvm -lhbmacro -lhbpp -lgtstd -lhbzlib -lrddntx -lrddcdx -lrddfpt -lhbcommon -lhbsix
+
+LIB_DIR = $(HRB_DIR)/lib/harbour
+OBJ_DIR = obj
+INC_DIR = include
+LZ4_DIR = source/3rd/lz4/lib
+CLIENT_DIR=source/client
+COMMON_DIR=source/common
+LETO_LIB_DIR = lib
+
+# ar rcs   lib/librddleto.a '/tmp/hbmk_VsCVfi.dir/rddsys.o' '/tmp/hbmk_VsCVfi.dir/letodb.o' '/tmp/hbmk_VsCVfi.dir/letocl.o' '/tmp/hbmk_VsCVfi.dir/leto1.o' '/tmp/hbmk_VsCVfi.dir/letomgmn.o' '/tmp/hbmk_VsCVfi.dir/blowfish.o' '/tmp/hbmk_VsCVfi.dir/common_c.o' '/tmp/hbmk_VsCVfi.dir/lz4.o' '/tmp/hbmk_VsCVfi.dir/lz4net.o' '/tmp/hbmk_VsCVfi.dir/PMurHash.o'
+
+CFLAGS = -Wall -Wpedantic -g -O3 -DUSE_PMURHASH=1 -DUSE_LZ4=1 -D__LETO_C_API__=1 -DLETO_NO_MT=1 -DLETO_NO_THREAD=1
+
+vpath %.a $(LIB_DIR)
+vpath %.o $(OBJ_DIR)
+vpath %.c $(OBJ_DIR):$(CLIENT_DIR):$(COMMON_DIR):$(LZ4_DIR)
+
+%.o : %.c
+	gcc $(CFLAGS) -c -I$(INC_DIR) -I$(LZ4_DIR) -I$(HRB_DIR)/include/harbour -o $@ $<
+
+$(OBJ_DIR)/%.o : %.c
+	@mkdir -p $(@D)
+	gcc $(CFLAGS) -c -I$(INC_DIR) -I$(LZ4_DIR) -I$(HRB_DIR)/include/harbour -o $@ $<
+
+$(LETO_LIB_DIR)/%.a ::
+	@mkdir -p $(@D)
+	ar rcs $@ $^
+
+all: \
+	$(LETO_LIB_DIR)/libleto.a
+
+$(LETO_LIB_DIR)/libleto.a : \
+   $(OBJ_DIR)/letocl.o \
+   $(OBJ_DIR)/common_c.o \
+   $(OBJ_DIR)/blowfish.o \
+   $(OBJ_DIR)/lz4.o \
+   $(OBJ_DIR)/lz4net.o \
+   $(OBJ_DIR)/PMurHash.o
+
+clean: \
+	-(rm -fR obj/gcc/* lib/libleto.a )

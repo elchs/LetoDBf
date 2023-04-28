@@ -2,6 +2,56 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-04-28 13:13 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  ; following is mainly work for the C-API, adding lastly missing indexes
+    functionality by moving partial RDD code into letocl.c, so resolving
+    the last ToDo's in leto1.c
+    It fixes also at server side the rarely used clearing/ destroying
+    of index orders - let the server do the work and reporting the result.
+
+  * ChangeLog.txt
+
+  * source/client/leto1.c
+    + new leto_OrdKeyExpr() to centralize redundant code in:
+      letoOpen(), letoOrderList[Add|Clear|Delete](),
+      letoOrder[Create|Destroy]()
+    * move partial code into letocl.c
+    - outcomment internal leto_ProdSupport() as no more needed
+    ! fix bug in letoOrderDestroy when wanted order was given numerical
+
+  * include/letocl.h
+    * don't export LetoDbFreeTag(), new function protos
+  * source/client/letocl.c
+    + new functions, for chainlist: C-API    <- RDD  <- PRG
+      LetoDbOrderListAdd()    <- LetoOrderListAdd    <- ORDLISTADD(Bag)
+      LetoDbOrderDestroy()    <- LetoOrderDestroy    <- ORDDESTROY(xTag[,Bag])
+      LetoDbOrderListDelete() <- letoOrderListDelete <- ORDBAGCLEAR(Bag)
+      LetoDbOrderListClear()  <- LetoOrderListClear  <- ORDLISTCLEAR()
+      ; to open only a specific TAG from a compound BAG (ORDLISTADD([,Tag])
+        is not supported
+      ; the pTable pointer for RDD calling these functions is guaranteed, but
+        need to be hardened for C-API at many places - work to follow ...
+    + new LetoDbOrder( ,x) to return Name/Key/Tag/Bag of current order
+    * change/extend misleading named LetoDbOrdFocus() to LetoDbOrdInfo()
+    * rework of LetoVarGetC(); it's a wrapper for LetoVarGet() with
+      data conversion for the ever literally received variable value
+
+  * source/server/letofunc.c
+    + new help funtion leto_IndexesInfos(), used to return the resulting
+      index situation at server after clearing/ destroying orders
+    ! fixes at server side for OrdDestroy(), OrdBagClear()
+
+  * tests/c-lang/bldc.sh
+    * removed -lgpm and -lhbzlib from lib list
+      ; usage for gcc: bldc.sh test_xxx
+  * tests/c-lang/test_dbf.c
+    * adding tests for above
+  * tests/c-lang/test_var.c
+    * adding tests for that newly LetoVarGetC() etc
+
+  + makefile.gcc
+    ; for building the C-API lib in Linux with gcc:  make -fmakefile.gcc
+
 2023-04-28 13:07 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   * ChangeLog.txt
 

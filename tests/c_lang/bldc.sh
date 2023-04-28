@@ -18,7 +18,7 @@ LETO_DIR=../..
 LETO_INC=$LETO_DIR/include
 LETO_LIB=$LETO_DIR/lib
 
-HARBOUR_LIBS="-lhbvm -lhbrtl -lhbcommon -lhbmacro -lgttrm -lgpm -lhbrdd -lhbusrrdd -lrddntx -lrddcdx -lrddnsx -lrddfpt -lhbrdd -lhbhsx -lhbsix -lhbmacro -lhbcommon -lhbzlib"
+HARBOUR_LIBS="-lhbvm -lhbrtl -lhbcommon -lhbmacro -lgttrm -lhbrdd -lhbusrrdd -lrddntx -lrddcdx -lrddnsx -lrddfpt -lhbrdd -lhbhsx -lhbsix -lhbmacro -lhbcommon"
 SYSTEM_LIBS="-lm -ldl -lrt"
 
 ### static build

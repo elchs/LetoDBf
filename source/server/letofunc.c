@@ -2911,6 +2911,45 @@ static char * leto_IndexesInfo( PUSERSTRU pUStru, const char * szFullName, AREAP
    return pIdxInfo;
 }
 
+/* caller must free result */
+static char * leto_IndexesInfos( PUSERSTRU pUStru, HB_ULONG * ulLen )
+{
+   AREAP     pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
+   HB_USHORT uiOrdMax = leto_OrdCount( pArea, NULL );
+   char *    pIdxInfo = ( char * ) hb_xgrab( ! uiOrdMax ? 16 : ( LETO_IDXINFOBLOCK * uiOrdMax ) + 6 );
+   int       iIdxInfoStart = eprintf( pIdxInfo, "+%d;", uiOrdMax );
+
+   if( uiOrdMax )
+   {
+      PAREASTRU   pAStru = pUStru->pCurAStru;
+      DBORDERINFO pOrdkeyInfo;
+      HB_USHORT   uiOrder = 0, uiOrderActive;
+      LETOTAG *   pTag;
+      PINDEXSTRU  pIStru;
+
+      memset( &pOrdkeyInfo, 0, sizeof( DBORDERINFO ) );
+      pOrdkeyInfo.itmResult = hb_itemPutNI( pOrdkeyInfo.itmResult, 0 );
+      SELF_ORDINFO( pArea, DBOI_NUMBER, &pOrdkeyInfo );
+      uiOrderActive = ( HB_USHORT ) hb_itemGetNI( pOrdkeyInfo.itmResult );
+      hb_itemRelease( pOrdkeyInfo.itmResult );
+      iIdxInfoStart += eprintf( pIdxInfo + iIdxInfoStart, "%d;", uiOrderActive );
+
+      pTag = pAStru->pTag;
+      while( pTag )
+      {
+         uiOrder++;
+         pIStru = pTag->pIStru;
+         iIdxInfoStart += leto_IndexInfo( pArea, pIdxInfo + iIdxInfoStart, uiOrder, pIStru->szOrdKey,
+                                          pIStru->szTagName, pIStru->szBagName, pIStru->bProduction );
+
+         pTag = pTag->pNext;
+      }
+   }
+   *ulLen = iIdxInfoStart;
+
+   return pIdxInfo;
+}
+
 /* HB_GC_LOCKT() must be ensured by caller */
 static void leto_CloseIndex( PINDEXSTRU pIStru )
 {
@@ -10618,7 +10657,6 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
                pUStru->pCurAStru->pTStru->uiIndexCount--;
                leto_FreeTag( pTag1 );
 
-               pData = szOk;
                break;
             }
 
@@ -10628,7 +10666,10 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
             pTag = pTag->pNext;
          }
          if( pData == NULL )
-            pData = szOk;
+         {
+            szData2 = leto_IndexesInfos( pUStru, &ulLen );
+            pData = szData2;
+         }
 
          HB_GC_UNLOCKT();
 
@@ -10646,7 +10687,7 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
       }
       else if( *szData == '1' && *( szData + 1 ) == '0' )  /* OrdBagClear */
       {
-         HB_BOOL      bDelete = HB_FALSE, bFound = HB_FALSE, bProdIdx = HB_FALSE;
+         HB_BOOL      bDelete = HB_FALSE, bFound = HB_FALSE, bProdIdx = HB_FALSE, bDotAdd = HB_FALSE;
          LETOTAG *    pTag, * pTag1, * pTagPrev = NULL;
          char         szBagName[ HB_PATH_MAX ];
          PINDEXSTRU   pIStru;
@@ -10662,14 +10703,12 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
          if( szBagName[ 0 ] == DEF_SEP )
             memmove( szBagName, szBagName + 1, uiLen-- );
          if( ( ptr = strchr( szBagName, '.' ) ) != NULL )
-         {
-            *( ptr + 1 ) = '\0';
-            uiLen = ( HB_USHORT ) strlen( szBagName );
-         }
-         else
+            uiLen = ptr - szBagName + 1;
+         else if( uiLen < HB_PATH_MAX - 1 )
          {
             szBagName[ uiLen++ ] = '.';
             szBagName[ uiLen ] = '\0';
+            bDotAdd = HB_TRUE;
          }
 
          HB_GC_LOCKT();
@@ -10689,13 +10728,36 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
                      break;
                   }
 
-                  pTag->pIStru->bClear = HB_TRUE;
-                  pTag->pIStru->ulAreas--;
-                  if( ! pTag->pIStru->ulAreas )
-                     bDelete = HB_TRUE;
-                  if( s_iDebugMode > 20 )
-                     leto_wUsLog( pUStru, -1, "DEBUG leto_OrdFunc OrdBagClear accepted to clear %s for %s",
-                                               pTag->pIStru->szTagName, pTag->pIStru->szBagName );
+                  if( pTag->pIStru->ulAreas == 1 && ! bDelete )
+                  {
+                     DBORDERINFO pOrderInfo;
+
+                     if( bDotAdd )
+                        szBagName[ --uiLen ] = '\0';
+                     hb_xvmSeqBegin();
+                     memset( &pOrderInfo, 0, sizeof( DBORDERINFO ) );
+                     pOrderInfo.atomBagName = hb_itemPutC( NULL, szBagName );
+                     if( SELF_ORDLSTDELETE( pArea, &pOrderInfo ) == HB_SUCCESS )
+                        bDelete = HB_TRUE;
+                     hb_xvmSeqEnd();
+                     hb_itemRelease( pOrderInfo.atomBagName );
+                  }
+                  if( bDelete )
+                  {
+                     pTag->pIStru->bClear = HB_TRUE;
+                     pTag->pIStru->ulAreas--;
+                     if( s_iDebugMode > 20 )
+                        leto_wUsLog( pUStru, -1, "DEBUG leto_OrdFunc OrdBagClear accepted to clear %s for %s",
+                                                  pTag->pIStru->szTagName, pTag->pIStru->szBagName );
+                  }
+                  else
+                  {
+                     if( s_iDebugMode > 20 )
+                        leto_wUsLog( pUStru, -1, "DEBUG leto_OrdFunc OrdBagClear refused to clear %s for %s (%d)[%d]",
+                                                  pTag->pIStru->szTagName, szBagName, uiLen, bDotAdd );
+                     break;
+                  }
+
 
                   pTag1 = pTag;
                   if( pTag == pAStru->pTag )  /* first in list */
@@ -10714,7 +10776,7 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
                }
             }
          }
-         if( ! uiLen || ( ! bProdIdx && ! bFound ) )
+         if( ! uiLen || bProdIdx || ! bFound )
             pData = szErr4;
 
          if( bDelete )  /* at least one order to remove */
@@ -10725,24 +10787,10 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
             char *      szMultiTags = NULL;
             char *      pMultiTag;
 
-            hb_xvmSeqBegin();
-            memset( &pOrderInfo, 0, sizeof( DBORDERINFO ) );
-            pOrderInfo.atomBagName = hb_itemPutC( NULL, szBagName );
-            if( SELF_ORDLSTDELETE( pArea, &pOrderInfo ) != HB_SUCCESS )
-            {
-               pData = szErr101;
-               bDelete = HB_FALSE;
-            }
-            hb_xvmSeqEnd();
-            hb_itemRelease( pOrderInfo.atomBagName );
-
             ui = 0;
             while( ui < pAStru->pTStru->uiIndexCount &&
                    ( pIStru = ( PINDEXSTRU ) letoGetListItem( &pAStru->pTStru->IndexList, ui ) ) != NULL )
             {
-               if( pUStru->iHbError )
-                  break;
-
                if( pIStru->bClear )
                {
                   pIStru->bClear = HB_FALSE;
@@ -10794,10 +10842,12 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
                else
                   ui++;
             }
-
          }
          if( ! pData )
-            pData = szOk;
+         {
+            szData2 = leto_IndexesInfos( pUStru, &ulLen );
+            pData = szData2;
+         }
 
          HB_GC_UNLOCKT();
       }
@@ -10956,7 +11006,8 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
          }
 
          HB_GC_UNLOCKT();
-         pData = szOk;
+         szData2 = leto_IndexesInfos( pUStru, &ulLen );
+         pData = szData2;
       }
       else if( *szData != '0' )
       {

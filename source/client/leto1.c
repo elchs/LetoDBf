@@ -2880,6 +2880,21 @@ static HB_ERRCODE letoNewArea( LETOAREAP pArea )
    return SUPER_NEW( ( AREAP ) pArea );
 }
 
+static void leto_OrdKeyExpr( LETOAREAP pArea, LETOTABLE * pTable )
+{
+   LETOTAGINFO * pTagInfo = pTable->pTagInfo;
+
+   while( pTagInfo )
+   {
+      if( ! pTagInfo->pExtra || ! ( ( LETOTAGEXTRAINFO * ) pTagInfo->pExtra )->pKeyItem )
+         leto_CreateKeyExpr( pArea, pTagInfo, NULL );
+#if 0  /* temporary outcommented */
+      ScanIndexFields( pArea, pTagInfo );
+#endif
+      pTagInfo = pTagInfo->pNext;
+   }
+}
+
 static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
 {
    LETOCONNECTION * pConnection, * pConnFirst;
@@ -3003,19 +3018,7 @@ static HB_ERRCODE letoOpen( LETOAREAP pArea, LPDBOPENINFO pOpenInfo )
       return HB_FAILURE;
    }
 
-   if( pTable->pTagInfo )
-   {
-      LETOTAGINFO * pTagInfo = pTable->pTagInfo;
-
-      while( pTagInfo )
-      {
-         leto_CreateKeyExpr( pArea, pTagInfo, NULL );
-#if 0  /* temporary outcommented */
-         ScanIndexFields( pArea, pTagInfo );
-#endif
-         pTagInfo = pTagInfo->pNext;
-      }
-   }
+   leto_OrdKeyExpr( pArea, pTable );
 
    leto_SetAreaFlags( pArea );
    return HB_SUCCESS;
@@ -3936,17 +3939,11 @@ static HB_ERRCODE letoSetRel( LETOAREAP pArea, LPDBRELINFO pRelInf )
    return errCode;
 }
 
-/* ToDo make such in letocl.c for LetoDB C API */
 static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    LETOTABLE *      pTable = pArea->pTable;
-   char             szData[ HB_PATH_MAX + 16 ], * ptr1;
    char             szIFileName[ HB_PATH_MAX ];
-   const char *     ptr;
-   const char *     szBagName;
-   LETOTAGINFO *    pTagInfo;
-   int              iRcvLen;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderListAdd(%p, %p)", pArea, pOrderInfo ) );
 
@@ -3954,71 +3951,11 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
       leto_PutRec( pArea );
 
    leto_OpenConn( pConnection, leto_RemoveIpFromPath( hb_itemGetCPtr( pOrderInfo->atomBagName ) ), szIFileName );
-   if( ! *szIFileName )
-      return HB_SUCCESS;
-   szBagName = szIFileName;
-
-   hb_strncpy( szData, szBagName, HB_PATH_MAX - 1 );
-   ptr1 = szData + strlen( szData ) - 1;  /* last char */
-   for( ;; )
-   {
-      if( *ptr1 == '.' )
-         *ptr1 = '\0';
-      else if( *ptr1 == '/' || *ptr1 == '\\' )
-      {
-         ptr1++;
-         break;
-      }
-      if( ptr1 == szData )
-         break;
-      --ptr1;
-   }
-   ptr = ptr1;
-
-   pTagInfo = pTable->pTagInfo;
-   while( pTagInfo )
-   {
-      if( ( ! pConnection->fLowerCase ) ? ! strcmp( ptr, pTagInfo->BagName ) :    /* FIXED BAGname is case sensitive */
-                                          ! leto_stricmp( ptr, pTagInfo->BagName ) )
-      {
-         if( pTable->pTagCurrent )
-            return HB_SUCCESS;
-         else
-         {
-            pTable->pTagCurrent = pTagInfo;
-            return letoGoTop( pArea );
-         }
-      }
-      pTagInfo = pTagInfo->pNext;
-   }
-
-   iRcvLen = eprintf( szData, "%c;%lu;%s;", LETOCMD_open_i, pTable->hTable, szBagName );
-   if( ( iRcvLen = leto_SendRecv( pConnection, pArea, szData, iRcvLen, 0 ) ) == 0 || leto_CheckError( pArea, pConnection ) )
+   if( LetoDbOrderListAdd( pTable, szIFileName ) != HB_SUCCESS )
       return HB_FAILURE;
 
-   /* sets pTable->pTagCurrent */
-   ptr = leto_ParseTagInfo( pTable, leto_firstchar( pConnection ) );
-
-   pTagInfo = pTable->pTagInfo;
-   while( pTagInfo )
-   {
-      if( ! pTagInfo->pExtra || ! ( ( LETOTAGEXTRAINFO * ) pTagInfo->pExtra )->pKeyItem )
-         leto_CreateKeyExpr( pArea, pTagInfo, NULL );
-#if 0  /* temporary outcommented */
-      if( ( ( LETOTAGEXTRAINFO * ) pTagInfo->pExtra )->uiFCount == 0 )
-         ScanIndexFields( pArea, pTagInfo );
-#endif
-      pTagInfo = pTagInfo->pNext;
-   }
-
-   if( ( iRcvLen - 4 ) > ( ptr - pConnection->szBuffer ) )
-   {
-      leto_ParseRecord( pConnection, pArea->pTable, ptr );
-      leto_SetAreaFlags( pArea );
-      if( pTable->fAutoRefresh )
-         pTable->llCentiSec = leto_MilliSec();
-   }
-   pTable->ptrBuf = NULL;
+   leto_OrdKeyExpr( pArea, pTable );
+   leto_SetAreaFlags( pArea );
 
    if( pArea->area.lpdbRelations )
       return SELF_SYNCCHILDREN( ( AREAP ) pArea );
@@ -4026,6 +3963,7 @@ static HB_ERRCODE letoOrderListAdd( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )
    return HB_SUCCESS;
 }
 
+#if 0
 static HB_BOOL leto_ProdSupport( void )
 {
    LPRDDNODE pRDDNode;
@@ -4044,141 +3982,44 @@ static HB_BOOL leto_ProdSupport( void )
 
    return fSupportStruct;
 }
+#endif
 
 static HB_ERRCODE letoOrderListClear( LETOAREAP pArea )  /* OrdListClear() */
 {
-   LETOTABLE *   pTable = pArea->pTable;
-   LETOTAGINFO * pTagInfo = pTable->pTagInfo, * pTagPrev = NULL;
+   LETOTABLE * pTable = pArea->pTable;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderListClear(%p)", pArea ) );
 
    if( pTable->uiUpdated )
       leto_PutRec( pArea );
 
-   if( pTagInfo )
-   {
-      LETOCONNECTION * pConnection = letoGetConnPool( pTable->uiConnection );
-      LETOTAGINFO * pTag1;
-      char          szData[ 32 ];
-
-      eprintf( szData, "%c;%lu;04;", LETOCMD_ord, pTable->hTable );
-      if( ! leto_SendRecv( pConnection, pArea, szData, 0, 1021 ) )
-         return HB_FAILURE;
-
-      pTable->uiOrders = 0;
-      do
-      {
-         if( ! pTagInfo->fProduction || ! leto_ProdSupport() || ! hb_setGetAutOpen() )
-         {
-            pTag1 = pTagInfo;
-            if( pTagInfo == pTable->pTagInfo )
-               pTagInfo = pTable->pTagInfo = pTagInfo->pNext;
-            else
-               pTagInfo = pTagPrev->pNext = pTagInfo->pNext;
-
-            if( pTable->pTagCurrent == pTag1 )
-               pTable->pTagCurrent = NULL;
-            LetoDbFreeTag( pTag1 );
-         }
-         else
-         {
-            pTagPrev = pTagInfo;
-            pTagInfo = pTagInfo->pNext;
-            pTable->uiOrders++;
-         }
-      }
-      while( pTagInfo );
-
-   }
+   if( LetoDbOrderListClear( pTable ) != HB_SUCCESS )
+      return HB_FAILURE;
+   leto_OrdKeyExpr( pArea, pTable );
 
    return HB_SUCCESS;
 }
 
-/* ToDo make such in letocl.c for LetoDB C API */
 static HB_ERRCODE letoOrderListDelete( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )  /* OrdBagClear */
 {
    LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    LETOTABLE *   pTable = pArea->pTable;
-   char          szData[ HB_PATH_MAX + 21 ];
    char          szBagName[ HB_PATH_MAX ];
-   LETOTAGINFO * pTagInfo = pTable->pTagInfo, * pTag1, * pTagPrev;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderListDelete(%p, %p)", pArea, pOrderInfo ) );
 
    if( pTable->uiUpdated )
       leto_PutRec( pArea );
 
-   if( ! pTagInfo )
+   if( ! pTable->pTagInfo )
       return HB_FAILURE;
    else
    {
-      HB_USHORT uiLen;
-      char *    ptr;
-
-      hb_strncpy( szBagName, leto_RemoveIpFromPath( hb_itemGetCPtr( pOrderInfo->atomBagName ) ), HB_PATH_MAX - 1 );
-      if( strchr( szBagName, ';' ) != NULL )
-         return HB_FAILURE;
-      if( ! *szBagName )
-         strcpy( szBagName, pTagInfo->BagName );
-
-      if( ( ptr = strchr( szBagName, '.' ) ) != NULL )
-      {
-         *( ptr + 1 ) = '\0';
-         uiLen = ( HB_USHORT ) strlen( szBagName );
-      }
-      else
-      {
-         uiLen = ( HB_USHORT ) strlen( szBagName );
-         szBagName[ uiLen++ ] = '.';
-         szBagName[ uiLen ] = '\0';
-      }
-
-      while( uiLen > 1 && pTagInfo )
-      {
-         if( ( ! pConnection->fLowerCase ) ? ! strncmp( pTagInfo->BagName, szBagName, uiLen ) :
-                                             ! hb_strnicmp( pTagInfo->BagName, szBagName, uiLen ) )
-            break;
-         pTagInfo = pTagInfo->pNext;
-      }
-
-      if( uiLen < 2 || ! pTagInfo )
+      leto_OpenConn( pConnection, leto_RemoveIpFromPath( hb_itemGetCPtr( pOrderInfo->atomBagName ) ), szBagName );
+      if( LetoDbOrderListDelete( pTable, szBagName ) != HB_SUCCESS )
          return HB_FAILURE;
 
-      if( ! pTagInfo->fProduction || ! leto_ProdSupport() || ! hb_setGetAutOpen() )
-      {
-         /* note: pOrderInfo->atomBagName is TAGname */
-         eprintf( szData, "%c;%lu;10;%s;", LETOCMD_ord, pTable->hTable, szBagName );
-         if( ! leto_SendRecv( pConnection, pArea, szData, 0, 1021 ) )
-            return HB_FAILURE;
-
-         if( *pConnection->szBuffer != '+' )
-            return HB_FAILURE;
-
-         pTagInfo = pTable->pTagInfo;
-         pTagPrev = pTagInfo;
-         while( pTagInfo )
-         {
-            if( ( ! pConnection->fLowerCase ) ? ! strncmp( pTagInfo->BagName, szBagName, uiLen ) :
-                                                ! hb_strnicmp( pTagInfo->BagName, szBagName, uiLen ) )
-            {
-               pTag1 = pTagInfo;
-               if( pTagInfo == pTable->pTagInfo )
-                  pTagInfo = pTable->pTagInfo = pTagInfo->pNext;
-               else
-                  pTagInfo = pTagPrev->pNext = pTagInfo->pNext;
-
-               pTable->uiOrders--;
-               if( pTable->pTagCurrent == pTag1 )
-                  pTable->pTagCurrent = NULL;
-               LetoDbFreeTag( pTag1 );
-            }
-            else
-            {
-               pTagPrev = pTagInfo;
-               pTagInfo = pTagInfo->pNext;
-            }
-         }
-      }
+      leto_OrdKeyExpr( pArea, pTable );
    }
 
    return HB_SUCCESS;
@@ -4239,7 +4080,6 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
    const char *  szKey, * szFor, * szBagName;
    char          szTag[ LETO_MAX_TAGNAME + 1 ];
    char          szIFileName[ HB_PATH_MAX ];
-   LETOTAGINFO * pTagInfo;
    unsigned int  uiFlags;
    LPDBORDERCONDINFO lpdbOrdCondInfo = pArea->area.lpdbOrdCondInfo;
 
@@ -4315,20 +4155,9 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
 
       return HB_FAILURE;
    }
+
    leto_SetAreaFlags( pArea );  /* leto_ParseRecord() done in LetoDbOrderCreate() */
-
-   pTagInfo = pTable->pTagInfo;
-   while( pTagInfo )
-   {
-      if( ! pTagInfo->pExtra || ! ( ( LETOTAGEXTRAINFO * ) pTagInfo->pExtra )->pKeyItem )
-         leto_CreateKeyExpr( pArea, pTagInfo, NULL );
-#if 0  /* temporary outcommented */
-      if( ( ( LETOTAGEXTRAINFO * ) pTagInfo->pExtra )->uiFCount == 0 )
-         ScanIndexFields( pArea, pTagInfo );
-#endif
-      pTagInfo = pTagInfo->pNext;
-   }
-
+   leto_OrdKeyExpr( pArea, pTable );
    SELF_ORDSETCOND( ( AREAP ) pArea, NULL );
 
    return HB_SUCCESS;
@@ -4336,11 +4165,9 @@ static HB_ERRCODE letoOrderCreate( LETOAREAP pArea, LPDBORDERCREATEINFO pOrderIn
 
 static HB_ERRCODE letoOrderDestroy( LETOAREAP pArea, LPDBORDERINFO pOrderInfo )  /* orddestroy() */
 {
-   LETOCONNECTION * pConnection = letoGetConnPool( pArea->pTable->uiConnection );
    LETOTABLE *   pTable = pArea->pTable;
-   char          szData[ HB_PATH_MAX + 21 ];
    const char *  szTagName = NULL;
-   LETOTAGINFO * pTagInfo = pTable->pTagInfo, * pTagPrev = NULL;
+   LETOTAGINFO * pTagInfo = pTable->pTagInfo;
 
    HB_TRACE( HB_TR_DEBUG, ( "letoOrderDestroy(%p, %p)", pArea, pOrderInfo ) );
 
@@ -4356,9 +4183,11 @@ static HB_ERRCODE letoOrderDestroy( LETOAREAP pArea, LPDBORDERINFO pOrderInfo ) 
    {
       HB_USHORT ui = ( HB_USHORT ) hb_itemGetNI( pOrderInfo->itmOrder );
 
-      while( pTagInfo && ui > 1 )
+      if( ! ui )
+         return HB_FAILURE;
+      while( pTagInfo && --ui )
          pTagInfo = pTagInfo->pNext;
-      if( pTagInfo && ui == 1 )
+      if( pTagInfo && ! ui )
          szTagName = pTagInfo->TagName;
    }
    else if( HB_IS_STRING( pOrderInfo->itmOrder ) )
@@ -4366,33 +4195,9 @@ static HB_ERRCODE letoOrderDestroy( LETOAREAP pArea, LPDBORDERINFO pOrderInfo ) 
 
    if( szTagName )
    {
-      eprintf( szData, "%c;%lu;13;%s;", LETOCMD_ord, pTable->hTable, szTagName );
-      if( ! leto_SendRecv( pConnection, pArea, szData, 0, 0 ) || leto_CheckError( pArea, pConnection ) )
+      if( LetoDbOrderDestroy( pTable, szTagName, hb_itemGetCPtr( pOrderInfo->atomBagName ) ) != HB_SUCCESS )
          return HB_FAILURE;
-
-      pTagInfo = pTable->pTagInfo;
-      while( pTagInfo )
-      {
-         if( ( ! pConnection->fLowerCase ) ? ! strcmp( szTagName, pTagInfo->TagName ) :    /* FIXED BAGname is case sensitive */
-                                             ! leto_stricmp( szTagName, pTagInfo->TagName ) )
-         {
-            if( pTagInfo == pTable->pTagInfo )
-               pTable->pTagInfo = pTagInfo->pNext;
-            else
-               pTagPrev->pNext = pTagInfo->pNext;
-            pTable->uiOrders--;
-            if( pTable->pTagCurrent == pTagInfo )
-               pTable->pTagCurrent = NULL;
-            LetoDbFreeTag( pTagInfo );
-            break;
-         }
-
-         pTagPrev = pTagInfo;
-         pTagInfo = pTagInfo->pNext;
-      }
-
-      if( ! pTable->pTagCurrent )
-         LetoDbOrderFocus( pTable, NULL, 0 );
+      leto_OrdKeyExpr( pArea, pTable );
    }
 
    return HB_SUCCESS;
@@ -4851,6 +4656,7 @@ static HB_ERRCODE letoOrderInfo( LETOAREAP pArea, HB_USHORT uiIndex, LPDBORDERIN
             if( ! leto_SendRecv( pConnection, pArea, szData2, ulLen, 1021 ) )
             {
                hb_xfree( szData2 );
+               pOrderInfo->itmResult = hb_itemPutL( pOrderInfo->itmResult, HB_FALSE );
                return HB_FAILURE;
             }
             else
