@@ -5301,10 +5301,10 @@ HB_ERRCODE LetoDbLocate( LETOTABLE * pTable, HB_BOOL fContinue, const char * szF
       char *   szData = ( char * ) hb_xgrab( ulLen );
 
       if( ! fContinue )
-         ulLen = eprintf( szData, "%c;%lu;F;%s;%s;%ld;%ld;%ld;", LETOCMD_locate, pTable->hTable,
-                                                                 szFor, szWhile, lNext, lRecNo, lRest );
+         ulLen = eprintf( szData, "%c;%lu;F;%lu;%s;%s;%ld;%ld;%ld;", LETOCMD_locate, pTable->hTable, pTable->ulRecNo,
+                                                                     szFor, szWhile, lNext, lRecNo, lRest );
       else
-         ulLen = eprintf( szData, "%c;%lu;T;", LETOCMD_locate, pTable->hTable );
+         ulLen = eprintf( szData, "%c;%lu;T;%lu;", LETOCMD_locate, pTable->hTable, pTable->ulRecNo );
 
       if( ! leto_SendRecv( pConnection, szData, ulLen, 0 ) )
       {

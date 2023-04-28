@@ -7803,14 +7803,15 @@ static void leto_Locate( PUSERSTRU pUStru, char * szData )
 {
    AREAP   pArea = ( AREAP ) hb_rddGetCurrentWorkAreaPointer();
    HB_BOOL bContinue = *szData == 'T' ? HB_TRUE : HB_FALSE;
-   char *  ptr1, * ptr2, * ptr3, * ptr4, * ptr5;
-   int     nParam = leto_GetParam( szData, &ptr1, &ptr2, &ptr3, &ptr4, &ptr5, NULL );
+   char *  ptr1, * ptr2, * ptr3, * ptr4, * ptr5, * pRecNo;
+   int     nParam = leto_GetParam( szData, &pRecNo, &ptr1, &ptr2, &ptr3, &ptr4, &ptr5, NULL );
 
-   if( ! pArea || ( ! bContinue && nParam < 5 ) )
+   if( ! pArea || ( ! bContinue ? nParam < 7 : nParam < 2 ) )
       leto_SendAnswer( pUStru, szErr2, 4 );
    else
    {
       HB_BOOL bSuccess = HB_TRUE, bFail = HB_TRUE;
+      HB_ULONG ulRecNo = strtoul( pRecNo, NULL, 10 );
 
       if( ! bContinue )
       {
@@ -7867,6 +7868,8 @@ static void leto_Locate( PUSERSTRU pUStru, char * szData )
          PAREASTRU pAStru = pUStru->pCurAStru;
          char *    szData = NULL;
          HB_ULONG  ulLen;
+
+         leto_GotoIf( pArea, ulRecNo );
 
          hb_xvmSeqBegin();
          bSuccess = SELF_LOCATE( pArea, bContinue ) == HB_SUCCESS;
@@ -9126,6 +9129,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
       HB_ULONG ulNewRecNo, ulLockRecNo;
       HB_LONG  lNewNext = lNext;
       HB_BOOL  bEof;
+      HB_SIZE  nProces = 0, nEvalut = 1;
 
       pRLocks = hb_itemArrayNew( 0 );
       /* use not default setting of bStay to set to initial try a F-lock */
@@ -9140,7 +9144,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
       if( ! bEof && pEvalInfo->dbsci.lpstrFor )
          leto_dbEvalJoinStart( pEvalInfo->dbsci.lpstrFor );
       if( ! bEof )
-         hb_itemPutNS( pEvalut, 1 );
+         hb_itemPutNS( pEvalut, nEvalut );
 
       while( ! bEof )
       {
@@ -9161,11 +9165,11 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
             }
          }
 
-         hb_itemPutNS( pEvalut, hb_itemGetNS( pEvalut ) + 1 );
+         hb_itemPutNS( pEvalut, ++nEvalut );
 
          if( bValid )
          {
-            hb_itemPutNS( pProces, hb_itemGetNS( pProces ) + 1 );
+            hb_itemPutNS( pProces, ++nProces );
 
             SELF_RECNO( pArea, &ulLockRecNo );
             dbLockInfo.itmRecID = hb_itemPutNL( dbLockInfo.itmRecID, ulLockRecNo );
@@ -9229,7 +9233,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
          if( ! ulTimeoutHz )
             ulTimeoutHz = ( HB_ULONG ) HB_MAX( 1, ( 1000 / HB_MAX( 1, ( leto_MilliSec() - ullTimePoint ) ) ) );
-         if( ! ( ( hb_itemGetNL( pEvalut ) + 1 ) % ulTimeoutHz ) &&
+         if( ! ( ( nEvalut + 1 ) % ulTimeoutHz ) &&
              leto_MilliSec() - ullTimePoint > pUStru->ulActTimeout )
          {
             if( s_iDebugMode > 0 )
@@ -9261,7 +9265,6 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
    {
       PHB_ITEM pResult, pLast;
       HB_SIZE  nLen = 0;
-      HB_SIZE  nPos;
       HB_BOOL  bEof, bAsArr;
       HB_SIZE  nProces = 0, nEvalut = 0;
 
@@ -9291,9 +9294,6 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
          if( ! bEof && pEvalInfo->dbsci.fBackward )
             SELF_BOF( pArea, &bEof );
       }
-
-      if( s_iDebugMode > 20 )
-         leto_wUsLog( pUStru, -1,"DEBUG leto_dbEval startin loop ... at %s %s", bEof ? "EOF" : "BOF", pEvalInfo->dbsci.fBackward ? "backward" : "forward"  );
 
       hb_xvmSeqBegin();
 
@@ -9330,9 +9330,9 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
             if( ! pEvalInfo->itmBlock )  /* initial build of verified existing literal expression */
             {
-               pEvalInfo->itmBlock = leto_mkCodeBlock( pUStru, hb_itemGetCPtr( pEvalInfo->abBlock ), hb_itemGetCLen( pEvalInfo->abBlock ), HB_FALSE );
-               if( ! pEvalInfo->itmBlock && s_iDebugMode > 0 )
-                  leto_wUsLog( pUStru, -1,"ERROR leto_dbEval() fail to create CB: {|| %s }", pEvalInfo->abBlock );
+               pEvalInfo->itmBlock = leto_mkCodeBlock( pUStru, hb_itemGetCPtr( pEvalInfo->abBlock ),
+                                                       hb_itemGetCLen( pEvalInfo->abBlock ), HB_FALSE );
+               /* if CB creation fails --> fall through to below hb_xvmSeqEnd() */
             }
             /* fails if needed lock not given, RTE catched and break to below */
             pResult = hb_vmEvalBlockV( pEvalInfo->itmBlock, 2, pProces, pLast );
@@ -9341,10 +9341,9 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
             {
                if( ++nLen == 1 )
                   hb_itemRelease( pLast );
-               if( pResult )
-                  hb_arrayAdd( pSaveValResult, pResult );
+               hb_arrayAdd( pSaveValResult, pResult );
             }
-            else if( pResult )
+            else
                hb_itemCopy( pSaveValResult, pResult );
 
             if( ! pRLocks && pEvalInfo->dbsci.lpstrFor )
@@ -9358,12 +9357,11 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
          if( pRLocks )
          {
-            nPos = hb_itemGetNS( pProces );
-            if( nPos < hb_arrayLen( pRLocks ) )
+            if( nProces < hb_arrayLen( pRLocks ) )
             {
-               SELF_GOTO( pArea, hb_arrayGetNL( pRLocks, nPos + 1 ) );
+               SELF_GOTO( pArea, hb_arrayGetNL( pRLocks, nProces + 1 ) );
                if( pEvalInfo->dbsci.lpstrFor )
-                  leto_dbEvalJoinGoto( pEvalInfo->dbsci.lpstrFor, nPos + 1 );
+                  leto_dbEvalJoinGoto( pEvalInfo->dbsci.lpstrFor, nProces + 1 );
             }
             else
             {
@@ -9389,7 +9387,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
 
          if( ! ulTimeoutHz )
             ulTimeoutHz = ( HB_ULONG ) HB_MAX( 1, ( 1000 / HB_MAX( 1, ( leto_MilliSec() - ullTimePoint ) ) ) );
-         if( ! ( ( hb_itemGetNL( pEvalut ) + 1 ) % ulTimeoutHz ) &&
+         if( ! ( ( nEvalut + 1 ) % ulTimeoutHz ) &&
              leto_MilliSec() - ullTimePoint > pUStru->ulActTimeout )
          {
             if( s_iDebugMode > 0 )
@@ -9453,6 +9451,7 @@ static HB_ERRCODE leto_dbEval( PUSERSTRU pUStru, AREAP pArea, LPDBEVALINFO pEval
       hb_vmDestroyBlockOrMacro( pEvalInfo->itmBlock );
       pEvalInfo->itmBlock = NULL;
    }
+
    hb_itemRelease( pProces );
    hb_itemRelease( pEvalut );
    hb_itemRelease( pRLocks );
@@ -9502,11 +9501,6 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
    }
    nPos += 4 + uiLen + 1;
 
-   hb_xvmSeqEnd();
-
-   if( pUStru->iHbError && s_iDebugMode > 0 )
-      leto_wUsLog( pUStru, -1, "ERROR leto_Dbeval: compiling blocks, dammit " );
-
    pNext = hb_itemPutNL( pNext, strtol( szData + nPos, &ptr, 10 ) );
    if( hb_itemGetNL( pNext ) >= 0 )
       pEvalInfo.dbsci.lNext = pNext;
@@ -9537,14 +9531,12 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
          bValid = HB_FALSE;
    }
 
+   hb_xvmSeqEnd();
+
    if( bValid && ! pUStru->iHbError && ! pEvalInfo.abBlock && ( pEvalInfo.dbsci.itmCobFor || pEvalInfo.dbsci.itmCobWhile ) )
    {
       PHB_ITEM pProces = hb_itemPutNS( NULL, 0 );
       PHB_ITEM pEvalut = hb_itemPutNS( NULL, 0 );
-
-      if( s_iDebugMode > 15 )
-         leto_wUsLog( pUStru, -1, "DEBUG leto_Dbeval() pre-test with FOR: %s; WHILE: %s",
-                                  pFor ? hb_itemGetCPtr( pFor ) : "", pWhile ? hb_itemGetCPtr( pWhile ) : "" );
 
       hb_xvmSeqBegin();
 
@@ -9554,6 +9546,11 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
          hb_vmEvalBlockV( pEvalInfo.dbsci.itmCobWhile, 2, pProces, pEvalut );
 
       hb_xvmSeqEnd();
+
+      if( s_iDebugMode > 15 )
+         leto_wUsLog( pUStru, -1, "DEBUG leto_Dbeval(): %s CB - FOR: '%s'  WHILE: '%s' ",
+                                  pUStru->iHbError ? "succes" : "failed",
+                                  pFor ? hb_itemGetCPtr( pFor ) : "", pWhile ? hb_itemGetCPtr( pWhile ) : "" );
 
       hb_itemRelease( pProces );
       hb_itemRelease( pEvalut );
@@ -9597,7 +9594,8 @@ static void leto_Dbeval( PUSERSTRU pUStru, char * szData )
 
          if( s_iDebugMode > 0 )
             leto_wUsLog( pUStru, -1, "DEBUG leto_Dbeval: %s FOR %c WHILE %c (RECNO/NEXT/REST:%ld/%ld/%d) [RESULT/LOCKS/DESC:%d/%d/%d]",
-                                      pEvalInfo.abBlock ? hb_itemGetCPtr( pEvalInfo.abBlock ) : "none", pEvalInfo.dbsci.itmCobFor ? 'Y' : 'N', pEvalInfo.dbsci.itmCobWhile ? 'Y': 'N',
+                                      pEvalInfo.abBlock ? hb_itemGetCPtr( pEvalInfo.abBlock ) : "none",
+                                      pEvalInfo.dbsci.itmCobFor ? 'Y' : 'N', pEvalInfo.dbsci.itmCobWhile ? 'Y': 'N',
                                       lRecNo, lNext, iRest, ( int ) bResultAsArr, ( int ) bNeedLock, ( int ) pEvalInfo.dbsci.fBackward );
       }
 

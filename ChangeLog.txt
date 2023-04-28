@@ -2,6 +2,22 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-04-28 13:07 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  * ChangeLog.txt
+
+  * source/client/leto1.c
+  * source/client/letocl.c
+  * source/server/letofunc.c
+    * letoLocate() fits for other server-modes, for < 3 no relations allowed
+    ! LetoDbLocate() need to sync the record position from client to server,
+      this is important for DBSKIP's in between CONTINUE's and for the REST
+      condition
+    * cleanup and fix for LETO_DBEVAL()
+      ; this eierleigende Wollmilchsau got complex ;-)
+
+  * source/server/leto_2.c
+    * 2 trailing spaces ..
+
 2023-04-20 10:21 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   * ChangeLog.txt
 

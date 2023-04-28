@@ -705,7 +705,7 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
       }
       else
       {
-         /* Client lib must be compiled with LETO_NO_THREAD to let such application expect answers at the *first* socket, 
+         /* Client lib must be compiled with LETO_NO_THREAD to let such application expect answers at the *first* socket,
           * else these would screw up the communication. For this scenario these must be compressed/ encrypted according the settings,
           * for LZ4 beforehand and for zLib internally in leto_SockSend(). Thanks A. Czajczynski for pointing out this was missing.
           * Communication over *second* socket for the very rarely, anyhow only few bytes, esp. delayed errors, is done plain! */
@@ -748,7 +748,7 @@ void leto_SendAnswer2( PUSERSTRU pUStru, const char * szData, HB_ULONG ulLen, HB
       }
       else if( iDebugMode() >= 15 )
       {
-         if( iDebugMode() <= 20 )  /* P=plain  C=compressed  X=encrypted */ 
+         if( iDebugMode() <= 20 )  /* P=plain  C=compressed  X=encrypted */
             leto_wUsLog( pUStru, -1, "DEBUG leto_SendAnswer2() %lu bytes %c", ulLen, ! pUStru->zstream ? 'P' : ( pUStru->bZipCrypt ? 'X': 'C' ) );
          else
             leto_wUsLog( pUStru, ( ( ulLen > 2048 ) ? 1024 : ulLen ), ( char * ) pUStru->pSendBuffer );
