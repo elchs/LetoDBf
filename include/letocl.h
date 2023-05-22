@@ -306,13 +306,13 @@ extern HB_EXPORT int leto_Connect( const char * szAddress, const char * szUser, 
 extern HB_EXPORT void LetoConnectionOpen( LETOCONNECTION * pConnection, const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
 extern HB_EXPORT LETOCONNECTION * LetoConnectionNew( const char * szAddr, int iPort, const char * szUser, const char * szPass, int iTimeOut, HB_BOOL fZombieCheck );
 extern HB_EXPORT void LetoConnectionClose( LETOCONNECTION * pConnection );
-extern HB_EXPORT int LetoCloseAll( LETOCONNECTION * pConnection );
 extern HB_EXPORT const char * LetoGetServerVer( LETOCONNECTION * pConnection );
 extern HB_EXPORT HB_BOOL LetoPing( LETOCONNECTION * pConnection );
 extern HB_EXPORT int LetoToggleZip( LETOCONNECTION * pConnection, int iZipRecord, const char * szPassword );
 extern HB_EXPORT HB_BOOL LetoUdf( LETOCONNECTION * pConnection, LETOTABLE * pTable, HB_BOOL fInThread, const char * szFuncName, PHB_ITEM * pItem );
 
 extern HB_EXPORT HB_ERRCODE LetoRddInfo( LETOCONNECTION * pConnection, HB_USHORT uiIndex, const char * szNewSet );
+extern HB_EXPORT HB_ERRCODE LetoDbCloseAll( LETOCONNECTION * pConnection );
 extern HB_EXPORT HB_ERRCODE LetoDbCloseTable( LETOTABLE * pTable );
 extern HB_EXPORT HB_ERRCODE LetoDbDrop( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
 extern HB_EXPORT HB_ERRCODE LetoDbExists( LETOCONNECTION * pConnection, const char * szTFileName, const char * szIFileName );
@@ -390,7 +390,6 @@ void leto_getFileFromPath( const char * sSource, char * szFile, HB_USHORT uLenMa
 int leto_Connect( const char * szAddress, const char * szUser, const char * szPass, int iTimeOut, int iRefr, HB_BOOL fZombieCheck );
 void LetoDbCreateAlias( const char * szFile, char * szAlias );
 void leto_DelRecLock( LETOTABLE * pTable, HB_ULONG ulRecNo );
-void LetoDbFreeTag( LETOTAGINFO * pTagInfo );
 
 const char * leto_DecryptText( LETOCONNECTION * pConnection, unsigned long * pulLen, char * ptr );
 HB_ULONG leto_CryptText( LETOCONNECTION * pConnection, const char * pData, HB_ULONG ulLen, HB_ULONG ulPrelead );
@@ -446,6 +445,7 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
    HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync );
    HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr );
 #else
+   #define Leto_VarExprClear( connection, pArr )        /* do { } while( 0 ) */
    #define Leto_VarExprSync( connection, arr, resync )  /* do { } while( 0 ) */
 #endif
 

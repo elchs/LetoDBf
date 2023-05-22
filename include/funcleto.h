@@ -116,19 +116,6 @@
 #define LETO_CDX                0
 #define LETO_NTX                1
 
-#if ! ( defined( HB_FT_TIME ) )
-   #define HB_FT_TIME         8
-#endif
-#if ! ( defined( HB_FT_TIMESTAMP ) )
-   #define HB_FT_TIMESTAMP    9
-#endif
-#if ! ( defined( HB_FT_MODTIME ) )
-   #define HB_FT_MODTIME      10
-#endif
-#if ! ( defined( HB_FT_PICTURE ) )
-   #define HB_FT_PICTURE      18
-#endif
-
 #if ! defined( HB_PFS )
    #define HB_PFS          "l"
 #endif
@@ -205,9 +192,19 @@ extern int eprintf( char * d, const char * fmt, ... );
 
 #ifdef USE_LZ4
    #include "lz4.h"
+   #include "hbbfish.h"
 
-   struct _HB_LZ4NET;
-   typedef struct _HB_LZ4NET * PHB_LZ4NET;
+   typedef struct _HB_LZ4NET
+   {
+      int           iLevel;     /* optimization ! level: -1 (0) = no compress; 1 - 9 , higher = faster */
+      int           iErr;       /* error code for last operation */
+      HB_ULONG      ulBufLen;   /* size of internal tmp buffer */
+      char *        pBuffer;    /* internal tmp buffer */
+      HB_BLOWFISH * pBfKey;     /* blowfish en-/de-encrypt key */
+      void *        LZ4state;   /* internal used by LZ4 */
+      char        * IV;         /* initialization vektor for CBC mode*/
+   }
+   HB_LZ4NET, * PHB_LZ4NET;
 
    extern HB_BOOL hb_lz4netEncryptTest( const PHB_LZ4NET pStream, const HB_ULONG ulLen );
    extern HB_ULONG hb_lz4netEncrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB_ULONG * pulDataLen, const char * szData );

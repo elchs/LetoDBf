@@ -2337,7 +2337,7 @@ static HB_ULONG leto_rec( PUSERSTRU pUStru, PAREASTRU pAStru, AREAP pArea, char 
 
                case HB_FT_MEMO:
                case HB_FT_BLOB:
-               case HB_FT_PICTURE:
+               case HB_FT_IMAGE:  /* xHB == HB_FT_PICTURE */
                case HB_FT_OLE:
                   if( pField->uiLen == 4 )
                   {
@@ -4773,7 +4773,21 @@ static void leto_RddInfo( PUSERSTRU pUStru, char * szData )
                break;
             }
 
+            case RDDI_TABLETYPE:
+               {
+                  int      iType = ( pp3 && *pp3 ) ? atoi( pp3 ) : 0;
+                  PHB_ITEM pItem = hb_itemPutNI( NULL, iType );
+
+                  if( SELF_RDDINFO( pRDDNode, uiIndex, 0, pItem ) == HB_SUCCESS )
+                     eprintf( szInfo, "+%d;", iType );  /* new type */
+                  else
+                     eprintf( szInfo, "+%d;", hb_itemGetNI( pItem ) );  /* active type */
+                  hb_itemRelease( pItem );
+               }
+               break;
+
             /* booleans */
+            case RDDI_MULTIKEY:
             case RDDI_MULTITAG:
                {
                   pItem = hb_itemPutNI( NULL, 0 );
@@ -4824,14 +4838,16 @@ static void leto_RddInfo( PUSERSTRU pUStru, char * szData )
                }
                break;
 
+            case RDDI_STRICTSTRUCT:
             case RDDI_STRUCTORD:
+               pItem = hb_itemNew( NULL );
+               SELF_RDDINFO( pRDDNode, uiIndex, 0, pItem );
                sprintf( szInfo, "+%c;", hb_itemGetL( pItem ) ? 'T' : 'F' );
                if( pp3 && strlen( pp3 ) == 1 )
+               {
                   pItem = hb_itemPutL( NULL, ( *pp3 == 'T' ) );
-               else
-                  pItem = hb_itemNew( NULL );
-
-               SELF_RDDINFO( pRDDNode, uiIndex, 0, pItem );
+                  SELF_RDDINFO( pRDDNode, uiIndex, 0, pItem );
+               }
                hb_itemRelease( pItem );
                break;
 
@@ -7906,7 +7922,7 @@ static void leto_Locate( PUSERSTRU pUStru, char * szData )
       {
          PAREASTRU pAStru = pUStru->pCurAStru;
          char *    szData = NULL;
-         HB_ULONG  ulLen;
+         HB_ULONG  ulLen = 0;
 
          leto_GotoIf( pArea, ulRecNo );
 
@@ -10703,7 +10719,7 @@ static void leto_Ordfunc( PUSERSTRU pUStru, char * szData )
          if( szBagName[ 0 ] == DEF_SEP )
             memmove( szBagName, szBagName + 1, uiLen-- );
          if( ( ptr = strchr( szBagName, '.' ) ) != NULL )
-            uiLen = ptr - szBagName + 1;
+            uiLen = ( HB_USHORT ) ( ptr - szBagName + 1 );
          else if( uiLen < HB_PATH_MAX - 1 )
          {
             szBagName[ uiLen++ ] = '.';
@@ -14790,6 +14806,9 @@ static void leto_Udf( PUSERSTRU pUStru, char * szData, HB_ULONG ulAreaID )
                pArray = hb_itemDeserialize( &ptrTmp, &nSize );
             }
 
+            if( s_iDebugMode > 15 )
+                leto_wUsLog( pUStru, -1, "INFO: leto_Udf %s: %s exec with %d argument in WA: %d",
+                             pSym ? "FUNC" : "CB", pp4, pArray ? hb_arrayLen( pArray ) : 0, ulAreaID );
             if( hb_vmRequestReenter() )
             {
                hb_xvmSeqBegin();
@@ -15078,6 +15097,23 @@ static void leto_Info( PUSERSTRU pUStru, char * szData )
             }
             else
                leto_SendAnswer( pUStru, szErr4, 4 );
+            break;
+         }
+
+         case DBI_TABLETYPE:
+         {
+            PHB_ITEM pItem = hb_itemPutNI( NULL, 0 );
+
+            if( SELF_INFO( pArea, DBI_TABLETYPE, pItem ) == HB_SUCCESS )
+            {
+               char szType[ 8 ];
+               HB_ULONG ulLen = eprintf( szType, "+%d;", hb_itemGetNI( pItem ) );
+
+               leto_SendAnswer( pUStru, szType, ulLen );
+            }
+            else
+               leto_SendAnswer( pUStru, szErr1, 4 );
+            hb_itemRelease( pItem );
             break;
          }
 

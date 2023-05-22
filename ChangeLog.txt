@@ -2,6 +2,75 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-04-28 17:00 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  ; news: preparing long wanted possibility of really LONG fieldnames ;-)
+
+  * ChangeLog.txt
+    ; 2 typos in older commit
+
+  * include/funcleto.h
+    - clean-up not there needed 4 HB_FT_* defines
+    * replace a provisory with a full PHB_LZ4NET struct definition
+
+  * include/letocl.h
+    * remove LetoDbFreeTag(), rename LetoCloseAll() to LetoDbCloseAll()
+
+  * include/rddleto.h
+    * move include letocl down, add lockcheme defines and a new tabletype
+
+  - include/splice.h
+  * include/srvleto.h
+    ; remove old experimental debris
+
+  * source/client/leto1.c
+    * refining WA cleanup during disconnect from server
+      ; a simple SELF_CLOSE() left closed WA in inconsistent state,
+        esp. when continuing work with non-LETO WA or from other LETO server
+      ; improve leto_doCLose() -> leto_doRelease(), new leto_findLastWA(),
+        changed leto_CloseAll() and leto_ConnectionClose(),
+        remove leto_doFreeTable() as no more needed
+    - remove outcommented unnecessary leto_ProdSupport()
+    ! maximum fieldname length (!63!) fix in letocreate(), for DbEvil()
+      and leto_FIeldInValue()
+      ; finally ! LetoDBf and my custom Harbour can handle such fields very
+        well and convenient, will soon publish harbour mod after more tests
+    ! wrong memo _default_ type for SIXCDX, it should be fpt
+      ; note that Leto_DbDriver() at client side can apply any combination
+    ! wrongly reported lockcheme 3 if set at server
+    * extend rddInfo( RDD_DISCONNECT [, "//.../",, X] ) to get connection in
+      order: IP address // active WA // connection X // current connection
+    + implement ( RDDI_EXECUTE, { "function-name or CB" [, xArgN] })
+      ; its the equivalent of LETO_UDF() for RDDINFO()
+      ; note: "function()" with brackets == "{|| function() }" is a CB not
+        using arguments, whereas "function" is a function call with arguments
+    + add RDDI_STRICTSTRUCT, RDDI_MULTIKEY
+    * wholesome cleanup of letoInfo() of many redundant pConnection assigns,
+      now done once with at function begin
+    + add handling of DBI_TABLETYPE and RDDI_TABLETYPE, needed to set a new
+      table type at server for extended fieldname length, needs a harbour mod
+
+  * source/client/letocl.c
+    * rename leto_ClearTagInfo() to letoDbClearTagInfos(), also now static
+    * rename leto_CloseAll() to letoDbCloseAll() to fit into namespace
+    ! max field name length fix in leto_AddFields(), autoadapting if > 10
+    * some refinement in LetoUdf() to handle the result from server
+    * fix compiler warnings about types
+
+  * source/client/letomgmt.c
+    * letoClearCurrConn() is now inside leto_ConnectionClose()
+    * remove logic about returned value of a Leto_Udf(), this now all in
+      letocl.c
+    + new prg level LETO_GETCLIENTMODE() to return human readable string
+      about what is happening under the hood
+
+  * source/server/letofunc.c
+    + RDDI_TABLETYPE, RDDI_STRICTSTRUCT, RDDI_MULTIKEY for leto_RddInfo()
+      as counterparts for the client side
+    ! fix RDDI_STRUCTORD to return value before a possible change
+      ; note that set to .T. plus enable RDDI_AUTOOPEN makes DBFNTX open
+        production index with table opening alike DBFCDX
+    + DBI_TABLETYPE counterside for leto_Info()
+
 2023-04-28 13:13 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   ; following is mainly work for the C-API, adding lastly missing indexes
     functionality by moving partial RDD code into letocl.c, so resolving
@@ -37,7 +106,7 @@
       data conversion for the ever literally received variable value
 
   * source/server/letofunc.c
-    + new help funtion leto_IndexesInfos(), used to return the resulting
+    + new help function leto_IndexesInfos(), used to return the resulting
       index situation at server after clearing/ destroying orders
     ! fixes at server side for OrdDestroy(), OrdBagClear()
 
@@ -63,7 +132,7 @@
       this is important for DBSKIP's in between CONTINUE's and for the REST
       condition
     * cleanup and fix for LETO_DBEVAL()
-      ; this eierleigende Wollmilchsau got complex ;-)
+      ; this eierlegende Wollmilchsau got complex ;-)
 
   * source/server/leto_2.c
     * 2 trailing spaces ..

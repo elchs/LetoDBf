@@ -72,7 +72,6 @@
 
 #include "cmdleto.h"
 #include "funcleto.h"
-#include "letocl.h"
 
 #include "rddleto.ch"
 
@@ -154,8 +153,27 @@
    #ifndef DBI_LOCKTEST
       #define DBI_LOCKTEST  146
    #endif
+   #ifdef DBI_ISTEMPORARY
+       #undef DBI_ISTEMPORARY
+       #define DBI_ISTEMPORARY 145
+   #endif
+
+   #define DB_DBFLOCK_DEFAULT      0
+   #define DB_DBFLOCK_CLIPPER      DB_DBFLOCK_CLIP         
+   #define DB_DBFLOCK_COMIX        DB_DBFLOCK_CL53         
+   /* #define DB_DBFLOCK_VFP is the same */
+   #define DB_DBFLOCK_HB32         DB_DBFLOCK_CL53EXT      
+   #define DB_DBFLOCK_HB64         DB_DBFLOCK_XHB64        
+   #define DB_DBFLOCK_CLIPPER2     6
+
+   #define HB_AREANO   int
+
+   #define hb_arrayClone( pSource )           hb_arrayClone( pSource, NULL )
+   #define hb_arrayCloneTo( pDest, pSource )  hb_itemCopy( pDest, hb_arrayClone( pSource, NULL ) )
 
 #endif
+
+#include "letocl.h"
 
 #if ! defined( LETO_USE_THREAD )
    #ifdef LETO_NO_THREAD
@@ -179,8 +197,12 @@
 #ifndef RDDI_CONNECT
    #define RDDI_CONNECT     61
    #define RDDI_DISCONNECT  62
+   #define RDDI_EXECUTE     63
 #endif
 
+#ifndef DB_DBF_SQL
+   #define DB_DBF_SQL       5
+#endif
 
 HB_EXTERN_BEGIN
 

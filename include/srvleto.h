@@ -96,10 +96,6 @@
       #endif
    #endif
    #include <errno.h>
-   /* splice == leto_dbfCopy() for extended Linux advantages */
-   #if defined( HB_OS_LINUX ) && defined( USE_SPLICE )
-      #include <splice.h>
-   #endif
 #endif
 
 typedef struct _LETO_LIST_ITEM
