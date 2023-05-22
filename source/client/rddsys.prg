@@ -51,9 +51,6 @@ ANNOUNCE RDDLETO
 
 REQUEST LETORDD
 REQUEST LETO_UDF
-#ifndef USE_LZ4
-   REQUEST HB_ZCOMPRESS
-#endif
 
 /* leto_std.ch */
 REQUEST HB_DBCREATETEMP, __DBTOTAL
@@ -197,8 +194,8 @@ INIT PROCEDURE LETO_CONNECTAUTO
       ENDIF
    ENDIF
 
-   RETURN
-#endif
+RETURN
+
 
 FUNCTION Leto_Detect( cService, nNrOfPossible, nPort )
    LOCAL cIP := "", aIP
@@ -298,4 +295,5 @@ STATIC FUNCTION leto_BCRequest( nPort, cService, cBroadcastIP, lOnlyFirstAnswer 
    ENDIF
 
 RETURN aFoundIP
+#endif
 

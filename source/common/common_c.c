@@ -51,8 +51,10 @@
 #ifndef __XHARBOUR__
    #include "hbthread.h"
 #else
-   #ifndef __NO_CPU_LOAD
-      #define __NO_CPU_LOAD  1
+   #if defined( HB_ARCH ) && ( HB_ARCH == 64 )
+      #ifndef HB_ARCH_64BIT
+         #define HB_ARCH_64BIT
+      #endif
    #endif
 #endif
 #include "hbatomic.h"
@@ -86,6 +88,8 @@
 #endif
 
 #if ( ! ( defined( HB_OS_LINUX ) || defined( HB_OS_WIN ) ) && ! defined(  __NO_CPU_LOAD ) )
+   #define __NO_CPU_LOAD
+#elif defined( __XHARBOUR__ )
    #define __NO_CPU_LOAD
 #endif
 
@@ -241,7 +245,7 @@ HB_UINT leto_CPULoad( void )
    }
 }
 
-#elif defined( HB_OS_WIN ) && ! defined( __NO_CPU_LOAD )
+#elif defined( HB_OS_WIN ) && ! defined( __NO_CPU_LOAD ) && ! defined( __XHARBOUR__ )
 static HB_U64 leto_FtUint64( const FILETIME ft )
 {
    return ( ( ( HB_U64 ) ( ft.dwHighDateTime ) ) << 32 ) | ( ( HB_U64 ) ft.dwLowDateTime );

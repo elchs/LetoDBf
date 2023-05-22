@@ -15,6 +15,9 @@ Function Main( cPath )
  LOCAL aArr, cTest, lRes, nRes, i, xPrevious, dTest, cGroup
  PUBLIC cPub := "init"
  PRIVATE aPriv := { "first" }
+ #ifdef __XHARBOUR__
+   PRIV dDate := DATE() -1
+ #endif
 
    IF Empty( cPath )
       cPath := "//127.0.0.1:2812/"
@@ -232,10 +235,13 @@ Function Main( cPath )
       ?? IIF( lRes, "Ok", "failure" )
    ENDIF
 
+   ?
+   ?
 #ifndef __XHARBOUR__
-   ?
-   ?
    cTest := "'exit' < cPub .AND. aPriv[ 1 ] == 'first'"
+#else
+   cTest := "'exit' < cPub .AND. dDate < DATE()"
+#endif
    ? "test   expression: "
    IF Leto_VarExprTest( cTest )
       ?? "found memvar variables"
@@ -247,8 +253,13 @@ Function Main( cPath )
    ? cTest
    ? "==> "
    cTest := Leto_VarExprCreate( cTest, @aArr )
-   cGroup := LETO_VPREFIX + hb_NToS( Leto_Connect() )  /* variable group name */
+   cGroup := "My"  /* variables specific to this connection to server */
+#ifndef __XHARBOUR__
    IF UPPER( cTest ) == UPPER( "'exit'<LETO_VARGET('" + cGroup + "','CPUB').AND.LETO_VARGET('" + cGroup + "','aPriv')[1]=='FIRST'" )
+#else
+   /* letodbf for xHarbour can't handle arrays because of complete missing hb_item[De]Serialize() in xHarbour */
+   IF UPPER( cTest ) == UPPER( "'exit'<LETO_VARGET('" + cGroup + "','CPUB').AND.LETO_VARGET('" + cGroup + "','dDate')<DATE()" )
+#endif
       ?? "ok"
    ELSE
       ?? "failed"
@@ -260,6 +271,7 @@ Function Main( cPath )
       ?? "failed to read memvar into array"
    ELSE
       cPub := "magic"
+#ifndef __XHARBOUR__      
       AADD( aPriv, "second" )
       Leto_VarExprSync( aArr )
       IF Leto_VarGet( cGroup, "cPub" ) == "magic" .AND. LEN( Leto_VarGet( cGroup, "aPriv" ) ) == 2
@@ -267,18 +279,31 @@ Function Main( cPath )
       ELSE
          ?? "failed ( magic, 2 ) :", Leto_VarGet( cGroup, "cPub" ), LEN( Leto_VarGet( cGroup, "aPriv" ) )
       ENDIF
+#else
+      dDate := DATE() - 5
+      Leto_VarExprSync( aArr )
+      IF Leto_VarGet( cGroup, "cPub" ) == "magic" .AND. Leto_VarGet( cGroup, "dDate" ) == DATE() - 5
+         ?? "ok"
+      ELSE
+         ?? "failed ( magic, 2 ) :", Leto_VarGet( cGroup, "cPub" ), Leto_VarGet( cGroup, "dDate" )
+      ENDIF
+#endif
 
       /* benchmark of Leto_VarSet() with one change var */
       nRes := hb_milliseconds()
-      FOR i := 1 TO 10000
+      i := 0
+      DO WHILE i++ < 9999
          IF i % 2 == 1
             cPub := "Magical"
          ELSE
-            cPub := "magic"
+            cPub := "Miracle"
          ENDIF
          Leto_VarExprSync( aArr )
-      NEXT i
-      ? "10 K sync :", STR( ( hb_milliseconds() - nRes ) / 1000, 7, 2 ), "s"
+         IF Leto_VarGet( cGroup, "cPub" ) != cPub
+            EXIT
+         ENDIF
+      ENDDO
+      ? HB_NTOS( i ), "verified syncs :", STR( ( hb_milliseconds() - nRes ) / 1000, 7, 2 ), "s"
 
       /* benchmark of checks without changes */
       nRes := hb_milliseconds()
@@ -289,24 +314,33 @@ Function Main( cPath )
 
       ? "resync expression: "
       Leto_VarSet( cGroup, "cPub", "totally magic" )
+#ifndef __XHARBOUR__
       Leto_VarSet( cGroup, "aPriv", { "first", "second", "third" } )
       Leto_VarExprSync( aArr, .T. )
       IF cPub == "totally magic" .AND. LEN( aPriv ) == 3
+#else
+      Leto_VarSet( cGroup, "dDate", DATE() + 42 )
+      Leto_VarExprSync( aArr, .T. )
+      IF cPub == "totally magic" .AND. dDate == DATE() + 42
+#endif
          ?? "ok", cPub
       ELSE
-         ?? "failed ( totally magic, 3  ) :", cPub, LEN( aPriv )
+         ?? "failed ( totally magic, 3  ) :", cPub
       ENDIF
 
    ENDIF
 
    ? "delete expression: "
    Leto_VarExprClear( cTest )
+#ifndef __XHARBOUR__
    IF Leto_Varget( cGroup, "cPub" ) == NIL .OR. Leto_VarGet( cGroup, "aPriv" ) == NIL
+#else
+   IF Leto_Varget( cGroup, "cPub" ) == NIL .OR. Leto_VarGet( cGroup, "dDate" ) == NIL
+#endif
       ?? "ok"
    ELSE
       ?? "failed",  Leto_VarGet( cGroup, "cPub" ), Leto_VarGet( cGroup, "aPriv" )
    ENDIF
-#endif
 
    ?
    ShowVars()

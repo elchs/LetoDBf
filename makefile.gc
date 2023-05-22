@@ -1,0 +1,60 @@
+# Building of librddleto.a for xharbour, Windows, minGW' gcc C-Compiler
+# assumes an installed Harbour in /xharbour -- or set HB_PATH
+
+ifeq ($(HB_PATH),)
+HRB_DIR = /xharbour
+else
+HRB_DIR = $(HB_PATH)
+endif
+
+
+HRB_LIBS = -ldebug -lvmmt -lrtl -llang -lrdd -lmacro -lpp -ldbfntx -ldbfcdx -ldbffpt -lhbsix -lcommon -lcodepage -lpcrepos
+
+LIB_DIR = $(HRB_DIR)/lib
+OBJ_DIR = obj/gcc
+INC_DIR = include
+LZ4_DIR = source/3rd/lz4/lib
+CLIENT_DIR=source/client
+COMMON_DIR=source/common
+LETO_LIB_DIR = lib
+
+CFLAGS = -Wall -Wpedantic -c -O3 -DUSE_PMURHASH=1 -DUSE_LZ4=1 -D__NO_LZ4_WARN__ -DLETO_NO_MT=1
+# -DLETO_NO_THREAD=1
+
+vpath %.a $(LIB_DIR)
+vpath %.o $(OBJ_DIR)
+vpath %.c $(OBJ_DIR):$(CLIENT_DIR):$(COMMON_DIR):$(LZ4_DIR)
+
+%.o : %.c
+	gcc $(CFLAGS) -c -I$(INC_DIR) -I$(LZ4_DIR) -I$(HRB_DIR)/include -o $@ $<
+
+$(OBJ_DIR)/%.c : $(CLIENT_DIR)/%.prg
+	harbour -n -w3 -q0 -es2 -DUSE_LZ4=1 -o$@ -n1 $<
+	gcc $(CFLAGS) -c -I$(INC_DIR) -I$(LZ4_DIR) -I$(HRB_DIR)/include -o $(OBJ_DIR)/$*.o $(OBJ_DIR)/$*.c
+
+$(OBJ_DIR)/%.o : %.c
+	gcc $(CFLAGS) -c -I$(INC_DIR) -I$(LZ4_DIR) -I$(HRB_DIR)/include -o $@ $<
+
+$(LETO_LIB_DIR)/%.a ::
+	ar rcs $@ $^
+
+all: \
+	$(LETO_LIB_DIR)/librddleto.a
+
+install: \
+	$(LIB_DIR)/librddleto.a
+	copy $(LETO_LIB_DIR)/librddleto.a $(LIB_DIR)/
+	copy $(INC_DIR)/*.ch $(HRB_DIR)/include
+
+$(LETO_LIB_DIR)/librddleto.a : \
+   $(OBJ_DIR)/rddsys.o \
+   $(OBJ_DIR)/leto1.o \
+   $(OBJ_DIR)/letocl.o \
+   $(OBJ_DIR)/letomgmn.o \
+   $(OBJ_DIR)/common_c.o \
+   $(OBJ_DIR)/blowfish.o \
+   $(OBJ_DIR)/PMurHash.o \
+   $(OBJ_DIR)/lz4net.o \
+   $(OBJ_DIR)/lz4.o
+
+# eof

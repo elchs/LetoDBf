@@ -75,6 +75,46 @@
 #define LZ4_BUFFER_DEFSIZE      65536  /* min default buffer size, alloc + 1 */
 #define LZ4_BF_CBC                     /* activate CBC mode for Blowfish */
 
+
+#if defined( LZ4_DUMMY )
+   /* dummy funtions zo localize GPFs with xHarbour */
+   int LZ4_compress_fast_extState( void * state, const char * source, char * dest, int inputSize, int maxDestSize, int acceleration )
+   {
+      HB_SYMBOL_UNUSED( state );
+      HB_SYMBOL_UNUSED( source );
+      HB_SYMBOL_UNUSED( dest );
+      HB_SYMBOL_UNUSED( inputSize );
+      HB_SYMBOL_UNUSED( maxDestSize );
+      HB_SYMBOL_UNUSED( acceleration );
+
+      return 0;
+   }
+
+   int LZ4_decompress_safe( const char * source, char * dest, int compressedSize, int maxDecompressedSize )
+   {
+      HB_SYMBOL_UNUSED( source );
+      HB_SYMBOL_UNUSED( dest );
+      HB_SYMBOL_UNUSED( compressedSize );
+      HB_SYMBOL_UNUSED( maxDecompressedSize );
+
+      return 0;
+   }
+
+   int LZ4_compress_fast( const char * source, char * dest, int sourceSize, int maxDestSize, int acceleration )
+   {
+      HB_SYMBOL_UNUSED( source );
+      HB_SYMBOL_UNUSED( dest );
+      HB_SYMBOL_UNUSED( sourceSize );
+      HB_SYMBOL_UNUSED( maxDestSize );
+      HB_SYMBOL_UNUSED( acceleration );
+
+      return 0;
+   }
+
+   int LZ4_sizeofState(void) { return LZ4_STREAMSIZE; }
+
+#endif
+
 #ifndef HB_BF_CIPHERBLOCK
    #define HB_BF_CIPHERBLOCK    8
 #endif
@@ -126,9 +166,9 @@ PHB_LZ4NET hb_lz4netOpen( int iLevel, int iStrategy )
    pStream->pBfKey = NULL;
    if( iLevel > 0 )
 #if 0  /* testing purpose only */
-      pStream->LZ4state = hb_xgrab( LZ4_sizeofStateHC() );  /* LZ4_HC_STREAMSIZE */
+      pStream->LZ4state = hb_xgrabz( LZ4_sizeofStateHC() );  /* LZ4_HC_STREAMSIZE */
 #else
-      pStream->LZ4state = hb_xgrab( LZ4_sizeofState() );  /* LZ4_STREAMSIZE */
+      pStream->LZ4state = hb_xgrabz( LZ4_sizeofState() );  /* LZ4_STREAMSIZE */
 #endif
    else
       pStream->LZ4state = NULL;
@@ -145,11 +185,11 @@ void hb_lz4netEncryptKey( PHB_LZ4NET pStream, const char * pPassword, int iPassl
       HB_U32 xl, xr;
       int    i = 0;
 #endif
-      pStream->pBfKey = ( HB_BLOWFISH * ) hb_xgrab( sizeof( HB_BLOWFISH ) );
+      pStream->pBfKey = ( HB_BLOWFISH * ) hb_xgrabz( sizeof( HB_BLOWFISH ) );
       hb_blowfishInit( pStream->pBfKey, pPassword, iPasslen );
 #ifdef LZ4_BF_CBC
       /* fill IV (repeated) password, ECB-encrypt with itself */
-      pStream->IV = ( char * ) hb_xgrab( HB_BF_CIPHERBLOCK );
+      pStream->IV = ( char * ) hb_xgrabz( HB_BF_CIPHERBLOCK );
       while( i < HB_BF_CIPHERBLOCK - 1 )
       {
          memcpy( pStream->IV + i, pPassword, HB_MIN( iPasslen, HB_BF_CIPHERBLOCK - i ) );
@@ -171,7 +211,7 @@ static void lz4_bufSizer( PHB_LZ4NET pStream, HB_ULONG ulLen )
    if( ! pStream->ulBufLen )
    {
       pStream->ulBufLen = HB_MAX( ulLen, LZ4_BUFFER_DEFSIZE );
-      pStream->pBuffer = ( char * ) hb_xgrab( pStream->ulBufLen );
+      pStream->pBuffer = ( char * ) hb_xgrabz( pStream->ulBufLen );
    }
    else
    {
@@ -185,7 +225,7 @@ static void lz4_destSizer( char ** pData, HB_ULONG ulLen )
    if( *pData )
       *pData = ( char * ) hb_xrealloc( *pData, ulLen + 1 );
    else
-      *pData = ( char * ) hb_xgrab( ulLen + 1 );
+      *pData = ( char * ) hb_xgrabz( ulLen + 1 );
 }
 
 /* capable of encrypting 'in place' without extra buffer
@@ -379,7 +419,7 @@ HB_ULONG hb_lz4netEncrypt( PHB_LZ4NET pStream, char ** pData, HB_ULONG ulLen, HB
       // nDest = LZ4_compress_fast( szData, *pData + 4, ulLen, nDest, pStream->iLevel );
       /* HighCompression algo - much! slower; need different LZ4_sizeofStateHC LZ4state */
       nDest = LZ4_compress_HC_extStateHC( pStream->LZ4state, szData, *pData + 4, ulLen, nDest, pStream->iLevel );
-#else  /* newer version with external ( aka Harbour hb_xgrab ) allocated LZ4state */
+#else  /* newer version with external ( aka Harbour hb_xgrabz ) allocated LZ4state */
       nDest = LZ4_compress_fast_extState( pStream->LZ4state, szData, *pData + 4, ulLen, nDest, pStream->iLevel );
 #endif
       HB_PUT_LE_UINT32( *pData + 4 + nDest, ulLen );  /* trailing expanded data size */

@@ -5,7 +5,7 @@
 #.SUFFIXESS: .prg .lib .c .obj
 
 # uncomment this line if you want to build letodb with xharbour
-# XHARBOUR = yes
+XHARBOUR = yes
 
 !ifndef HRB_DIR
 HRB_DIR = $(HB_PATH)
@@ -42,7 +42,6 @@ all: \
 #   $(LIB_DIR)\leto.lib
 #!else
 full: \
-   $(BIN_DIR)\letodb.exe \
    $(LIB_DIR)\rddleto.lib \
    $(LIB_DIR)\leto.lib
 #!endif
@@ -109,13 +108,13 @@ $(OBJ_DIR)\leto_win.obj  : $(SERVER_DIR)\leto_win.c
   cl $(CFLAGS) /c $(INC_ALL_DIR) /Fo$@ $**
 
 $(OBJ_DIR)\server.c   : $(SERVER_DIR)\server.prg
-  $(HRB_DIR)\bin\harbour.exe $** -n -w -I$(HRB_DIR)\include -i$(INC_DIR) -i$(LZ4_DIR) -d__WIN_DAEMON__ -o$@
+  $(HRB_DIR)\bin\harbour.exe $** -q -n -w -I$(HRB_DIR)\include -i$(INC_DIR) -i$(LZ4_DIR) -d__WIN_DAEMON__ -o$@
 
 $(OBJ_DIR)\common.c   : $(COMMON_DIR)\common.prg
-  $(HRB_DIR)\bin\harbour.exe $** -n -w -I$(HRB_DIR)\include -i$(INC_DIR) -i$(LZ4_DIR) -d__WIN_DAEMON__ -o$@
+  $(HRB_DIR)\bin\harbour.exe $** -q -n -w -I$(HRB_DIR)\include -i$(INC_DIR) -i$(LZ4_DIR) -d__WIN_DAEMON__ -o$@
 
 $(OBJ_DIR)\errorsys.c   : $(SERVER_DIR)\errorsys.prg
-  $(HRB_DIR)\bin\harbour.exe $** -n -w $(INC_ALL_DIR) -o$@
+  $(HRB_DIR)\bin\harbour.exe $** -q -n -w $(INC_ALL_DIR) -o$@
 
 
 $(LIB_DIR)\rddleto.lib : \

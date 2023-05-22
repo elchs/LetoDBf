@@ -13,7 +13,7 @@
 /* activate for transaction test */
 // #define __TRANSACT__ 1
 
-#define __RANDOM__   1
+// #define __RANDOM__   1
 
 /* 341 FILED_IDS' == 2046 !max! fields  *  5000 ROUNDS = ~ 4 GB */
 #define FIELD_IDS    1
@@ -26,10 +26,11 @@
 
 REQUEST DBORDERINFO, ORDLISTCLEAR, ORDBAGCLEAR, ORDDESTROY
 REQUEST LETO
-REQUEST DBFNTX
+REQUEST DBFNTX, DBFCDX
 
 #include "dbinfo.ch"
 #include "set.ch"
+#include "rddleto.ch"  //  can be done in harbour! by /u+rddleto.ch  */
 
 Function Main( cPath )
  LOCAL nRounds := ROUNDS
@@ -77,9 +78,10 @@ Function Main( cPath )
          ENDIF
 #endif
 #ifdef __LZ4__
-         LETO_TOGGLEZIP( 1 )
+         ? LETO_TOGGLEZIP( 1, "white&blue&red" )
 #endif
          ? "NETWORK TRAFFIC COMPRESSION:", Iif( LETO_TOGGLEZIP() > 0, "ON", "OFF" )
+         ? LETO_GETCLIENTMODE()
       ENDIF
    ELSE
 #ifdef __MEM_IO__

@@ -1,18 +1,25 @@
 #  $Id: makefile.bc,v 1.15.2.6 2013/12/13 16:40:26 alkresin Exp $
 # makefile for Borland C/C++ 32 bits
-# Building of Leto binaries
+# useful for building the RDD lib for xHarbour, needs BCC >= v5.8.2 as v5.5 fails with LZ4
 
 .AUTODEPEND
 
-# uncomment next line if you want to build letodb with xharbour
-# XHARBOUR = yes
+# adapt ! if HB_PATH/ executable is still not set as root path of harbour:
+HRB_DIR = $(HB_PATH)
+HRB_EXE = $(HRB_DIR)\bin\$(HARBOUR_EXE)
 
-# uncomment next line if you want to build letodb with BMDBF* support
+# comment next line for not using LZ4 dummy functions aka with encrypted (needs compressed) traffic
+USE_LZ4_DUMMY = yes
+
+
+# ------
+
+# needs a special build multi-thread executable - still don't know how for xHarbour
+# check 'test_file' example for RTE * MUST * happen at end - then permanently comment it out
+USE_SINGLE_SOCKET = yes
+
+# xHarbour NOT yet uncomment next line if you want to build letodbf client lib with BMDBF* support
 # __BM = yes
-
-#SRV_MODE = __WIN_SERVICE__
-# SRV_MODE = __WIN_DAEMON__
-SRV_MODE = __CONSOLE__
 
 !if !$d(ECHO)
    ECHO = echo.
@@ -21,27 +28,10 @@ SRV_MODE = __CONSOLE__
    DEL = del
 !endif
 
-HRB_DIR = $(HB_PATH)
-INCLUDE_DIR = include;$(HRB_DIR)\include
-HARBOUR_EXE = $(HRB_DIR)\bin\harbour.exe
-!if $(SRV_MODE) == __CONSOLE__
-HB_GT_LIB = gtwin.lib
-!else
-HB_GT_LIB = gtgui.lib
-!endif
-!if $d(XHARBOUR)
-HARBOUR_LIBS = debug.lib vm.lib rtl.lib $(HB_GT_LIB) lang.lib rdd.lib macro.lib pp.lib dbfntx.lib dbfcdx.lib dbffpt.lib hbsix.lib common.lib codepage.lib pcrepos.lib
-!else
-HARBOUR_LIBS = hbdebug.lib hbvmmt.lib hbrtl.lib $(HB_GT_LIB) hblang.lib hbrdd.lib hbmacro.lib hbpp.lib rddntx.lib rddcdx.lib rddfpt.lib hbsix.lib hbcommon.lib hbcpage.lib hbpcre.lib hbzlib.lib rddnsx.lib hbmemio.lib hbextern.lib hbhsx.lib
-!endif
-WINDOWS_LIBS = cw32mt.lib import32.lib ws2_32.lib PSDK\iphlpapi.lib
-
-CC = bcc32
+HARBOUR_LIBS = debug.lib vm.lib rtl.lib $(HB_GT_LIB) lang.lib rdd.lib macro.lib pp.lib common.lib codepage.lib pcrepos.lib
+HARBOUR_LIBS = $(HARBOUR_LIBS) dbfntx.lib dbfcdx.lib dbffpt.lib hbsix.lib
+CC = BCC32
 LINKER = TLIB
-
-BIN_DIR  = $(HRB_DIR)\bin
-LETO_BIN_DIR  = bin
-LETO_LIB_DIR  = lib
 
 # This is needed, otherwise the libs may overflow when
 # debug info is requested with -v -y
@@ -50,39 +40,55 @@ LETO_LIB_DIR  = lib
     ARFLAGS = /0
 !endif
 
-#!if !$d(BCC_NOOPTIM)
-#    CFLAGS = -O2 $(CFLAGS)
-#!endif
+!if !$d(BCC_NOOPTIM)
+    CFLAGS = -O2 $(CFLAGS)
+!endif
 
 #
 # Directory macros. These should never have to change.
-#
-SERVER_DIR = source\server
+##
+LETO_LIB_DIR = lib
+INCLUDE_DIR = include;$(HRB_DIR)\include;C:\BCC58\include;
 CLIENT_DIR = source\client
 COMMON_DIR = source\common
+LZ4_DIR = source\3rd\lz4\lib
+OBJ_DIR = obj\bcc
+API_DIR = obj\api
 
 #
 # C compiler definition and C flags. These should never have to change.
 #
 
-CFLAGS               = -I$(INCLUDE_DIR) -d $(C_USR) $(CFLAGS) -tWM -D__WIN32__ -D$(SRV_MODE)
+CFLAGS               = -I$(INCLUDE_DIR) -I$(LZ4_DIR) -d $(C_USR) $(CFLAGS) -tWM -D__WIN32__
 CLIBFLAGS            = -c $(CFLAGS) $(CLIBFLAGS)
-CEXEFLAGS            = -L$(HRB_DIR)\lib\win\bcc -lGn -lTpe -laa $(CFLAGS)
 CLIBFLAGSDEBUG       = -v $(CLIBFLAGS)
-HARBOURFLAGS         = -i$(INCLUDE_DIR) -n -q0 -w -es2 -gc0 -d$(SRV_MODE) $(PRG_USR) $(HARBOURFLAGS)
+HARBOURFLAGS         = -i$(INCLUDE_DIR) -n -q0 -w3 -es2 -dUSE_LZ4 $(HARBOURFLAGS)
 LDFLAGS              = $(LDFLAGS)
 
-!if $d(__BM)
-CLIBFLAGS = $(CLIBFLAGS) -D__BM
-HARBOURFLAGS = $(HARBOURFLAGS) -D__BM
+!if $d(USE_SINGLE_SOCKET)
+   SINGLESOCKET = -DLETO_NO_THREAD=1
 !endif
 
-CLIBFLAGS = $(CLIBFLAGS) -DUSE_PMURHASH=1
-CAPIFLAGS = $(CLIBFLAGS) -D__LETO_C_API__=1 -DLETO_NO_MT=1 -DLETO_NO_THREAD=1
+!if $d(USE_LZ4_DUMMY)
+   LZ4_DUMMY = -DLZ4_DUMMY
+!endif
+
+!if $d(__BM)
+   CLIBFLAGS = $(CLIBFLAGS) -D__BM
+   HARBOURFLAGS = $(HARBOURFLAGS) -D__BM
+!endif
+
+!if ! $d(HB_MT)
+   CLIBFLAGS = $(CLIBFLAGS) $(SINGLETHREAD)
+!endif
+
+CLIBFLAGS = $(CLIBFLAGS) $(LZ4_DUMMY) $(SINGLESOCKET) -D__NO_LZ4_WARN__ -DUSE_LZ4 -DUSE_PMURHASH=1 -DLETO_NO_MT=1 
+CAPIFLAGS = $(CLIBFLAGS) $(LZ4_DUMMY) $(SINGLESOCKET) -D__NO_LZ4_WARN__ -DUSE_LZ4 -DUSE_PMURHASH=1 -D__LETO_C_API__=1 -DLETO_NO_MT=1
 
 CC_CMD = $(CC) $(CLIBFLAGS) -o$@ $**
 CC_API = $(CC) $(CAPIFLAGS) -o$@ $**
-HB_CMD = $(HARBOUR_EXE) $(HARBOURFLAGS) $** -o$@
+CC_LZ4 = $(CC) $(CLIBFLAGS) -o$@ $**
+HB_CMD = $(HRB_EXE) $(HARBOURFLAGS) $** -o$@
 
 #
 # Macros to access our library names
@@ -90,11 +96,6 @@ HB_CMD = $(HARBOUR_EXE) $(HARBOURFLAGS) $** -o$@
 
 CLIENT_RDD_LIB   =   $(LETO_LIB_DIR)\rddleto.lib
 CLIENT_LIB   =   $(LETO_LIB_DIR)\leto.lib
-SERVER_EXE   =   $(LETO_BIN_DIR)\letodb.exe
-
-#
-# Rules
-#
 
 #
 # RDDLETO.LIB rules
@@ -107,12 +108,16 @@ CLIENT_RDD_LIB_OBJS = \
    $(OBJ_DIR)\common_c.obj \
    $(OBJ_DIR)\blowfish.obj \
    $(OBJ_DIR)\PMurHash.obj \
-   $(OBJ_DIR)\rddsys.obj
+   $(OBJ_DIR)\rddsys.obj \
+   $(OBJ_DIR)\lz4net.obj
 
+!if ! $d(USE_LZ4_DUMMY)
+   CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
+   $(OBJ_DIR)\lz4.obj
+!endif
 
 !if $d(__BM)
-CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
-   $(OBJ_DIR)\letoserv.obj \
+   CLIENT_RDD_LIB_OBJS = $(CLIENT_RDD_LIB_OBJS) \
    $(OBJ_DIR)\letobmcl.obj
 !endif
 
@@ -124,45 +129,25 @@ CLIENT_LIB_OBJS = \
    $(API_DIR)\letocl.obj \
    $(API_DIR)\common_c.obj \
    $(API_DIR)\blowfish.obj \
-   $(API_DIR)\PMurHash.obj
+   $(API_DIR)\PMurHash.obj \
+   $(API_DIR)\lz4net.obj
 
-
-#
-# LETO.EXE rules
-#
-
-SERVER_EXE_OBJS = \
-   $(OBJ_DIR)\server.obj \
-   $(OBJ_DIR)\common.obj \
-   $(OBJ_DIR)\common_c.obj \
-   $(OBJ_DIR)\blowfish.obj \
-   $(OBJ_DIR)\PMurHash.obj \
-   $(OBJ_DIR)\letofunc.obj \
-   $(OBJ_DIR)\letolist.obj \
-   $(OBJ_DIR)\leto_2.obj \
-   $(OBJ_DIR)\letoacc.obj \
-   $(OBJ_DIR)\letovars.obj \
-   $(OBJ_DIR)\leto_win.obj \
-   $(OBJ_DIR)\errint.obj \
-   $(OBJ_DIR)\errorsys.obj
+!if ! $d(USE_LZ4_DUMMY)
+   CLIENT_LIB_OBJS = $(CLIENT_LIB_OBJS) \
+   $(API_DIR)\lz4.obj
+!endif
 
 #
 # Our default target
 #
 
-!if $d(XHARBOUR)
 PROJECT = \
    $(CLIENT_RDD_LIB) \
    $(CLIENT_LIB)
-!else
-PROJECT = \
-   $(CLIENT_RDD_LIB) \
-   $(CLIENT_LIB) \
-   $(SERVER_EXE)
-!endif
 
-all: $(CLIENT_LIB)
-full: $(PROJECT)
+rdd: $(CLIENT_RDD_LIB)
+api: $(CLIENT_LIB)
+all: $(PROJECT)
 
 #
 # Library dependencies and build rules
@@ -184,17 +169,6 @@ $(CLIENT_LIB) : $(CLIENT_LIB_OBJS)
 
 !
 
-$(SERVER_EXE) : $(SERVER_EXE_OBJS)
-    IF EXIST "$(SERVER_EXE)" $(DEL) "$(SERVER_EXE)" > NUL
-    $(CC) @&&!
-$(CEXEFLAGS)
--e$(SERVER_EXE)
-$(**: = ^
-)
-$(HARBOUR_LIBS)
-$(WINDOWS_LIBS)
-!
-
 # ---------------------------
 # CLIENT_RDD.LIB Dependencies
 # ---------------------------
@@ -211,13 +185,15 @@ $(WINDOWS_LIBS)
 {$(COMMON_DIR)}.c{$(OBJ_DIR)}.obj:
     $(CC_CMD)
 
+{$(LZ4_DIR)}.c{$(OBJ_DIR)}.obj:
+    $(CC_LZ4)
 
 # ---------------------------
 # CLIENT.LIB Dependencies
 # ---------------------------
 
 .c.obj:
-    $(CC_CMD)
+    $(CC_API)
 
 {$(CLIENT_DIR)}.c{$(API_DIR)}.obj:
     IF EXIST "$@" $(DEL) $@
@@ -227,20 +203,7 @@ $(WINDOWS_LIBS)
     IF EXIST "$@" $(DEL) $@
     $(CC_API)
 
-#
-# SERVER.EXE dependencies
-#
-
-{$(SERVER_DIR)}.prg{$(OBJ_DIR)}.c:
-    $(HB_CMD)
-
-{$(COMMON_DIR)}.prg{$(OBJ_DIR)}.c:
-    $(HB_CMD)
-
-{$(SERVER_DIR)}.c{$(OBJ_DIR)}.obj:
-   $(CC_CMD)
-
-{$(COMMON_DIR)}.c{$(OBJ_DIR)}.obj:
-    $(CC_CMD)
-
+{$(LZ4_DIR)}.c{$(API_DIR)}.obj:
+    IF EXIST "$@" $(DEL) $@
+    $(CC_LZ4)
 

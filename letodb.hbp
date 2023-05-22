@@ -1,5 +1,5 @@
 #-env:__BM=yes
-{!bcc}-env:__LZ4=yes
+-env:__LZ4=yes
 -env:__PMURHASH=yes
 
 # alternative to recommended adaption of: source/include//letocdp.ch

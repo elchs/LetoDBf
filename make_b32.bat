@@ -1,46 +1,72 @@
-REM
-REM check file "Readme.txt", chapter: 2.1 -- this file is commonly not what you want
-REM
-
-rem SET PATH=C:\BCC55\BIN;F:\hbcc\bin
-rem SET HB_PATH=F:\hbcc
-
-if not "%1" == "full"  echo "ATTENTION: building the C-API lib without given param: full"
-if "%HB_PATH%." == "." echo "ATTENTION: adapt HB_PATH in this batch file"
-
 @echo off
-if "%1" == "clean" goto CLEAN
-if "%1" == "CLEAN" goto CLEAN
+REM
+REM check file "Readme.txt", chapter: 2.0 ff -- Harbour user use hbmk2 by Szakats
+REM
+
+rem Adapt search paths for C-Compiler and Harbour:
+SET PATH=C:\BCC58\BIN;C:\xharbour\bin
+rem the root path to harbour:
+SET HB_PATH=C:\xharbour
+
+SET HARBOUR_EXE=
+if exist %HB_PATH%\bin\harbour.exe SET HARBOUR_EXE=harbour
+if exist %HB_PATH%\bin\xHB.exe SET HARBOUR_EXE=xHb
+
+if "%HARBOUR_EXE%." == "." (
+  @echo ! Please verify the paths herein for Harbour!
+  @echo .
+  goto EXIT
+)
+
+SET arg1=%1
+if "%arg1%." == "." SET arg1=rdd
+)
+if "%arg1%" == "clean" goto CLEAN
 
 if not exist lib md lib
 if not exist obj md obj
-if not exist obj\b32 md obj\b32
+if not exist obj\bcc md obj\bcc
 if not exist obj\api md obj\api
 
+if "%arg1%" == "rdd" goto BUILD
+if "%arg1%" == "api" goto BUILD
+if "%arg1%" == "all" goto BUILD
+  @echo .
+  @echo rdd    for RDD lib (default)
+  @echo api    for C-API lib
+  @echo all    for RDD and C-API
+  @echo Clean  for clean-up
+  @echo .
+goto EXIT
+
+
 :BUILD
-make -l EXE_OBJ_DIR=obj\b32\bin OBJ_DIR=obj\b32 API_DIR=obj\api -fmakefile.bc %1 %2 %3 > make_b32.log
+make -l OBJ_DIR=obj\bcc API_DIR=obj\api -fmakefile.bc %arg1% %2 %3 > make_bcc.log 2> make_bcc.err
 if errorlevel 1 goto BUILD_ERR
-if "%1" == "full" (
-   copy lib\rddleto.lib %HB_PATH%\lib\rddleto.lib
-) ELSE (
-   copy lib\leto.lib %HB_PATH%\lib\leto.lib
+if "%arg1%" == "rdd" (
+   @echo ... copying RDD and headers into place for %HARBOUR_EXE%
+   copy lib\rddleto.lib     %HB_PATH%\lib\rddleto.lib
+   copy include\leto_std.ch %HB_PATH%\include
+   copy include\rddleto.ch  %HB_PATH%\include
+   copy include\letofile.ch %HB_PATH%\include
 )
 goto BUILD_OK
 
 :BUILD_OK
+   @echo Hooray! ...;-)
    goto EXIT
 
 :BUILD_ERR
-   notepad make_b32.log
+   type make_b32.log
    goto EXIT
 
 :CLEAN
-   del lib\*.lib
-   del lib\*.bak
-   del obj\b32\*.obj
-   del obj\api\*.obj
-   del obj\b32\*.c
-   del make_b32.log
+   del lib\*.lib     2>NUL
+   del lib\*.bak     2>NUL
+   del obj\bcc\*.obj 2>NUL
+   del obj\api\*.obj 2>NUL
+   del obj\bcc\*.c   2>NUL
+   del make_bcc.log  2>NUL
 
    goto EXIT
 

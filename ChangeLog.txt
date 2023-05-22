@@ -2,6 +2,79 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-05-22 17:31 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  ; News: restore xHarbour compatibility - as far as i got yet because a few
+    Harbour extensions are not available in xHarbour: e.g. serialize a PHB_ITEM 
+    (-> misses array transfer from server); hb_znet() for zLib network traffic
+    (-> must use LZ4 instead); no thread local storage, ...
+    New is that xHarbour now can use e.g. LETO_VAREXPRCREATE() for PRIV/PUBL
+    in server expressions.
+
+  * include/funcleto.h
+    - clean-up not there needed 4 HB_FT_* defines
+    * replace a provisory with a full PHB_LZ4NET struct definition
+
+  * include/letocl.h
+    * add HB_FT_DATETIME as 21, not known to harbour, there handled together
+      with HB_FT_TIME (8) with lenth 4 or 8
+    * enable LETO_VAR...() prototypes for xharbour
+
+  * source/client/leto1.c
+    * adds for HB_FT_DATETIME
+      esp. handling for the 'new field' in letoFieldInfo()
+    + remove restictions for the Leto_Var() system - as hb_setGetForceOpt()
+      is unknown to xharbour so without fine-tuning and ever 'forced'.
+      ; ToDo exclude arrays as not possible for xHb
+
+  * source/client/letocl.c
+    * HB_FT_DATETIME mods
+
+  * source/client/letomgmt.c
+    * changes for xharbour
+    * usage of new LZ4_DUMMY in Leto_ToggleZip(): this will just disable to
+      switch to encryption/ compression if dummy is used
+    * exclude Leto_Directory() as using an array
+    * disable LETO_GETLOCALIP() to spare windows libs at linkage
+
+  * source/client/rddsys.prg
+    * remove a request for HB_ZCOMPRESS, disable Leto_Detect(): this will us
+      spare to link two windows libs ( ifhlpapi, ws2-32 ) to executables
+
+  * source/common/common_c.c
+    * disableCPU load info for xharbour
+
+  * source/3rd/lz4/lib/lz4.h
+    * suppress deprecated warnings with __NO_LZ4_WARN__
+  * source/common/lz4net.c
+    * adding dummy functions for LZ4, activated by #define LZ$_DUMMY
+      ; this is to use LetoDBf just without compression in case of
+        a C-compiler can't compile the real LZ4 or similar problems
+
+  * tests/test_mem.prg
+    * adding info abut the active client-mode by Leto_GetClientMode()
+  * test/test_var.prg
+    * mods to make it testable for xHarbour ( it misses arrays )
+  * tests/test_file.prg
+    refine test for working RTE send from server
+
+  * rddleto.lib.xbh 
+  * test_mem.exe.xbp
+    ; assumes the header files *.ch copied into xHB, at least i'm not sure ;-)
+  * make_b32.bat
+  * makefile.bc
+  + makefile.gc
+    * .gc would be for MinGW's gcc in windows, ToDO much test work left over
+
+  * letodb.hbp
+  * letodbsvc.hbp
+  * rddleto.hbp
+  * rddletoaddon.hbp
+    * remove restriction for BCC to use LZ4 - handle it with care, i'm unsure,
+      test it with newer BCC >= 5.82
+    ; BCC5.82 as any ! version of PellesC makes huge problems with LZ4 in
+      combination with xharbour: e.g. test_mem.exe crashes ! with GPF.
+      This does NOT happen with Harbour, haven't yet found the difference ...
+
 2023-04-28 17:00 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   ; news: preparing long wanted possibility of really LONG fieldnames ;-)
 

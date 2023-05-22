@@ -1,3 +1,4 @@
+@echo off
 REM
 REM check file "Readme.txt", chapter: 2.1 -- this file is commonly not what you want
 REM
@@ -6,7 +7,7 @@ REM SET PATH=F:\MsVc8\VC\bin;F:\MsVc8\SDK\v2.0\bin;f:\HbVc8\bin
 REM SET PATH=F:\MsVc9\VC\bin;F:\MsVc9\SDK\v3.5\bin;f:\HbVc9\bin
 
 REM SET HB_PATH=F:\HbVc8
-REM SET HB_PATH=F:\HbVc9
+SET HB_PATH=C:\xharbour
 
 @echo off
 if "%1" == "clean" goto CLEAN
@@ -32,10 +33,13 @@ REM SET LIB=F:\MsVc9\VC\lib;F:\MsVc9\SDK\v3.5\lib
 REM SET LIBPATH=F:\MsVc9\VC\lib;F:\MsVc9\SDK\v3.5\lib
 
 :BUILD
-nmake /I /Fmakefile.vc %1 %2 %3 > make_vc.log
+nmake /I /Fmakefile.vc %1 %2 %3 > make_vc.log 2> make_vc.err
 if errorlevel 1 goto BUILD_ERR
 if "%1" == "full" (
    copy lib\rddleto.lib %HB_PATH%\lib\rddleto.lib
+   copy include\leto_std.ch %HB_PATH%\include
+   copy include\letofile.ch %HB_PATH%\include
+   copy include\rddleto.ch  %HB_PATH%\include
 ) ELSE (
    copy lib\leto.lib %HB_PATH%\lib\leto.lib
 )

@@ -71,7 +71,6 @@
 #include "rddsys.ch"
 
 #include "cmdleto.h"
-#include "funcleto.h"
 
 #include "rddleto.ch"
 
@@ -81,6 +80,8 @@
 
 #else  /* __XHARBOUR__ */
 
+   #include "hbfast.h"  /* for the 'hidden' hb_itemMove() */
+
    #define HB_CDP_PAGE()  hb_cdppage()
 
    #ifndef HB_LONG_LONG_OFF
@@ -89,26 +90,22 @@
    #ifndef __HARBOUR30__
       #define __HARBOUR30__  1
    #endif
-   #ifndef USE_LZ4
+   #if ! defined( USE_LZ4 ) && ! defined( __BORLANDC__ )
       #define USE_LZ4        1
    #endif
 
    typedef unsigned char HB_BYTE;
    typedef int HB_BOOL;
    typedef unsigned short HB_USHORT;
-   typedef ULONG HB_SIZE;
    typedef signed char HB_SCHAR;
+   #define HB_ULONG  ULONG
 
-   #define HB_IT_TIMESTAMP  ( ( HB_TYPE ) 0x00040 )   /* same HB_IT_TIMEFLAG */
+   #define HB_IT_TIMESTAMP  ( ( HB_TYPE ) 0x00040 )
    #define HB_FF_UNICODE    0x0040
    #if defined( HB_IS_NUMBER ) && defined ( HB_IS_NUMERIC )
       #undef HB_IS_NUMERIC
 	  #define HB_IS_NUMERIC( p )  ( ( HB_ITEM_TYPE( p ) & HB_IT_NUMERIC ) != 0 )
    #endif
-
-   #define hb_itemDeserialize( buffer, size )    hb_itemArrayNew( 0 )
-   #define hb_itemSerialize( item, flag, size )  hb_strdup( "xHb" )
-   #define hb_snprintf                           snprintf
 
    /* hbznet & used zLib constants */
    #ifndef HB_ZLIB_STRATEGY_DEFAULT
@@ -118,6 +115,18 @@
       #define HB_ZLIB_COMPRESSION_NONE    0
       #define HB_ZLIB_COMPRESSION_SPEED   1
       #define HB_ZLIB_COMPRESSION_SIZE    9
+
+      #define hb_znetOpen( iLevel, nStrategy )                               NULL
+      #define hb_znetRead( pStream, socket, pBuffer, len, timeout )          0
+      #define hb_znetWrite( pStream, socket, pBuffer, len, timeout, pLast )  0
+      #define hb_znetFlush( pStream, socket, timeout )                       0
+      #define hb_znetEncryptKey( pStream, szPW, iKeyLen )                    do { } while( 0 )
+      #define hb_znetClose( pStream )                                        do { } while( 0 )
+
+      #define hb_zlibCompressBound( ulLen )                                  0
+      #define hb_zlibCompress( pDst, pnDst, pSrc, nLen, iLevel )             0
+      #define hb_zlibUncompress( pBufCrypt, pulLen, pPtr, nSize )            do { } while( 0 )
+
    #endif
 
    /* hbthread replace and dummy */
@@ -125,7 +134,12 @@
    #ifndef LETO_NO_MT
       #define LETO_NO_MT                  1
    #endif
-   #if defined( HB_OS_WIN ) && ! defined( LETO_NO_THREAD ) && ! defined( __XCC__ )
+   /* No general disabling LETO_NO_THREAD here, because after correct setup it seem to work nice.
+    * On the other hand, if a RTE send from server over second port, received by second ! thread,
+    * is not leading to RTE in first main thread (aka  your app), totally kills the idea behind.
+    * Test RTE in test_file.prg, if unsure disable it by setting -DLETO_NO_THREAD for C-compiler.
+    * Especially test above for GUI applications, as i haven't done - elch */
+   #if defined( HB_OS_WIN ) && ! defined( LETO_NO_THREAD )
       #ifndef __MT__  /* set before process.h to enable beginThreadex in header */
          #define __MT__
       #endif
@@ -140,16 +154,8 @@
    #else
       typedef int HB_THREAD_HANDLE;
       typedef int HB_THREAD_ID;
-
-      #ifndef LETO_NO_THREAD
-         #define LETO_NO_THREAD
-      #endif
    #endif
 
-   /* missing in dbinfo.h */
-   #ifndef DBS_COUNTER
-      #define DBS_COUNTER   102
-   #endif
    #ifndef DBI_LOCKTEST
       #define DBI_LOCKTEST  146
    #endif
@@ -159,20 +165,30 @@
    #endif
 
    #define DB_DBFLOCK_DEFAULT      0
-   #define DB_DBFLOCK_CLIPPER      DB_DBFLOCK_CLIP         
-   #define DB_DBFLOCK_COMIX        DB_DBFLOCK_CL53         
-   /* #define DB_DBFLOCK_VFP is the same */
-   #define DB_DBFLOCK_HB32         DB_DBFLOCK_CL53EXT      
-   #define DB_DBFLOCK_HB64         DB_DBFLOCK_XHB64        
+   #define DB_DBFLOCK_CLIPPER      DB_DBFLOCK_CLIP
+   #define DB_DBFLOCK_COMIX        DB_DBFLOCK_CL53
+   /* #define DB_DBFLOCK_VFP; same value */
+   #define DB_DBFLOCK_HB32         DB_DBFLOCK_CL53EXT
+   #define DB_DBFLOCK_HB64         DB_DBFLOCK_XHB64
    #define DB_DBFLOCK_CLIPPER2     6
 
-   #define HB_AREANO   int
+   #define HB_AREANO               int
+   #define hb_snprintf                           snprintf
 
-   #define hb_arrayClone( pSource )           hb_arrayClone( pSource, NULL )
-   #define hb_arrayCloneTo( pDest, pSource )  hb_itemCopy( pDest, hb_arrayClone( pSource, NULL ) )
+   #define hb_arrayClone( pSource )              hb_itemClone( pSource )
+   #define hb_arrayCloneTo( pDest, pSource )     hb_itemMove( pDest, hb_itemClone( pSource ) )
+   /* a maybe too easy replace for the convenient harbour compare */
+   #define hb_itemCompare( pA, pB, fBool,pRes )  hb_itemType( pA ) == hb_itemType( pB )
+   #define hb_itemCloneTo( pDest, pSource )      hb_itemMove( pDest, hb_itemClone( pSource ) )
 
+   #define hb_dynsymIsMemvar( pDyns )            ( hb_dynsymMemvarHandle( pDyns ) )
+   #define hb_arraySetSymbol( pArr, n, pSym )    hb_itemPutSymbol( hb_arrayGetItemPtr( pArr, n ), pSym )
+   #define hb_arrayGetSymbol( pArr, n )          hb_itemGetSymbol( hb_arrayGetItemPtr( pArr, n ) )
+
+   #define hb_setGetForceOpt()                   ( HB_TRUE )
 #endif
 
+#include "funcleto.h"
 #include "letocl.h"
 
 #if ! defined( LETO_USE_THREAD )

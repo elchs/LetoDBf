@@ -4,7 +4,7 @@
  * Copyright 2013 Alexander S. Kresin <alex / at / kresin.ru>
  * www - http://www.kresin.ru
  *
- *           2015-23 Rolf 'elch' Beckmann
+ *           2015-19,23 Rolf 'elch' Beckmann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -146,7 +146,7 @@ LETOCONNECTION * LetoConnection( unsigned int uiConnection, LETOTABLE * pTable )
 
 #endif  /* __LETO_C_API__ */
 
-#ifndef LETO_NO_MT
+#if ! defined( LETO_NO_MT ) && ! defined( LETO_NO_THREAD )
    typedef struct
    {
       unsigned int     uiConnCount;   /* count of items in letoConnPool */
@@ -168,7 +168,6 @@ static int      s_iSessions = 0;   /* a counter to control hb_socketInit() */
    static char             s_szSMBServer[ 42 ] = { 0 };
    static int              s_iSMBPort = 0;
 #endif
-
 
 /* for backward compatibility to older Harbour */
 #if defined( __HARBOUR30__ ) || defined( __LETO_C_API__ )
@@ -2240,6 +2239,7 @@ static _HB_INLINE_ unsigned int leto_IsBinaryField( unsigned int uiType, unsigne
               uiType == HB_FT_IMAGE || uiType == HB_FT_OLE ) && uiLen != 10 ) ||
           ( uiType == HB_FT_DATE && uiLen != 8 ) ||
           uiType == HB_FT_TIME ||
+          uiType == HB_FT_DATETIME ||
           uiType == HB_FT_TIMESTAMP ||
           uiType == HB_FT_MODTIME ||
           uiType == HB_FT_ANY ||
@@ -2866,6 +2866,7 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
                case HB_FT_DOUBLE:
                case HB_FT_CURDOUBLE:
                case HB_FT_TIME:
+               case HB_FT_DATETIME:
                case HB_FT_MODTIME:
                case HB_FT_TIMESTAMP:
                case HB_FT_AUTOINC:
@@ -3031,6 +3032,7 @@ void leto_ParseRecord( LETOCONNECTION * pConnection, LETOTABLE * pTable, const c
                            case HB_FT_DOUBLE:
                            case HB_FT_CURDOUBLE:
                            case HB_FT_TIME:
+                           case HB_FT_DATETIME:
                            case HB_FT_MODTIME:
                            case HB_FT_TIMESTAMP:
                            case HB_FT_DATE:
@@ -3759,7 +3761,7 @@ void LetoConnectionClose( LETOCONNECTION * pConnection )
    }
    if( pConnection->hSocketErr != HB_NO_SOCKET )
    {
-#ifndef LETO_NO_THREAD
+#if ! defined( __XHARBOUR__ ) && ! defined( LETO_NO_THREAD )
       if( pConnection->hSockPipe[ 1 ] != FS_ERROR )  /* wake up leto_elch() */
       {
          const char cToPipe[ 1 ] = { ' ' };
@@ -3963,7 +3965,10 @@ static const char * leto_AddFields( LETOTABLE * pTable, HB_USHORT uiFields, cons
             pField->uiType = HB_FT_TIMESTAMP;
             break;
          case 'T':
-            pField->uiType = HB_FT_TIME;
+            if( pField->uiLen == 8 )
+               pField->uiType = HB_FT_DATETIME;
+            else
+               pField->uiType = HB_FT_TIME;
             break;
          case '^':
             pField->uiType = HB_FT_ROWVER;

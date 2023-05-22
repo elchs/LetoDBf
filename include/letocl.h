@@ -59,8 +59,9 @@
 
 #define HB_MAX_FILE_EXT    10
 
-#if ! ( defined( HB_FT_TIME ) )
-   #define HB_FT_TIME         8
+/* equal to harbour HB_FT_TIME (8), with length 4 ôr 8 */
+#if ! ( defined( HB_FT_DATETIME ) )
+   #define HB_FT_DATETIME     21
 #endif
 #if ! ( defined( HB_FT_TIMESTAMP ) )
    #define HB_FT_TIMESTAMP    9
@@ -439,14 +440,13 @@ void leto_AddKeyToBuf( char * szData, const char * szKey, unsigned int uiKeyLen,
 
 #if ! defined( __LETO_C_API__ )
    HB_BOOL Leto_VarExprTest( const char * szSrc, HB_BOOL fMemvarAllowed );
-#endif
-#if ! defined( __XHARBOUR__ ) && ! defined( __LETO_C_API__ )
    HB_BOOL Leto_VarExprCreate( LETOCONNECTION * pConnection, const char * szSrc, const HB_SIZE nSrcLen, char ** szDst, PHB_ITEM pArr );
    HB_ERRCODE Leto_VarExprSync( LETOCONNECTION * pConnection, PHB_ITEM pArr, HB_BOOL fReSync );
    HB_ERRCODE Leto_VarExprClear( LETOCONNECTION * pConnection, PHB_ITEM pArr );
 #else
+   #define Leto_VarExprTest( szExpression, fMemvar )    ( HB_FALSE )
+   #define Leto_VarExprSync( connection, arr, resync )  do { } while( 0 )
    #define Leto_VarExprClear( connection, pArr )        /* do { } while( 0 ) */
-   #define Leto_VarExprSync( connection, arr, resync )  /* do { } while( 0 ) */
 #endif
 
 #if defined( __HARBOUR30__ ) || defined( __LETO_C_API__ )

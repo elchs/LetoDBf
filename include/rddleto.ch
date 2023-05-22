@@ -51,6 +51,7 @@
 #ifndef RDDLETO_CH_
 #define RDDLETO_CH_
 
+#include "dbinfo.ch"
 
 #ifndef LETO_DEFAULT_PORT
    #define LETO_DEFAULT_PORT  2812
@@ -87,7 +88,7 @@
 #define LETOVAR_ARR          '4'
 #define LETOVAR_DAT          '5'
 
-#define LETO_VPREFIX          "S_"
+/* #define LETO_VPREFIX  "S_" deprecate, use group name 'My' */
 
 /* LetoDBf specific rddinfo() */
 #define RDDI_REFRESHCOUNT     101
@@ -108,6 +109,11 @@
 #define DBI_AUTOREFRESH       1005
 #define DBI_CHILDPARENT       1006
 
+/* dbinfo.ch must be loaded beforehand */
+/* not existing in harbour, 133 in xHb collides with DBOI_RESETPOS in harbour */
+#ifdef DBOI_TEMPORARY
+   #undef DBOI_TEMPORARY
+#endif
 #define DBOI_TEMPORARY        1001
 #define DBOI_INTERNAL         1002
 
@@ -152,15 +158,5 @@
    #define Set( _HB_SETTING, XSET )   LETO_SET( _HB_SETTING, XSET )
 #endif
 #define SET( _HB_SETTING, XSET )   LETO_SET( _HB_SETTING, XSET )
-
-
-#ifdef __XHARBOUR__
-   #ifndef DBS_COUNTER
-      #define DBS_COUNTER       102
-   #endif
-   #ifndef DBS_STEP
-      #define DBS_STEP          103
-   #endif
-#endif
 
 #endif /* RDDLETO_CH_ */
