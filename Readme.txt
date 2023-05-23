@@ -105,21 +105,80 @@ A. Internals
 
       2. Building binaries
 
- * This software is designed to be yourself build from sourcecode ! *
+ *  ! This software is HEAVILY designed to be yourself build easy from sourcecode !  *
+ * LetoDBf dislikes to be distributed binary, at very least source must be included  *
  * So it is recommended to check for fresh version from download origins given below *
 
- Get and build the fantastic Harbour:
-    The letodb server can be compiled only by the Harbour compiler >= V3.0.
-    It is strong recommended to download and build Harbour from the fresh 3.2 source:
+ The letodb server itself can be compiled only by the Harbour compiler >= V3.0.
+
+      2.0.1 Extreme easy ! building fantastic Harbour from source
+
+    It is strong recommended to download and build Harbour compiler fresh from source,
+    what can be done by using GIT or just fetch the zip file:
+    There is the 'official' v3.2:
        git clone https://github.com/harbour/core.git
-    For this you need your C-Compiler used for Harbour in your OS search path.
- Or use latest Harbour binary ( 'nightly' ) package:
+       https://github.com/harbour/core/archive/refs/heads/master.zip
+    or the fork by Viktor Szakats:
+       git clone https://github.com/vszakats/hb.git
+       https://github.com/vszakats/hb/archive/refs/heads/main.zip
+
+    ALL what is needed from Harbour for LetoDBf is in the above official v3.2 package,
+    for the fork a 'win-make' == gnu make for Windows will be needed, take it from 3.2.
+
+    Further you need an installed C-compiler of your choice, like MinGW, gcc, Clang, MsVc ..
+
+    Start a command shell, for Windows its the 'cmd' ( black window ),
+    and 'cd' into the root directory of the Harbour source.
+    If you want to do the following more often, create a tiny bat-ch/ script for that.
+
+    Set the PATH to the C-compiler, if it is not already in the OS search path.
+    For not ever needed settings for LIB and INCLUDE check the Readme.md in Harbour,
+    commonly they are the LIB and the INCLUDE folder of the C-compiler.
+    But also they may be even already set by the installation of the C-compiler.
+    A Windows example:
+
+       SET PATH=C:\mingw64\bin;
+         rem SET LIB= ... see Harbour Readme.md, section build examples
+         rem SET INCLUDE= ...
+       SET HB_INSTALL_PREFIX=C:\HB
+       SET HB_BUILD_CONTRIBS=hbmemio hbct
+       SET HB_BUILD_CONTRIB_DYN=no
+       SET HB_BUILD_DYN=no
+         rem win-make clean
+       win-make -j8 install 1> build.log 2> build.err
+
+    Win-make in above example is instructed to use 8 ! CPU-cores (use as many you have)
+    for parallel ! building the Harbour core plus two contribs ( 'extras' ).
+    These are 'hbmemio' for DBF tables in RAM and 'hbct' known as Clipper tools.
+    The contrib HbCt is very useful, but optional for the LetoDBf server.
+
+    The keyword 'install' will copy executables, libs, include files into a seperate
+    directory ( INSTALL_PREFIX ) -- note for professionals: its not even needed ;-)
+    The output of the build process [ '1>' is stdout, '2>' is stderr ] is re-directed into
+    files, which makes it even faster.
+
+    Afterwards you *add* the PATH to the created harbour/ hbmk2 executables:
+       SET PATH=C:\HB\bin;%PATH%
+    Verify by checking command for response:
+       hbmk2 -build
+    Do NOT close the 'black window' else the PATH setting is lost,
+    and 'cd' into the Letodbf directory to proceed.
+
+
+       2.0.2 or using latest Harbour binary ( 'nightly' ) package
+
+    Nevertheless you will need a C-compiler, and it must fit ! to the binary package,
+    so when you have the right C-compiler for the binaries at hand ...
+
        https://sourceforge.net/projects/harbour-project/files/
        https://github.com/vszakats/harbour-core/releases
-    Afterall the path to the 'hbmk2' executable is also added to OS search path list.
+
+    Afterall the path to the 'hbmk2' executable must also added to OS search path list.
     Follow the instructions found with Harbour.
 
- Get latest source of LetoDBf
+
+       2.0.3 get latest source of LetoDBf
+
     with GIT:
        git clone https://github.com/elchs/LetoDBf.git
     or as packed package at:
@@ -129,7 +188,7 @@ A. Internals
     and change in command window into the the root directory of download package.
 
 
-      2.1 building letodb with hbmk2, for all C compilers
+      2.1 building letodb with * hbmk2 * make tool, for all C compilers
 
  Server itself:
     letodb.hbp is ready configured server for Windows and Linux daemon,
@@ -144,7 +203,6 @@ A. Internals
 
     If Linux user have 'installed' Harbour, you need root rights to also install LetoDBf as 'addon':
     -- Linux:           [ sudo ] hbmk2 rddletoaddon
-
 
  Resulting server executable will be found in the "bin" directory, library will be in "lib".
  In the "bin" directory is also the "letodb.ini" file to configure the server.
@@ -206,9 +264,9 @@ A. Internals
 
 
       2.5 xHarbour
-
+ 
  SERVER: the server itself must be build with Harbour, cannot be done with xHB.
- Same applies for utils like console monitor.
+ Same applies for utils like console monitor. Look chapter 2. how easy it is to build Harbour ...
 
  CLIENT: client library (RDD) can be build with xHarbour, use the 'rddleto.lib.xbp' definition for
  xBuilder. For Windows ( but not for XCC ), it will by default use a second thread ( without HVM ),

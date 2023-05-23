@@ -2,6 +2,15 @@
      * Change, ! Fix, % Optimization, + Addition, - Removal, ; Comment
 */
 
+2023-05-23 06:00 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
+  * ChangeLog.txt
+
+  * Readme.txt
+    * update a stronger note about binary distribution of LetoDBf
+    ; the whole chapter for xHarbour users needs an update,
+      about how they can live without Viktor Szakats' hbmk2 ;-)
+    ; still LZ4 compression not working for xHarbour, use LZ4_DUMMY
+
 2023-05-22 17:31 UTC+0100 Rolf 'elch' Beckmann (elchs @ iesy.net)
   ; News: restore xHarbour compatibility - as far as i got yet because a few
     Harbour extensions are not available in xHarbour: e.g. serialize a PHB_ITEM 
@@ -46,7 +55,7 @@
   * source/3rd/lz4/lib/lz4.h
     * suppress deprecated warnings with __NO_LZ4_WARN__
   * source/common/lz4net.c
-    * adding dummy functions for LZ4, activated by #define LZ$_DUMMY
+    * adding dummy functions for LZ4, activated by #define LZ4_DUMMY
       ; this is to use LetoDBf just without compression in case of
         a C-compiler can't compile the real LZ4 or similar problems
 
